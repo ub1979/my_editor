@@ -17,11 +17,13 @@ Decisions are in [`docs/decisions/`](docs/decisions/). Screenshots are in [`docs
   the minimap, breadcrumbs, most of the status bar and the Copilot prompts are gone.
 - **The Project view** (left sidebar): the build path (Requirements → Architecture → Flow & tree → Build → QA)
   with live status, memory (conventions, brain, decisions, chat history) and the active model.
-- **Chat with `@pair`** (right sidebar, the default participant). Plain questions never touch code.
-  - `/file`, `/feature`, `/change`, `/next` write code — shown in the editor with **Keep / Undo** per change.
-  - `/explain`, `/review`, `/brainstorm` only talk; a brainstorm can be saved as a decision.
-  - `/requirements`, `/architecture`, `/tree` interview you and, when you say "write it", propose the spec file.
-  - `/skill <name>` runs a `SKILL.md` skill (built-in: `debug`, `tests`, `refactor`; add your own).
+- **The Pair** (right sidebar): my_editor's own chat. Opening a project greets you with skill cards (Plan:
+  Requirements, Architecture, Plan the files, Brainstorm; Build: Next step, Add a feature, Change selection,
+  Explain, Why; Fix: Review, Debug, Tests, Refactor; plus your own skills). Type `/` for commands.
+  Code changes come back as proposals: review them in an inline diff, undo single parts with the gutter
+  arrow, then **Keep** (writes and saves) or **Undo**. Nothing touches your file before Keep.
+- **A quiet window:** the left bar has only Files and Project; Search, Git, Run and Extensions still work
+  from their shortcuts and appear only while open.
 - **Models** — pick with **my_editor: Choose Default Model** (or *Change* in the Project view):
   - **Claude subscription** through your Claude Code login (`claude` CLI): Opus, Sonnet, Haiku. Runs with no
     tools, no MCP and no saved session, and with API-key variables removed so billing never switches silently.

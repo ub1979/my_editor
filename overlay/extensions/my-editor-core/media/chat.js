@@ -131,7 +131,11 @@ function renderWelcome() {
 			});
 			grid.append(button);
 		}
-		box.append(el('p', { class: 'group-title' }, [group]), grid);
+		box.append(el('p', { class: 'group-title' }, [group]));
+		if (!state.file && cards.every(card => card.needsFile)) {
+			box.append(el('p', { class: 'group-note' }, ['Open a file to use these.']));
+		}
+		box.append(grid);
 	}
 	return box;
 }

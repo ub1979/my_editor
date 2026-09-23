@@ -62,24 +62,7 @@ svg.icon {
 	container-type: inline-size;
 }
 
-/* Narrow panel: cards show icon and title; the description is the tooltip. */
-@container (max-width: 400px) {
-	.skill {
-		grid-template-columns: 26px 1fr;
-		align-items: center;
-		padding: 8px 10px;
-	}
 
-	.skill .tile {
-		grid-row: auto;
-		width: 26px;
-		height: 26px;
-	}
-
-	.skill .blurb {
-		display: none;
-	}
-}
 
 /* Header */
 
@@ -161,6 +144,12 @@ svg.icon {
 	color: var(--muted);
 }
 
+.group-note {
+	margin: -4px 2px 8px;
+	color: var(--muted);
+	font-size: 11px;
+}
+
 .group-title {
 	margin: 16px 2px 8px;
 	color: var(--muted);
@@ -207,8 +196,6 @@ svg.icon {
 .skill .title {
 	min-width: 0;
 	font-weight: 600;
-	overflow-wrap: anywhere;
-	hyphens: auto;
 }
 
 .skill .blurb {
@@ -703,4 +690,24 @@ select.model:hover {
 @keyframes blink {
 	0%, 94%, 100% { transform: scaleY(1); }
 	96% { transform: scaleY(0.1); }
+}
+
+/* Narrow panel: cards show icon and title; the description is the tooltip. */
+@container (max-width: 400px) {
+	/* Icon above the name, so whole words fit. */
+	.skill {
+		grid-template-columns: 1fr;
+		gap: 6px;
+		padding: 10px;
+	}
+
+	.skill .tile {
+		grid-row: auto;
+		width: 26px;
+		height: 26px;
+	}
+
+	.skill .blurb {
+		display: none;
+	}
 }
