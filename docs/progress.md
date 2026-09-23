@@ -40,7 +40,7 @@ Status of the requirements in [`plans/my_editor-plan-v2.md`](plans/my_editor-pla
 |---|---|---|
 | Decisions (FR-040) | 🟡 | From brainstorms; linking to files not yet |
 | Review notes as line comments (FR-042) | ⬜ | |
-| "Why is this like this?" (FR-044) | ⬜ | |
+| "Why is this like this?" (FR-044) | ✅ | `/why` cites decisions and past chats about the file; says when there is no record |
 | Guided build: requirements, architecture, tree (FR-060–062) | ✅ | Requirements verified end to end with a local model; architecture/tree share the same path |
 | Scaffold stubs from the tree (FR-063) | ✅ | Tick planned files; stubs state job, requirements, section; never overwrites |
 | Progress per file (FR-064) | ✅ | stub → in progress on save → done by command; Build opens the next file with `/next` |
