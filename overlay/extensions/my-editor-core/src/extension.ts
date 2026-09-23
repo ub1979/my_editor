@@ -23,7 +23,7 @@ export function activate(context: vscode.ExtensionContext): void {
 		models,
 		status,
 		vscode.lm.registerLanguageModelChatProvider('my-editor', models),
-		registerPairParticipant(),
+		registerPairParticipant(context.extensionUri),
 		vscode.window.registerWebviewViewProvider(ProjectView.id, new ProjectView(context)),
 		vscode.commands.registerCommand('myEditor.setApiKey', () => keys.promptAndStore()),
 		vscode.commands.registerCommand('myEditor.refreshModels', () => models.refresh()),

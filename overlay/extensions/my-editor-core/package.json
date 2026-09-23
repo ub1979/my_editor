@@ -80,6 +80,10 @@
           {
             "name": "next",
             "description": "Driver: take the next small step"
+          },
+          {
+            "name": "skill",
+            "description": "Use a skill: /skill <name> <request> \u2014 /skill alone lists them"
           }
         ],
         "modes": [

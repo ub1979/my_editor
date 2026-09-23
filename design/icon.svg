@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2a3024"/>
+      <stop offset="1" stop-color="#151713"/>
+    </linearGradient>
+    <linearGradient id="page" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f7f5ee"/>
+      <stop offset="1" stop-color="#ebe7da"/>
+    </linearGradient>
+  </defs>
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)"/>
+  <rect x="100.5" y="100.5" width="823" height="823" rx="184.5" fill="none" stroke="#ffffff" stroke-opacity="0.06"/>
+  <rect x="262" y="214" width="500" height="596" rx="34" fill="url(#page)"/>
+  <g stroke="#1a1c17" stroke-linecap="round" stroke-width="26">
+    <line x1="336" y1="330" x2="560" y2="330" stroke-opacity="0.85"/>
+    <line x1="380" y1="410" x2="660" y2="410" stroke-opacity="0.55"/>
+    <line x1="380" y1="490" x2="600" y2="490" stroke-opacity="0.55"/>
+    <line x1="336" y1="570" x2="470" y2="570" stroke-opacity="0.85"/>
+  </g>
+  <rect x="496" y="522" width="22" height="96" rx="11" fill="#d9a13b"/>
+</svg>

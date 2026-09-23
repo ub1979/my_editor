@@ -3,20 +3,31 @@ import { logExchange } from '../records/chatLog';
 import { currentFile, describeFile, FileContext, readProjectNote } from './context';
 import { lastCodeBlock } from './codeBlock';
 import { Mode, MODES, systemPrompt } from './prompts';
+import { loadSkills } from '../skills/loader';
 
 const HISTORY_TURNS = 6;
 
 /** `@pair`: the pair programmer. Talks by default; writes code only for an explicit mode, as a reviewed edit. */
-export function registerPairParticipant(): vscode.Disposable {
-	const participant = vscode.chat.createChatParticipant('myEditor.pair', handle);
+export function registerPairParticipant(extensionUri: vscode.Uri): vscode.Disposable {
+	const participant = vscode.chat.createChatParticipant('myEditor.pair', (request, context, stream, token) =>
+		handle(extensionUri, request, context, stream, token));
 	participant.iconPath = new vscode.ThemeIcon('sparkle');
 	return participant;
 }
 
 async function handle(
-	request: vscode.ChatRequest, context: vscode.ChatContext, stream: vscode.ChatResponseStream, token: vscode.CancellationToken,
+	extensionUri: vscode.Uri, request: vscode.ChatRequest, context: vscode.ChatContext,
+	stream: vscode.ChatResponseStream, token: vscode.CancellationToken,
 ): Promise<vscode.ChatResult> {
-	const mode = MODES[request.command ?? 'chat'] ?? MODES.chat;
+	let mode: Mode = MODES[request.command ?? 'chat'] ?? MODES.chat;
+	let prompt = request.prompt;
+	if (request.command === 'skill') {
+		const chosen = await resolveSkill(extensionUri, prompt, stream);
+		if (!chosen) {
+			return {};
+		}
+		({ mode, prompt } = chosen);
+	}
 	let file: FileContext | undefined;
 	try {
 		file = await currentFile(request);
@@ -38,7 +49,7 @@ async function handle(
 	const subject = mode.writes === 'doc' ? specs || 'No specs written yet.' : file ? describeFile(file) : 'No file is open.';
 	const messages = [
 		...history(context),
-		vscode.LanguageModelChatMessage.User(`${subject}\n\nRequest: ${request.prompt || '(no extra instructions)'}`),
+		vscode.LanguageModelChatMessage.User(`${subject}\n\nRequest: ${prompt || '(no extra instructions)'}`),
 	];
 
 	const reply = await request.model.sendRequest(
@@ -53,7 +64,7 @@ async function handle(
 	} else if (mode.writes !== 'none' && file) {
 		proposeEdit(stream, mode, file, text);
 	}
-	void logExchange({ mode: mode.id, model: request.model.name, file: file?.relativePath, prompt: request.prompt, reply: text });
+	void logExchange({ mode: mode.id, model: request.model.name, file: file?.relativePath, prompt, reply: text });
 	return { metadata: { mode: mode.id } };
 }
 
@@ -100,6 +111,23 @@ function proposeEdit(stream: vscode.ChatResponseStream, mode: Mode, file: FileCo
 	stream.markdown('\n\nReview the change in the editor — keep or undo each part.');
 	stream.textEdit(file.uri, [vscode.TextEdit.replace(range, content)]);
 	stream.textEdit(file.uri, true);
+}
+
+/** `/skill <name> <request>`: runs a SKILL.md as the mode. Without a known name, lists the skills. */
+async function resolveSkill(
+	extensionUri: vscode.Uri, prompt: string, stream: vscode.ChatResponseStream,
+): Promise<{ mode: Mode; prompt: string } | undefined> {
+	const skills = await loadSkills(extensionUri);
+	const [name = '', ...rest] = prompt.trim().split(/\s+/);
+	const skill = skills.get(name.toLowerCase());
+	if (!skill) {
+		const lines = [...skills.values()]
+			.sort((a, b) => a.name.localeCompare(b.name))
+			.map(s => `- **${s.name}** — ${s.description || 'no description'} _(${s.source})_`);
+		stream.markdown(`${name ? `No skill called \`${name}\`. ` : ''}Use \`/skill <name> <what you want>\`.\n\n${lines.join('\n') || 'No skills found.'}\n\nAdd your own in \`.my_editor/skills/<name>/SKILL.md\` (this project) or \`~/.my_editor/skills/\` (everywhere).`);
+		return undefined;
+	}
+	return { mode: { id: `skill:${skill.name}`, writes: skill.writes, instruction: skill.instruction }, prompt: rest.join(' ') };
 }
 
 /** The spec files a document mode works from, labelled by path. */

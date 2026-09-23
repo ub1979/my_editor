@@ -23,18 +23,21 @@ for ext in "${ROOT}"/overlay/extensions/*/; do
   rsync -a --delete --exclude node_modules --exclude src --exclude '*.map' --exclude tsconfig.json "${ext}" "${dest}/"
 done
 
-# --- 2. Core patches
+# --- 2. Resource overrides (app icon, empty-editor mark): overlay/src mirrors vscodium/src/stable
+rsync -a "${ROOT}/overlay/src/" "${ROOT}/vscodium/src/stable/"
+
+# --- 3. Core patches
 shopt -s nullglob
 for patch in "${ROOT}"/overlay/patches/*.patch; do
   cp "${patch}" "${ROOT}/vscodium/patches/user/"
 done
 shopt -u nullglob
 
-# --- 3. Branding: our product.json wins over VSCodium's
+# --- 4. Branding: our product.json wins over VSCodium's
 cd "${ROOT}/vscodium"
 jq -s '.[0] * .[1]' product.json "${ROOT}/overlay/product.json" > product.json.tmp && mv product.json.tmp product.json
 
-# --- 4. Build (mirrors vscodium/dev/build.sh with our names)
+# --- 5. Build (mirrors vscodium/dev/build.sh with our names)
 # VSCodium scripts read unset variables, so relax nounset from here on.
 set +u
 export APP_NAME="my_editor"

@@ -1,5 +1,16 @@
 {
   "extends": "./tsconfig.json",
-  "compilerOptions": { "outDir": "out-test", "rootDir": ".", "types": ["node"] },
-  "include": ["test", "src/pair/codeBlock.ts", "src/records/redact.ts"]
+  "compilerOptions": {
+    "outDir": "out-test",
+    "rootDir": ".",
+    "types": [
+      "node"
+    ]
+  },
+  "include": [
+    "test",
+    "src/pair/codeBlock.ts",
+    "src/records/redact.ts",
+    "src/skills/frontmatter.ts"
+  ]
 }

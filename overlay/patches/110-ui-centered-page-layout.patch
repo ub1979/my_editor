@@ -1,5 +1,5 @@
 diff --git a/src/vs/base/browser/ui/centered/centeredViewLayout.ts b/src/vs/base/browser/ui/centered/centeredViewLayout.ts
-index 6b052011..2f97fdab 100644
+index 6b052011..aa907036 100644
 --- a/src/vs/base/browser/ui/centered/centeredViewLayout.ts
 +++ b/src/vs/base/browser/ui/centered/centeredViewLayout.ts
 @@ -21,7 +21,8 @@ export interface CenteredViewState {
@@ -12,7 +12,17 @@ index 6b052011..2f97fdab 100644
  	leftMarginRatio: 0.1909,
  	rightMarginRatio: 0.1909,
  };
-@@ -116,7 +117,9 @@ export class CenteredViewLayout implements IDisposable {
+@@ -38,7 +39,8 @@ function createEmptyView(background: Color | undefined): ISplitViewView<{ top: n
+ 	return {
+ 		element,
+ 		layout: () => undefined,
+-		minimumSize: 60,
++		// my_editor: margins may shrink to a thin frame so the page keeps its width.
++		minimumSize: 16,
+ 		maximumSize: Number.POSITIVE_INFINITY,
+ 		onDidChange: Event.None
+ 	};
+@@ -116,7 +118,9 @@ export class CenteredViewLayout implements IDisposable {
  			return;
  		}
  		if (this.centeredLayoutFixedWidth) {

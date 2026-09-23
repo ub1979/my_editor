@@ -2,6 +2,7 @@ import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
 import { lastCodeBlock } from '../src/pair/codeBlock';
 import { collapseCode, redact } from '../src/records/redact';
+import { parseSkill } from '../src/skills/frontmatter';
 
 test('lastCodeBlock takes the last fenced block', () => {
 	const reply = 'Added a guard.\n\n```ts\nconst a = 1;\n```\n\nThen:\n```ts\nconst b = 2;\nconst c = 3;\n```\n';
@@ -35,4 +36,14 @@ test('redact removes private keys', () => {
 
 test('collapseCode replaces code blocks with a line count', () => {
 	assert.equal(collapseCode('Did it.\n\n```ts\na();\nb();\n```\nDone.'), 'Did it.\n\n_[code: 2 lines]_\nDone.');
+});
+
+test('parseSkill reads flat frontmatter and the body', () => {
+	const skill = parseSkill('---\nname: debug\ndescription: "Find the cause"\nwrites: file\n---\n\nStep one.\n');
+	assert.deepEqual(skill.meta, { name: 'debug', description: 'Find the cause', writes: 'file' });
+	assert.equal(skill.body, 'Step one.');
+});
+
+test('parseSkill treats a file without frontmatter as all body', () => {
+	assert.deepEqual(parseSkill('Just do it.'), { meta: {}, body: 'Just do it.' });
 });
