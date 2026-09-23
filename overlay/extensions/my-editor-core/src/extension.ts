@@ -11,6 +11,7 @@ import { Navigator } from './navigator/navigator';
 import { Home } from './project/home';
 import { adaptFile } from './project/impact';
 import { openNextFile, scaffoldFromTree, toggleFileDone, trackProgress } from './project/tree';
+import { ThisFileView } from './project/thisFile';
 import { ProjectView } from './project/view';
 import { checkFit } from './qa/checkFit';
 import { DecisionDraft, saveDecision } from './records/decisions';
@@ -44,6 +45,7 @@ export function activate(context: vscode.ExtensionContext): void {
 		status,
 		vscode.window.registerWebviewViewProvider(ChatView.id, chat, { webviewOptions: { retainContextWhenHidden: true } }),
 		vscode.window.registerWebviewViewProvider(ProjectView.id, new ProjectView(context, keys)),
+		vscode.window.registerWebviewViewProvider(ThisFileView.id, new ThisFileView(context)),
 		vscode.commands.registerCommand('myEditor.chat.start', (skill: string) => chat.startSkill(skill)),
 		vscode.commands.registerCommand('myEditor.chat.ask', (text: string) => chat.ask(text)),
 		vscode.commands.registerCommand('myEditor.chat.skills', () => chat.toggleSkills()),

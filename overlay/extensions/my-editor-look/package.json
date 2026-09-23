@@ -26,6 +26,13 @@
         "uiTheme": "vs-dark",
         "path": "./themes/night-color-theme.json"
       }
+    ],
+    "iconThemes": [
+      {
+        "id": "my_editor",
+        "label": "my_editor Icons",
+        "path": "./icons/my_editor-icon-theme.json"
+      }
     ]
   }
 }

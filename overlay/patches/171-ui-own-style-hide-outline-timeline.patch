@@ -1,0 +1,39 @@
+diff --git a/src/vs/workbench/browser/style.ts b/src/vs/workbench/browser/style.ts
+index 9250ef3f..5d0ddbe0 100644
+--- a/src/vs/workbench/browser/style.ts
++++ b/src/vs/workbench/browser/style.ts
+@@ -4,6 +4,8 @@
+  *--------------------------------------------------------------------------------------------*/
+ 
+ import './media/style.css';
++// my_editor: the workbench in the same style as its own panels.
++import './media/my-editor.css';
+ import { registerThemingParticipant } from '../../platform/theme/common/themeService.js';
+ import { WORKBENCH_BACKGROUND, TITLE_BAR_ACTIVE_BACKGROUND } from '../common/theme.js';
+ import { isWeb, isIOS } from '../../base/common/platform.js';
+diff --git a/src/vs/workbench/contrib/outline/browser/outline.contribution.ts b/src/vs/workbench/contrib/outline/browser/outline.contribution.ts
+index bb8dd656..33283d36 100644
+--- a/src/vs/workbench/contrib/outline/browser/outline.contribution.ts
++++ b/src/vs/workbench/contrib/outline/browser/outline.contribution.ts
+@@ -30,7 +30,7 @@ Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([{
+ 	ctorDescriptor: new SyncDescriptor(OutlinePane),
+ 	canToggleVisibility: true,
+ 	canMoveView: true,
+-	hideByDefault: false,
++	hideByDefault: true, // my_editor: replaced by the "This file" panel
+ 	collapsed: true,
+ 	order: 2,
+ 	weight: 30,
+diff --git a/src/vs/workbench/contrib/timeline/browser/timeline.contribution.ts b/src/vs/workbench/contrib/timeline/browser/timeline.contribution.ts
+index 64c6b1a5..b5abc7d0 100644
+--- a/src/vs/workbench/contrib/timeline/browser/timeline.contribution.ts
++++ b/src/vs/workbench/contrib/timeline/browser/timeline.contribution.ts
+@@ -34,7 +34,7 @@ export class TimelinePaneDescriptor implements IViewDescriptor {
+ 	readonly weight = 30;
+ 	readonly collapsed = true;
+ 	readonly canToggleVisibility = true;
+-	readonly hideByDefault = false;
++	readonly hideByDefault = true; // my_editor: replaced by the "This file" panel
+ 	readonly canMoveView = true;
+ 	readonly when = TimelineHasProviderContext;
+ 

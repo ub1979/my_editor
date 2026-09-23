@@ -1,0 +1,166 @@
+:root {
+	--muted: var(--vscode-descriptionForeground);
+	--accent: var(--vscode-button-background, #d9a13b);
+	--accent-text: var(--vscode-textLink-foreground, #e8bd6c);
+	--hover: var(--vscode-list-hoverBackground);
+	--line: var(--vscode-widget-border, rgba(128, 128, 128, 0.2));
+	--serif: 'Iowan Old Style', 'Palatino', Georgia, serif;
+	--mono: ui-monospace, 'SF Mono', Menlo, monospace;
+}
+
+body {
+	margin: 0;
+	padding: 10px 12px 18px;
+	color: var(--vscode-foreground);
+	font-family: var(--vscode-font-family);
+	font-size: 13px;
+	line-height: 1.4;
+}
+
+button {
+	font: inherit;
+	color: inherit;
+	cursor: pointer;
+}
+
+:focus-visible {
+	outline: 2px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+}
+
+.name {
+	margin: 0;
+	font-family: var(--serif);
+	font-size: 19px;
+	font-weight: 500;
+	overflow-wrap: anywhere;
+}
+
+.role {
+	margin: 2px 0 0;
+	color: var(--muted);
+	font-size: 12px;
+}
+
+.quick {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	margin: 10px 0 4px;
+}
+
+.quick button {
+	padding: 3px 10px;
+	border: 1px solid var(--line);
+	border-radius: 999px;
+	background: transparent;
+	font-size: 12px;
+	font-weight: 600;
+}
+
+.quick button:hover {
+	background: var(--hover);
+}
+
+.eyebrow {
+	margin: 16px 0 6px;
+	color: var(--muted);
+	font-family: var(--mono);
+	font-size: 10px;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+}
+
+ul {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	width: 100%;
+	padding: 3px 6px;
+	border: 0;
+	border-radius: 6px;
+	background: transparent;
+	text-align: left;
+}
+
+.row:hover {
+	background: var(--hover);
+}
+
+.row.current {
+	background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.row .label {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.row .meta {
+	margin-left: auto;
+	color: var(--muted);
+	font-family: var(--mono);
+	font-size: 11px;
+	white-space: nowrap;
+}
+
+/* Symbol kinds: a letter in a soft tile, so the kind is never colour alone. */
+.kind {
+	display: grid;
+	place-items: center;
+	flex: none;
+	width: 16px;
+	height: 16px;
+	border-radius: 4px;
+	font-family: var(--mono);
+	font-size: 9px;
+	font-weight: 700;
+}
+
+.kind.class { background: color-mix(in srgb, #8ccabf 22%, transparent); color: #8ccabf; }
+.kind.interface { background: color-mix(in srgb, #9cc2dc 22%, transparent); color: #9cc2dc; }
+.kind.enum { background: color-mix(in srgb, #c9a0b8 22%, transparent); color: #c9a0b8; }
+.kind.function { background: color-mix(in srgb, #e8bd6c 20%, transparent); color: #e8bd6c; }
+.kind.field, .kind.value { background: color-mix(in srgb, #aac38f 20%, transparent); color: #aac38f; }
+.kind.module { background: color-mix(in srgb, #b9bdb0 20%, transparent); color: #b9bdb0; }
+
+.depth-1 { padding-left: 20px; }
+.depth-2 { padding-left: 34px; }
+
+.note .dot {
+	flex: none;
+	width: 7px;
+	height: 7px;
+	border-radius: 50%;
+	background: var(--muted);
+}
+
+.note.warning .dot {
+	background: var(--accent);
+}
+
+.commit .hash {
+	flex: none;
+	color: var(--accent-text);
+	font-family: var(--mono);
+	font-size: 11px;
+}
+
+.empty {
+	margin: 2px 6px;
+	color: var(--muted);
+	font-size: 12px;
+}
+
+.none {
+	margin-top: 6px;
+	color: var(--muted);
+}

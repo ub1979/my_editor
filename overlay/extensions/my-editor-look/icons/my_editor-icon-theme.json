@@ -1,0 +1,258 @@
+{
+	"iconDefinitions": {
+		"ts": {
+			"iconPath": "./ts.svg"
+		},
+		"js": {
+			"iconPath": "./js.svg"
+		},
+		"py": {
+			"iconPath": "./py.svg"
+		},
+		"rs": {
+			"iconPath": "./rs.svg"
+		},
+		"go": {
+			"iconPath": "./go.svg"
+		},
+		"c": {
+			"iconPath": "./c.svg"
+		},
+		"cpp": {
+			"iconPath": "./cpp.svg"
+		},
+		"h": {
+			"iconPath": "./h.svg"
+		},
+		"java": {
+			"iconPath": "./java.svg"
+		},
+		"kt": {
+			"iconPath": "./kt.svg"
+		},
+		"swift": {
+			"iconPath": "./swift.svg"
+		},
+		"rb": {
+			"iconPath": "./rb.svg"
+		},
+		"php": {
+			"iconPath": "./php.svg"
+		},
+		"cs": {
+			"iconPath": "./cs.svg"
+		},
+		"sql": {
+			"iconPath": "./sql.svg"
+		},
+		"vue": {
+			"iconPath": "./vue.svg"
+		},
+		"svelte": {
+			"iconPath": "./svelte.svg"
+		},
+		"lua": {
+			"iconPath": "./lua.svg"
+		},
+		"dart": {
+			"iconPath": "./dart.svg"
+		},
+		"r": {
+			"iconPath": "./r.svg"
+		},
+		"json": {
+			"iconPath": "./json.svg"
+		},
+		"html": {
+			"iconPath": "./html.svg"
+		},
+		"css": {
+			"iconPath": "./css.svg"
+		},
+		"md": {
+			"iconPath": "./md.svg"
+		},
+		"sh": {
+			"iconPath": "./sh.svg"
+		},
+		"yaml": {
+			"iconPath": "./yaml.svg"
+		},
+		"toml": {
+			"iconPath": "./toml.svg"
+		},
+		"xml": {
+			"iconPath": "./xml.svg"
+		},
+		"docker": {
+			"iconPath": "./docker.svg"
+		},
+		"npm": {
+			"iconPath": "./npm.svg"
+		},
+		"git": {
+			"iconPath": "./git.svg"
+		},
+		"env": {
+			"iconPath": "./env.svg"
+		},
+		"lock": {
+			"iconPath": "./lock.svg"
+		},
+		"license": {
+			"iconPath": "./license.svg"
+		},
+		"readme": {
+			"iconPath": "./readme.svg"
+		},
+		"test": {
+			"iconPath": "./test.svg"
+		},
+		"_file": {
+			"iconPath": "./_file.svg"
+		},
+		"_image": {
+			"iconPath": "./_image.svg"
+		},
+		"_folder": {
+			"iconPath": "./_folder.svg"
+		},
+		"_folder_open": {
+			"iconPath": "./_folder_open.svg"
+		}
+	},
+	"file": "_file",
+	"folder": "_folder",
+	"folderExpanded": "_folder_open",
+	"rootFolder": "_folder",
+	"rootFolderExpanded": "_folder_open",
+	"fileExtensions": {
+		"ts": "ts",
+		"mts": "ts",
+		"cts": "ts",
+		"tsx": "ts",
+		"d.ts": "ts",
+		"js": "js",
+		"mjs": "js",
+		"cjs": "js",
+		"jsx": "js",
+		"py": "py",
+		"pyi": "py",
+		"ipynb": "py",
+		"rs": "rs",
+		"go": "go",
+		"c": "c",
+		"cpp": "cpp",
+		"cc": "cpp",
+		"cxx": "cpp",
+		"hpp": "cpp",
+		"hh": "cpp",
+		"hxx": "cpp",
+		"h": "h",
+		"java": "java",
+		"kt": "kt",
+		"kts": "kt",
+		"swift": "swift",
+		"rb": "rb",
+		"php": "php",
+		"cs": "cs",
+		"sql": "sql",
+		"vue": "vue",
+		"svelte": "svelte",
+		"lua": "lua",
+		"dart": "dart",
+		"r": "r",
+		"json": "json",
+		"jsonc": "json",
+		"json5": "json",
+		"html": "html",
+		"htm": "html",
+		"css": "css",
+		"scss": "css",
+		"sass": "css",
+		"less": "css",
+		"md": "md",
+		"markdown": "md",
+		"mdx": "md",
+		"sh": "sh",
+		"bash": "sh",
+		"zsh": "sh",
+		"fish": "sh",
+		"yml": "yaml",
+		"yaml": "yaml",
+		"toml": "toml",
+		"ini": "toml",
+		"cfg": "toml",
+		"conf": "toml",
+		"xml": "xml",
+		"plist": "xml",
+		"lock": "lock",
+		"env": "env",
+		"test.ts": "test",
+		"spec.ts": "test",
+		"test.js": "test",
+		"spec.js": "test",
+		"test.tsx": "test",
+		"spec.tsx": "test",
+		"png": "_image",
+		"jpg": "_image",
+		"jpeg": "_image",
+		"gif": "_image",
+		"webp": "_image",
+		"svg": "_image",
+		"ico": "_image",
+		"bmp": "_image",
+		"avif": "_image"
+	},
+	"fileNames": {
+		"package.json": "npm",
+		"package-lock.json": "npm",
+		".npmrc": "npm",
+		"Dockerfile": "docker",
+		"docker-compose.yml": "docker",
+		"compose.yaml": "docker",
+		".gitignore": "git",
+		".gitattributes": "git",
+		".gitmodules": "git",
+		".env": "env",
+		".env.local": "env",
+		".env.example": "env",
+		".env.development": "env",
+		"yarn.lock": "lock",
+		"pnpm-lock.yaml": "lock",
+		"Cargo.lock": "lock",
+		"poetry.lock": "lock",
+		"uv.lock": "lock",
+		"LICENSE": "license",
+		"LICENSE.md": "license",
+		"LICENSE.txt": "license",
+		"README.md": "readme",
+		"README": "readme",
+		"readme.md": "readme",
+		"Cargo.toml": "rs",
+		"go.mod": "go",
+		"go.sum": "go",
+		"pyproject.toml": "py",
+		"requirements.txt": "py"
+	},
+	"languageIds": {
+		"typescript": "ts",
+		"typescriptreact": "ts",
+		"javascript": "js",
+		"javascriptreact": "js",
+		"python": "py",
+		"rust": "rs",
+		"go": "go",
+		"c": "c",
+		"cpp": "cpp",
+		"json": "json",
+		"jsonc": "json",
+		"markdown": "md",
+		"html": "html",
+		"css": "css",
+		"shellscript": "sh",
+		"yaml": "yaml",
+		"dockerfile": "docker"
+	},
+	"hidesExplorerArrows": false
+}

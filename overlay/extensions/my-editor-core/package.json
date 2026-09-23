@@ -274,6 +274,13 @@
           "id": "myEditor.chat",
           "name": "Pair"
         }
+      ],
+      "explorer": [
+        {
+          "type": "webview",
+          "id": "myEditor.thisFile",
+          "name": "This file"
+        }
       ]
     },
     "viewsContainers": {

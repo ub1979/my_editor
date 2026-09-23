@@ -1,0 +1,49 @@
+/*---------------------------------------------------------------------------------------------
+ *  my_editor: the workbench in the same quiet language as the Project and Pair panels.
+ *  Colours come from the theme; this file only sets type, spacing and shape.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Panel titles (EXPLORER, PROJECT, PAIR) and section headers: small mono labels, like the panels' own. */
+.monaco-workbench .part > .title > .title-label h2,
+.monaco-workbench .monaco-pane-view .pane > .pane-header > .title {
+	font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+	font-size: 10px;
+	font-weight: 500;
+	letter-spacing: 0.12em;
+	opacity: 0.75;
+}
+
+.monaco-workbench .monaco-pane-view .pane > .pane-header {
+	padding-left: 6px;
+}
+
+/* The file tree: a little more air, rounded selections, softer icons. */
+.monaco-workbench .part.sidebar .monaco-list .monaco-list-row {
+	border-radius: 6px;
+}
+
+.monaco-workbench .part.sidebar .monaco-list:not(.drop-target) .monaco-list-row.selected,
+.monaco-workbench .part.sidebar .monaco-list .monaco-list-row.focused {
+	outline: none !important;
+}
+
+.monaco-workbench .part.sidebar .explorer-folders-view .monaco-list-row .label-name {
+	font-size: 13px;
+}
+
+.monaco-workbench .part.sidebar .explorer-folders-view .monaco-list {
+	padding: 0 6px;
+}
+
+/* Tabs: the active tab is cut from the page, with soft top corners. */
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab {
+	border-radius: 8px 8px 0 0;
+}
+
+/* Hover cards and menus: rounded like the rest of my_editor. */
+.monaco-workbench .monaco-hover,
+.monaco-workbench .monaco-menu-container,
+.monaco-workbench .quick-input-widget,
+.monaco-workbench .suggest-widget {
+	border-radius: 10px !important;
+}

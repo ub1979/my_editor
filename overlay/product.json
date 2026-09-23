@@ -16,7 +16,7 @@
     "workbench.colorTheme": "my_editor Paper",
     "workbench.preferredDarkColorTheme": "my_editor Night",
     "workbench.preferredLightColorTheme": "my_editor Paper",
-    "workbench.iconTheme": "vs-minimal",
+    "workbench.iconTheme": "my_editor",
     "workbench.activityBar.location": "top",
     "workbench.startupEditor": "none",
     "workbench.tips.enabled": false,
