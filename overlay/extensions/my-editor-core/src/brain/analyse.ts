@@ -2,7 +2,7 @@ import { createHash } from 'crypto';
 import * as vscode from 'vscode';
 import type { Sink } from '../chat/engine';
 import { Proposals } from '../chat/proposals';
-import { loadCatalog, pickDefault, pickQuickModel } from '../models/catalog';
+import { loadCatalog, pickDefault } from '../models/catalog';
 import { ApiKeys } from '../models/secrets';
 import { streamModel } from '../models/stream';
 import { ModelEntry } from '../models/types';
@@ -130,10 +130,9 @@ export async function analyseProject(keys: ApiKeys, proposals: Proposals, sink: 
 		return;
 	}
 
-	const catalog = await loadCatalog(keys);
-	const quick = pickQuickModel(catalog, vscode.workspace.getConfiguration('myEditor').get<string>('navigator.model'));
-	const main = pickDefault(catalog);
-	if (!quick || !main) {
+	// The model picked in the chat does every step: the user chose it, and asked for this analysis.
+	const model = pickDefault(await loadCatalog(keys));
+	if (!model) {
 		sink.error('No model is set up yet. Choose one with "my_editor: Choose Model", then try again.');
 		return;
 	}
@@ -172,8 +171,8 @@ export async function analyseProject(keys: ApiKeys, proposals: Proposals, sink: 
 		pieces.forEach((piece, i) => items.push({ path: `${file.path}#${i + 1}`, text: `(lines ${piece.start}–${piece.end})\n${piece.text}` }));
 	}
 	const pieceNote = piecesOf.size ? ` (${plural(piecesOf.size, 'long file')} in ${plural(items.length - (todo.length - piecesOf.size), 'piece')})` : '';
-	sink.progress(todo.length ? `Summarising ${plural(todo.length, 'file')}${pieceNote} with ${quick.label}…` : 'Every file summary is up to date…');
-	const found = await summarise(items, SUMMARY_SYSTEM, quick, keys, token, done => sink.progress(`Summarised ${done} of ${items.length}…`));
+	sink.progress(todo.length ? `Summarising ${plural(todo.length, 'file')}${pieceNote} with ${model.label}…` : 'Every file summary is up to date…');
+	const found = await summarise(items, SUMMARY_SYSTEM, model, keys, token, done => sink.progress(`Summarised ${done} of ${items.length}…`));
 
 	// Long files: combine their pieces into one line for the whole file.
 	const combineItems: SourceFile[] = [];
@@ -184,7 +183,7 @@ export async function analyseProject(keys: ApiKeys, proposals: Proposals, sink: 
 		}
 	}
 	const combined = combineItems.length && !token.isCancellationRequested
-		? await summarise(combineItems, COMBINE_SYSTEM, quick, keys, token, () => sink.progress('Putting the long files together…'))
+		? await summarise(combineItems, COMBINE_SYSTEM, model, keys, token, () => sink.progress('Putting the long files together…'))
 		: {};
 	const summaries: Record<string, FileSummary> = {};
 	for (const file of todo) {
@@ -216,7 +215,7 @@ export async function analyseProject(keys: ApiKeys, proposals: Proposals, sink: 
 		.map(([module, files]) => ({ path: module, text: files.map(f => `- ${f}${describeEntry(map.files[f]) ? `: ${describeEntry(map.files[f])}` : ''}`).join('\n') }));
 	if (partItems.length) {
 		sink.progress(`Summarising ${plural(partItems.length, 'part')} of the project…`);
-		const parts = await summarise(partItems, PART_SYSTEM, quick, keys, token, () => undefined, 500);
+		const parts = await summarise(partItems, PART_SYSTEM, model, keys, token, () => undefined, 500);
 		map = await saveSummaries({}, parts) ?? map;
 	}
 
@@ -239,7 +238,7 @@ export async function analyseProject(keys: ApiKeys, proposals: Proposals, sink: 
 		groups.get(module)!.some(f => summaries[f]) || !existing?.includes(`{#${anchorFor(module)}}`));
 	let architecture = '';
 	if (!existing || changedParts.length) {
-		sink.progress(`${existing ? 'Updating' : 'Drafting'} the architecture with ${main.label}…`);
+		sink.progress(`${existing ? 'Updating' : 'Drafting'} the architecture with ${model.label}…`);
 		const request = [
 			`Project: ${folder.name}`,
 			'',
@@ -253,7 +252,7 @@ export async function analyseProject(keys: ApiKeys, proposals: Proposals, sink: 
 			].join('\n') : '',
 		].join('\n');
 		try {
-			architecture = (await ask(main, keys, ARCHITECTURE_SYSTEM, request, token, 300_000)).trim();
+			architecture = (await ask(model, keys, ARCHITECTURE_SYSTEM, request, token, 300_000)).trim();
 		} catch (err) {
 			sink.error(`The architecture draft failed: ${err instanceof Error ? err.message : String(err)}`);
 		}
