@@ -24,6 +24,8 @@ Decisions are in [`docs/decisions/`](docs/decisions/). Screenshots are in [`docs
   arrow, then **Keep** (writes and saves) or **Undo**. Nothing touches your file before Keep.
 - **A quiet window:** the left bar has only Files and Project; Search, Git, Run and Extensions still work
   from their shortcuts and appear only while open.
+- **Languages built in:** JavaScript/TypeScript, Python (basedpyright, debugpy), Rust (rust-analyzer),
+  Go and C/C++ (clangd). Pinned in `overlay/bundled-extensions.json`, checksum-verified at build time.
 - **Models** — pick with **my_editor: Choose Default Model** (or *Change* in the Project view):
   - **Claude subscription** through your Claude Code login (`claude` CLI): Opus, Sonnet, Haiku. Runs with no
     tools, no MCP and no saved session, and with API-key variables removed so billing never switches silently.

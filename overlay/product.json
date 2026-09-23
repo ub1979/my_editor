@@ -90,6 +90,8 @@
     "files.autoSave": "afterDelay",
     "files.autoSaveDelay": 1000,
     "python.languageServer": "None",
-    "basedpyright.analysis.typeCheckingMode": "standard"
+    "basedpyright.analysis.typeCheckingMode": "standard",
+    "go.showWelcome": false,
+    "go.survey.prompt": false
   }
 }
