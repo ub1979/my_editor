@@ -118,7 +118,8 @@ function drawTree(container, query) {
 /** @param {HTMLElement} parent @param {ReturnType<typeof folder>} node @param {number} depth */
 function appendFolderContents(parent, node, depth) {
 	for (const child of [...node.folders.values()].sort((a, b) => a.name.localeCompare(b.name))) {
-		const details = el('details', { class: 'folder' }, [el('summary', {}, [`${child.name}/`, el('span', { class: 'folder-count' }, [`${countFiles(child)} files`])])]);
+		const count = countFiles(child);
+		const details = el('details', { class: 'folder' }, [el('summary', {}, [`${child.name}/`, el('span', { class: 'folder-count' }, [`${count} file${count === 1 ? '' : 's'}`])])]);
 		if (depth === 0) details.open = true;
 		if (details.open) appendFolderContents(details, child, depth + 1);
 		else details.addEventListener('toggle', () => { if (details.open && details.children.length === 1) appendFolderContents(details, child, depth + 1); });
