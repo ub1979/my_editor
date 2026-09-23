@@ -1,9 +1,16 @@
 /** Help modes. Only the `writes` modes may change code, and only through a reviewed edit. */
 export interface Mode {
 	readonly id: string;
-	readonly writes: 'none' | 'file' | 'selection';
+	readonly writes: 'none' | 'file' | 'selection' | 'doc';
 	readonly instruction: string;
+	/** For `doc` modes: the spec file written, relative to the workspace. */
+	readonly doc?: string;
+	/** For `doc` modes: specs to read as context instead of the open file. */
+	readonly reads?: string[];
 }
+
+const WRITE_WHEN_ASKED = `Only when the user says to write it (for example "write it", "done", "go"), reply with one
+sentence and then the COMPLETE document in ONE fenced code block. Until then, do not output a code block.`;
 
 const EDIT_FORMAT = `Reply with at most three short sentences saying what you changed and why, then ONE fenced code block
 containing the COMPLETE new content of the file — every line, unchanged lines included. Nothing after the block.`;
@@ -45,6 +52,31 @@ ${EDIT_FORMAT}`,
 		instruction: `Act as the driver in pair programming: take the next SMALL step toward what the file is for (or
 what the user says) — one function or one fix, not the whole file. Keep every other line exactly as it is.
 ${EDIT_FORMAT}`,
+	},
+	requirements: {
+		id: 'requirements', writes: 'doc', doc: '.my_editor/specs/requirements.md', reads: ['.my_editor/specs/requirements.md'],
+		instruction: `Help the user work out what to build. Interview them ONE question per message, each with 2-4
+suggested answers they can pick, and accept "skip" or "decide for me". Cover: who it is for, the core jobs, scope
+limits, data, edge cases and failure modes. Challenge weak assumptions briefly. If a requirements document exists,
+continue from it. ${WRITE_WHEN_ASKED} The document is Markdown: goal, users, functional requirements with IDs
+FR-001, FR-002… each with MUST/SHOULD/COULD and acceptance criteria, non-functional requirements NFR-001…, and out of
+scope.`,
+	},
+	architecture: {
+		id: 'architecture', writes: 'doc', doc: '.my_editor/specs/architecture.md',
+		reads: ['.my_editor/specs/requirements.md', '.my_editor/specs/architecture.md'],
+		instruction: `Design the system with the user from the requirements. Propose the stack, components, data models,
+APIs and the design patterns that fit, one topic at a time, and let the user decide. Keep it as simple as the
+requirements allow. ${WRITE_WHEN_ASKED} The document is Markdown; every component gets a section heading with a stable
+anchor, like "## Auth service {#auth-service}", saying what it does, which requirement IDs it serves, and its
+interface. End with a short "Decisions" list: each decision, why, and the alternative rejected.`,
+	},
+	tree: {
+		id: 'tree', writes: 'doc', doc: '.my_editor/specs/tree.json',
+		reads: ['.my_editor/specs/architecture.md', '.my_editor/specs/tree.json'],
+		instruction: `Plan the project's files with the user from the architecture: show the proposed tree with one line
+per file saying its job, discuss, and adjust. ${WRITE_WHEN_ASKED} The document is JSON: an array of objects
+{"path", "role", "requirements": ["FR-001"], "section": "auth-service", "status": "planned"}.`,
 	},
 	change: {
 		id: 'change', writes: 'selection',

@@ -24,7 +24,7 @@ async function handle(
 		stream.markdown(String(err instanceof Error ? err.message : err));
 		return {};
 	}
-	if (mode.writes !== 'none' && !file) {
+	if ((mode.writes === 'file' || mode.writes === 'selection') && !file) {
 		stream.markdown('Open the file you want to work on, then ask again.');
 		return {};
 	}
@@ -33,11 +33,12 @@ async function handle(
 		return {};
 	}
 
-	const [conventions, brain] = await Promise.all([readProjectNote('conventions.md'), readProjectNote('brain/index.md')]);
+	const [conventions, brain, specs] = await Promise.all([
+		readProjectNote('conventions.md'), readProjectNote('brain/index.md'), readSpecs(mode)]);
+	const subject = mode.writes === 'doc' ? specs || 'No specs written yet.' : file ? describeFile(file) : 'No file is open.';
 	const messages = [
 		...history(context),
-		vscode.LanguageModelChatMessage.User(
-			[file ? describeFile(file) : 'No file is open.', `Request: ${request.prompt || '(no extra instructions)'}`].join('\n\n')),
+		vscode.LanguageModelChatMessage.User(`${subject}\n\nRequest: ${request.prompt || '(no extra instructions)'}`),
 	];
 
 	const reply = await request.model.sendRequest(
@@ -47,7 +48,9 @@ async function handle(
 	if (token.isCancellationRequested) {
 		return {};
 	}
-	if (mode.writes !== 'none' && file) {
+	if (mode.writes === 'doc') {
+		await proposeDoc(stream, mode, text);
+	} else if (mode.writes !== 'none' && file) {
 		proposeEdit(stream, mode, file, text);
 	}
 	void logExchange({ mode: mode.id, model: request.model.name, file: file?.relativePath, prompt: request.prompt, reply: text });
@@ -97,6 +100,33 @@ function proposeEdit(stream: vscode.ChatResponseStream, mode: Mode, file: FileCo
 	stream.markdown('\n\nReview the change in the editor — keep or undo each part.');
 	stream.textEdit(file.uri, [vscode.TextEdit.replace(range, content)]);
 	stream.textEdit(file.uri, true);
+}
+
+/** The spec files a document mode works from, labelled by path. */
+async function readSpecs(mode: Mode): Promise<string> {
+	const parts = await Promise.all((mode.reads ?? []).map(async path => {
+		const text = await readProjectNote(path.replace(/^\.my_editor\//, ''), 30_000);
+		return text ? `${path}:\n${text}` : '';
+	}));
+	return parts.filter(Boolean).join('\n\n');
+}
+
+/** Writes a spec document through the same keep/undo review as code; creates the file if needed. */
+async function proposeDoc(stream: vscode.ChatResponseStream, mode: Mode, reply: string): Promise<void> {
+	const root = vscode.workspace.workspaceFolders?.[0]?.uri;
+	const content = lastCodeBlock(reply);
+	if (!root || !mode.doc || content === undefined) {
+		return; // Still interviewing: nothing to write yet.
+	}
+	const uri = vscode.Uri.joinPath(root, mode.doc);
+	try {
+		await vscode.workspace.fs.stat(uri);
+	} catch {
+		await vscode.workspace.fs.writeFile(uri, new Uint8Array());
+	}
+	stream.markdown(`\n\nReview \`${mode.doc}\` in the editor — keep or undo each part.`);
+	stream.textEdit(uri, [vscode.TextEdit.replace(new vscode.Range(0, 0, Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER), content.endsWith('\n') ? content : `${content}\n`)]);
+	stream.textEdit(uri, true);
 }
 
 /** The last few turns, as plain text, so follow-ups make sense. */

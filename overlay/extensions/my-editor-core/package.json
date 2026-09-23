@@ -54,6 +54,18 @@
             "description": "Explore approaches and design patterns"
           },
           {
+            "name": "requirements",
+            "description": "Work out what to build; writes .my_editor/specs/requirements.md"
+          },
+          {
+            "name": "architecture",
+            "description": "Design the parts and patterns; writes architecture.md"
+          },
+          {
+            "name": "tree",
+            "description": "Plan the files; writes tree.json"
+          },
+          {
             "name": "file",
             "description": "Write the whole file (you review the diff)"
           },
@@ -157,6 +169,24 @@
           "markdownDescription": "Save conversations to `.my_editor/chats/` (secrets are redacted)."
         }
       }
+    },
+    "views": {
+      "myEditor": [
+        {
+          "type": "webview",
+          "id": "myEditor.project",
+          "name": "Project"
+        }
+      ]
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "myEditor",
+          "title": "Project",
+          "icon": "media/project-icon.svg"
+        }
+      ]
     }
   },
   "scripts": {

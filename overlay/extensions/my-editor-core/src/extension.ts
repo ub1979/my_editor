@@ -4,6 +4,7 @@ import { applyFirstRunLayout } from './layout';
 import { ModelProvider } from './models/provider';
 import { ApiKeys } from './models/secrets';
 import { registerPairParticipant } from './pair/participant';
+import { ProjectView } from './project/view';
 
 /** Entry point of the built-in core. */
 export function activate(context: vscode.ExtensionContext): void {
@@ -23,6 +24,7 @@ export function activate(context: vscode.ExtensionContext): void {
 		status,
 		vscode.lm.registerLanguageModelChatProvider('my-editor', models),
 		registerPairParticipant(),
+		vscode.window.registerWebviewViewProvider(ProjectView.id, new ProjectView(context)),
 		vscode.commands.registerCommand('myEditor.setApiKey', () => keys.promptAndStore()),
 		vscode.commands.registerCommand('myEditor.refreshModels', () => models.refresh()),
 	);
