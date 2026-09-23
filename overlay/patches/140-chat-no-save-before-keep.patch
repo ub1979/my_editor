@@ -1,0 +1,28 @@
+diff --git a/src/vs/workbench/contrib/chat/browser/chatEditing/chatEditingModifiedDocumentEntry.ts b/src/vs/workbench/contrib/chat/browser/chatEditing/chatEditingModifiedDocumentEntry.ts
+index d7e803af..5d64e224 100644
+--- a/src/vs/workbench/contrib/chat/browser/chatEditing/chatEditingModifiedDocumentEntry.ts
++++ b/src/vs/workbench/contrib/chat/browser/chatEditing/chatEditingModifiedDocumentEntry.ts
+@@ -312,7 +312,8 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
+ 	}
+ 
+ 	private _shouldAutoSave() {
+-		return this.modifiedURI.scheme !== Schemas.untitled;
++		// my_editor: proposed edits stay unsaved in the editor until the user keeps them; Keep saves.
++		return false;
+ 	}
+ 
+ 	async computeEditsFromSnapshots(beforeSnapshot: string, afterSnapshot: string): Promise<(TextEdit | ICellEditOperation)[]> {
+diff --git a/src/vs/workbench/contrib/chat/browser/chatEditing/chatEditingModifiedNotebookEntry.ts b/src/vs/workbench/contrib/chat/browser/chatEditing/chatEditingModifiedNotebookEntry.ts
+index 0140f886..0ed9287e 100644
+--- a/src/vs/workbench/contrib/chat/browser/chatEditing/chatEditingModifiedNotebookEntry.ts
++++ b/src/vs/workbench/contrib/chat/browser/chatEditing/chatEditingModifiedNotebookEntry.ts
+@@ -1107,7 +1107,8 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
+ 	}
+ 
+ 	private _shouldAutoSave() {
+-		return this.modifiedURI.scheme !== Schemas.untitled;
++		// my_editor: proposed edits stay unsaved in the editor until the user keeps them; Keep saves.
++		return false;
+ 	}
+ 
+ 	async save(): Promise<void> {

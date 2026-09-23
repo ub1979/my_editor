@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { logExchange } from '../records/chatLog';
 import { currentFile, describeFile, FileContext, readProjectNote } from './context';
-import { lastCodeBlock } from './codeBlock';
+import { documentFromReply, lastCodeBlock } from './codeBlock';
 import { Mode, MODES, systemPrompt } from './prompts';
 import { loadSkills } from '../skills/loader';
 import { neighbourSummary } from '../brain/brain';
@@ -20,8 +20,11 @@ async function handle(
 	extensionUri: vscode.Uri, request: vscode.ChatRequest, context: vscode.ChatContext,
 	stream: vscode.ChatResponseStream, token: vscode.CancellationToken,
 ): Promise<vscode.ChatResult> {
-	let mode: Mode = MODES[request.command ?? 'chat'] ?? MODES.chat;
+	let mode: Mode = MODES[request.command ?? continuedMode(context) ?? 'chat'] ?? MODES.chat;
 	let prompt = request.prompt;
+	if (!request.command && mode !== MODES.chat) {
+		stream.progress(`Continuing /${mode.id}`);
+	}
 	if (request.command === 'skill') {
 		const chosen = await resolveSkill(extensionUri, prompt, stream);
 		if (!chosen) {
@@ -120,6 +123,16 @@ function proposeEdit(stream: vscode.ChatResponseStream, mode: Mode, file: FileCo
 	stream.textEdit(file.uri, true);
 }
 
+/**
+ * Conversations that span several turns (interviews, brainstorms) keep their mode when the user replies
+ * without a command. Modes that write code never carry over: code is written only when asked for.
+ */
+function continuedMode(context: vscode.ChatContext): string | undefined {
+	const last = [...context.history].reverse().find((turn): turn is vscode.ChatResponseTurn => turn instanceof vscode.ChatResponseTurn);
+	const previous = last?.result.metadata?.mode as string | undefined;
+	return previous && ['requirements', 'architecture', 'tree', 'brainstorm'].includes(previous) ? previous : undefined;
+}
+
 /** `/skill <name> <request>`: runs a SKILL.md as the mode. Without a known name, lists the skills. */
 async function resolveSkill(
 	extensionUri: vscode.Uri, prompt: string, stream: vscode.ChatResponseStream,
@@ -149,7 +162,7 @@ async function readSpecs(mode: Mode): Promise<string> {
 /** Writes a spec document through the same keep/undo review as code; creates the file if needed. */
 async function proposeDoc(stream: vscode.ChatResponseStream, mode: Mode, reply: string): Promise<void> {
 	const root = vscode.workspace.workspaceFolders?.[0]?.uri;
-	const content = lastCodeBlock(reply);
+	const content = mode.doc ? documentFromReply(reply, mode.doc) : undefined;
 	if (!root || !mode.doc || content === undefined) {
 		return; // Still interviewing: nothing to write yet.
 	}

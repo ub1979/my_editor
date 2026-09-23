@@ -1,6 +1,6 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
-import { lastCodeBlock } from '../src/pair/codeBlock';
+import { documentFromReply, lastCodeBlock } from '../src/pair/codeBlock';
 import { collapseCode, redact } from '../src/records/redact';
 import { parseSkill } from '../src/skills/frontmatter';
 
@@ -46,4 +46,21 @@ test('parseSkill reads flat frontmatter and the body', () => {
 
 test('parseSkill treats a file without frontmatter as all body', () => {
 	assert.deepEqual(parseSkill('Just do it.'), { meta: {}, body: 'Just do it.' });
+});
+
+test('documentFromReply prefers a fenced block', () => {
+	assert.equal(documentFromReply('Here.\n```markdown\n# A\n## B\n```', 'x/requirements.md'), '# A\n## B');
+});
+
+test('documentFromReply falls back to the text from the first heading', () => {
+	const reply = 'Sure, here it is:\n\n# Requirements\n\n## Functional\n- FR-001 Tick a habit.';
+	assert.equal(documentFromReply(reply, 'requirements.md'), '# Requirements\n\n## Functional\n- FR-001 Tick a habit.');
+});
+
+test('documentFromReply ignores a question with one heading', () => {
+	assert.equal(documentFromReply('## Question\nWho is it for?', 'requirements.md'), undefined);
+});
+
+test('documentFromReply extracts a JSON array for tree files', () => {
+	assert.equal(documentFromReply('Plan: [{"path": "a.ts"}] done', 'tree.json'), '[\n\t{\n\t\t"path": "a.ts"\n\t}\n]');
 });

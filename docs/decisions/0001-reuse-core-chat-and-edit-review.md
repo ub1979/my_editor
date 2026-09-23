@@ -29,7 +29,9 @@ a pair programmer, not an autonomous agent.
 
 ## Consequences
 - M4 (diff gate) shrinks from weeks to wiring. FR-052 (per-hunk accept/reject) comes from core.
-- Proposed edits land in the editor buffer as pending changes; nothing is saved to disk until the
-  user keeps them. This satisfies "no silent writes".
+- Upstream chat editing saves proposed edits to disk immediately and reverts on Undo. That breaks "no
+  silent writes" (a test runner or build could pick up an unapproved edit), so
+  `overlay/patches/140-chat-no-save-before-keep.patch` keeps proposed edits unsaved in the editor until
+  the user presses Keep, which saves. Found while testing `/requirements` on 2026-09-23.
 - We now depend on proposed APIs that can change between VS Code releases. Pinned typings live in
   `overlay/extensions/my-editor-core/typings/` and must be refreshed on each upstream bump.
