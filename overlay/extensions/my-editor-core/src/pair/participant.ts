@@ -51,7 +51,9 @@ async function handle(
 	const [conventions, brain, specs, neighbours] = await Promise.all([
 		readProjectNote('conventions.md'), readProjectNote('brain/index.md'), readSpecs(mode),
 		file ? neighbourSummary(file.relativePath) : Promise.resolve('')]);
-	const subject = mode.writes === 'doc'
+	const subject = mode.id === 'qa'
+		? await qaSubject(prompt)
+		: mode.writes === 'doc'
 		? specs || 'No specs written yet.'
 		: file ? [describeFile(file), neighbours].filter(Boolean).join('\n\n') : 'No file is open.';
 	const messages = [
@@ -148,6 +150,33 @@ async function resolveSkill(
 		return undefined;
 	}
 	return { mode: { id: `skill:${skill.name}`, writes: skill.writes, instruction: skill.instruction }, prompt: rest.join(' ') };
+}
+
+/** For `/qa <report>`: the report, the architecture, and the checked files (bounded). */
+async function qaSubject(prompt: string): Promise<string> {
+	const reportPath = /\.my_editor\/qa\/\S+\.md/.exec(prompt)?.[0];
+	if (!reportPath) {
+		return 'No fit report given. Right-click files or a folder and choose "Check How These Fit".';
+	}
+	const report = await readProjectNote(reportPath.replace(/^\.my_editor\//, ''), 20_000);
+	const architecture = await readProjectNote('specs/architecture.md', 15_000);
+	const root = vscode.workspace.workspaceFolders?.[0]?.uri;
+	const files = [...report.matchAll(/^- `([^`]+)`$/gm)].map(m => m[1]);
+	let budget = 40_000;
+	const contents: string[] = [];
+	for (const path of files) {
+		if (!root || budget <= 0) {
+			break;
+		}
+		try {
+			const text = new TextDecoder().decode(await vscode.workspace.fs.readFile(vscode.Uri.joinPath(root, path))).slice(0, budget);
+			budget -= text.length;
+			contents.push(`${path}:\n${text}`);
+		} catch {
+			// Moved or deleted since the check; the report still lists it.
+		}
+	}
+	return [`Fit report (${reportPath}):\n${report}`, architecture ? `Architecture:\n${architecture}` : '', ...contents].filter(Boolean).join('\n\n');
 }
 
 /** The spec files a document mode works from, labelled by path. */

@@ -98,7 +98,7 @@ export class ProjectView implements vscode.WebviewViewProvider {
 			architecture: '/architecture ',
 			tree: '/tree ',
 			build: '/next ',
-			qa: '/review ',
+			qa: '/qa ',
 		};
 		await vscode.commands.executeCommand('workbench.action.chat.open', { query: starters[stage] ?? '', isPartialQuery: true });
 	}

@@ -15,7 +15,10 @@ export async function runTestHooks(): Promise<void> {
 	}
 	await new Promise(resolve => setTimeout(resolve, Number(process.env.MY_EDITOR_TEST_DELAY ?? 0)));
 	if (command) {
-		await vscode.commands.executeCommand(command);
+		// MY_EDITOR_TEST_COMMAND_ARG: an optional workspace-relative path passed as the command's URI argument.
+		const arg = process.env.MY_EDITOR_TEST_COMMAND_ARG;
+		const root = vscode.workspace.workspaceFolders?.[0]?.uri;
+		await vscode.commands.executeCommand(command, ...(arg && root ? [vscode.Uri.joinPath(root, arg)] : []));
 	}
 	if (query) {
 		await vscode.commands.executeCommand('workbench.action.chat.open', { query });

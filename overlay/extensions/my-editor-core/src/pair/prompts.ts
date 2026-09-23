@@ -78,6 +78,13 @@ interface. End with a short "Decisions" list: each decision, why, and the altern
 per file saying its job, discuss, and adjust. ${WRITE_WHEN_ASKED} The document is JSON: an array of objects
 {"path", "role", "requirements": ["FR-001"], "section": "auth-service", "status": "planned"}.`,
 	},
+	qa: {
+		id: 'qa', writes: 'none',
+		instruction: `Explain a fit check to the user. The tool findings in the report are facts: confirm each one
+briefly and say why it matters. Then compare the files with the architecture (if there is one): interfaces that
+do not match, responsibilities in the wrong place, missing pieces the requirements need. Finish with at most five
+boundary tests worth writing, one line each. Do not rewrite code.`,
+	},
 	change: {
 		id: 'change', writes: 'selection',
 		instruction: `Change only the selected code as the user describes. Reply with at most two short sentences, then
