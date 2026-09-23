@@ -1,6 +1,9 @@
 // @ts-check
 const vscode = acquireVsCodeApi();
 const root = /** @type {HTMLElement} */ (document.getElementById('root'));
+const SEARCH_FROM = 7;
+let projects = [];
+let query = '';
 
 /** @param {string} tag @param {Record<string, string>} [attrs] @param {(Node|string)[]} [children] */
 function el(tag, attrs = {}, children = []) {
@@ -12,83 +15,149 @@ function el(tag, attrs = {}, children = []) {
 	return node;
 }
 
-function button(label, className, message) {
-	const node = el('button', { type: 'button', class: className }, [label]);
-	node.addEventListener('click', () => vscode.postMessage(message));
+function action(label, className, message, attrs = {}) {
+	const node = el('button', { type: 'button', class: className, ...attrs }, [label]);
+	node.addEventListener('click', event => {
+		event.stopPropagation();
+		vscode.postMessage(message);
+	});
 	return node;
 }
 
-/** Width is set through the CSSOM: the page's CSP forbids inline style attributes. */
-function progressFill(fraction) {
-	const fill = el('span');
-	fill.style.width = `${Math.round(fraction * 100)}%`;
-	return fill;
+/** Lucide "x", drawn inline so it follows the text colour. */
+function closeIcon() {
+	const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+	svg.setAttribute('viewBox', '0 0 24 24');
+	svg.setAttribute('aria-hidden', 'true');
+	svg.innerHTML = '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>';
+	return svg;
 }
 
-function actions() {
-	return el('div', { class: 'actions' }, [
-		button('New project', 'primary', { type: 'new' }),
-		button('Open folder…', 'secondary', { type: 'open' }),
-		button('Clone from Git…', 'secondary', { type: 'clone' }),
-	]);
+function removeButton(project) {
+	const button = action('', 'remove', { type: 'remove', uri: project.uri }, {
+		'aria-label': `Remove ${project.name} from this list`,
+		title: 'Remove from this list. The folder stays on disk.',
+	});
+	button.append(closeIcon());
+	return button;
 }
 
-function render(projects) {
-	root.replaceChildren();
-	const [latest, ...others] = projects;
-	root.append(el('header', {}, [
+/** Five labelled steps: done, current, or still to come. Never colour alone: each has a text label. */
+function stages(project, withLabels) {
+	const list = el('ol', { class: `stages${withLabels ? ' labelled' : ''}`, 'aria-label': 'Build path' });
+	project.stages.forEach((stage, index) => {
+		const state = stage.state === 'done' ? 'done' : project.next?.index === index ? 'current' : 'todo';
+		const spoken = state === 'done' ? 'done' : state === 'current' ? 'current stage' : 'not started';
+		list.append(el('li', { class: state, 'aria-label': `${stage.title}: ${spoken}` }, withLabels ? [el('span', {}, [stage.title])] : []));
+	});
+	return list;
+}
+
+function progressLine(project) {
+	if (!project.usesMyEditor) {
+		return 'Not set up with my_editor yet';
+	}
+	return project.next ? `Stage ${project.next.index + 1} of 5 · ${project.next.title}` : 'All five stages done';
+}
+
+function header() {
+	return el('header', {}, [
 		el('div', {}, [
 			el('p', { class: 'eyebrow' }, ['my_editor']),
-			el('h1', {}, [latest ? 'Your projects' : 'Welcome']),
-			el('p', { class: 'lede' }, [latest ? 'Pick up where you left off, or start something new.' : 'Build software yourself, with a pair who writes only what you ask.']),
+			el('h1', {}, [projects.length ? 'Your projects' : 'Welcome']),
+			el('p', { class: 'lede' }, [projects.length ? 'Pick up where you left off, or start something new.' : 'Build software yourself, with a pair who writes only what you ask.']),
 		]),
-		actions(),
-	]));
+		el('div', { class: 'actions' }, [
+			action('New project', 'primary', { type: 'new' }),
+			action('Open folder…', 'secondary', { type: 'open' }),
+			action('Clone from Git…', 'secondary', { type: 'clone' }),
+		]),
+	]);
+}
 
-	if (!latest) {
-		root.append(el('section', { class: 'empty' }, [
-			el('h2', {}, ['Start your first project']),
-			el('p', {}, ['Create a new project, or open a folder you already have.']),
-			el('ol', { class: 'steps' }, [
-				el('li', {}, [el('strong', {}, ['Talk it through']), el('span', {}, ['The pair interviews you and writes the requirements.'])]),
-				el('li', {}, [el('strong', {}, ['Plan the files']), el('span', {}, ['Architecture, then the file tree, each one yours to approve.'])]),
-				el('li', {}, [el('strong', {}, ['Build file by file']), el('span', {}, ['Write it yourself, or ask for exactly the part you want.'])]),
-			]),
-		]));
+function featured(project) {
+	const body = el('div', { class: 'featured-main' }, [
+		el('p', { class: 'eyebrow' }, ['Last opened']),
+		el('h2', {}, [project.name]),
+		el('p', { class: 'path', title: project.fullPath }, [project.path]),
+	]);
+	const side = el('div', { class: 'featured-side' }, [
+		action('Open project', 'open', { type: 'recent', uri: project.uri }, { 'aria-label': `Open ${project.name}` }),
+	]);
+	const progress = el('div', { class: 'featured-progress' }, [
+		el('p', { class: 'progress-line' }, [
+			el('strong', {}, [progressLine(project)]),
+			...(project.next ? [el('span', {}, [project.next.status])] : []),
+		]),
+		...(project.usesMyEditor ? [stages(project, true)] : []),
+	]);
+	return el('article', { class: 'featured', 'aria-label': `Last opened: ${project.name}` }, [body, side, progress, removeButton(project)]);
+}
+
+function card(project) {
+	const open = action(project.name, 'card-link', { type: 'recent', uri: project.uri }, { title: `Open ${project.name}` });
+	return el('article', { class: `card${project.usesMyEditor ? '' : ' plain'}` }, [
+		el('h3', {}, [open]),
+		el('p', { class: 'path', title: project.fullPath }, [project.path]),
+		...(project.usesMyEditor ? [stages(project, false)] : []),
+		el('p', { class: 'status' }, [project.usesMyEditor ? (project.next ? `Next: ${project.next.title}` : 'All stages done') : 'Not set up with my_editor yet']),
+		removeButton(project),
+	]);
+}
+
+function emptyState() {
+	return el('section', { class: 'empty' }, [
+		el('h2', {}, ['Start your first project']),
+		el('p', {}, ['Create a new project, or open a folder you already have.']),
+		el('ol', { class: 'steps' }, [
+			el('li', {}, [el('strong', {}, ['Talk it through']), el('span', {}, ['The pair interviews you and writes the requirements.'])]),
+			el('li', {}, [el('strong', {}, ['Plan the files']), el('span', {}, ['Architecture, then the file tree, each one yours to approve.'])]),
+			el('li', {}, [el('strong', {}, ['Build file by file']), el('span', {}, ['Write it yourself, or ask for exactly the part you want.'])]),
+		]),
+	]);
+}
+
+function recentSection() {
+	const heading = el('div', { class: 'section-head' }, [el('h3', { class: 'section-title' }, ['Recent'])]);
+	if (projects.length >= SEARCH_FROM) {
+		const search = el('input', { type: 'search', class: 'search', placeholder: 'Find a project', 'aria-label': 'Find a project', value: query });
+		search.addEventListener('input', () => {
+			query = /** @type {HTMLInputElement} */ (search).value;
+			renderGrid();
+		});
+		heading.append(search);
+	}
+	const grid = el('div', { class: 'grid', id: 'grid' });
+	return el('section', {}, [heading, grid]);
+}
+
+function renderGrid() {
+	const grid = document.getElementById('grid');
+	if (!grid) {
 		return;
 	}
+	const needle = query.trim().toLowerCase();
+	const others = projects.slice(1).filter(p => !needle || p.name.toLowerCase().includes(needle) || p.fullPath.toLowerCase().includes(needle));
+	grid.replaceChildren(...(others.length ? others.map(card) : [el('p', { class: 'none' }, [`No project matches “${query.trim()}”.`])]));
+}
 
-	const featured = el('button', { type: 'button', class: 'featured', 'aria-label': `Continue ${latest.name}: ${latest.status}` }, [
-		el('div', {}, [
-			el('p', { class: 'eyebrow' }, ['Last opened']),
-			el('h2', {}, [latest.name]),
-			el('div', { class: 'path' }, [latest.path]),
-			el('div', { class: 'status' }, [latest.status]),
-		]),
-		el('span', { class: 'continue' }, ['Continue']),
-		el('div', { class: 'bar', 'aria-hidden': 'true' }, [progressFill(latest.progress)]),
-	]);
-	featured.addEventListener('click', () => vscode.postMessage({ type: 'recent', uri: latest.uri }));
-	root.append(featured);
-
-	if (others.length) {
-		const grid = el('div', { class: 'grid' });
-		for (const project of others) {
-			const card = el('button', { type: 'button', class: `card${project.usesMyEditor ? '' : ' plain'}` }, [
-				el('span', { class: 'name' }, [project.name]),
-				el('span', { class: 'path' }, [project.path]),
-				el('span', { class: 'status' }, [project.status]),
-			]);
-			card.addEventListener('click', () => vscode.postMessage({ type: 'recent', uri: project.uri }));
-			grid.append(card);
-		}
-		root.append(el('section', {}, [el('h3', {}, ['Recent']), grid]));
+function render() {
+	root.replaceChildren(header());
+	if (!projects.length) {
+		root.append(emptyState());
+		return;
+	}
+	root.append(featured(projects[0]));
+	if (projects.length > 1) {
+		root.append(recentSection());
+		renderGrid();
 	}
 }
 
 window.addEventListener('message', event => {
 	if (event.data?.type === 'projects') {
-		render(event.data.projects);
+		projects = event.data.projects;
+		render();
 	}
 });
 vscode.postMessage({ type: 'ready' });

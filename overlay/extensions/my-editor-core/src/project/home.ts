@@ -2,6 +2,7 @@ import { execFile } from 'child_process';
 import { randomBytes } from 'crypto';
 import * as os from 'os';
 import * as vscode from 'vscode';
+import { shortPath } from './homePaths';
 import { readProjectStateAt } from './state';
 
 const PENDING_START = 'myEditor.home.pendingStart';
@@ -12,9 +13,12 @@ interface RecentProject {
 	readonly uri: string;
 	readonly name: string;
 	readonly path: string;
-	readonly status: string;
-	readonly progress: number;
+	readonly fullPath: string;
 	readonly usesMyEditor: boolean;
+	/** The five build stages, in order, with their state. Empty when the project does not use my_editor. */
+	readonly stages: { title: string; state: 'empty' | 'started' | 'done' }[];
+	/** The first stage not done yet, with its status line. */
+	readonly next?: { title: string; status: string; index: number };
 }
 
 /** The start screen: recent projects with their progress, and new / open / clone. */
@@ -66,6 +70,13 @@ export class Home {
 			case 'recent':
 				if (message.uri) {
 					await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.parse(message.uri));
+				}
+				return;
+			case 'remove':
+				// Only forgets the entry in the recent list; the folder on disk is untouched.
+				if (message.uri) {
+					await vscode.commands.executeCommand('vscode.removeFromRecentlyOpened', vscode.Uri.parse(message.uri));
+					await this.refresh();
 				}
 				return;
 		}
@@ -124,7 +135,7 @@ async function recentProjects(): Promise<RecentProject[]> {
 	const folders = (recent?.workspaces ?? [])
 		.filter(w => w.folderUri && w.folderUri.scheme === 'file' && !w.remoteAuthority)
 		.slice(0, MAX_RECENT);
-	const projects = await Promise.all(folders.map(async ({ folderUri }) => {
+	const projects = await Promise.all(folders.map(async ({ folderUri }): Promise<RecentProject | undefined> => {
 		const uri = vscode.Uri.from(folderUri!);
 		const name = uri.path.split('/').pop() || uri.fsPath;
 		try {
@@ -138,16 +149,17 @@ async function recentProjects(): Promise<RecentProject[]> {
 		} catch {
 			usesMyEditor = false;
 		}
-		const home = os.homedir();
-		const path = uri.fsPath.startsWith(home) ? `~${uri.fsPath.slice(home.length)}` : uri.fsPath;
+		const path = shortPath(uri.fsPath, os.homedir());
 		if (!usesMyEditor) {
-			return { uri: uri.toString(), name, path, status: 'Not set up with my_editor yet', progress: 0, usesMyEditor } satisfies RecentProject;
+			return { uri: uri.toString(), name, path, fullPath: uri.fsPath, usesMyEditor, stages: [] } satisfies RecentProject;
 		}
 		const state = await readProjectStateAt(uri, name);
-		const done = state.stages.filter(s => s.state === 'done').length;
-		const current = state.stages.find(s => s.state !== 'done');
-		const status = current ? `${current.title} · ${current.status}` : 'Every stage done';
-		return { uri: uri.toString(), name, path, status, progress: done / Math.max(1, state.stages.length), usesMyEditor } satisfies RecentProject;
+		const index = state.stages.findIndex(s => s.state !== 'done');
+		return {
+			uri: uri.toString(), name, path, fullPath: uri.fsPath, usesMyEditor,
+			stages: state.stages.map(s => ({ title: s.title, state: s.state })),
+			next: index >= 0 ? { title: state.stages[index].title, status: state.stages[index].status, index } : undefined,
+		} satisfies RecentProject;
 	}));
 	return projects.filter((p): p is RecentProject => p !== undefined);
 }
