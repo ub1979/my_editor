@@ -22,6 +22,10 @@ Decisions are in [`docs/decisions/`](docs/decisions/). Screenshots are in [`docs
   Explain, Why; Fix: Review, Debug, Tests, Refactor; plus your own skills). Type `/` for commands.
   Code changes come back as proposals: review them in an inline diff, undo single parts with the gutter
   arrow, then **Keep** (writes and saves) or **Undo**. Nothing touches your file before Keep.
+- **Auto comments:** add a function or class without a comment and the Pair writes a short one in the
+  language's style (docstring, JSDoc, `///`, Go's `// Name …`). Only for code you add; ⌘Z removes it. Toggle it
+  with the speech-bubble button in the editor toolbar.
+- **This file** (under the file tree): symbols, Pair notes and git history for the open file, in my_editor's style.
 - **A quiet window:** the left bar has only Files and Project; Search, Git, Run and Extensions still work
   from their shortcuts and appear only while open.
 - **Languages built in:** JavaScript/TypeScript, Python (basedpyright, debugpy), Rust (rust-analyzer),

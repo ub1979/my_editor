@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { neighbourSummary } from '../brain/brain';
-import { loadCatalog, pickDefault } from '../models/catalog';
+import { loadCatalog, pickQuickModel } from '../models/catalog';
 import { streamModel } from '../models/stream';
 import { ModelEntry } from '../models/types';
 import { ApiKeys } from '../models/secrets';
@@ -156,11 +156,7 @@ export class Navigator implements vscode.Disposable {
 	private async pickModel(): Promise<ModelEntry | undefined> {
 		const entries = await loadCatalog(this.keys);
 		const wanted = vscode.workspace.getConfiguration('myEditor').get<string>('navigator.model');
-		return entries.find(e => e.key === wanted)
-			?? entries.find(e => e.detail.endsWith('local'))
-			?? entries.find(e => e.key === 'anthropic:claude-haiku-4-5')
-			?? entries.find(e => e.key === 'claude-cli:haiku')
-			?? pickDefault(entries);
+		return pickQuickModel(entries, wanted);
 	}
 
 	dispose(): void {

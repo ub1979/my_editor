@@ -111,3 +111,12 @@ export async function chooseDefaultModel(keys: ApiKeys): Promise<void> {
 		await vscode.workspace.getConfiguration('myEditor').update('models.default', picked.key, vscode.ConfigurationTarget.Global);
 	}
 }
+
+/** A model for small, frequent jobs (navigator, auto comments): local first, then Haiku, then the default. */
+export function pickQuickModel(entries: readonly ModelEntry[], wanted?: string): ModelEntry | undefined {
+	return entries.find(e => e.key === wanted)
+		?? entries.find(e => e.detail.endsWith('local'))
+		?? entries.find(e => e.key === 'anthropic:claude-haiku-4-5')
+		?? entries.find(e => e.key === 'claude-cli:haiku')
+		?? pickDefault(entries);
+}

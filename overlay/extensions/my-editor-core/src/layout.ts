@@ -13,7 +13,9 @@ export async function applyFirstRunLayout(context: vscode.ExtensionContext): Pro
 	}
 	await context.workspaceState.update(CENTERED_ONCE, true);
 	await vscode.commands.executeCommand('workbench.action.toggleCenteredLayout');
-	// Open on the project's table of contents with the Pair beside it; the file explorer is one click away.
+	// Expand "This file" under the file tree once, then open on the project's table of contents with the Pair
+	// beside it; the file explorer is one click away.
+	await vscode.commands.executeCommand('myEditor.thisFile.focus');
 	await vscode.commands.executeCommand('workbench.view.extension.myEditor');
 	await vscode.commands.executeCommand('workbench.view.extension.myEditorPair');
 }

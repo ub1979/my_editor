@@ -113,6 +113,18 @@
         "title": "New Chat",
         "category": "my_editor",
         "icon": "$(add)"
+      },
+      {
+        "command": "myEditor.autoComments.turnOff",
+        "title": "Auto Comments: On (click to turn off)",
+        "category": "my_editor",
+        "icon": "$(comment-discussion)"
+      },
+      {
+        "command": "myEditor.autoComments.turnOn",
+        "title": "Auto Comments: Off (click to turn on)",
+        "category": "my_editor",
+        "icon": "$(comment)"
       }
     ],
     "configuration": {
@@ -257,6 +269,11 @@
           "default": "http://localhost:1234/v1",
           "description": "LM Studio server URL (OpenAI-compatible). Only settable in user settings, so a project cannot redirect it.",
           "scope": "machine"
+        },
+        "myEditor.autoComments.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "When you add a function or class without a comment, the Pair writes a short one (Cmd+Z removes it). Toggle it from the editor toolbar."
         }
       }
     },
@@ -279,7 +296,8 @@
         {
           "type": "webview",
           "id": "myEditor.thisFile",
-          "name": "This file"
+          "name": "This file",
+          "visibility": "visible"
         }
       ]
     },
@@ -343,6 +361,16 @@
           "command": "myEditor.proposal.undo",
           "when": "resourceScheme == my-editor-proposal",
           "group": "navigation@2"
+        },
+        {
+          "command": "myEditor.autoComments.turnOff",
+          "when": "resourceScheme == file && editorLangId =~ /^(python|typescript|typescriptreact|javascript|javascriptreact|rust|go|c|cpp|java)$/ && config.myEditor.autoComments.enabled",
+          "group": "navigation@9"
+        },
+        {
+          "command": "myEditor.autoComments.turnOn",
+          "when": "resourceScheme == file && editorLangId =~ /^(python|typescript|typescriptreact|javascript|javascriptreact|rust|go|c|cpp|java)$/ && !config.myEditor.autoComments.enabled",
+          "group": "navigation@9"
         }
       ],
       "view/title": [

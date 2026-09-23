@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { buildBrain, updateBrainFile } from './brain/brain';
+import { AutoComments } from './comments/autoComments';
 import { PairEngine } from './chat/engine';
 import { Proposals } from './chat/proposals';
 import { ChatView } from './chat/view';
@@ -21,6 +22,7 @@ export function activate(context: vscode.ExtensionContext): void {
 	const keys = new ApiKeys(context.secrets);
 	const log = vscode.window.createOutputChannel('my_editor', { log: true });
 	const navigator = new Navigator(keys, log);
+	const autoComments = new AutoComments(keys, log);
 	const home = new Home(context);
 	const proposals = new Proposals();
 	const engine = new PairEngine(context.extensionUri, keys, proposals);
@@ -41,7 +43,10 @@ export function activate(context: vscode.ExtensionContext): void {
 		keys,
 		log,
 		navigator,
+		autoComments,
 		proposals,
+		vscode.commands.registerCommand('myEditor.autoComments.turnOff', () => AutoComments.setEnabled(false)),
+		vscode.commands.registerCommand('myEditor.autoComments.turnOn', () => AutoComments.setEnabled(true)),
 		status,
 		vscode.window.registerWebviewViewProvider(ChatView.id, chat, { webviewOptions: { retainContextWhenHidden: true } }),
 		vscode.window.registerWebviewViewProvider(ProjectView.id, new ProjectView(context, keys)),
