@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { findCli } from './cli';
+import { listCodexModels } from './codexModels';
 import { listLmStudioModels } from './lmstudio';
 import { listOllamaModels } from './ollama';
 import { ApiKeys } from './secrets';
@@ -46,11 +47,14 @@ export async function loadCatalog(keys: ApiKeys): Promise<ModelEntry[]> {
 		}
 	}
 	if (config().get<boolean>('codexCli.enabled', true) && findCli('codex', config().get<string>('codexCli.path', ''))) {
-		for (const model of config().get<string[]>('codexCli.models', [])) {
+		const discovered = await listCodexModels();
+		const names = new Map(discovered.map(model => [model.slug, model]));
+		const configured = config().get<string[]>('codexCli.models', ['default']);
+		for (const model of new Set([...configured, ...discovered.map(item => item.slug)])) {
 			entries.push({
 				key: `codex-cli:${model}`, provider: 'codex-cli', model,
-				label: model === 'default' ? 'Codex' : `Codex ${model}`,
-				detail: 'ChatGPT subscription · Codex CLI', maxInputTokens: 200_000, maxOutputTokens: 32_000,
+				label: model === 'default' ? 'Codex (default)' : `Codex ${names.get(model)?.displayName ?? model}`,
+				detail: names.get(model)?.description ?? 'ChatGPT subscription · Codex CLI', maxInputTokens: 200_000, maxOutputTokens: 32_000,
 			});
 		}
 	}

@@ -219,6 +219,13 @@ export class ChatView implements vscode.WebviewViewProvider {
 		if (!card) {
 			return;
 		}
+		if (id === 'analyse') {
+			this.mode = undefined;
+			this.save();
+			this.postMode();
+			await this.analyse();
+			return;
+		}
 		this.mode = card.id;
 		this.save();
 		this.postMode();

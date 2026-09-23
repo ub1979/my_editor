@@ -17,6 +17,7 @@ export interface SkillCard {
 }
 
 const BUILT_IN: SkillCard[] = [
+	{ id: 'analyse', title: 'Analyse this project', blurb: 'Read the code and build the project brain', group: 'Plan', icon: 'book', start: 'run' },
 	{ id: 'requirements', title: 'Requirements', blurb: 'Work out what to build, one question at a time', group: 'Plan', icon: 'list', start: 'kickoff' },
 	{ id: 'architecture', title: 'Architecture', blurb: 'Design the parts and the patterns', group: 'Plan', icon: 'layers', start: 'kickoff' },
 	{ id: 'tree', title: 'Plan the files', blurb: 'Map every file before writing it', group: 'Plan', icon: 'tree', start: 'kickoff' },
