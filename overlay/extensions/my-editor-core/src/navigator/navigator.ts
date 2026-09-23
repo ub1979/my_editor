@@ -12,7 +12,7 @@ import { changedHunks, Hunk, parseFindings } from './hunks';
 const SKIPPED_LANGUAGES = new Set(['markdown', 'plaintext', 'json', 'jsonc', 'log', 'csv', 'ignore', 'properties']);
 const MAX_LINES = 4_000;
 const CONTEXT_LINES = 3;
-const DEBOUNCE_MS = 1_200;
+const DEBOUNCE_MS = 8_000; // auto-save fires often: review after a quiet spell
 const TIMEOUT_MS = 90_000;
 
 const SYSTEM = `You are the navigator in a pair-programming session. The user is typing; you watch their latest change
