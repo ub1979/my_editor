@@ -68,7 +68,9 @@ export function activate(context: vscode.ExtensionContext): void {
 	);
 	void applyFirstRunLayout(context);
 	void offerPythonSupport(context);
-	void runTestHooks();
+	if (context.extensionMode !== vscode.ExtensionMode.Production) {
+		void runTestHooks();
+	}
 }
 
 export function deactivate(): void {}

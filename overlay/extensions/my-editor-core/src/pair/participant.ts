@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { logExchange } from '../records/chatLog';
 import { currentFile, describeFile, FileContext, readProjectNote } from './context';
-import { documentFromReply, lastCodeBlock } from './codeBlock';
+import { documentFromReply, elidesCode, fileFromReply } from './codeBlock';
 import { Mode, MODES, systemPrompt } from './prompts';
 import { loadSkills } from '../skills/loader';
 import { neighbourSummary } from '../brain/brain';
@@ -47,6 +47,10 @@ async function handle(
 	}
 	if ((mode.writes === 'file' || mode.writes === 'selection') && !file) {
 		stream.markdown('Open the file you want to work on, then ask again.');
+		return {};
+	}
+	if (mode.writes === 'file' && file?.truncated) {
+		stream.markdown(`\`${file.relativePath}\` is too long to rewrite as a whole (over 60,000 characters). Select the part to work on and use \`/change\`.`);
 		return {};
 	}
 	if (mode.writes === 'selection' && !file?.selection) {
@@ -120,9 +124,13 @@ async function streamUntilCode(
 }
 
 function proposeEdit(stream: vscode.ChatResponseStream, mode: Mode, file: FileContext, reply: string): void {
-	const code = lastCodeBlock(reply);
+	const code = fileFromReply(reply);
 	if (code === undefined) {
 		stream.markdown('\n\n_No code came back, so nothing was changed._');
+		return;
+	}
+	if (mode.writes === 'file' && elidesCode(code)) {
+		stream.markdown('\n\n_The reply left out parts of the file ("… existing code …"), which would delete them, so nothing was changed. Try again, or select the part to change and use `/change`._');
 		return;
 	}
 	const range = mode.writes === 'selection' && file.selection
@@ -223,12 +231,8 @@ async function proposeDoc(stream: vscode.ChatResponseStream, mode: Mode, reply: 
 	if (!root || !mode.doc || content === undefined) {
 		return; // Still interviewing: nothing to write yet.
 	}
+	// A new spec file is created by the edit itself, so Undo leaves nothing behind.
 	const uri = vscode.Uri.joinPath(root, mode.doc);
-	try {
-		await vscode.workspace.fs.stat(uri);
-	} catch {
-		await vscode.workspace.fs.writeFile(uri, new Uint8Array());
-	}
 	stream.markdown(`\n\nReview \`${mode.doc}\` in the editor — keep or undo each part.`);
 	stream.textEdit(uri, [vscode.TextEdit.replace(new vscode.Range(0, 0, Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER), content.endsWith('\n') ? content : `${content}\n`)]);
 	stream.textEdit(uri, true);

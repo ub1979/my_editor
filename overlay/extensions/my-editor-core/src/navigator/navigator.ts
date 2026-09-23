@@ -3,6 +3,8 @@ import { neighbourSummary } from '../brain/brain';
 import { loadCatalog, pickDefault } from '../models/catalog';
 import { ApiKeys } from '../models/secrets';
 import { readProjectNote } from '../pair/context';
+import { redact } from '../records/redact';
+import { isSensitiveFile } from '../records/sensitive';
 import { changedHunks, Hunk, parseFindings } from './hunks';
 
 const SKIPPED_LANGUAGES = new Set(['markdown', 'plaintext', 'json', 'jsonc', 'log', 'csv', 'ignore', 'properties']);
@@ -93,6 +95,7 @@ export class Navigator implements vscode.Disposable {
 		this.baselines.set(key, text);
 		if (!this.active || this.muted.has(key) || before === undefined || document.uri.scheme !== 'file'
 			|| SKIPPED_LANGUAGES.has(document.languageId) || document.uri.path.includes('/.my_editor/')
+			|| isSensitiveFile(document.uri.path, document.languageId)
 			|| document.lineCount > MAX_LINES) {
 			return;
 		}
@@ -114,7 +117,8 @@ export class Navigator implements vscode.Disposable {
 				`File: ${path} (${document.languageId})`,
 				conventions ? `Project conventions:\n${conventions}` : '',
 				neighbours,
-				`Changed lines (with a little context; "+" marks changed lines):\n${excerpt(text, hunks)}`,
+				// Secrets in ordinary code (a pasted key, a token in a config) are masked before anything is sent.
+				`Changed lines (with a little context; "+" marks changed lines):\n${redact(excerpt(text, hunks))}`,
 			].filter(Boolean).join('\n\n');
 			const response = await model.sendRequest(
 				[vscode.LanguageModelChatMessage.User(prompt)], { modelOptions: { system: SYSTEM } }, cancel.token);

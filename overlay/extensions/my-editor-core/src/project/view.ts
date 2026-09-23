@@ -1,3 +1,4 @@
+import { randomBytes } from 'crypto';
 import * as vscode from 'vscode';
 import { loadCatalog, pickDefault } from '../models/catalog';
 import { ApiKeys } from '../models/secrets';
@@ -40,7 +41,7 @@ export class ProjectView implements vscode.WebviewViewProvider {
 		this.view = view;
 		const media = vscode.Uri.joinPath(this.context.extensionUri, 'media');
 		view.webview.options = { enableScripts: true, localResourceRoots: [media] };
-		const nonce = Math.random().toString(36).slice(2);
+		const nonce = randomBytes(16).toString('base64');
 		const css = view.webview.asWebviewUri(vscode.Uri.joinPath(media, 'project.css'));
 		const js = view.webview.asWebviewUri(vscode.Uri.joinPath(media, 'project.js'));
 		view.webview.html = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">

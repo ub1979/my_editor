@@ -1,7 +1,8 @@
 import * as vscode from 'vscode';
+import { isSensitiveFile } from '../records/sensitive';
 
 const MAX_FILE_CHARS = 60_000;
-const BLOCKED_FILES = /(^|\/)(\.env(\..*)?|.*\.pem|.*\.key|id_rsa|id_ed25519|\.npmrc|\.netrc)$/i;
+const EDITABLE_SCHEMES = new Set(['file', 'untitled']);
 
 /** What the pair sees about the file the user is working on. */
 export interface FileContext {
@@ -12,11 +13,15 @@ export interface FileContext {
 	readonly selection: vscode.Selection | undefined;
 	readonly selectedText: string;
 	readonly diagnostics: string;
+	/** True when the file is longer than the model is shown; whole-file edits must not be applied. */
+	readonly truncated: boolean;
 }
 
 /** The editor the request is about: the active one, else the first visible, else the first #file reference. */
 export async function currentFile(request: vscode.ChatRequest): Promise<FileContext | undefined> {
-	const editor = vscode.window.activeTextEditor ?? vscode.window.visibleTextEditors[0];
+	// Only real files: never a diff, output or git view that happens to be visible.
+	const editable = (e: vscode.TextEditor | undefined) => e && EDITABLE_SCHEMES.has(e.document.uri.scheme) ? e : undefined;
+	const editor = editable(vscode.window.activeTextEditor) ?? vscode.window.visibleTextEditors.find(e => editable(e));
 	let document = editor?.document;
 	if (!document) {
 		const ref = request.references.find(r => r.value instanceof vscode.Uri);
@@ -28,7 +33,7 @@ export async function currentFile(request: vscode.ChatRequest): Promise<FileCont
 		return undefined;
 	}
 	const relativePath = vscode.workspace.asRelativePath(document.uri);
-	if (BLOCKED_FILES.test(relativePath)) {
+	if (isSensitiveFile(relativePath, document.languageId)) {
 		throw new Error(`${relativePath} looks like a secrets file; my_editor never sends it to a model.`);
 	}
 	const selection = editor && editor.document === document && !editor.selection.isEmpty ? editor.selection : undefined;
@@ -37,11 +42,13 @@ export async function currentFile(request: vscode.ChatRequest): Promise<FileCont
 		.slice(0, 20)
 		.map(d => `line ${d.range.start.line + 1}: ${d.message}`)
 		.join('\n');
+	const fullText = document.getText();
 	return {
 		uri: document.uri,
 		relativePath,
 		languageId: document.languageId,
-		text: document.getText().slice(0, MAX_FILE_CHARS),
+		text: fullText.slice(0, MAX_FILE_CHARS),
+		truncated: fullText.length > MAX_FILE_CHARS,
 		selection,
 		selectedText: selection ? document.getText(selection) : '',
 		diagnostics,
@@ -65,7 +72,7 @@ export async function readProjectNote(name: string, maxChars = 8_000): Promise<s
 /** The file as the model sees it, with line numbers so it can refer to places precisely. */
 export function describeFile(file: FileContext): string {
 	const numbered = file.text.split('\n').map((line, i) => `${String(i + 1).padStart(4)}| ${line}`).join('\n');
-	const parts = [`File: ${file.relativePath} (${file.languageId})`, numbered];
+	const parts = [`File: ${file.relativePath} (${file.languageId})${file.truncated ? ' — only the beginning is shown; the file continues' : ''}`, numbered];
 	if (file.selection) {
 		parts.push(`Selected lines ${file.selection.start.line + 1}-${file.selection.end.line + 1}:\n${file.selectedText}`);
 	}

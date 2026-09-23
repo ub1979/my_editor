@@ -128,11 +128,15 @@ export function streamClaudeCli(command: string, request: StreamRequest): Promis
 
 /**
  * GPT through the user's Codex login (ChatGPT subscription): `codex exec` in a read-only sandbox, in an
- * empty folder, without saving a session. Replies arrive whole rather than word by word.
+ * empty folder, without saving a session, and with the user's MCP servers, plugins, apps, browser and
+ * computer use switched off — project text goes into the prompt, so Codex gets no tools that could act on
+ * instructions hidden in it. Replies arrive whole rather than word by word.
  */
 export function streamCodexCli(command: string, request: StreamRequest): Promise<void> {
 	const args = [
 		'exec', '--json', '--ephemeral', '--skip-git-repo-check', '--sandbox', 'read-only', '--color', 'never',
+		'--disable', 'browser_use', '--disable', 'computer_use', '--disable', 'apps',
+		'--disable', 'plugins', '--disable', 'remote_plugin', '-c', 'mcp_servers={}',
 		...(request.entry.model !== 'default' ? ['--model', request.entry.model] : []),
 		'-',
 	];

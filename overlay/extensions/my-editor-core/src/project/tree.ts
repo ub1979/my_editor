@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { serial } from '../util/serial';
 import { nextFile, parseTree, stubContent, TreeFile } from './stubs';
 
 const TREE = '.my_editor/specs/tree.json';
@@ -56,7 +57,7 @@ export async function scaffoldFromTree(): Promise<void> {
 		await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(tree.root, file.path), new TextEncoder().encode(stubContent(file)));
 		file.status = 'stub';
 	}
-	await save(tree.root, tree.files);
+	await serial(() => save(tree.root, tree.files));
 	void vscode.window.showInformationMessage(`Created ${picked.length} stub${picked.length === 1 ? '' : 's'}. Open Build in the Project view to start file by file.`);
 }
 
@@ -96,25 +97,29 @@ export async function toggleFileDone(): Promise<void> {
 		return;
 	}
 	file.status = file.status === 'done' ? 'in-progress' : 'done';
-	await save(tree.root, tree.files);
+	await serial(() => save(tree.root, tree.files));
 	void vscode.window.showInformationMessage(`${path}: ${file.status === 'done' ? 'done' : 'back in progress'}.`);
 }
 
 /** A planned file that gets real content moves from stub to in progress on save. */
-export async function trackProgress(document: vscode.TextDocument): Promise<void> {
+export function trackProgress(document: vscode.TextDocument): Promise<void> {
 	const root = vscode.workspace.workspaceFolders?.[0]?.uri;
 	if (!root || document.uri.path.includes('/.my_editor/')) {
-		return;
+		return Promise.resolve();
 	}
-	let files: TreeFile[];
-	try {
-		files = parseTree(new TextDecoder().decode(await vscode.workspace.fs.readFile(vscode.Uri.joinPath(root, TREE))));
-	} catch {
-		return;
-	}
-	const file = files.find(f => f.path === vscode.workspace.asRelativePath(document.uri, false));
-	if (file && (file.status === 'stub' || file.status === 'planned' || !file.status) && document.getText().trim() !== stubContent(file).trim()) {
-		file.status = 'in-progress';
-		await save(root, files);
-	}
+	const path = vscode.workspace.asRelativePath(document.uri, false);
+	const text = document.getText();
+	return serial(async () => {
+		let files: TreeFile[];
+		try {
+			files = parseTree(new TextDecoder().decode(await vscode.workspace.fs.readFile(vscode.Uri.joinPath(root, TREE))));
+		} catch {
+			return;
+		}
+		const file = files.find(f => f.path === path);
+		if (file && (file.status === 'stub' || file.status === 'planned' || !file.status) && text.trim() !== stubContent(file).trim()) {
+			file.status = 'in-progress';
+			await save(root, files);
+		}
+	});
 }

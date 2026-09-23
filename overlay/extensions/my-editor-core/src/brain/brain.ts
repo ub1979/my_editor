@@ -1,5 +1,6 @@
 import { execFile } from 'child_process';
 import * as vscode from 'vscode';
+import { serial } from '../util/serial';
 import { extractFacts, FileFacts, languageOf, resolveImport } from './facts';
 
 /** One file in `brain/map.json`. `note` is the user's own line and is never overwritten. */
@@ -101,27 +102,38 @@ export async function buildBrain(progress?: vscode.Progress<{ message?: string }
 	}
 	link(files);
 	const map: BrainMap = { builtAt: new Date().toISOString(), commit: await gitHead(r.fsPath), files };
-	await writeBrain(map);
+	await serial(() => writeBrain(map));
 	return map;
 }
 
-/** Updates one file's entry after it is saved (only when a brain already exists). */
-export async function updateBrainFile(document: vscode.TextDocument): Promise<void> {
-	if (languageOf(document.uri.path) === 'other' || document.uri.path.includes('/.my_editor/')) {
-		return;
-	}
-	const map = await readMap();
-	if (!map) {
-		return;
+const EXCLUDED_SEGMENT = /(^|\/)(node_modules|\.git|dist|out|build|\.venv|venv|__pycache__|\.my_editor)\//;
+
+/** Updates one file's entry after it is saved (only when a brain already exists and the facts changed). */
+export function updateBrainFile(document: vscode.TextDocument): Promise<void> {
+	if (languageOf(document.uri.path) === 'other' || document.uri.scheme !== 'file' || !vscode.workspace.getWorkspaceFolder(document.uri)) {
+		return Promise.resolve();
 	}
 	const path = vscode.workspace.asRelativePath(document.uri, false);
-	const known = new Set([...Object.keys(map.files), path]);
-	const before = map.files[path];
-	const after = toEntry(path, document.getText(), known, before);
-	const files = { ...map.files, [path]: after };
-	link(files);
-	const shapeChanged = !before || before.exports.join() !== after.exports.join() || before.role !== after.role;
-	await writeBrain({ ...map, builtAt: new Date().toISOString(), files }, shapeChanged);
+	if (EXCLUDED_SEGMENT.test(path) || path.endsWith('.d.ts')) {
+		return Promise.resolve();
+	}
+	const text = document.getText();
+	return serial(async () => {
+		const map = await readMap();
+		if (!map) {
+			return;
+		}
+		const known = new Set([...Object.keys(map.files), path]);
+		const before = map.files[path];
+		const after = toEntry(path, text, known, before);
+		const files = { ...map.files, [path]: after };
+		link(files);
+		if (JSON.stringify(files) === JSON.stringify(map.files)) {
+			return; // Nothing the brain records changed: leave the file alone so git stays quiet.
+		}
+		const shapeChanged = !before || before.exports.join() !== after.exports.join() || before.role !== after.role;
+		await writeBrain({ ...map, files }, shapeChanged);
+	});
 }
 
 async function writeBrain(map: BrainMap, rewriteIndex = true): Promise<void> {

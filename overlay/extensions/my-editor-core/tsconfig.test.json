@@ -19,6 +19,7 @@
     "src/project/impactSubject.ts",
     "src/models/cliProtocol.ts",
     "src/models/types.ts",
-    "typings/vscode.d.ts"
+    "typings/vscode.d.ts",
+    "src/records/sensitive.ts"
   ]
 }

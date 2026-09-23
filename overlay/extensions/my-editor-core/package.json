@@ -182,7 +182,8 @@
         "myEditor.openai.baseUrl": {
           "type": "string",
           "default": "https://api.openai.com/v1",
-          "description": "OpenAI API base URL."
+          "description": "OpenAI API base URL. Only settable in user settings, so a project cannot redirect it.",
+          "scope": "machine"
         },
         "myEditor.openai.models": {
           "type": "array",
@@ -203,7 +204,8 @@
         "myEditor.custom.baseUrl": {
           "type": "string",
           "default": "",
-          "description": "Base URL of any OpenAI-compatible endpoint."
+          "description": "Base URL of any OpenAI-compatible endpoint. Only settable in user settings, so a project cannot redirect it.",
+          "scope": "machine"
         },
         "myEditor.custom.models": {
           "type": "array",
@@ -221,7 +223,8 @@
         "myEditor.ollama.baseUrl": {
           "type": "string",
           "default": "http://localhost:11434",
-          "description": "Ollama URL."
+          "description": "Ollama URL. Only settable in user settings, so a project cannot redirect it.",
+          "scope": "machine"
         },
         "myEditor.ollama.think": {
           "type": "boolean",
@@ -261,7 +264,8 @@
         "myEditor.claudeCli.path": {
           "type": "string",
           "default": "",
-          "markdownDescription": "Path to the `claude` command. Empty: found on PATH or in the usual install folders."
+          "markdownDescription": "Path to the `claude` command. Empty: found on PATH or in the usual install folders. Only settable in user settings, so a project cannot redirect it.",
+          "scope": "machine"
         },
         "myEditor.claudeCli.models": {
           "type": "array",
@@ -283,7 +287,8 @@
         "myEditor.codexCli.path": {
           "type": "string",
           "default": "",
-          "markdownDescription": "Path to the `codex` command. Empty: found on PATH or in the usual install folders."
+          "markdownDescription": "Path to the `codex` command. Empty: found on PATH or in the usual install folders. Only settable in user settings, so a project cannot redirect it.",
+          "scope": "machine"
         },
         "myEditor.codexCli.models": {
           "type": "array",
@@ -303,7 +308,8 @@
         "myEditor.lmstudio.baseUrl": {
           "type": "string",
           "default": "http://localhost:1234/v1",
-          "description": "LM Studio server URL (OpenAI-compatible)."
+          "description": "LM Studio server URL (OpenAI-compatible). Only settable in user settings, so a project cannot redirect it.",
+          "scope": "machine"
         }
       }
     },
