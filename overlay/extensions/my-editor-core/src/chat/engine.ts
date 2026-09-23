@@ -87,6 +87,13 @@ export class PairEngine {
 			return { mode: 'chat', reply: '' };
 		}
 
+		// The requirements interview always opens the same way: the idea first, in the user's own words.
+		if (input.kickoff && mode.id === 'requirements') {
+			const opener = 'What’s your idea? Tell me in your own words. A sentence or two is plenty.';
+			sink.text(opener);
+			return { mode: mode.id, reply: opener };
+		}
+
 		let file: FileContext | undefined;
 		try {
 			file = await currentFile();

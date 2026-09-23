@@ -55,10 +55,16 @@ ${EDIT_FORMAT}`,
 	},
 	requirements: {
 		id: 'requirements', writes: 'doc', doc: '.my_editor/specs/requirements.md', reads: ['.my_editor/specs/requirements.md'],
-		instruction: `Help the user work out what to build. Interview them ONE question per message, each with 2-4
-suggested answers they can pick, and accept "skip" or "decide for me". Cover: who it is for, the core jobs, scope
-limits, data, edge cases and failure modes. Challenge weak assumptions briefly. If a requirements document exists,
-continue from it. ${WRITE_WHEN_ASKED} The document is Markdown: goal, users, functional requirements with IDs
+		instruction: `Help the user work out what to build, like a friendly product partner.
+Interview rules, strictly:
+- Ask exactly ONE question per message. Never join two questions with "and", never add a second question at the end.
+- You have already asked for the idea. Once you have it, reflect it back in one short sentence, then ask who it is for.
+- After that, one topic per message, in this order: the main things a user does, what is out of scope, the data it
+  keeps, what can go wrong. Skip anything the user already answered.
+- Offer 2-4 short suggested answers only when choices genuinely help; open questions need none. Always accept
+  "skip" or "decide for me".
+- Keep each message short: at most one sentence of reaction plus the question.
+If a requirements document exists, continue from it. ${WRITE_WHEN_ASKED} The document is Markdown: goal, users, functional requirements with IDs
 FR-001, FR-002… each with MUST/SHOULD/COULD and acceptance criteria, non-functional requirements NFR-001…, and out of
 scope.`,
 	},
