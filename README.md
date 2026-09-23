@@ -5,6 +5,7 @@ programmer that writes only what you ask, a project brain that keeps a short map
 calm, writing-first interface.
 
 The plan and requirements are in [`docs/plans/my_editor-plan-v2.md`](docs/plans/my_editor-plan-v2.md).
+The current aim, objectives, and status are in [`docs/vision-and-status.md`](docs/vision-and-status.md).
 Decisions are in [`docs/decisions/`](docs/decisions/). Screenshots are in [`docs/screens/`](docs/screens/).
 
 ## What works today
