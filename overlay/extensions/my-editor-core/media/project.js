@@ -41,6 +41,8 @@ function render(state, model) {
 	const memory = el('dl', { class: 'memory' }, [
 		el('dt', {}, ['Conventions']),
 		el('dd', {}, [button(state.memory.conventions ? 'Open' : 'Write', () => vscode.postMessage({ type: 'conventions' }))]),
+		el('dt', {}, ['Brain']),
+		el('dd', {}, [button(state.memory.brainFiles ? `${state.memory.brainFiles} files · rebuild` : 'Build', () => vscode.postMessage({ type: 'brain' }))]),
 		el('dt', {}, ['Decisions']),
 		el('dd', {}, [state.memory.decisions ? button(String(state.memory.decisions), () => vscode.postMessage({ type: 'folder', path: '.my_editor/decisions' })) : el('span', { class: 'empty' }, ['none yet'])]),
 		el('dt', {}, ['Chat history']),

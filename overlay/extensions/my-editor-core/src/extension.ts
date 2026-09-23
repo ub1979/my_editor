@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { buildBrain, updateBrainFile } from './brain/brain';
 import { runTestHooks } from './dev/testHooks';
 import { applyFirstRunLayout } from './layout';
 import { ModelProvider } from './models/provider';
@@ -27,6 +28,15 @@ export function activate(context: vscode.ExtensionContext): void {
 		vscode.window.registerWebviewViewProvider(ProjectView.id, new ProjectView(context)),
 		vscode.commands.registerCommand('myEditor.setApiKey', () => keys.promptAndStore()),
 		vscode.commands.registerCommand('myEditor.refreshModels', () => models.refresh()),
+		vscode.commands.registerCommand('myEditor.buildBrain', () => vscode.window.withProgress(
+			{ location: vscode.ProgressLocation.Notification, title: 'Building the project brain' },
+			async progress => {
+				const map = await buildBrain(progress);
+				if (map) {
+					void vscode.window.showInformationMessage(`Project brain built: ${Object.keys(map.files).length} files mapped.`);
+				}
+			})),
+		vscode.workspace.onDidSaveTextDocument(document => void updateBrainFile(document)),
 	);
 	void applyFirstRunLayout(context);
 	void runTestHooks();

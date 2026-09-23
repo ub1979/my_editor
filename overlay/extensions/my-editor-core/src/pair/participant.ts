@@ -4,6 +4,7 @@ import { currentFile, describeFile, FileContext, readProjectNote } from './conte
 import { lastCodeBlock } from './codeBlock';
 import { Mode, MODES, systemPrompt } from './prompts';
 import { loadSkills } from '../skills/loader';
+import { neighbourSummary } from '../brain/brain';
 
 const HISTORY_TURNS = 6;
 
@@ -44,9 +45,12 @@ async function handle(
 		return {};
 	}
 
-	const [conventions, brain, specs] = await Promise.all([
-		readProjectNote('conventions.md'), readProjectNote('brain/index.md'), readSpecs(mode)]);
-	const subject = mode.writes === 'doc' ? specs || 'No specs written yet.' : file ? describeFile(file) : 'No file is open.';
+	const [conventions, brain, specs, neighbours] = await Promise.all([
+		readProjectNote('conventions.md'), readProjectNote('brain/index.md'), readSpecs(mode),
+		file ? neighbourSummary(file.relativePath) : Promise.resolve('')]);
+	const subject = mode.writes === 'doc'
+		? specs || 'No specs written yet.'
+		: file ? [describeFile(file), neighbours].filter(Boolean).join('\n\n') : 'No file is open.';
 	const messages = [
 		...history(context),
 		vscode.LanguageModelChatMessage.User(`${subject}\n\nRequest: ${prompt || '(no extra instructions)'}`),

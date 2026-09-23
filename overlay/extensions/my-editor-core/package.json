@@ -24,6 +24,11 @@
         "command": "myEditor.refreshModels",
         "title": "Refresh Models",
         "category": "my_editor"
+      },
+      {
+        "command": "myEditor.buildBrain",
+        "title": "Build Project Brain",
+        "category": "my_editor"
       }
     ],
     "languageModelChatProviders": [

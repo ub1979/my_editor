@@ -71,6 +71,9 @@ export class ProjectView implements vscode.WebviewViewProvider {
 			case 'models':
 				await vscode.commands.executeCommand('myEditor.setApiKey');
 				return;
+			case 'brain':
+				await vscode.commands.executeCommand('myEditor.buildBrain');
+				return;
 			case 'chat':
 				await vscode.commands.executeCommand('workbench.action.chat.open');
 				return;

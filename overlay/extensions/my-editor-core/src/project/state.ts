@@ -14,7 +14,7 @@ export interface ProjectState {
 	readonly summary: string;
 	readonly hasWorkspace: boolean;
 	readonly stages: Stage[];
-	readonly memory: { conventions: boolean; decisions: number; chatDays: number; brain: boolean };
+	readonly memory: { conventions: boolean; decisions: number; chatDays: number; brain: boolean; brainFiles: number };
 }
 
 async function read(root: vscode.Uri, path: string): Promise<string | undefined> {
@@ -42,16 +42,23 @@ function plural(n: number, word: string): string {
 export async function readProjectState(): Promise<ProjectState> {
 	const folder = vscode.workspace.workspaceFolders?.[0];
 	if (!folder) {
-		return { name: 'No project open', summary: 'Open a folder to start.', hasWorkspace: false, stages: [], memory: { conventions: false, decisions: 0, chatDays: 0, brain: false } };
+		return { name: 'No project open', summary: 'Open a folder to start.', hasWorkspace: false, stages: [], memory: { conventions: false, decisions: 0, chatDays: 0, brain: false, brainFiles: 0 } };
 	}
 	const root = folder.uri;
-	const [requirements, architecture, tree, brain, conventions] = await Promise.all([
+	const [requirements, architecture, tree, brain, conventions, brainMap] = await Promise.all([
 		read(root, '.my_editor/specs/requirements.md'),
 		read(root, '.my_editor/specs/architecture.md'),
 		read(root, '.my_editor/specs/tree.json'),
 		read(root, '.my_editor/brain/index.md'),
 		read(root, '.my_editor/conventions.md'),
+		read(root, '.my_editor/brain/map.json'),
 	]);
+	let brainFiles = 0;
+	try {
+		brainFiles = brainMap ? Object.keys(JSON.parse(brainMap).files ?? {}).length : 0;
+	} catch {
+		brainFiles = 0;
+	}
 	const [decisions, chatDays, qaReports] = await Promise.all([
 		count(root, '.my_editor/decisions', '.md'),
 		count(root, '.my_editor/chats', '.md'),
@@ -101,6 +108,6 @@ export async function readProjectState(): Promise<ProjectState> {
 		summary: firstLine ?? 'No project brain yet.',
 		hasWorkspace: true,
 		stages,
-		memory: { conventions: conventions !== undefined, decisions, chatDays, brain: brain !== undefined },
+		memory: { conventions: conventions !== undefined, decisions, chatDays, brain: brain !== undefined, brainFiles },
 	};
 }
