@@ -224,6 +224,11 @@ svg.icon {
 	line-height: 1.45;
 }
 
+.offer .offer-note {
+	color: var(--muted);
+	font-size: 12px;
+}
+
 .offer .offer-title {
 	margin-bottom: 4px;
 	font-family: var(--serif);

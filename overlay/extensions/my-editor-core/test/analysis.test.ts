@@ -1,12 +1,12 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
-import { anchorFor, batchFiles, ensureSections, FileInfo, firstParagraph, groupByModule, moduleNote, moduleOf, parseSummaries, projectOutline, treeFromFiles } from '../src/brain/analysisPlan';
+import { anchorFor, batchFiles, Coverage, coverageLines, ensureSections, FileInfo, firstParagraph, groupByModule, moduleNote, moduleOf, parseSummaries, projectOutline, splitAtDefinitions, treeFromFiles } from '../src/brain/analysisPlan';
 
 test('batchFiles respects the size budget and the per-batch count', () => {
-	const files = Array.from({ length: 5 }, (_, i) => ({ path: `f${i}.ts`, text: 'x'.repeat(10_000) }));
-	const batches = batchFiles(files, 9_000, 12);
-	assert.equal(batches.length, 3); // each file clipped to 4,000 chars: 2 + 2 + 1
-	assert.equal(batches[0][0].text.length, 4_000);
+	const files = Array.from({ length: 5 }, (_, i) => ({ path: `f${i}.ts`, text: 'x'.repeat(20_000) }));
+	const batches = batchFiles(files, 21_000, 12);
+	assert.equal(batches.length, 3); // each file clipped to 10,200 chars: 2 + 2 + 1
+	assert.equal(batches[0][0].text.length, 10_200);
 	assert.equal(batchFiles(files, 1_000_000, 2).length, 3);
 });
 
@@ -75,4 +75,37 @@ test('ensureSections adds missing anchors only', () => {
 	assert.equal(firstParagraph('# Only a title'), undefined);
 	assert.equal(firstParagraph('# T\n\nA tool (v2.1) for songs. It also exports.'), 'A tool (v2.1) for songs.');
 	assert.equal(firstParagraph(`# T\n\n${'word '.repeat(60)}`, 22), 'word word word word…');
+});
+
+test('splitAtDefinitions cuts between top-level definitions and reports incomplete files', () => {
+	const fn = (name: string) => `function ${name}() {\n${'  work();\n'.repeat(30)}}\n`;
+	const text = [fn('a'), fn('b'), fn('c'), fn('d')].join('\n');
+	const { pieces, complete } = splitAtDefinitions(text, 700);
+	assert.ok(complete);
+	assert.ok(pieces.length >= 2);
+	assert.ok(pieces.every(p => p.text.length <= 700));
+	for (const piece of pieces.slice(1)) {
+		assert.match(piece.text, /^function \w\(\) \{/); // every later piece starts at a definition
+	}
+	assert.equal(pieces[0].start, 1);
+	assert.equal(pieces.at(-1)!.end, text.split('\n').length);
+	for (let i = 1; i < pieces.length; i++) {
+		assert.equal(pieces[i].start, pieces[i - 1].end + 1);
+	}
+	const partial = splitAtDefinitions(text, 700, 1);
+	assert.equal(partial.pieces.length, 1);
+	assert.equal(partial.complete, false);
+	const oneLine = splitAtDefinitions('x'.repeat(5_000), 1_000);
+	assert.equal(oneLine.pieces.length, 1);
+	assert.equal(oneLine.pieces[0].text.length, 1_000);
+});
+
+test('coverageLines says every gap and nothing when all was covered', () => {
+	const none: Coverage = { tooLarge: [], fileLimitHit: false, secretFiles: 0, inPieces: 0, partlyRead: [], leftForLater: 0, failed: 0 };
+	assert.deepEqual(coverageLines(none, 5_000), []);
+	const lines = coverageLines({ ...none, tooLarge: ['a.js', 'b.js', 'c.js', 'd.js'], fileLimitHit: true, leftForLater: 1200 }, 5_000);
+	assert.equal(lines.length, 3);
+	assert.match(lines.join('\n'), /first 5,000 code files/);
+	assert.match(lines.join('\n'), /`a.js`, `b.js`, `c.js` and 1 more/);
+	assert.match(lines.join('\n'), /1,200 files\. .*Run Analyse again/);
 });

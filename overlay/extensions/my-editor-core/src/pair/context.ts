@@ -69,7 +69,7 @@ export async function readProjectNote(name: string, maxChars = 8_000): Promise<s
 /** The file as the model sees it, with line numbers so it can refer to places precisely. */
 export function describeFile(file: FileContext): string {
 	const numbered = file.text.split('\n').map((line, i) => `${String(i + 1).padStart(4)}| ${line}`).join('\n');
-	const parts = [`File: ${file.relativePath} (${file.languageId})${file.truncated ? ' — only the beginning is shown; the file continues' : ''}`, numbered];
+	const parts = [`File: ${file.relativePath} (${file.languageId})${file.truncated ? ' — only the beginning is shown; the file continues ("What is where in this file", if given, covers all of it)' : ''}`, numbered];
 	if (file.selection) {
 		parts.push(`Selected lines ${file.selection.start.line + 1}-${file.selection.end.line + 1}:\n${file.selectedText}`);
 	}

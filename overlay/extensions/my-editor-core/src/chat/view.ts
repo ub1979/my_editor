@@ -14,7 +14,7 @@ const STATE_KEY = 'myEditor.chat.state';
 const ANALYSE_ANSWERED = 'myEditor.analyse.answered';
 const MAX_KEPT_MESSAGES = 60;
 /** Buttons a reply may offer; anything else is ignored. */
-const ALLOWED_ACTIONS = new Set(['myEditor.saveDecision', 'myEditor.adaptFile']);
+const ALLOWED_ACTIONS = new Set(['myEditor.saveDecision', 'myEditor.adaptFile', 'myEditor.analyseProject']);
 
 interface ProposalCard {
 	readonly id: string;

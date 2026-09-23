@@ -40,7 +40,9 @@ Decisions are in [`docs/decisions/`](docs/decisions/). Screenshots are in [`docs
 - **Project brain:** open a project that already has code and the pair asks first: *Shall I get to know this
   project?* If you say yes, it reads every file and writes `.my_editor/brain/`: a map of each file's imports,
   exports and a one-line summary, and a note per part. It also drafts `specs/architecture.md` and `specs/tree.json`
-  for you to Keep or Undo. Your code is never changed. The brain stays current on save, and the pair uses it as
+  for you to Keep or Undo. Your code is never changed. Long files are read in pieces. Running it again only
+  redoes files that changed. Anything it could not cover (huge or generated files, very big projects) is listed,
+  never skipped silently. The brain stays current on save, and the pair uses it as
   context. To run it again, use **Analyse** in the Project view or **my_editor: Analyse This Project**.
 
 ## Build and run (macOS)

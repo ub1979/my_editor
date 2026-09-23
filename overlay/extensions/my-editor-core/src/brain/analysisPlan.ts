@@ -5,10 +5,11 @@ export interface SourceFile {
 	readonly text: string;
 }
 
-const MAX_FILE_CHARS = 4_000;
+/** One item's share of a request: a whole short file, or one piece of a long one plus its header. */
+const MAX_FILE_CHARS = 10_200;
 
 /** Groups files into batches small enough for one request; long files contribute only their beginning. */
-export function batchFiles(files: readonly SourceFile[], budgetChars = 24_000, maxPerBatch = 12): SourceFile[][] {
+export function batchFiles(files: readonly SourceFile[], budgetChars = 40_000, maxPerBatch = 12): SourceFile[][] {
 	const batches: SourceFile[][] = [];
 	let current: SourceFile[] = [];
 	let used = 0;
@@ -32,7 +33,7 @@ export function batchFiles(files: readonly SourceFile[], budgetChars = 24_000, m
  * Reads `{ "path": "one line" }` from a model reply. Only paths that were asked about are kept; each summary
  * becomes one short line, so a reply cannot inject anything else into the brain.
  */
-export function parseSummaries(reply: string, askedPaths: readonly string[]): Record<string, string> {
+export function parseSummaries(reply: string, askedPaths: readonly string[], maxChars = 200): Record<string, string> {
 	const start = reply.indexOf('{');
 	const end = reply.lastIndexOf('}');
 	if (start < 0 || end <= start) {
@@ -51,7 +52,7 @@ export function parseSummaries(reply: string, askedPaths: readonly string[]): Re
 	const out: Record<string, string> = {};
 	for (const [path, value] of Object.entries(raw as Record<string, unknown>)) {
 		if (asked.has(path) && typeof value === 'string') {
-			const line = value.replace(/\s+/g, ' ').trim().slice(0, 200);
+			const line = value.replace(/\s+/g, ' ').trim().slice(0, maxChars);
 			if (line) {
 				out[path] = line;
 			}
@@ -141,11 +142,12 @@ function partsLinked(paths: readonly string[], files: Readonly<Record<string, Fi
 }
 
 /** The generated part of `brain/modules/<anchor>.md`: every file with its summary, and what the part uses and serves. */
-export function moduleNote(module: string, paths: readonly string[], files: Readonly<Record<string, FileInfo>>): string {
+export function moduleNote(module: string, paths: readonly string[], files: Readonly<Record<string, FileInfo>>, summary?: string): string {
 	const lines = paths.reduce((n, p) => n + (files[p]?.lines ?? 0), 0);
 	const out = [
 		`Part \`${module}\` · ${paths.length} file${paths.length === 1 ? '' : 's'} · ${lines} lines · architecture section #${anchorFor(module)}`,
 		'',
+		...(summary ? [summary, ''] : []),
 		'## Files',
 		'',
 		...paths.map(path => {
@@ -167,7 +169,7 @@ export function moduleNote(module: string, paths: readonly string[], files: Read
 }
 
 /** A compact outline of the whole project for the architecture draft, bounded so any project fits one request. */
-export function projectOutline(files: Readonly<Record<string, FileInfo>>, budgetChars = 40_000): string {
+export function projectOutline(files: Readonly<Record<string, FileInfo>>, budgetChars = 40_000, parts: Readonly<Record<string, string>> = {}): string {
 	const groups = groupByModule(Object.keys(files));
 	// Big projects: fewer files listed per part, most-used files first.
 	const perPart = Math.max(3, Math.floor(budgetChars / 140 / Math.max(1, groups.size)));
@@ -178,6 +180,7 @@ export function projectOutline(files: Readonly<Record<string, FileInfo>>, budget
 		const uses = partsLinked(paths, files, 'imports').map(([m]) => m);
 		sections.push([
 			`### ${module} {#${anchorFor(module)}} — ${paths.length} file${paths.length === 1 ? '' : 's'}${uses.length ? `; uses ${uses.slice(0, 6).join(', ')}` : ''}`,
+			...(parts[module] ? [parts[module]] : []),
 			...shown.map(path => `- ${path}${describe(files[path]) ? ` — ${describe(files[path])}` : ''}`),
 			...(paths.length > shown.length ? [`- … and ${paths.length - shown.length} more`] : []),
 		].join('\n'));
@@ -208,4 +211,85 @@ export function firstParagraph(doc: string, maxChars = 200): string | undefined 
 	const end = flat.search(/[.!?](\s|$)/);
 	const sentence = end >= 0 ? flat.slice(0, end + 1) : flat;
 	return sentence.length <= maxChars ? sentence : `${sentence.slice(0, maxChars).replace(/\s+\S*$/, '')}…`;
+}
+
+/** One piece of a long file, cut where a top-level definition starts. Lines are 1-based and inclusive. */
+export interface FilePiece {
+	readonly start: number;
+	readonly end: number;
+	readonly text: string;
+}
+
+/** A top-level line that starts something new: not indented, not a closing bracket, after a blank line or comment. */
+function isBoundary(lines: readonly string[], i: number): boolean {
+	const line = lines[i];
+	if (!line || /^\s/.test(line) || /^[})\]]/.test(line)) {
+		return false;
+	}
+	const previous = lines[i - 1] ?? '';
+	return !previous.trim() || /^\s*(\/\/|#|\*|\/\*|\*\/|""")/.test(previous) || /^[})\]];?\s*$/.test(previous);
+}
+
+/**
+ * Splits a long file into pieces of at most `maxChars`, cutting between top-level definitions where it can, so
+ * each piece can be summarised on its own. Stops after `maxParts`; `complete` says whether the whole file fits.
+ */
+export function splitAtDefinitions(text: string, maxChars = 10_000, maxParts = 30): { pieces: FilePiece[]; complete: boolean } {
+	const lines = text.split('\n');
+	const pieces: FilePiece[] = [];
+	let start = 0;
+	while (start < lines.length && pieces.length < maxParts) {
+		let size = 0;
+		let end = start;
+		let lastBoundary = -1;
+		while (end < lines.length && size + lines[end].length + 1 <= maxChars) {
+			if (end > start && isBoundary(lines, end)) {
+				lastBoundary = end;
+			}
+			size += lines[end].length + 1;
+			end++;
+		}
+		if (end === start) {
+			end = start + 1; // One line longer than a piece: take it alone (clipped).
+		} else if (end < lines.length && lastBoundary > start + (end - start) / 3) {
+			end = lastBoundary; // Cut before the last definition that fits, unless that leaves a tiny piece.
+		}
+		pieces.push({ start: start + 1, end, text: lines.slice(start, end).join('\n').slice(0, maxChars) });
+		start = end;
+	}
+	return { pieces, complete: start >= lines.length };
+}
+
+/** What an analysis could not fully cover; every part of it is said out loud. */
+export interface Coverage {
+	/** Files too large to read (likely generated or bundled). */
+	readonly tooLarge: readonly string[];
+	/** The project has more code files than the brain reads. */
+	readonly fileLimitHit: boolean;
+	readonly secretFiles: number;
+	/** Long files summarised in pieces. */
+	readonly inPieces: number;
+	/** Files so long that only their beginning was summarised. */
+	readonly partlyRead: readonly string[];
+	/** Files left for the next run because of the per-run limit. */
+	readonly leftForLater: number;
+	readonly failed: number;
+}
+
+function list(paths: readonly string[], max = 3): string {
+	return paths.slice(0, max).map(p => `\`${p}\``).join(', ') + (paths.length > max ? ` and ${paths.length - max} more` : '');
+}
+
+/** The report lines for the chat, one per gap; empty when everything was covered. */
+export function coverageLines(c: Coverage, maxFiles: number): string[] {
+	const n = (count: number, word: string) => `${count.toLocaleString('en')} ${word}${count === 1 ? '' : 's'}`;
+	return [
+		c.fileLimitHit ? `- **Very big project:** I read the first ${maxFiles.toLocaleString('en')} code files only.` : '',
+		c.tooLarge.length ? `- **Too large to read:** ${list(c.tooLarge)} (over 400 KB, usually generated or bundled code).` : '',
+		c.leftForLater ? `- **Not summarised yet:** ${n(c.leftForLater, 'file')}. I started with the most-used files. Run Analyse again to continue from here.` : '',
+		c.partlyRead.length ? `- **Only partly read:** ${list(c.partlyRead)}. Very long, so only the beginning is summarised.` : '',
+		c.failed ? `- **No summary:** ${n(c.failed, 'file')}, because the model did not answer for them. Run Analyse again to retry.` : '',
+		c.secretFiles ? `- **Not sent on purpose:** ${n(c.secretFiles, 'file')} that look like secrets or keys.` : '',
+		c.inPieces ? `- **Read in pieces:** ${n(c.inPieces, 'long file')}, summarised part by part and then as a whole.` : '',
+	].filter(Boolean);
 }
