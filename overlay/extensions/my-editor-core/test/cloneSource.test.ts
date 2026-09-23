@@ -6,7 +6,7 @@ test('GitHub branch pages clone the repository and select the named branch', () 
 	assert.deepEqual(parseCloneSource('https://github.com/lucky-ali/go-dialer/tree/codex/production-predictdial-delivery-v1'), {
 		url: 'https://github.com/lucky-ali/go-dialer.git',
 		branch: 'codex/production-predictdial-delivery-v1',
-		folderName: 'go-dialer-production-predictdial-delivery-v1',
+		folderName: 'go-dialer',
 	});
 });
 

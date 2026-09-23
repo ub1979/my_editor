@@ -26,7 +26,7 @@ export function parseCloneSource(input: string): CloneSource | undefined {
 		let branch: string;
 		try { branch = pieces.slice(3).map(decodeURIComponent).join('/'); } catch { return undefined; }
 		if (!validBranchName(branch)) { return undefined; }
-		return { url: `https://github.com/${pieces[0]}/${repo}.git`, branch, folderName: `${repo}-${branch.split('/').pop()}` };
+		return { url: `https://github.com/${pieces[0]}/${repo}.git`, branch, folderName: repo };
 	}
 	if (pieces.length < 2 || pieces.some(piece => !validPart(piece))) { return undefined; }
 	const name = pieces[pieces.length - 1].replace(/\.git$/, '');

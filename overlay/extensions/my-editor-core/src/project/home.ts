@@ -113,20 +113,22 @@ export class Home {
 			if (chosen === undefined) { return; }
 			branch = chosen.trim() || undefined;
 		}
-		const lastParent = this.context.globalState.get<string>(LAST_PARENT);
-		const [parent] = await vscode.window.showOpenDialog({
-			canSelectFolders: true, canSelectFiles: false, openLabel: 'Clone here',
-			title: 'Where should the cloned project live?',
-			defaultUri: vscode.Uri.file(lastParent ?? os.homedir()),
-		}) ?? [];
-		if (!parent) { return; }
 		const name = await vscode.window.showInputBox({
-			title: 'Project folder name', value: branch && !source.branch ? `${source.folderName}-${branch.split('/').pop()}` : source.folderName,
+			title: 'Name your project',
+			prompt: 'Edit this name if you want. It will be the folder name and the name shown in my_editor.',
+			value: source.folderName,
 			ignoreFocusOut: true,
 			validateInput: value => /^[\w .-]+$/.test(value.trim()) && !['.', '..'].includes(value.trim())
 				? undefined : 'Use a folder name without slashes.',
 		});
 		if (!name?.trim()) { return; }
+		const lastParent = this.context.globalState.get<string>(LAST_PARENT);
+		const [parent] = await vscode.window.showOpenDialog({
+			canSelectFolders: true, canSelectFiles: false, openLabel: 'Use as parent folder',
+			title: `Choose the folder that will contain ${name.trim()}`,
+			defaultUri: vscode.Uri.file(lastParent ?? os.homedir()),
+		}) ?? [];
+		if (!parent) { return; }
 		const folder = vscode.Uri.joinPath(parent, name.trim());
 		try {
 			await vscode.workspace.fs.stat(folder);
