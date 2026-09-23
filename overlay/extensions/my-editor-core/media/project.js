@@ -38,6 +38,11 @@ function render(state, model) {
 		stages.append(el('li', {}, [row]));
 	});
 	root.append(el('section', {}, [el('p', { class: 'eyebrow' }, ['Build path']), stages]));
+	const maps = el('div', { class: 'visual-links' }, [
+		button('Architecture map ↗', () => vscode.postMessage({ type: 'visual', tab: 'architecture' }), 'visual-link'),
+		button('File tree ↗', () => vscode.postMessage({ type: 'visual', tab: 'tree' }), 'visual-link'),
+	]);
+	root.append(el('section', {}, [el('p', { class: 'eyebrow' }, ['Visual maps']), maps]));
 
 	const memory = el('dl', { class: 'memory' }, [
 		el('dt', {}, ['Conventions']),

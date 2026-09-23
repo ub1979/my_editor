@@ -17,6 +17,7 @@
     "src/brain/fit.ts",
     "src/project/stubs.ts",
     "src/project/impactSubject.ts",
+	"src/project/visualPlan.ts",
     "src/models/cliProtocol.ts",
 	"src/models/codexModels.ts",
     "src/models/types.ts",

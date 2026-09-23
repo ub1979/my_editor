@@ -36,6 +36,7 @@ Decisions are in [`docs/decisions/`](docs/decisions/). Screenshots are in [`docs
   - **ChatGPT subscription** through your Codex login (`codex exec`, read-only sandbox, empty working folder).
   - **Local:** Ollama and LM Studio, listed whenever their servers are running.
   - **API keys** (kept in the macOS keychain): Anthropic, OpenAI, OpenRouter, any OpenAI-compatible URL.
+- **Visual project maps:** in Project, open **Architecture map** to see parts and their code links, or **File tree** to browse and search planned files. Both read the saved `.my_editor/specs/` documents.
 - **Navigator:** after each save it reviews only the changed lines and shows at most three notes. It never edits.
 - **Project brain:** open a project that already has code and the pair asks first: *Shall I get to know this
   project?* If you say yes, it reads every file and writes `.my_editor/brain/`: a map of each file's imports,

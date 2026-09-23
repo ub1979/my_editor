@@ -145,6 +145,32 @@ button.link {
 	border-top: 1px solid var(--line);
 }
 
+.visual-links {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 8px;
+}
+
+button.visual-link {
+	padding: 10px 8px;
+	border: 1px solid var(--line);
+	border-radius: 8px;
+	background: var(--vscode-sideBar-background);
+	color: var(--accent);
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
+}
+
+button.visual-link:hover {
+	background: var(--hover);
+}
+
+button.visual-link:focus-visible {
+	outline: 2px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+}
+
 .empty {
 	color: var(--muted);
 }

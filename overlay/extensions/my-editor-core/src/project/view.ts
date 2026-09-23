@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 import { loadCatalog, pickDefault } from '../models/catalog';
 import { ApiKeys } from '../models/secrets';
 import { readProjectState } from './state';
+import { ProjectVisualView } from './visualView';
 
 const CONVENTIONS_TEMPLATE = `# Conventions
 
@@ -26,7 +27,7 @@ export class ProjectView implements vscode.WebviewViewProvider {
 	static readonly id = 'myEditor.project';
 	private view: vscode.WebviewView | undefined;
 
-	constructor(private readonly context: vscode.ExtensionContext, private readonly keys: ApiKeys) {
+	constructor(private readonly context: vscode.ExtensionContext, private readonly keys: ApiKeys, private readonly visuals: ProjectVisualView) {
 		const watcher = vscode.workspace.createFileSystemWatcher('**/.my_editor/**');
 		context.subscriptions.push(
 			watcher,
@@ -62,7 +63,7 @@ export class ProjectView implements vscode.WebviewViewProvider {
 		void this.view.webview.postMessage({ type: 'state', state, model: pickDefault(entries)?.label });
 	}
 
-	private async onMessage(message: { type: string; stage?: string; path?: string }): Promise<void> {
+	private async onMessage(message: { type: string; stage?: string; path?: string; tab?: 'architecture' | 'tree' }): Promise<void> {
 		switch (message.type) {
 			case 'ready':
 				return this.refresh();
@@ -77,6 +78,9 @@ export class ProjectView implements vscode.WebviewViewProvider {
 				return;
 			case 'brain':
 				await vscode.commands.executeCommand('myEditor.analyseProject');
+				return;
+			case 'visual':
+				await this.visuals.show(message.tab);
 				return;
 			case 'home':
 				await vscode.commands.executeCommand('myEditor.home');

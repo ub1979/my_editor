@@ -1,0 +1,53 @@
+:root {
+	--bg: var(--vscode-sideBar-background);
+	--panel: var(--vscode-sideBar-background);
+	--ink: var(--vscode-foreground);
+	--muted: var(--vscode-descriptionForeground);
+	--line: var(--vscode-panel-border, rgba(128, 128, 128, .24));
+	--accent: var(--vscode-textLink-foreground);
+	--hover: var(--vscode-list-hoverBackground);
+	--mono: var(--vscode-editor-font-family, ui-monospace, monospace);
+	--serif: 'Iowan Old Style', 'Palatino', Georgia, serif;
+}
+
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--vscode-font-family); font-size: 13px; line-height: 1.5; }
+main { max-width: 1120px; margin: 0 auto; padding: 36px 38px 80px; }
+header { display: flex; align-items: end; justify-content: space-between; }
+.eyebrow { margin: 0 0 4px; color: var(--muted); font: 11px var(--mono); letter-spacing: .12em; text-transform: uppercase; }
+h1, h2, h3 { font-family: var(--serif); font-weight: 500; }
+h1 { margin: 0; font-size: 34px; }
+h2 { margin: 0; font-size: 26px; }
+h3 { margin: 0; font-size: 19px; overflow-wrap: anywhere; }
+nav { display: flex; gap: 6px; margin: 28px 0 34px; border-bottom: 1px solid var(--line); }
+nav button { padding: 10px 16px; border: 0; border-bottom: 2px solid transparent; background: none; color: var(--muted); font: inherit; cursor: pointer; }
+nav button.active { border-bottom-color: var(--accent); color: var(--ink); }
+button:hover { background: var(--hover); }
+button:focus-visible, summary:focus-visible, input:focus-visible { outline: 2px solid var(--vscode-focusBorder); outline-offset: 2px; }
+.section-head { display: flex; align-items: start; justify-content: space-between; gap: 18px; margin-bottom: 24px; }
+.hint { margin: 5px 0 0; color: var(--muted); }
+.source { flex: none; padding: 7px 10px; border: 1px solid var(--line); border-radius: 7px; background: none; color: var(--accent); font: inherit; cursor: pointer; }
+.overview { max-width: 800px; margin: 0 0 28px; padding: 15px 18px; border-left: 3px solid var(--accent); background: var(--panel); font-size: 15px; }
+.part-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 14px; align-items: stretch; }
+.part-card { min-width: 0; padding: 17px 18px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); scroll-margin: 25px; }
+.part-card:target { border-color: var(--accent); }
+.part-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.count { flex: none; color: var(--muted); font: 11px var(--mono); }
+.part-card p { margin: 11px 0 0; color: var(--muted); }
+.links { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line); }
+.links-label { margin-right: 3px; color: var(--muted); font: 11px var(--mono); }
+.chip { padding: 4px 8px; border: 1px solid var(--line); border-radius: 20px; background: var(--bg); color: var(--accent); font: 11px var(--mono); cursor: pointer; }
+.empty { padding: 28px; border: 1px dashed var(--line); border-radius: 12px; color: var(--muted); text-align: center; }
+input[type=search] { box-sizing: border-box; width: 100%; max-width: 480px; padding: 10px 12px; margin-bottom: 20px; border: 1px solid var(--line); border-radius: 8px; background: var(--vscode-input-background); color: var(--vscode-input-foreground); font: inherit; }
+.tree-body { max-width: 900px; }
+.folder { margin: 3px 0 3px 14px; border-left: 1px solid var(--line); }
+.folder > summary { padding: 6px 10px; color: var(--ink); font-family: var(--mono); cursor: pointer; }
+.folder > summary:hover { background: var(--hover); }
+.folder-count { margin-left: 10px; color: var(--muted); font: 11px var(--vscode-font-family); }
+.file { display: flex; flex-wrap: wrap; align-items: baseline; gap: 5px 10px; margin: 2px 0 2px 24px; padding: 5px 8px; border-radius: 6px; }
+.file:hover { background: var(--hover); }
+.file-row { padding: 0; border: 0; background: none; color: var(--accent); font: 12px var(--mono); text-align: left; cursor: pointer; overflow-wrap: anywhere; }
+.file-status { padding: 1px 6px; border: 1px solid var(--line); border-radius: 10px; color: var(--muted); font: 10px var(--mono); }
+.file-status.done, .file-status.implemented { color: var(--vscode-testing-iconPassed, #5a9); }
+.file-status.in-progress { color: var(--vscode-editorWarning-foreground, #c90); }
+.role { flex-basis: 100%; margin: 0; color: var(--muted); font-size: 11px; }
+@media (max-width: 600px) { main { padding: 20px 16px 48px; } .section-head { display: block; } .source { margin-top: 12px; } }

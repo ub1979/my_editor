@@ -14,6 +14,7 @@ import { adaptFile } from './project/impact';
 import { openNextFile, scaffoldFromTree, toggleFileDone, trackProgress } from './project/tree';
 import { ThisFileView } from './project/thisFile';
 import { ProjectView } from './project/view';
+import { ProjectVisualView } from './project/visualView';
 import { checkFit } from './qa/checkFit';
 import { DecisionDraft, saveDecision } from './records/decisions';
 
@@ -24,6 +25,7 @@ export function activate(context: vscode.ExtensionContext): void {
 	const navigator = new Navigator(keys, log);
 	const autoComments = new AutoComments(keys, log);
 	const home = new Home(context);
+	const visuals = new ProjectVisualView(context);
 	const proposals = new Proposals();
 	const engine = new PairEngine(context.extensionUri, keys, proposals);
 	const chat = new ChatView(context, engine, proposals, keys);
@@ -45,11 +47,12 @@ export function activate(context: vscode.ExtensionContext): void {
 		navigator,
 		autoComments,
 		proposals,
+		visuals,
 		vscode.commands.registerCommand('myEditor.autoComments.turnOff', () => AutoComments.setEnabled(false)),
 		vscode.commands.registerCommand('myEditor.autoComments.turnOn', () => AutoComments.setEnabled(true)),
 		status,
 		vscode.window.registerWebviewViewProvider(ChatView.id, chat, { webviewOptions: { retainContextWhenHidden: true } }),
-		vscode.window.registerWebviewViewProvider(ProjectView.id, new ProjectView(context, keys)),
+		vscode.window.registerWebviewViewProvider(ProjectView.id, new ProjectView(context, keys, visuals)),
 		vscode.window.registerWebviewViewProvider(ThisFileView.id, new ThisFileView(context)),
 		vscode.commands.registerCommand('myEditor.chat.start', (skill: string) => chat.startSkill(skill)),
 		vscode.commands.registerCommand('myEditor.chat.ask', (text: string) => chat.ask(text)),
@@ -68,6 +71,7 @@ export function activate(context: vscode.ExtensionContext): void {
 		vscode.commands.registerCommand('myEditor.navigator.clear', () => navigator.clear()),
 		vscode.commands.registerCommand('myEditor.setApiKey', () => keys.promptAndStore()),
 		vscode.commands.registerCommand('myEditor.chooseModel', () => chooseDefaultModel(keys)),
+		vscode.commands.registerCommand('myEditor.visualizeProject', (tab?: 'architecture' | 'tree') => visuals.show(tab)),
 		vscode.commands.registerCommand('myEditor.home', () => home.show()),
 		vscode.commands.registerCommand('myEditor.checkFit', (uri?: vscode.Uri, uris?: vscode.Uri[]) => checkFit(uri, uris)),
 		vscode.commands.registerCommand('myEditor.adaptFile', (path: string, change: string) => adaptFile(path, change)),

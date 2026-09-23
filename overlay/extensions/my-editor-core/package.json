@@ -103,6 +103,11 @@
         "category": "my_editor"
       },
       {
+        "command": "myEditor.visualizeProject",
+        "title": "View Project Maps",
+        "category": "my_editor"
+      },
+      {
         "command": "myEditor.chat.ask",
         "title": "Ask the Pair",
         "category": "my_editor"
