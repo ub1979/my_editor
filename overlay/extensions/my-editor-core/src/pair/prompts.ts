@@ -85,6 +85,13 @@ briefly and say why it matters. Then compare the files with the architecture (if
 do not match, responsibilities in the wrong place, missing pieces the requirements need. Finish with at most five
 boundary tests worth writing, one line each. Do not rewrite code.`,
 	},
+	why: {
+		id: 'why', writes: 'none',
+		instruction: `Explain why the selected code (or the file) is the way it is, using the project's records given
+below: decisions, past conversations and the brain. Quote or cite the record you rely on (decision number or chat
+date). When the records do not explain it, say so plainly and then offer your best reading of the code, clearly
+labelled as a guess. Do not rewrite code.`,
+	},
 	change: {
 		id: 'change', writes: 'selection',
 		instruction: `Change only the selected code as the user describes. Reply with at most two short sentences, then

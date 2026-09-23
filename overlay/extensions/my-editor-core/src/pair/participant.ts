@@ -6,6 +6,7 @@ import { Mode, MODES, systemPrompt } from './prompts';
 import { loadSkills } from '../skills/loader';
 import { neighbourSummary } from '../brain/brain';
 import { computeImpact } from '../project/impact';
+import { recordsAbout } from '../records/history';
 
 const HISTORY_TURNS = 6;
 
@@ -56,8 +57,11 @@ async function handle(
 	const [conventions, brain, specs, neighbours] = await Promise.all([
 		readProjectNote('conventions.md'), readProjectNote('brain/index.md'), readSpecs(mode),
 		file ? neighbourSummary(file.relativePath) : Promise.resolve('')]);
+	const records = mode.id === 'why' && file ? await recordsAbout(file.relativePath) : '';
 	const subject = mode.id === 'qa'
 		? await qaSubject(prompt)
+		: mode.id === 'why' && file
+		? [describeFile(file), neighbours, records ? `Project records about this file:\n${records}` : 'No decisions or chats mention this file yet.'].filter(Boolean).join('\n\n')
 		: mode.writes === 'doc'
 		? specs || 'No specs written yet.'
 		: file ? [describeFile(file), neighbours].filter(Boolean).join('\n\n') : 'No file is open.';

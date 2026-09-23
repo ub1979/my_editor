@@ -100,6 +100,10 @@
             "description": "Review the selection or file \u2014 no edits"
           },
           {
+            "name": "why",
+            "description": "Why is this code like this? Answers from decisions and past chats"
+          },
+          {
             "name": "brainstorm",
             "description": "Explore approaches and design patterns"
           },
