@@ -68,6 +68,9 @@ async function handle(
 	} else if (mode.writes !== 'none' && file) {
 		proposeEdit(stream, mode, file, text);
 	}
+	if (mode.id === 'brainstorm' && text.trim()) {
+		stream.button({ command: 'myEditor.saveDecision', title: 'Save as decision', arguments: [{ title: prompt, context: prompt, discussion: text }] });
+	}
 	void logExchange({ mode: mode.id, model: request.model.name, file: file?.relativePath, prompt, reply: text });
 	return { metadata: { mode: mode.id } };
 }

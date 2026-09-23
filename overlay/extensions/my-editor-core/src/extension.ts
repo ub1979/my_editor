@@ -6,6 +6,7 @@ import { ModelProvider } from './models/provider';
 import { Navigator } from './navigator/navigator';
 import { ApiKeys } from './models/secrets';
 import { registerPairParticipant } from './pair/participant';
+import { DecisionDraft, saveDecision } from './records/decisions';
 import { ProjectView } from './project/view';
 
 /** Entry point of the built-in core. */
@@ -40,6 +41,7 @@ export function activate(context: vscode.ExtensionContext): void {
 		vscode.window.registerWebviewViewProvider(ProjectView.id, new ProjectView(context)),
 		vscode.commands.registerCommand('myEditor.setApiKey', () => keys.promptAndStore()),
 		vscode.commands.registerCommand('myEditor.refreshModels', () => models.refresh()),
+		vscode.commands.registerCommand('myEditor.saveDecision', (draft: DecisionDraft) => saveDecision(draft)),
 		vscode.commands.registerCommand('myEditor.buildBrain', () => vscode.window.withProgress(
 			{ location: vscode.ProgressLocation.Notification, title: 'Building the project brain' },
 			async progress => {

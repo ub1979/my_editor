@@ -44,6 +44,11 @@
         "command": "myEditor.navigator.clear",
         "title": "Clear Navigator Notes",
         "category": "my_editor"
+      },
+      {
+        "command": "myEditor.saveDecision",
+        "title": "Save as Decision",
+        "category": "my_editor"
       }
     ],
     "languageModelChatProviders": [
@@ -213,6 +218,14 @@
           "id": "myEditor",
           "title": "Project",
           "icon": "media/project-icon.svg"
+        }
+      ]
+    },
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "myEditor.saveDecision",
+          "when": "false"
         }
       ]
     }
