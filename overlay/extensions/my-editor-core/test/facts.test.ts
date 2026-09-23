@@ -57,3 +57,14 @@ test('extractFacts falls back to the first documented export', () => {
 	const text = "import x from './x';\n\n/** Formats money. */\nexport function format() {}\n";
 	assert.equal(extractFacts('src/money-utils.ts', text).role, 'Formats money.');
 });
+
+test('extractFacts reads several statements on one line (minified or compact code)', () => {
+	const text = 'import type { Node } from "prosemirror-model"; import { lyricsSchema } from "./schema"; export function a() {} export const b = 1;';
+	const facts = extractFacts('src/editor/serialize.ts', text);
+	assert.deepEqual(facts.imports, ['prosemirror-model', './schema']);
+	assert.deepEqual(facts.exports, ['a', 'b']);
+});
+
+test('extractFacts does not count re-exports as local exports', () => {
+	assert.deepEqual(extractFacts('i.ts', "export { a } from './a';\n").exports, []);
+});

@@ -75,6 +75,7 @@ export async function readProjectState(): Promise<ProjectState> {
 		files = [];
 	}
 	const done = files.filter(f => f.status === 'done' || f.status === 'implemented').length;
+	const started = files.filter(f => f.status === 'in-progress' || f.status === 'stub').length;
 
 	const stages: Stage[] = [
 		{
@@ -94,7 +95,7 @@ export async function readProjectState(): Promise<ProjectState> {
 		},
 		{
 			id: 'build', title: 'Build', state: !files.length ? 'empty' : done === files.length ? 'done' : 'started',
-			status: files.length ? `${done} of ${files.length} files done` : 'File by file, at your pace',
+			status: files.length ? `${done} of ${files.length} done${started ? ` · ${started} started` : ''}` : 'File by file, at your pace',
 		},
 		{
 			id: 'qa', title: 'QA', state: qaReports ? 'done' : 'empty',

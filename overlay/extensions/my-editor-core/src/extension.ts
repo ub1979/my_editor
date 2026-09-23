@@ -10,6 +10,7 @@ import { DecisionDraft, saveDecision } from './records/decisions';
 import { ProjectView } from './project/view';
 import { offerPythonSupport } from './python';
 import { checkFit } from './qa/checkFit';
+import { openNextFile, scaffoldFromTree, toggleFileDone, trackProgress } from './project/tree';
 
 /** Entry point of the built-in core. */
 export function activate(context: vscode.ExtensionContext): void {
@@ -53,7 +54,13 @@ export function activate(context: vscode.ExtensionContext): void {
 					void vscode.window.showInformationMessage(`Project brain built: ${Object.keys(map.files).length} files mapped.`);
 				}
 			})),
-		vscode.workspace.onDidSaveTextDocument(document => void updateBrainFile(document)),
+		vscode.workspace.onDidSaveTextDocument(document => {
+			void updateBrainFile(document);
+			void trackProgress(document);
+		}),
+		vscode.commands.registerCommand('myEditor.scaffold', () => scaffoldFromTree()),
+		vscode.commands.registerCommand('myEditor.nextFile', () => openNextFile()),
+		vscode.commands.registerCommand('myEditor.toggleDone', () => toggleFileDone()),
 	);
 	void applyFirstRunLayout(context);
 	void offerPythonSupport(context);

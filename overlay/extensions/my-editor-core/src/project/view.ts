@@ -93,6 +93,10 @@ export class ProjectView implements vscode.WebviewViewProvider {
 				// Not written yet: start the conversation instead.
 			}
 		}
+		if (stage === 'build') {
+			await vscode.commands.executeCommand('myEditor.nextFile');
+			return;
+		}
 		const starters: Record<string, string> = {
 			requirements: '/requirements ',
 			architecture: '/architecture ',

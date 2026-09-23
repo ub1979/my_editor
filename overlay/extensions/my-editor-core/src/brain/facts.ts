@@ -58,13 +58,13 @@ function scriptRole(path: string, text: string): string | undefined {
 
 function scriptFacts(path: string, text: string, language: 'ts' | 'js'): FileFacts {
 	const imports = [
-		...[...text.matchAll(/^\s*import\s+(?:type\s+)?(?:[\s\S]*?\s+from\s+)?['"]([^'"]+)['"]/gm)].map(m => m[1]),
-		...[...text.matchAll(/^\s*export\s+(?:\*|\{[^}]*\})\s+from\s+['"]([^'"]+)['"]/gm)].map(m => m[1]),
+		...[...text.matchAll(/(?:^|[;}])\s*import\s+(?:type\s+)?(?:[\s\S]*?\s+from\s+)?['"]([^'"]+)['"]/gm)].map(m => m[1]),
+		...[...text.matchAll(/(?:^|[;}])\s*export\s+(?:\*|\{[^}]*\})\s+from\s+['"]([^'"]+)['"]/gm)].map(m => m[1]),
 		...[...text.matchAll(/\brequire\(\s*['"]([^'"]+)['"]\s*\)/g)].map(m => m[1]),
 	];
 	const exports = [
-		...[...text.matchAll(/^\s*export\s+(?:default\s+)?(?:declare\s+)?(?:abstract\s+)?(?:async\s+)?(?:function\*?|class|interface|type|enum|const|let|var|namespace)\s+([A-Za-z_$][\w$]*)/gm)].map(m => m[1]),
-		...[...text.matchAll(/^\s*export\s+\{([^}]*)\}/gm)].flatMap(m => m[1].split(',').map(part => part.trim().split(/\s+as\s+/).pop()!.trim()).filter(Boolean)),
+		...[...text.matchAll(/(?:^|[;}])\s*export\s+(?:default\s+)?(?:declare\s+)?(?:abstract\s+)?(?:async\s+)?(?:function\*?|class|interface|type|enum|const|let|var|namespace)\s+([A-Za-z_$][\w$]*)/gm)].map(m => m[1]),
+		...[...text.matchAll(/(?:^|[;}])\s*export\s+\{([^}]*)\}(?!\s*from)/gm)].flatMap(m => m[1].split(',').map(part => part.trim().split(/\s+as\s+/).pop()!.trim()).filter(Boolean)),
 		...(/^\s*export\s+default\b/m.test(text) && !/^\s*export\s+default\s+(?:abstract\s+)?(?:async\s+)?(?:function|class)\s+[A-Za-z_$]/m.test(text) ? ['default'] : []),
 	];
 	const role = scriptRole(path, text);

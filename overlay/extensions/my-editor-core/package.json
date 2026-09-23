@@ -54,6 +54,21 @@
         "command": "myEditor.checkFit",
         "title": "Check How These Fit",
         "category": "my_editor"
+      },
+      {
+        "command": "myEditor.scaffold",
+        "title": "Scaffold Files From Tree",
+        "category": "my_editor"
+      },
+      {
+        "command": "myEditor.nextFile",
+        "title": "Open Next File to Build",
+        "category": "my_editor"
+      },
+      {
+        "command": "myEditor.toggleDone",
+        "title": "Mark File Done / In Progress",
+        "category": "my_editor"
       }
     ],
     "languageModelChatProviders": [
