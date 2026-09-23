@@ -1,0 +1,36 @@
+import type * as vscode from 'vscode';
+
+export type ProviderId = 'anthropic' | 'openai' | 'openrouter' | 'ollama' | 'custom';
+
+/** One model offered in the chat model picker. */
+export interface ModelEntry {
+	/** Unique across providers: `<provider>:<model>`. */
+	readonly key: string;
+	readonly provider: ProviderId;
+	/** The provider's own model id. */
+	readonly model: string;
+	readonly label: string;
+	readonly detail: string;
+	readonly maxInputTokens: number;
+	readonly maxOutputTokens: number;
+}
+
+/** A chat turn in the shape every adapter accepts. */
+export interface ChatTurn {
+	readonly role: 'user' | 'assistant';
+	readonly text: string;
+}
+
+export interface StreamRequest {
+	readonly entry: ModelEntry;
+	readonly system: string | undefined;
+	readonly turns: readonly ChatTurn[];
+	readonly token: vscode.CancellationToken;
+	readonly onText: (text: string) => void;
+}
+
+export class ProviderError extends Error {
+	constructor(readonly provider: ProviderId, message: string) {
+		super(`${provider}: ${message}`);
+	}
+}

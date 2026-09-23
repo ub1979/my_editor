@@ -1,28 +1,33 @@
 import * as vscode from 'vscode';
-import { registerEchoModel } from './spike/echoModel';
-import { registerPairParticipant } from './spike/pairParticipant';
-import { writeSpikeReport } from './spike/report';
+import { runTestHooks } from './dev/testHooks';
 import { applyFirstRunLayout } from './layout';
+import { ModelProvider } from './models/provider';
+import { ApiKeys } from './models/secrets';
+import { registerPairParticipant } from './pair/participant';
 
 /** Entry point of the built-in core. */
 export function activate(context: vscode.ExtensionContext): void {
-	const status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
+	const keys = new ApiKeys(context.secrets);
+	const models = new ModelProvider(keys);
+
+	const status = vscode.window.createStatusBarItem('myEditor.status', vscode.StatusBarAlignment.Left, 100);
+	status.name = 'my_editor';
 	status.text = '$(sparkle) my_editor';
-	status.tooltip = 'my_editor core is running';
-	status.command = 'myEditor.about';
+	status.tooltip = 'my_editor — set up models';
+	status.command = 'myEditor.setApiKey';
 	status.show();
 
 	context.subscriptions.push(
+		keys,
+		models,
 		status,
-		vscode.commands.registerCommand('myEditor.about', () => {
-			const version = context.extension.packageJSON.version as string;
-			void vscode.window.showInformationMessage(`my_editor core ${version} is loaded.`);
-		}),
-		registerEchoModel(),
+		vscode.lm.registerLanguageModelChatProvider('my-editor', models),
 		registerPairParticipant(),
+		vscode.commands.registerCommand('myEditor.setApiKey', () => keys.promptAndStore()),
+		vscode.commands.registerCommand('myEditor.refreshModels', () => models.refresh()),
 	);
 	void applyFirstRunLayout(context);
-	void writeSpikeReport();
+	void runTestHooks();
 }
 
 export function deactivate(): void {}

@@ -1,5 +1,7 @@
 src/**
 node_modules/**
-tsconfig.json
+typings/**
+test/**
+out-test/**
+tsconfig*.json
 **/*.map
-typings/

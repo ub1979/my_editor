@@ -16,8 +16,13 @@
   "contributes": {
     "commands": [
       {
-        "command": "myEditor.about",
-        "title": "About my_editor Core",
+        "command": "myEditor.setApiKey",
+        "title": "Set API Key",
+        "category": "my_editor"
+      },
+      {
+        "command": "myEditor.refreshModels",
+        "title": "Refresh Models",
         "category": "my_editor"
       }
     ],
@@ -31,9 +36,43 @@
       {
         "id": "myEditor.pair",
         "name": "pair",
-        "fullName": "my_editor Pair",
-        "description": "Your pair programmer (M0 spike)",
-        "isSticky": true
+        "fullName": "Pair",
+        "isSticky": true,
+        "isDefault": true,
+        "description": "Ask, or use /file /feature /change /next to have code written for review",
+        "commands": [
+          {
+            "name": "explain",
+            "description": "Explain the selection or file"
+          },
+          {
+            "name": "review",
+            "description": "Review the selection or file \u2014 no edits"
+          },
+          {
+            "name": "brainstorm",
+            "description": "Explore approaches and design patterns"
+          },
+          {
+            "name": "file",
+            "description": "Write the whole file (you review the diff)"
+          },
+          {
+            "name": "feature",
+            "description": "Add or change one feature in this file"
+          },
+          {
+            "name": "change",
+            "description": "Rewrite only the selected lines"
+          },
+          {
+            "name": "next",
+            "description": "Driver: take the next small step"
+          }
+        ],
+        "modes": [
+          "ask"
+        ]
       }
     ],
     "configurationDefaults": {
@@ -41,18 +80,99 @@
       "chat.titleBar.signIn.enabled": false,
       "chat.commandCenter.enabled": false,
       "chat.agent.enabled": false
+    },
+    "configuration": {
+      "title": "my_editor",
+      "properties": {
+        "myEditor.models.default": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Default chat model as `provider:model`, e.g. `anthropic:claude-opus-5` or `ollama:qwen3.5:9b-mlx`. Empty picks Anthropic if a key is set, else a local Ollama model."
+        },
+        "myEditor.anthropic.models": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "claude-opus-5",
+            "claude-sonnet-5",
+            "claude-haiku-4-5",
+            "claude-fable-5-1"
+          ],
+          "description": "Claude models offered when an Anthropic key is set."
+        },
+        "myEditor.openai.baseUrl": {
+          "type": "string",
+          "default": "https://api.openai.com/v1",
+          "description": "OpenAI API base URL."
+        },
+        "myEditor.openai.models": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "OpenAI models to offer."
+        },
+        "myEditor.openrouter.models": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "OpenRouter model ids to offer."
+        },
+        "myEditor.custom.baseUrl": {
+          "type": "string",
+          "default": "",
+          "description": "Base URL of any OpenAI-compatible endpoint."
+        },
+        "myEditor.custom.models": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Model ids served by the custom endpoint."
+        },
+        "myEditor.ollama.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Offer models from a running Ollama."
+        },
+        "myEditor.ollama.baseUrl": {
+          "type": "string",
+          "default": "http://localhost:11434",
+          "description": "Ollama URL."
+        },
+        "myEditor.ollama.think": {
+          "type": "boolean",
+          "default": false,
+          "description": "Let Ollama thinking models think before answering (slower)."
+        },
+        "myEditor.records.chatHistory": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Save conversations to `.my_editor/chats/` (secrets are redacted)."
+        }
+      }
     }
   },
   "scripts": {
-    "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./"
+    "compile": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc --noEmit -p ./ && esbuild src/extension.ts --bundle --platform=node --format=cjs --target=node20 --external:vscode --outfile=dist/extension.js --sourcemap",
+    "watch": "esbuild src/extension.ts --bundle --platform=node --format=cjs --target=node20 --external:vscode --outfile=dist/extension.js --sourcemap --watch",
+    "test": "tsc -p tsconfig.test.json && node --test out-test/test/*.test.js"
   },
   "devDependencies": {
+    "@anthropic-ai/sdk": "^0.128.0",
     "@types/node": "^22.0.0",
+    "esbuild": "^0.28.2",
     "typescript": "^5.9.0"
   },
   "enabledApiProposals": [
     "chatParticipantAdditions",
-    "chatProvider"
+    "chatProvider",
+    "defaultChatParticipant"
   ]
 }
