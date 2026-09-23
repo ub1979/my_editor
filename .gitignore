@@ -7,3 +7,4 @@ dist/
 *.vsix
 .DS_Store
 logs/
+/app/

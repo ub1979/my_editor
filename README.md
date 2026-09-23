@@ -35,11 +35,13 @@ Needs Node 24, Xcode command-line tools, `jq`, and about 20 GB of free disk.
 
 ```bash
 scripts/build.sh            # first build: fetches VSCodium + VS Code, ~15 min
-scripts/build.sh --reuse    # later builds reuse the downloaded source
+scripts/build.sh --reuse    # later builds reuse the downloaded source, ~10 min
 scripts/run.sh ~/some/project
+scripts/install.sh          # optional: copy the app into /Applications
 ```
 
-The app is written to `vscodium/VSCode-darwin-arm64/my_editor.app`.
+The finished app is `app/my_editor.app`. It is self-contained and runs from anywhere. `vscodium/` (about 7 GB)
+is only the build workspace; delete it to free space, and the next build downloads it again.
 
 ## How the repo is laid out
 
@@ -53,7 +55,8 @@ overlay/                 everything my_editor adds on top of VSCodium
   src/                   resource overrides (app icon, empty-editor mark)
 scripts/                 build.sh, fetch-vscodium.sh, run.sh, gen-themes.py
 upstream.json            the pinned VSCodium commit (VS Code 1.135.0)
-vscodium/                the pinned checkout (git-ignored, created by the build)
+vscodium/                the pinned checkout and build workspace (git-ignored, safe to delete)
+app/                     the finished my_editor.app (git-ignored)
 ```
 
 VSCodium itself is never edited: `scripts/build.sh` copies the overlay into a pinned checkout and builds it.

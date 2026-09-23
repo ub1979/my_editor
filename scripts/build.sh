@@ -75,5 +75,10 @@ fi
 
 . build.sh
 
+# --- 6. Put the finished app somewhere simple; it is self-contained and runs from anywhere
+mkdir -p "${ROOT}/app"
+rsync -a --delete "${ROOT}/vscodium/VSCode-darwin-${VSCODE_ARCH}/my_editor.app/" "${ROOT}/app/my_editor.app/"
+
 echo
-echo "Built: ${ROOT}/vscodium/VSCode-darwin-${VSCODE_ARCH}/my_editor.app"
+echo "Built: ${ROOT}/app/my_editor.app"
+echo "Install it with scripts/install.sh, or run it with scripts/run.sh [folder]"
