@@ -79,6 +79,10 @@ fi
 mkdir -p "${ROOT}/app"
 rsync -a --delete "${ROOT}/vscodium/VSCode-darwin-${VSCODE_ARCH}/my_editor.app/" "${ROOT}/app/my_editor.app/"
 
+# --- 7. Language support (Python, Rust, Go, C/C++): pinned in overlay/bundled-extensions.json, verified, built in
+python3 "${ROOT}/scripts/fetch-extensions.py" "${ROOT}/vscodium/.bundled-staging"
+rsync -a "${ROOT}/vscodium/.bundled-staging/" "${ROOT}/app/my_editor.app/Contents/Resources/app/extensions/"
+
 echo
 echo "Built: ${ROOT}/app/my_editor.app"
 echo "Install it with scripts/install.sh, or run it with scripts/run.sh [folder]"

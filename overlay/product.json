@@ -88,6 +88,8 @@
     "security.workspace.trust.enabled": false,
     "workbench.layoutControl.type": "toggles",
     "files.autoSave": "afterDelay",
-    "files.autoSaveDelay": 1000
+    "files.autoSaveDelay": 1000,
+    "python.languageServer": "None",
+    "basedpyright.analysis.typeCheckingMode": "standard"
   }
 }

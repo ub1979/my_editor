@@ -1,0 +1,12 @@
+{
+	"$comment": "Language support shipped inside my_editor, pinned and verified (sha256 from Open VSX) at build time. target: an Open VSX target platform, or 'universal'.",
+	"extensions": [
+		{ "id": "ms-python.python", "version": "2026.4.0", "target": "universal" },
+		{ "id": "ms-python.debugpy", "version": "2026.6.0", "target": "darwin-arm64" },
+		{ "id": "ms-python.vscode-python-envs", "version": "1.36.0", "target": "universal" },
+		{ "id": "detachhead.basedpyright", "version": "1.40.1", "target": "universal" },
+		{ "id": "rust-lang.rust-analyzer", "version": "0.4.3059", "target": "darwin-arm64" },
+		{ "id": "golang.go", "version": "0.56.1", "target": "universal" },
+		{ "id": "llvm-vs-code-extensions.vscode-clangd", "version": "0.6.0", "target": "universal" }
+	]
+}

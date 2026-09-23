@@ -12,7 +12,6 @@ import { Home } from './project/home';
 import { adaptFile } from './project/impact';
 import { openNextFile, scaffoldFromTree, toggleFileDone, trackProgress } from './project/tree';
 import { ProjectView } from './project/view';
-import { offerPythonSupport } from './python';
 import { checkFit } from './qa/checkFit';
 import { DecisionDraft, saveDecision } from './records/decisions';
 
@@ -91,7 +90,6 @@ export function activate(context: vscode.ExtensionContext): void {
 		home.show();
 	}
 	void applyFirstRunLayout(context);
-	void offerPythonSupport(context);
 	if (context.extensionMode !== vscode.ExtensionMode.Production) {
 		void runTestHooks(keys);
 	}
