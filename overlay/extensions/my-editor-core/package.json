@@ -29,6 +29,21 @@
         "command": "myEditor.buildBrain",
         "title": "Build Project Brain",
         "category": "my_editor"
+      },
+      {
+        "command": "myEditor.navigator.toggle",
+        "title": "Pause / Resume Navigator",
+        "category": "my_editor"
+      },
+      {
+        "command": "myEditor.navigator.muteFile",
+        "title": "Mute / Unmute Navigator for This File",
+        "category": "my_editor"
+      },
+      {
+        "command": "myEditor.navigator.clear",
+        "title": "Clear Navigator Notes",
+        "category": "my_editor"
       }
     ],
     "languageModelChatProviders": [
@@ -96,12 +111,6 @@
         ]
       }
     ],
-    "configurationDefaults": {
-      "chat.disableAIFeatures": false,
-      "chat.titleBar.signIn.enabled": false,
-      "chat.commandCenter.enabled": false,
-      "chat.agent.enabled": false
-    },
     "configuration": {
       "title": "my_editor",
       "properties": {
@@ -176,6 +185,16 @@
           "type": "boolean",
           "default": true,
           "markdownDescription": "Save conversations to `.my_editor/chats/` (secrets are redacted)."
+        },
+        "myEditor.navigator.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "After each save, review the changed lines and show at most three notes. Never edits code."
+        },
+        "myEditor.navigator.model": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Model for the navigator as `provider:model`. Empty: a local Ollama model, else Claude Haiku 4.5, else the default model."
         }
       }
     },

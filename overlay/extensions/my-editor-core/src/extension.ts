@@ -3,6 +3,7 @@ import { buildBrain, updateBrainFile } from './brain/brain';
 import { runTestHooks } from './dev/testHooks';
 import { applyFirstRunLayout } from './layout';
 import { ModelProvider } from './models/provider';
+import { Navigator } from './navigator/navigator';
 import { ApiKeys } from './models/secrets';
 import { registerPairParticipant } from './pair/participant';
 import { ProjectView } from './project/view';
@@ -11,6 +12,8 @@ import { ProjectView } from './project/view';
 export function activate(context: vscode.ExtensionContext): void {
 	const keys = new ApiKeys(context.secrets);
 	const models = new ModelProvider(keys);
+	const log = vscode.window.createOutputChannel('my_editor', { log: true });
+	const navigator = new Navigator(keys, log);
 
 	const status = vscode.window.createStatusBarItem('myEditor.status', vscode.StatusBarAlignment.Left, 100);
 	status.name = 'my_editor';
@@ -18,10 +21,19 @@ export function activate(context: vscode.ExtensionContext): void {
 	status.tooltip = 'my_editor — set up models';
 	status.command = 'myEditor.setApiKey';
 	status.show();
+	navigator.onDidChangeBusy(busy => {
+		status.text = busy ? '$(loading~spin) my_editor' : '$(sparkle) my_editor';
+		status.tooltip = busy ? 'The navigator is looking at your change' : 'my_editor — set up models';
+	});
 
 	context.subscriptions.push(
 		keys,
 		models,
+		log,
+		navigator,
+		vscode.commands.registerCommand('myEditor.navigator.toggle', () => navigator.toggleSession()),
+		vscode.commands.registerCommand('myEditor.navigator.muteFile', () => navigator.toggleFile(vscode.window.activeTextEditor?.document.uri)),
+		vscode.commands.registerCommand('myEditor.navigator.clear', () => navigator.clear()),
 		status,
 		vscode.lm.registerLanguageModelChatProvider('my-editor', models),
 		registerPairParticipant(context.extensionUri),

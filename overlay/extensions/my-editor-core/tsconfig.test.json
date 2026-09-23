@@ -12,6 +12,7 @@
     "src/pair/codeBlock.ts",
     "src/records/redact.ts",
     "src/skills/frontmatter.ts",
-    "src/brain/facts.ts"
+    "src/brain/facts.ts",
+    "src/navigator/hunks.ts"
   ]
 }

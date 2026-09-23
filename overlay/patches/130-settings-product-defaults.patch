@@ -1,0 +1,24 @@
+diff --git a/src/vs/workbench/services/configuration/browser/configuration.ts b/src/vs/workbench/services/configuration/browser/configuration.ts
+index a83c04f4..b4aa1318 100644
+--- a/src/vs/workbench/services/configuration/browser/configuration.ts
++++ b/src/vs/workbench/services/configuration/browser/configuration.ts
+@@ -28,6 +28,7 @@ import { DefaultConfiguration as BaseDefaultConfiguration } from '../../../../pl
+ import { IJSONEditingService } from '../common/jsonEditing.js';
+ import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+ import { IBrowserWorkbenchEnvironmentService } from '../../environment/browser/environmentService.js';
++import product from '../../../../platform/product/common/product.js';
+ 
+ export class DefaultConfiguration extends BaseDefaultConfiguration {
+ 
+@@ -45,6 +46,11 @@ export class DefaultConfiguration extends BaseDefaultConfiguration {
+ 	) {
+ 		super(logService);
+ 		this.cacheKey = { type: 'defaults', key: `${cacheScope}-configurationDefaultsOverrides` };
++		// my_editor: product-level defaults apply from the first frame, before extensions register theirs.
++		const productDefaults = (product as { configurationDefaults?: IStringDictionary<IStringDictionary<unknown>> }).configurationDefaults;
++		if (productDefaults) {
++			this.configurationRegistry.registerDefaultConfigurations([{ overrides: productDefaults }]);
++		}
+ 		if (environmentService.options?.configurationDefaults) {
+ 			this.configurationRegistry.registerDefaultConfigurations([{ overrides: environmentService.options.configurationDefaults as IStringDictionary<IStringDictionary<unknown>> }]);
+ 		}
