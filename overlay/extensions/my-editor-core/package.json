@@ -1,0 +1,26 @@
+{
+  "name": "my-editor-core",
+  "displayName": "my_editor Core",
+  "description": "Built-in core of my_editor: project brain, skills, pair mode.",
+  "version": "0.0.1",
+  "publisher": "my-editor",
+  "license": "MIT",
+  "private": true,
+  "engines": { "vscode": "^1.100.0" },
+  "main": "./dist/extension.js",
+  "activationEvents": ["onStartupFinished"],
+  "contributes": {
+    "commands": [
+      { "command": "myEditor.about", "title": "About my_editor Core", "category": "my_editor" }
+    ]
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/vscode": "^1.100.0",
+    "typescript": "^5.9.0"
+  }
+}

@@ -1,0 +1,8 @@
+# Pinned VSCodium checkout (fetched by scripts/fetch-vscodium.sh)
+/vscodium/
+# Built app
+/VSCode-darwin-*/
+node_modules/
+dist/
+*.vsix
+.DS_Store

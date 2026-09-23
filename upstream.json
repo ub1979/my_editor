@@ -1,0 +1,7 @@
+{
+  "vscodium": {
+    "repo": "https://github.com/VSCodium/vscodium.git",
+    "commit": "5a73682ca091082675b10c9dc3f348c1d824d94f",
+    "vscode_tag": "1.135.0"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "nameShort": "my_editor",
+  "nameLong": "my_editor",
+  "applicationName": "my_editor",
+  "dataFolderName": ".my_editor",
+  "urlProtocol": "my-editor",
+  "darwinBundleIdentifier": "dev.my-editor.app",
+  "serverApplicationName": "my_editor-server",
+  "serverDataFolderName": ".my_editor-server",
+  "tunnelApplicationName": "my_editor-tunnel",
+  "updateUrl": "",
+  "downloadUrl": "",
+  "reportIssueUrl": "",
+  "licenseUrl": ""
+}
