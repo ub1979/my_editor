@@ -181,7 +181,10 @@ function renderProposal(message, proposal) {
 		undo.addEventListener('click', () => vscode.postMessage({ type: 'undo', id: proposal.id }));
 		card.append(el('div', { class: 'buttons' }, [keep, undo]));
 	} else {
-		card.append(el('span', { class: `state ${proposal.state}` }, proposal.state === 'kept' ? [icon('check'), 'Kept and saved'] : [icon('undo'), 'Undone. The file was not changed.']));
+		const label = proposal.state === 'kept' ? [icon('check'), 'Kept and saved']
+			: proposal.state === 'expired' ? [icon('undo'), 'Review expired after restart. Ask Pair to propose it again.']
+			: [icon('undo'), 'Undone. The file was not changed.'];
+		card.append(el('span', { class: `state ${proposal.state}` }, label));
 	}
 	return card;
 }

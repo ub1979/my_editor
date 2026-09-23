@@ -23,7 +23,7 @@ interface ProposalCard {
 	readonly added: number;
 	readonly removed: number;
 	readonly isNewFile: boolean;
-	state: Proposal['state'];
+	state: Proposal['state'] | 'expired';
 }
 
 interface Message {
@@ -67,7 +67,11 @@ export class ChatView implements vscode.WebviewViewProvider {
 		private readonly keys: ApiKeys,
 	) {
 		const saved = context.workspaceState.get<Saved>(STATE_KEY);
-		this.messages = saved?.messages.map(m => ({ ...m, done: true, progress: undefined })) ?? [];
+		this.messages = saved?.messages.map(m => ({
+			...m, done: true, progress: undefined,
+			// Proposal contents live in memory. After restart, an unkept diff is no longer reviewable.
+			proposals: m.proposals.map(proposal => proposal.state === 'open' ? { ...proposal, state: 'expired' as const } : proposal),
+		})) ?? [];
 		this.mode = saved?.mode;
 		this.memory = saved?.memory ?? { brief: '' };
 		context.subscriptions.push(
@@ -284,7 +288,8 @@ export class ChatView implements vscode.WebviewViewProvider {
 			}
 			sink.progress('');
 			const live = liveTurns(memoryMessages, this.memory).map(turn => ({ role: turn.role, text: turn.text }));
-			const result = await this.engine.run({ text, mode, kickoff, memory: this.memory.brief }, live, sink, token);
+			const proposalState = this.messages.flatMap(message => message.proposals.map(proposal => `${proposal.file}: ${proposal.state}`)).slice(-12).join('\n');
+			const result = await this.engine.run({ text, mode, kickoff, memory: this.memory.brief, proposalState }, live, sink, token);
 			// Conversations keep their skill; code-writing requests run once, then chat is plain again.
 			if (!CONVERSATIONAL.has(result.mode) && this.mode === mode && mode !== undefined && !mode.startsWith('skill:')) {
 				this.mode = undefined;

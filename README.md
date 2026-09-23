@@ -22,6 +22,12 @@ Decisions are in [`docs/decisions/`](docs/decisions/). Screenshots are in [`docs
   Explain, Why; Fix: Review, Debug, Tests, Refactor; plus your own skills). Type `/` for commands.
   Code changes come back as proposals: review them in an inline diff, undo single parts with the gutter
   arrow, then **Keep** (writes and saves) or **Undo**. Nothing touches your file before Keep.
+- **Project-aware chat:** ordinary Pair requests can search and read more project files as needed, inspect
+  Git history, and propose changes to several files in one conversation. Test commands run only after you
+  approve them in the editor. Tests use the current workspace, so keep a proposal before testing that change.
+  Unkept proposals expire when the app restarts.
+  The Pair refreshes brain, source, planning and Git context each turn, and condenses older conversation into
+  a working brief while preserving the recent messages.
 - **Auto comments:** add a function or class without a comment and the Pair writes a short one in the
   language's style (docstring, JSDoc, `///`, Go's `// Name …`). Only for code you add; ⌘Z removes it. Toggle it
   with the speech-bubble button in the editor toolbar.
@@ -31,9 +37,11 @@ Decisions are in [`docs/decisions/`](docs/decisions/). Screenshots are in [`docs
 - **Languages built in:** JavaScript/TypeScript, Python (basedpyright, debugpy), Rust (rust-analyzer),
   Go and C/C++ (clangd). Pinned in `overlay/bundled-extensions.json`, checksum-verified at build time.
 - **Models** — pick with **my_editor: Choose Default Model** (or *Change* in the Project view):
-  - **Claude subscription** through your Claude Code login (`claude` CLI): Opus, Sonnet, Haiku. Runs with no
-    tools, no MCP and no saved session, and with API-key variables removed so billing never switches silently.
+  - **Claude subscription** through your Claude Code login (`claude` CLI): Opus, Sonnet, Haiku. The CLI runs
+    without its own tools, MCP or saved session; Pair's host tools are available in chat. API-key variables are
+    removed so billing never switches silently.
   - **ChatGPT subscription** through your Codex login (`codex exec`, read-only sandbox, empty working folder).
+    Pair's project tools run in the editor host.
   - **Local:** Ollama and LM Studio, listed whenever their servers are running.
   - **API keys** (kept in the macOS keychain): Anthropic, OpenAI, OpenRouter, any OpenAI-compatible URL.
 - **Visual project maps:** in Project, open **Architecture map** to see parts and their code links, or **File tree** to browse and search planned files. Both read the saved `.my_editor/specs/` documents.

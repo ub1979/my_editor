@@ -18,8 +18,9 @@ containing the COMPLETE new content of the file — every line, unchanged lines 
 export const MODES: Record<string, Mode> = {
 	chat: {
 		id: 'chat', writes: 'none',
-		instruction: `Answer the question. Do not write the user's code for them unless they ask; when a code
-change would help, show only the few relevant lines and mention they can use /feature or /change to have it applied.`,
+		instruction: `Help with the user's request in the open project. Inspect current source and Git records when
+the answer depends on them. If the user asks for code changes, prepare reviewable file proposals, then explain
+what they must Keep to apply them. Ask before running tests through the host tool. Keep replies concise.`,
 	},
 	explain: {
 		id: 'explain', writes: 'none',

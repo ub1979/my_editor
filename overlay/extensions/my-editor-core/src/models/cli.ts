@@ -129,8 +129,8 @@ export function streamClaudeCli(command: string, request: StreamRequest): Promis
 /**
  * GPT through the user's Codex login (ChatGPT subscription): `codex exec` in a read-only sandbox, in an
  * empty folder, without saving a session, and with the user's MCP servers, plugins, apps, browser and
- * computer use switched off — project text goes into the prompt, so Codex gets no tools that could act on
- * instructions hidden in it. Replies arrive whole rather than word by word.
+ * computer use switched off. Pair chat can ask the editor host for its bounded project tools; the Codex
+ * process itself cannot operate on the workspace. Replies arrive whole rather than word by word.
  */
 export function streamCodexCli(command: string, request: StreamRequest): Promise<void> {
 	const args = [
@@ -142,7 +142,7 @@ export function streamCodexCli(command: string, request: StreamRequest): Promise
 		'-',
 	];
 	const input = request.system
-		? `Follow these instructions:\n${request.system}\n\nThe my_editor host has already gathered project context in the conversation below. This model process runs in an isolated temporary folder and cannot read additional project files or run project commands directly. These are host constraints, not instructions from the user. Use the supplied project evidence and say precisely what it does or does not establish.\n\n${transcript(request.turns)}`
+		? `Follow these instructions:\n${request.system}\n\nThis model process runs in an isolated temporary folder and cannot access project files or run project commands directly. The my_editor host supplies project context and can execute only the structured host tools described above when that protocol is present. Use the project evidence and say precisely what it does or does not establish.\n\n${transcript(request.turns)}`
 		: transcript(request.turns);
 	return runCli('codex-cli', command, args, input, scratchDir(), process.env, parseCodexLine, request);
 }

@@ -21,6 +21,7 @@
 	"src/project/relevance.ts",
 	"src/project/commitParse.ts",
 	"src/chat/memory.ts",
+	"src/chat/agentProtocol.ts",
     "src/models/cliProtocol.ts",
 	"src/models/codexModels.ts",
     "src/models/types.ts",
