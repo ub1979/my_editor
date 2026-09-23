@@ -48,7 +48,11 @@ export class Home {
 	}
 
 	private async refresh(): Promise<void> {
-		void this.panel?.webview.postMessage({ type: 'projects', projects: await recentProjects() });
+		void this.panel?.webview.postMessage({
+			type: 'projects',
+			projects: await recentProjects(),
+			version: String(this.context.extension.packageJSON.version ?? '').replace(/-alpha(?:\.\d+)?$/, ' alpha'),
+		});
 	}
 
 	private async onMessage(message: { type: string; uri?: string }): Promise<void> {

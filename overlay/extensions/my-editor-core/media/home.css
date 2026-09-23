@@ -46,6 +46,18 @@ main {
 	text-transform: uppercase;
 }
 
+.identity {
+	display: flex;
+	align-items: baseline;
+	gap: 12px;
+}
+
+.version {
+	color: var(--muted);
+	font-family: var(--mono);
+	font-size: 11px;
+}
+
 /* Header */
 
 header {

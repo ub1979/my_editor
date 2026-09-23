@@ -4,6 +4,7 @@ const root = /** @type {HTMLElement} */ (document.getElementById('root'));
 const SEARCH_FROM = 7;
 let projects = [];
 let query = '';
+let version = '';
 
 /** @param {string} tag @param {Record<string, string>} [attrs] @param {(Node|string)[]} [children] */
 function el(tag, attrs = {}, children = []) {
@@ -63,7 +64,10 @@ function progressLine(project) {
 function header() {
 	return el('header', {}, [
 		el('div', {}, [
-			el('p', { class: 'eyebrow' }, ['my_editor']),
+			el('div', { class: 'identity' }, [
+				el('p', { class: 'eyebrow' }, ['my_editor']),
+				...(version ? [el('span', { class: 'version', 'aria-label': `my_editor version ${version}` }, [version])] : []),
+			]),
 			el('h1', {}, [projects.length ? 'Your projects' : 'Welcome']),
 			el('p', { class: 'lede' }, [projects.length ? 'Pick up where you left off, or start something new.' : 'Build software yourself, with a pair who writes only what you ask.']),
 		]),
@@ -157,6 +161,7 @@ function render() {
 window.addEventListener('message', event => {
 	if (event.data?.type === 'projects') {
 		projects = event.data.projects;
+		version = event.data.version ?? '';
 		render();
 	}
 });

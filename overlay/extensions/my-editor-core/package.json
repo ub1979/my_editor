@@ -2,7 +2,7 @@
   "name": "my-editor-core",
   "displayName": "my_editor Core",
   "description": "Built-in core of my_editor: project brain, skills, pair mode.",
-  "version": "0.0.1",
+  "version": "0.0.1-alpha.0",
   "publisher": "my-editor",
   "license": "MIT",
   "private": true,
