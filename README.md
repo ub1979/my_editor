@@ -9,6 +9,9 @@ Decisions are in [`docs/decisions/`](docs/decisions/). Screenshots are in [`docs
 
 ## What works today
 
+- **Home:** opening the app without a project shows your projects with their progress, plus New project,
+  Open folder and Clone from Git. A new project gets git, a starter `.my_editor/`, and `/requirements` in chat.
+
 - **The editor:** VSCodium 1.135 rebranded as my_editor (own name, icon, bundle id, data folder).
 - **The look:** *Paper* theme (dark olive chrome, cream page) and *Night*; the code sits on a centred page;
   the minimap, breadcrumbs, most of the status bar and the Copilot prompts are gone.
