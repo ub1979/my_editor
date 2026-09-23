@@ -11,7 +11,9 @@ Decisions are in [`docs/decisions/`](docs/decisions/). Screenshots are in [`docs
 ## What works today
 
 - **Home:** opening the app without a project shows your projects with their progress, plus New project,
-  Open folder and Clone from Git. A new project gets git, a starter `.my_editor/`, and `/requirements` in chat.
+  Open folder and Clone from Git. Clone accepts a repository URL plus an optional branch, or a GitHub branch
+  page URL; it checks out that branch when cloning. A new project gets git, a starter `.my_editor/`, and
+  `/requirements` in chat.
 
 - **The editor:** VSCodium 1.135 rebranded as my_editor (own name, icon, bundle id, data folder).
 - **The look:** *Paper* theme (dark olive chrome, cream page) and *Night*; the code sits on a centred page;

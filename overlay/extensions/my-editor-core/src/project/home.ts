@@ -1,7 +1,8 @@
-import { execFile } from 'child_process';
+import { execFile, spawn } from 'child_process';
 import { randomBytes } from 'crypto';
 import * as os from 'os';
 import * as vscode from 'vscode';
+import { parseCloneSource, validBranchName } from './cloneSource';
 import { shortPath } from './homePaths';
 import { readProjectStateAt } from './state';
 
@@ -69,7 +70,7 @@ export class Home {
 				return;
 			}
 			case 'clone':
-				await vscode.commands.executeCommand('git.clone');
+				await this.cloneProject();
 				return;
 			case 'recent':
 				if (message.uri) {
@@ -83,6 +84,64 @@ export class Home {
 					await this.refresh();
 				}
 				return;
+		}
+	}
+
+	/** Accepts a repository URL or a GitHub branch page and opens the requested branch. */
+	private async cloneProject(): Promise<void> {
+		const input = await vscode.window.showInputBox({
+			title: 'Clone from Git',
+			prompt: 'Paste a Git repository URL or a GitHub branch page URL.',
+			placeHolder: 'https://github.com/owner/repo/tree/branch-name',
+			ignoreFocusOut: true,
+		});
+		if (!input?.trim()) { return; }
+		const source = parseCloneSource(input);
+		if (!source) {
+			void vscode.window.showErrorMessage('Use an HTTPS Git URL, a git@host:owner/repo.git URL, or a GitHub /tree/branch page.');
+			return;
+		}
+		let branch = source.branch;
+		if (!branch) {
+			const chosen = await vscode.window.showInputBox({
+				title: 'Branch (optional)',
+				prompt: 'Enter a branch to check out, or leave this empty for the repository default.',
+				placeHolder: 'codex/production-predictdial-delivery-v1',
+				validateInput: value => !value.trim() || validBranchName(value.trim()) ? undefined : 'Enter a valid Git branch name.',
+			});
+			if (chosen === undefined) { return; }
+			branch = chosen.trim() || undefined;
+		}
+		const lastParent = this.context.globalState.get<string>(LAST_PARENT);
+		const [parent] = await vscode.window.showOpenDialog({
+			canSelectFolders: true, canSelectFiles: false, openLabel: 'Clone here',
+			title: 'Where should the cloned project live?',
+			defaultUri: vscode.Uri.file(lastParent ?? os.homedir()),
+		}) ?? [];
+		if (!parent) { return; }
+		const name = await vscode.window.showInputBox({
+			title: 'Project folder name', value: branch && !source.branch ? `${source.folderName}-${branch.split('/').pop()}` : source.folderName,
+			validateInput: value => /^[\w .-]+$/.test(value.trim()) && !['.', '..'].includes(value.trim())
+				? undefined : 'Use a folder name without slashes.',
+		});
+		if (!name?.trim()) { return; }
+		const folder = vscode.Uri.joinPath(parent, name.trim());
+		try {
+			await vscode.workspace.fs.stat(folder);
+			void vscode.window.showErrorMessage(`${folder.fsPath} already exists. Use Open project to open it.`);
+			return;
+		} catch { /* New destination. */ }
+		try {
+			const cloned = await vscode.window.withProgress({
+				location: vscode.ProgressLocation.Notification,
+				title: `Cloning ${source.folderName}${branch ? ` · ${branch}` : ''}`,
+				cancellable: true,
+			}, (_progress, token) => cloneGit(source.url, branch, folder.fsPath, parent.fsPath, token));
+			if (!cloned) { return; }
+			await this.context.globalState.update(LAST_PARENT, parent.fsPath);
+			await vscode.commands.executeCommand('vscode.openFolder', folder);
+		} catch (error) {
+			void vscode.window.showErrorMessage(`Clone failed: ${error instanceof Error ? error.message : String(error)}`);
 		}
 	}
 
@@ -131,6 +190,25 @@ export class Home {
 		await this.context.globalState.update(PENDING_START, undefined);
 		await vscode.commands.executeCommand('myEditor.chat.start', 'requirements');
 	}
+}
+
+/** Run git without a shell, preserving the user's normal Git credential helper. */
+function cloneGit(url: string, branch: string | undefined, destination: string, cwd: string, token: vscode.CancellationToken): Promise<boolean> {
+	return new Promise((resolve, reject) => {
+		const args = ['clone', '--progress', ...(branch ? ['--branch', branch, '--single-branch'] : []), '--', url, destination];
+		const child = spawn('git', args, { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
+		let stderr = '';
+		let cancelled = false;
+		child.stderr.setEncoding('utf8').on('data', (chunk: string) => { stderr = (stderr + chunk).slice(-3_000); });
+		const cancel = token.onCancellationRequested(() => { cancelled = true; child.kill('SIGTERM'); });
+		child.on('error', error => { cancel.dispose(); reject(error); });
+		child.on('close', code => {
+			cancel.dispose();
+			if (cancelled) { resolve(false); }
+			else if (code === 0) { resolve(true); }
+			else { reject(new Error(stderr.trim().split(/[\r\n]+/).slice(-3).join(' ') || `git exited with code ${code}`)); }
+		});
+	});
 }
 
 /** Recently opened local folders, each with its my_editor progress. */

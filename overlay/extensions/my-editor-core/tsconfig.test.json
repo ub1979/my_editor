@@ -28,6 +28,7 @@
     "typings/vscode.d.ts",
     "src/records/sensitive.ts",
     "src/project/homePaths.ts",
+	"src/project/cloneSource.ts",
     "src/comments/detect.ts",
     "src/brain/analysisPlan.ts"
   ]

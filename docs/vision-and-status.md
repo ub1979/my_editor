@@ -1,8 +1,8 @@
 # my_editor: aim, objectives, and current status
 
-**As of:** 24 September 2026  
-**Current version:** 0.0.2 alpha  
-**Stage:** Working macOS alpha; still being validated on real projects
+- **As of:** 24 September 2026
+- **Current version:** 0.0.3 alpha
+- **Stage:** Working macOS alpha; still being validated on real projects
 
 ## Aim
 
@@ -46,9 +46,9 @@ For a change, the desired record is: **request → affected requirements and fil
 
 ## What is built now
 
-Version 0.0.2 alpha includes:
+Version 0.0.3 alpha includes:
 
-- A branded VSCodium editor for macOS arm64, with Paper and Night themes, a quieter workbench, a Home screen, and Project and Pair sidebars.
+- A branded VSCodium editor for macOS arm64, with Paper and Night themes, a quieter workbench, a Home screen, and Project and Pair sidebars. Home can clone a repository at a chosen branch, including from a GitHub branch-page URL.
 - Guided requirements, architecture, file planning, brainstorming, file work, review, and QA entry points. Planned architecture and file trees have visual views.
 - Project analysis for existing repositories. It produces a brain index, file map, and module notes; it reports files it could not cover and can reanalyse changed files.
 - Pair chat with project source excerpts, the open file, project plans, saved decisions, a compacted conversation brief, and refreshed Git context. In ordinary chat, Pair can request bounded file search and reads, inspect Git, and prepare several file proposals during one reply.
@@ -60,7 +60,7 @@ The detailed feature checklist is in [progress.md](progress.md). Release changes
 
 ## Where we are
 
-This is a usable **alpha**, not a finished large-project workflow. The core extension compiles and its 72 automated tests pass. The 0.0.2 extension is installed in the existing app bundle. A full editor rebuild on 23 September was blocked when Electron headers could not be downloaded; the installed app received the compiled extension instead. The new Pair tool loop has not yet had a live end-to-end run with a selected model in the app.
+This is a usable **alpha**, not a finished large-project workflow. The core extension compiles and its 75 automated tests pass. The 0.0.3 extension is installed in the existing app bundle. A full editor rebuild on 23 September was blocked when Electron headers could not be downloaded; the installed app received the compiled extension instead. The new Pair tool loop has not yet had a live end-to-end run with a selected model in the app.
 
 Current limits matter to the product promise:
 
