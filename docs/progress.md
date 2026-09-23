@@ -17,11 +17,11 @@ Status of the requirements in [`plans/my_editor-plan-v2.md`](plans/my_editor-pla
 | FR-020 | SKILL.md from built-in, global, project | ✅ | Project overrides global overrides built-in |
 | FR-021 | Call skills from chat, palette, right-click | 🟡 | Chat (`/skill`) only |
 | FR-022 | Skills can only read and propose | ✅ | Skills get no tools; every write is a reviewed edit |
-| FR-030 | Layered brain | 🟡 | `index.md` + `map.json`; per-module notes not yet |
+| FR-030 | Layered brain | ✅ | `index.md` + `map.json` + a note per part in `brain/modules/` |
 | FR-031 | Facts from a parser, never the LLM | ✅ | Regex extractor for TS/JS/Python, tested on song_maker (0 mismatches) |
-| FR-032 | Update on save | ✅ | Facts update on save; no LLM summaries yet |
+| FR-032 | Update on save | ✅ | Facts update on save; one-line AI summaries come from Analyse and are kept across rebuilds |
 | FR-033 | Git freshness | 🟡 | Commit recorded; stale entries not shown yet |
-| FR-034 | Brain for an existing repo | ✅ | One command, bounded to 5,000 files |
+| FR-034 | Brain for an existing repo | ✅ | **Analyse this project**: offered once when a project with code has no brain, runs only if the user says yes. Summarises every file (quick model, secrets redacted, `.env`/keys skipped), writes part notes, proposes `architecture.md` and `tree.json` for Keep/Undo. Tested on a 50-file project with Claude CLI |
 | FR-035 | Context assembly | 🟡 | Conventions + brain index + file + neighbours; no token accounting yet |
 | FR-036 | Brain hand-editable | ✅ | Notes outside the auto markers and `note` fields survive rebuilds |
 | FR-041 | Chat history, secrets redacted | ✅ | `.my_editor/chats/`, code collapsed to keep git small |

@@ -144,7 +144,7 @@ function flatten(items: readonly (vscode.DocumentSymbol | vscode.SymbolInformati
 
 async function roleOf(path: string): Promise<string | undefined> {
 	const entry = (await readMap())?.files[path];
-	return entry?.note ?? entry?.role;
+	return entry?.note ?? entry?.summary ?? entry?.role;
 }
 
 function gitHistory(uri: vscode.Uri): Promise<CommitRow[]> {

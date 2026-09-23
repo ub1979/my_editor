@@ -22,6 +22,7 @@
     "typings/vscode.d.ts",
     "src/records/sensitive.ts",
     "src/project/homePaths.ts",
-    "src/comments/detect.ts"
+    "src/comments/detect.ts",
+    "src/brain/analysisPlan.ts"
   ]
 }

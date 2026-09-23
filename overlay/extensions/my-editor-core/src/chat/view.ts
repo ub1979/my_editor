@@ -1,6 +1,8 @@
 import { randomBytes } from 'crypto';
 import MarkdownIt from 'markdown-it';
 import * as vscode from 'vscode';
+import { analyseProject } from '../brain/analyse';
+import { EXCLUDE_GLOB, SOURCE_GLOB } from '../brain/brain';
 import { loadCatalog, pickDefault } from '../models/catalog';
 import { ApiKeys } from '../models/secrets';
 import { CONVERSATIONAL, PairEngine, Sink, Turn } from './engine';
@@ -8,6 +10,8 @@ import { Proposal, Proposals } from './proposals';
 import { skillCards } from './skillCards';
 
 const STATE_KEY = 'myEditor.chat.state';
+/** Set once the user answered the "Analyse this project?" offer, either way. */
+const ANALYSE_ANSWERED = 'myEditor.analyse.answered';
 const MAX_KEPT_MESSAGES = 60;
 /** Buttons a reply may offer; anything else is ignored. */
 const ALLOWED_ACTIONS = new Set(['myEditor.saveDecision', 'myEditor.adaptFile']);
@@ -102,6 +106,44 @@ export class ChatView implements vscode.WebviewViewProvider {
 		}
 	}
 
+	/** Reads the whole project into the brain and drafts its architecture ("Analyse this project"). */
+	async analyse(): Promise<void> {
+		await vscode.commands.executeCommand('myEditor.chat.focus');
+		if (!this.view) {
+			this.pending = { text: '', mode: ANALYSE };
+			return;
+		}
+		if (this.running) {
+			return;
+		}
+		await this.context.workspaceState.update(ANALYSE_ANSWERED, true);
+		void this.view.webview.postMessage({ type: 'offer', offer: undefined });
+		this.messages.push({ id: newId(), role: 'user', markdown: 'Analyse this project', proposals: [], actions: [], done: true });
+		const reply: Message = { id: newId(), role: 'assistant', markdown: '', proposals: [], actions: [], done: false };
+		this.messages.push(reply);
+		this.postMessages();
+		await this.runReply(reply, (sink, token) => analyseProject(this.keys, this.proposals, sink, token));
+	}
+
+	/**
+	 * Whether to offer the analysis: a project with code but no brain yet, where the user has not answered.
+	 * Returns how many code files there are, so the offer can say what it will read.
+	 */
+	async analyseOffer(): Promise<number | undefined> {
+		const root = vscode.workspace.workspaceFolders?.[0]?.uri;
+		if (!root || this.context.workspaceState.get(ANALYSE_ANSWERED)) {
+			return undefined;
+		}
+		try {
+			await vscode.workspace.fs.stat(vscode.Uri.joinPath(root, '.my_editor', 'brain', 'map.json'));
+			return undefined;
+		} catch {
+			// No brain yet.
+		}
+		const files = await vscode.workspace.findFiles(SOURCE_GLOB, EXCLUDE_GLOB, 5_000);
+		return files.length || undefined;
+	}
+
 	toggleSkills(): void {
 		void this.view?.webview.postMessage({ type: 'toggleSkills' });
 	}
@@ -121,7 +163,9 @@ export class ChatView implements vscode.WebviewViewProvider {
 				if (this.pending) {
 					const pending = this.pending;
 					this.pending = undefined;
-					if (pending.kickoff && pending.mode) {
+					if (pending.mode === ANALYSE) {
+						await this.analyse();
+					} else if (pending.kickoff && pending.mode) {
 						await this.pickSkill(pending.mode);
 					} else {
 						await this.send(pending.text);
@@ -136,6 +180,12 @@ export class ChatView implements vscode.WebviewViewProvider {
 				this.mode = undefined;
 				this.save();
 				return this.postMode();
+			case 'analyse':
+				return this.analyse();
+			case 'notNow':
+				await this.context.workspaceState.update(ANALYSE_ANSWERED, true);
+				void this.view?.webview.postMessage({ type: 'offer', offer: undefined });
+				return;
 			case 'newChat':
 				return this.newChat();
 			case 'stop':
@@ -197,8 +247,20 @@ export class ChatView implements vscode.WebviewViewProvider {
 		this.messages.push(reply);
 		this.postMessages();
 
+		await this.runReply(reply, async (sink, token) => {
+			const result = await this.engine.run({ text, mode, kickoff }, history, sink, token);
+			// Conversations keep their skill; code-writing requests run once, then chat is plain again.
+			if (!CONVERSATIONAL.has(result.mode) && this.mode === mode && mode !== undefined && !mode.startsWith('skill:')) {
+				this.mode = undefined;
+			}
+		});
+	}
+
+	/** Runs one job that writes into a reply: streamed text, progress, proposal cards, buttons and a Stop button. */
+	private async runReply(reply: Message, job: (sink: Sink, token: vscode.CancellationToken) => Promise<void>): Promise<void> {
 		const source = new vscode.CancellationTokenSource();
 		this.running = source;
+		this.postMode();
 		let flush: NodeJS.Timeout | undefined;
 		const sink: Sink = {
 			text: chunk => {
@@ -224,11 +286,7 @@ export class ChatView implements vscode.WebviewViewProvider {
 			},
 		};
 		try {
-			const result = await this.engine.run({ text, mode, kickoff }, history, sink, source.token);
-			// Conversations keep their skill; code-writing requests run once, then chat is plain again.
-			if (!CONVERSATIONAL.has(result.mode) && this.mode === mode && mode !== undefined && !mode.startsWith('skill:')) {
-				this.mode = undefined;
-			}
+			await job(sink, source.token);
 		} catch (err) {
 			reply.error = err instanceof Error ? err.message : String(err);
 		} finally {
@@ -277,6 +335,7 @@ export class ChatView implements vscode.WebviewViewProvider {
 			project: vscode.workspace.workspaceFolders?.[0]?.name,
 			skills: await skillCards(this.context.extensionUri),
 			messages: this.messages.map(render),
+			offer: await this.analyseOffer(),
 		});
 		this.postMode();
 		this.postContext();
@@ -315,6 +374,9 @@ export class ChatView implements vscode.WebviewViewProvider {
 		});
 	}
 }
+
+/** Stands in for a skill id while the analysis waits for the chat to open. */
+const ANALYSE = '#analyse';
 
 function newId(): string {
 	return randomBytes(6).toString('hex');

@@ -3,7 +3,7 @@
  * its own leading doc comment. No model is involved, so these facts are always what the code says.
  */
 export interface FileFacts {
-	readonly language: 'ts' | 'js' | 'py' | 'other';
+	readonly language: 'ts' | 'js' | 'py' | 'rs' | 'go' | 'c' | 'other';
 	readonly lines: number;
 	readonly imports: string[];
 	readonly exports: string[];
@@ -18,7 +18,16 @@ export function languageOf(path: string): FileFacts['language'] {
 	if (/\.(js|jsx|mjs|cjs)$/.test(path)) {
 		return 'js';
 	}
-	return /\.pyi?$/.test(path) ? 'py' : 'other';
+	if (/\.pyi?$/.test(path)) {
+		return 'py';
+	}
+	if (path.endsWith('.rs')) {
+		return 'rs';
+	}
+	if (path.endsWith('.go')) {
+		return 'go';
+	}
+	return /\.(c|h|cc|cpp|cxx|hh|hpp|hxx)$/.test(path) ? 'c' : 'other';
 }
 
 function firstSentence(text: string): string | undefined {

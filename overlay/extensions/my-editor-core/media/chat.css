@@ -209,6 +209,33 @@ svg.icon {
 	cursor: default;
 }
 
+/* The offer to read an existing project */
+
+.offer {
+	margin: 0 0 6px;
+	padding: 14px 14px 12px;
+	border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--line));
+	border-radius: 14px;
+	background: var(--accent-soft);
+}
+
+.offer p {
+	margin: 0 0 10px;
+	line-height: 1.45;
+}
+
+.offer .offer-title {
+	margin-bottom: 4px;
+	font-family: var(--serif);
+	font-size: 16px;
+}
+
+.offer-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
 /* Messages */
 
 .message {

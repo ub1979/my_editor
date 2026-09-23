@@ -76,7 +76,7 @@ export class ProjectView implements vscode.WebviewViewProvider {
 				await vscode.commands.executeCommand('myEditor.chooseModel');
 				return;
 			case 'brain':
-				await vscode.commands.executeCommand('myEditor.buildBrain');
+				await vscode.commands.executeCommand('myEditor.analyseProject');
 				return;
 			case 'home':
 				await vscode.commands.executeCommand('myEditor.home');

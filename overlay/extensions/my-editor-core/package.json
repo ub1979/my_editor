@@ -31,6 +31,11 @@
         "category": "my_editor"
       },
       {
+        "command": "myEditor.analyseProject",
+        "title": "Analyse This Project",
+        "category": "my_editor"
+      },
+      {
         "command": "myEditor.buildBrain",
         "title": "Build Project Brain",
         "category": "my_editor"

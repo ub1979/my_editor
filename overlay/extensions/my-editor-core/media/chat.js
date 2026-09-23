@@ -82,6 +82,8 @@ let state = {
 	models: [],
 	model: undefined,
 	placeholder: undefined,
+	/** Code files in a project the pair has not read yet; set while the analysis is on offer. */
+	offer: undefined,
 };
 
 /* Layout: header, scroll area, composer. Built once; parts update in place. */
@@ -109,6 +111,9 @@ function renderWelcome() {
 			el('p', {}, [state.project ? `What shall we work on in ${state.project}?` : 'Open a project and we can start.']),
 		])]),
 	]);
+	if (state.offer) {
+		box.append(renderOffer(state.offer));
+	}
 	for (const group of groups) {
 		const cards = state.skills.filter(s => s.group === group);
 		if (!cards.length) {
@@ -138,6 +143,19 @@ function renderWelcome() {
 		box.append(grid);
 	}
 	return box;
+}
+
+/** Asks before reading an existing project: nothing is written until the user says yes. */
+function renderOffer(files) {
+	const yes = el('button', { type: 'button', class: 'pill primary' }, [icon('book'), 'Analyse this project']);
+	const no = el('button', { type: 'button', class: 'pill' }, ['Not now']);
+	yes.addEventListener('click', () => vscode.postMessage({ type: 'analyse' }));
+	no.addEventListener('click', () => vscode.postMessage({ type: 'notNow' }));
+	return el('div', { class: 'offer' }, [
+		el('p', { class: 'offer-title' }, ['Shall I get to know this project?']),
+		el('p', {}, [`I’ll read its ${files} code file${files === 1 ? '' : 's'} and write the project brain: a line on every file, a note per part and a draft architecture. Your code stays as it is.`]),
+		el('div', { class: 'offer-actions' }, [yes, no]),
+	]);
 }
 
 function renderProposal(message, proposal) {
@@ -408,7 +426,12 @@ window.addEventListener('message', event => {
 			state.project = data.project ?? '';
 			state.skills = data.skills;
 			state.messages = data.messages;
+			state.offer = data.offer;
 			showSkills = false;
+			renderScroll();
+			break;
+		case 'offer':
+			state.offer = data.offer;
 			renderScroll();
 			break;
 		case 'messages':
