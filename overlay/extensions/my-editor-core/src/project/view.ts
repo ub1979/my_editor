@@ -77,6 +77,9 @@ export class ProjectView implements vscode.WebviewViewProvider {
 			case 'brain':
 				await vscode.commands.executeCommand('myEditor.buildBrain');
 				return;
+			case 'home':
+				await vscode.commands.executeCommand('myEditor.home');
+				return;
 			case 'chat':
 				await vscode.commands.executeCommand('workbench.action.chat.open');
 				return;

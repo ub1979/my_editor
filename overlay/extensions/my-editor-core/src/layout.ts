@@ -8,7 +8,7 @@ const CENTERED_ONCE = 'myEditor.layout.centeredOnce';
  * Remembered per workspace, so a user who turns it off keeps it off.
  */
 export async function applyFirstRunLayout(context: vscode.ExtensionContext): Promise<void> {
-	if (context.workspaceState.get<boolean>(CENTERED_ONCE)) {
+	if (!vscode.workspace.workspaceFolders?.length || context.workspaceState.get<boolean>(CENTERED_ONCE)) {
 		return;
 	}
 	await context.workspaceState.update(CENTERED_ONCE, true);

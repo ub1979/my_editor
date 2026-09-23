@@ -32,6 +32,7 @@ export async function runTestHooks(): Promise<void> {
 	}
 	if (report) {
 		const models = await vscode.lm.selectChatModels({ vendor: 'my-editor' });
-		writeFileSync(report, `models: ${models.map(m => m.id).join(', ')}\n`);
+		const recent = await vscode.commands.executeCommand<{ workspaces: { folderUri?: vscode.Uri }[] }>('_workbench.getRecentlyOpened');
+		writeFileSync(report, `models: ${models.map(m => m.id).join(', ')}\nrecent: ${(recent?.workspaces ?? []).map(w => w.folderUri?.path).join(', ')}\n`);
 	}
 }

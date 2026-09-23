@@ -154,3 +154,13 @@ button.link {
 		transition: background-color 120ms ease-out;
 	}
 }
+
+.top {
+	display: flex;
+	justify-content: space-between;
+	align-items: baseline;
+}
+
+.top button.link {
+	font-size: 11px;
+}

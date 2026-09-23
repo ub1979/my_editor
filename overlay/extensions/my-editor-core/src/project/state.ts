@@ -44,7 +44,12 @@ export async function readProjectState(): Promise<ProjectState> {
 	if (!folder) {
 		return { name: 'No project open', summary: 'Open a folder to start.', hasWorkspace: false, stages: [], memory: { conventions: false, decisions: 0, chatDays: 0, brain: false, brainFiles: 0 } };
 	}
-	const root = folder.uri;
+	return readProjectStateAt(folder.uri, folder.name);
+}
+
+/** The same status for any project folder, open or not (used by the Home screen). */
+export async function readProjectStateAt(root: vscode.Uri, name: string): Promise<ProjectState> {
+	const folder = { name };
 	const [requirements, architecture, tree, brain, conventions, brainMap] = await Promise.all([
 		read(root, '.my_editor/specs/requirements.md'),
 		read(root, '.my_editor/specs/architecture.md'),

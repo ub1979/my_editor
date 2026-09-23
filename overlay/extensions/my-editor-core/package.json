@@ -16,6 +16,11 @@
   "contributes": {
     "commands": [
       {
+        "command": "myEditor.home",
+        "title": "Home",
+        "category": "my_editor"
+      },
+      {
         "command": "myEditor.chooseModel",
         "title": "Choose Default Model",
         "category": "my_editor"

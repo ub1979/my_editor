@@ -20,7 +20,8 @@ function button(label, onClick, className = 'link') {
 
 function render(state, model) {
 	root.replaceChildren();
-	root.append(el('p', { class: 'eyebrow' }, ['Project']), el('h1', {}, [state.name]), el('p', { class: 'summary' }, [state.summary]));
+	const top = el('div', { class: 'top' }, [el('p', { class: 'eyebrow' }, ['Project']), button('All projects', () => vscode.postMessage({ type: 'home' }))]);
+	root.append(top, el('h1', {}, [state.name]), el('p', { class: 'summary' }, [state.summary]));
 	if (!state.hasWorkspace) {
 		return;
 	}
