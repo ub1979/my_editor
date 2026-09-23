@@ -1,0 +1,25 @@
+diff --git a/src/vs/base/browser/ui/centered/centeredViewLayout.ts b/src/vs/base/browser/ui/centered/centeredViewLayout.ts
+index 6b052011..2f97fdab 100644
+--- a/src/vs/base/browser/ui/centered/centeredViewLayout.ts
++++ b/src/vs/base/browser/ui/centered/centeredViewLayout.ts
+@@ -21,7 +21,8 @@ export interface CenteredViewState {
+ }
+ 
+ const defaultState: CenteredViewState = {
+-	targetWidth: 900,
++	// my_editor: a page wide enough for ~100 columns of code.
++	targetWidth: 960,
+ 	leftMarginRatio: 0.1909,
+ 	rightMarginRatio: 0.1909,
+ };
+@@ -116,7 +117,9 @@ export class CenteredViewLayout implements IDisposable {
+ 			return;
+ 		}
+ 		if (this.centeredLayoutFixedWidth) {
+-			const centerViewWidth = Math.min(this.lastLayoutPosition.width, this.state.targetWidth);
++			// my_editor: when space is tight, shrink the margins to a thin frame, not the page.
++			const minMargin = this.lastLayoutPosition.width > 480 ? 20 : 0;
++			const centerViewWidth = Math.min(this.lastLayoutPosition.width - 2 * minMargin, this.state.targetWidth);
+ 			const marginWidthFloat = (this.lastLayoutPosition.width - centerViewWidth) / 2;
+ 			this.splitView.resizeView(0, Math.floor(marginWidthFloat));
+ 			this.splitView.resizeView(1, centerViewWidth);

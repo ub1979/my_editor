@@ -13,6 +13,8 @@ export function registerEchoModel(): vscode.Disposable {
 		maxInputTokens: 100_000,
 		maxOutputTokens: 4_000,
 		capabilities: {},
+		isDefault: true,
+		isUserSelectable: true,
 	};
 
 	return vscode.lm.registerLanguageModelChatProvider('my-editor', {

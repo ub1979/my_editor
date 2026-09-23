@@ -1,0 +1,20 @@
+diff --git a/src/vs/workbench/api/common/extHostLanguageModels.ts b/src/vs/workbench/api/common/extHostLanguageModels.ts
+index 99af8667..ada77cfc 100644
+--- a/src/vs/workbench/api/common/extHostLanguageModels.ts
++++ b/src/vs/workbench/api/common/extHostLanguageModels.ts
+@@ -401,6 +401,15 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
+ 				break;
+ 			}
+ 		}
++		// my_editor: without Copilot, fall back to any vendor's declared default chat model.
++		if (!defaultModelId) {
++			for (const [modelIdentifier, modelData] of this._localModels) {
++				if (modelData.metadata.isDefaultForLocation[ChatAgentLocation.Chat]) {
++					defaultModelId = modelIdentifier;
++					break;
++				}
++			}
++		}
+ 		if (!defaultModelId && !forceResolveModels) {
+ 			// Maybe the default wasn't cached so we will try again with resolving the models too
+ 			return this.getDefaultLanguageModel(extension, true);

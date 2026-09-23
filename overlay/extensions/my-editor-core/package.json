@@ -35,7 +35,13 @@
         "description": "Your pair programmer (M0 spike)",
         "isSticky": true
       }
-    ]
+    ],
+    "configurationDefaults": {
+      "chat.disableAIFeatures": false,
+      "chat.titleBar.signIn.enabled": false,
+      "chat.commandCenter.enabled": false,
+      "chat.agent.enabled": false
+    }
   },
   "scripts": {
     "compile": "tsc -p ./",
@@ -46,6 +52,7 @@
     "typescript": "^5.9.0"
   },
   "enabledApiProposals": [
-    "chatParticipantAdditions"
+    "chatParticipantAdditions",
+    "chatProvider"
   ]
 }

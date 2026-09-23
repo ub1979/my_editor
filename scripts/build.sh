@@ -15,7 +15,9 @@ REUSE="no"
 for ext in "${ROOT}"/overlay/extensions/*/; do
   name="$( basename "${ext}" )"
   echo "Compiling built-in extension ${name}"
-  ( cd "${ext}" && npm install --silent && npm run -s compile )
+  if jq -e '.scripts.compile' "${ext}/package.json" >/dev/null; then
+    ( cd "${ext}" && npm install --silent && npm run -s compile )
+  fi
   dest="${ROOT}/vscodium/src/stable/extensions/${name}"
   mkdir -p "${dest}"
   rsync -a --delete --exclude node_modules --exclude src --exclude '*.map' --exclude tsconfig.json "${ext}" "${dest}/"

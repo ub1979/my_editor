@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
 import { registerEchoModel } from './spike/echoModel';
 import { registerPairParticipant } from './spike/pairParticipant';
+import { writeSpikeReport } from './spike/report';
+import { applyFirstRunLayout } from './layout';
 
 /** Entry point of the built-in core. */
 export function activate(context: vscode.ExtensionContext): void {
@@ -19,6 +21,8 @@ export function activate(context: vscode.ExtensionContext): void {
 		registerEchoModel(),
 		registerPairParticipant(),
 	);
+	void applyFirstRunLayout(context);
+	void writeSpikeReport();
 }
 
 export function deactivate(): void {}
