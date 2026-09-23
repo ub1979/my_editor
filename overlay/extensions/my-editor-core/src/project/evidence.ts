@@ -9,7 +9,7 @@ const MAX_TOTAL_CHARS = 30_000;
 const EXTRA_GLOB = '**/*.{sql,prisma,graphql}';
 
 /** The host reads relevant project files so every model provider receives the same source evidence. */
-export async function projectEvidence(question: string): Promise<string> {
+export async function projectEvidence(question: string, maxChars = MAX_TOTAL_CHARS): Promise<string> {
 	const root = vscode.workspace.workspaceFolders?.[0];
 	if (!root) { return 'No project folder is open in my_editor.'; }
 	const identity = `Project open in my_editor: ${root.name}\nWorkspace location: ${root.uri.fsPath}`;
@@ -40,7 +40,7 @@ export async function projectEvidence(question: string): Promise<string> {
 		directoryCount.set(directory, (directoryCount.get(directory) ?? 0) + 1);
 		if (selected.length >= MAX_FILES) { break; }
 	}
-	let remaining = MAX_TOTAL_CHARS;
+	let remaining = Math.min(MAX_TOTAL_CHARS, Math.max(4_000, maxChars));
 	const evidence: string[] = [];
 	for (const path of selected) {
 		try {
