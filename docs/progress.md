@@ -59,6 +59,14 @@ Status of the requirements in [`plans/my_editor-plan-v2.md`](plans/my_editor-pla
 | App icon and empty-editor mark | ✅ |
 | Defaults applied from the first frame (patch 130) | ✅ after build 5 |
 
+## Security and safety fixes (review, 2026-09-23)
+
+- Whole-file edits refuse files over 60k characters (the model only sees part of them).
+- Program paths and server URLs are user-level only; verified that a project's `.vscode/settings.json` cannot run a planted program.
+- The navigator skips `.env`/key files and redacts secrets before sending.
+- Codex runs without browser/computer use, apps, plugins or MCP servers.
+- Replies that elide code ("… existing code …") are refused instead of applied.
+
 ## Known issues
 
 - A "Local" label still shows under the chat input after the first message (the mode picker is gone).
