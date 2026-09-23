@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
+import { registerEchoModel } from './spike/echoModel';
+import { registerPairParticipant } from './spike/pairParticipant';
 
-/** Entry point of the built-in core. M0 only proves the extension ships and loads. */
+/** Entry point of the built-in core. */
 export function activate(context: vscode.ExtensionContext): void {
 	const status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
 	status.text = '$(sparkle) my_editor';
@@ -14,6 +16,8 @@ export function activate(context: vscode.ExtensionContext): void {
 			const version = context.extension.packageJSON.version as string;
 			void vscode.window.showInformationMessage(`my_editor core ${version} is loaded.`);
 		}),
+		registerEchoModel(),
+		registerPairParticipant(),
 	);
 }
 

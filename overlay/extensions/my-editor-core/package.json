@@ -6,12 +6,35 @@
   "publisher": "my-editor",
   "license": "MIT",
   "private": true,
-  "engines": { "vscode": "^1.100.0" },
+  "engines": {
+    "vscode": "^1.100.0"
+  },
   "main": "./dist/extension.js",
-  "activationEvents": ["onStartupFinished"],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
   "contributes": {
     "commands": [
-      { "command": "myEditor.about", "title": "About my_editor Core", "category": "my_editor" }
+      {
+        "command": "myEditor.about",
+        "title": "About my_editor Core",
+        "category": "my_editor"
+      }
+    ],
+    "languageModelChatProviders": [
+      {
+        "vendor": "my-editor",
+        "displayName": "my_editor"
+      }
+    ],
+    "chatParticipants": [
+      {
+        "id": "myEditor.pair",
+        "name": "pair",
+        "fullName": "my_editor Pair",
+        "description": "Your pair programmer (M0 spike)",
+        "isSticky": true
+      }
     ]
   },
   "scripts": {
@@ -20,7 +43,9 @@
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
-    "@types/vscode": "^1.100.0",
     "typescript": "^5.9.0"
-  }
+  },
+  "enabledApiProposals": [
+    "chatParticipantAdditions"
+  ]
 }
