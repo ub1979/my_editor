@@ -1,0 +1,20 @@
+diff --git a/src/vs/platform/windows/electron-main/windowsMainService.ts b/src/vs/platform/windows/electron-main/windowsMainService.ts
+index d8428b52..92d63692 100644
+--- a/src/vs/platform/windows/electron-main/windowsMainService.ts
++++ b/src/vs/platform/windows/electron-main/windowsMainService.ts
+@@ -1068,11 +1068,13 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
+ 		if (this.lifecycleMainService.wasRestarted) {
+ 			restoreWindows = 'all'; // always reopen all windows when an update was applied
+ 		} else {
++			// my_editor: by default the app starts on its Home screen; opening a folder still goes straight in,
++			// and reloads or updates (wasRestarted above) still restore the windows.
+ 			const windowConfig = this.configurationService.getValue<IWindowSettings | undefined>('window');
+-			restoreWindows = windowConfig?.restoreWindows || 'all'; // by default restore all windows
++			restoreWindows = windowConfig?.restoreWindows || 'none';
+ 
+ 			if (!['preserve', 'all', 'folders', 'one', 'none'].includes(restoreWindows)) {
+-				restoreWindows = 'all'; // by default restore all windows
++				restoreWindows = 'none';
+ 			}
+ 		}
+ 

@@ -83,6 +83,7 @@
     "chat.disableAIFeatures": true,
     "diffEditor.renderSideBySide": false,
     "diffEditor.renderMarginRevertIcon": true,
-    "diffEditor.ignoreTrimWhitespace": false
+    "diffEditor.ignoreTrimWhitespace": false,
+    "window.restoreWindows": "none"
   }
 }
