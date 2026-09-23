@@ -10,7 +10,8 @@ Status of the requirements in [`plans/my_editor-plan-v2.md`](plans/my_editor-pla
 | FR-001 | Build from VSCodium as my_editor, macOS arm64 | ✅ | `scripts/build.sh`; ~8 min with `--reuse` |
 | FR-002 | Built-in extensions + numbered core patches on a pinned tag | ✅ | 6 patches in `overlay/patches/` |
 | FR-003 | Open VSX; basedpyright | ✅ | Offered once per Python workspace (installed from Open VSX, not bundled) |
-| FR-010 | Anthropic, OpenAI, OpenRouter, Ollama, custom URL | 🟡 | All written; **only Ollama tested live** (no API keys on this machine) |
+| FR-010 | Providers | 🟡 | Claude CLI (subscription), Codex CLI, Ollama and LM Studio **tested live in the app**; Anthropic/OpenAI/OpenRouter API keys written but untested (no keys here) |
+| FR-011 | Subscription route | ✅ | `claude` and `codex` CLIs, Lyra-style guard rails |
 | FR-012 | Model per job | 🟡 | Chat uses the picked model; navigator picks local → Haiku → default |
 | FR-013 | Keys only in the OS keychain | ✅ | SecretStorage; `my_editor: Set API Key` |
 | FR-020 | SKILL.md from built-in, global, project | ✅ | Project overrides global overrides built-in |

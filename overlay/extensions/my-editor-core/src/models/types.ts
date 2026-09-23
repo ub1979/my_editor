@@ -1,6 +1,6 @@
 import type * as vscode from 'vscode';
 
-export type ProviderId = 'anthropic' | 'openai' | 'openrouter' | 'ollama' | 'custom';
+export type ProviderId = 'anthropic' | 'claude-cli' | 'codex-cli' | 'openai' | 'openrouter' | 'ollama' | 'lmstudio' | 'custom';
 
 /** One model offered in the chat model picker. */
 export interface ModelEntry {

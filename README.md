@@ -19,8 +19,12 @@ Decisions are in [`docs/decisions/`](docs/decisions/). Screenshots are in [`docs
   - `/explain`, `/review`, `/brainstorm` only talk; a brainstorm can be saved as a decision.
   - `/requirements`, `/architecture`, `/tree` interview you and, when you say "write it", propose the spec file.
   - `/skill <name>` runs a `SKILL.md` skill (built-in: `debug`, `tests`, `refactor`; add your own).
-- **Models:** Anthropic (Claude), OpenAI, OpenRouter, any OpenAI-compatible URL, and Ollama. Keys are kept
-  in the macOS keychain: run **my_editor: Set API Key**. Without a key, a running Ollama is used.
+- **Models** — pick with **my_editor: Choose Default Model** (or *Change* in the Project view):
+  - **Claude subscription** through your Claude Code login (`claude` CLI): Opus, Sonnet, Haiku. Runs with no
+    tools, no MCP and no saved session, and with API-key variables removed so billing never switches silently.
+  - **ChatGPT subscription** through your Codex login (`codex exec`, read-only sandbox, empty working folder).
+  - **Local:** Ollama and LM Studio, listed whenever their servers are running.
+  - **API keys** (kept in the macOS keychain): Anthropic, OpenAI, OpenRouter, any OpenAI-compatible URL.
 - **Navigator:** after each save it reviews only the changed lines and shows at most three notes. It never edits.
 - **Project brain:** **my_editor: Build Project Brain** writes `.my_editor/brain/` — a map of every file's
   imports, exports and role — and keeps it current on save. `@pair` uses it as context.

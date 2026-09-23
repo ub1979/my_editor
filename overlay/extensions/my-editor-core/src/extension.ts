@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { buildBrain, updateBrainFile } from './brain/brain';
 import { runTestHooks } from './dev/testHooks';
 import { applyFirstRunLayout } from './layout';
+import { chooseDefaultModel } from './models/catalog';
 import { ModelProvider } from './models/provider';
 import { Navigator } from './navigator/navigator';
 import { ApiKeys } from './models/secrets';
@@ -23,12 +24,12 @@ export function activate(context: vscode.ExtensionContext): void {
 	const status = vscode.window.createStatusBarItem('myEditor.status', vscode.StatusBarAlignment.Left, 100);
 	status.name = 'my_editor';
 	status.text = '$(sparkle) my_editor';
-	status.tooltip = 'my_editor — set up models';
-	status.command = 'myEditor.setApiKey';
+	status.tooltip = 'my_editor — choose the model';
+	status.command = 'myEditor.chooseModel';
 	status.show();
 	navigator.onDidChangeBusy(busy => {
 		status.text = busy ? '$(loading~spin) my_editor' : '$(sparkle) my_editor';
-		status.tooltip = busy ? 'The navigator is looking at your change' : 'my_editor — set up models';
+		status.tooltip = busy ? 'The navigator is looking at your change' : 'my_editor — choose the model';
 	});
 
 	context.subscriptions.push(
@@ -42,9 +43,10 @@ export function activate(context: vscode.ExtensionContext): void {
 		status,
 		vscode.lm.registerLanguageModelChatProvider('my-editor', models),
 		registerPairParticipant(context.extensionUri),
-		vscode.window.registerWebviewViewProvider(ProjectView.id, new ProjectView(context)),
+		vscode.window.registerWebviewViewProvider(ProjectView.id, new ProjectView(context, keys)),
 		vscode.commands.registerCommand('myEditor.setApiKey', () => keys.promptAndStore()),
 		vscode.commands.registerCommand('myEditor.refreshModels', () => models.refresh()),
+		vscode.commands.registerCommand('myEditor.chooseModel', () => chooseDefaultModel(keys)),
 		vscode.commands.registerCommand('myEditor.checkFit', (uri?: vscode.Uri, uris?: vscode.Uri[]) => checkFit(uri, uris)),
 		vscode.commands.registerCommand('myEditor.adaptFile', (path: string, change: string) => adaptFile(path, change)),
 		vscode.commands.registerCommand('myEditor.saveDecision', (draft: DecisionDraft) => saveDecision(draft)),

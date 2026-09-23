@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { streamAnthropic } from './anthropic';
+import { findCli, streamClaudeCli, streamCodexCli } from './cli';
 import { loadCatalog, pickDefault } from './catalog';
 import { streamOllama } from './ollama';
 import { streamOpenAICompatible } from './openaiCompatible';
@@ -73,6 +74,22 @@ export class ModelProvider implements vscode.LanguageModelChatProvider<Info> {
 				return streamOpenAICompatible('custom', settings.get('custom.baseUrl', ''), await this.keys.get('custom'), request);
 			case 'ollama':
 				return streamOllama(settings.get('ollama.baseUrl', 'http://localhost:11434'), settings.get('ollama.think', false), request);
+			case 'lmstudio':
+				return streamOpenAICompatible('lmstudio', settings.get('lmstudio.baseUrl', 'http://localhost:1234/v1'), undefined, request);
+			case 'claude-cli': {
+				const command = findCli('claude', settings.get('claudeCli.path', ''));
+				if (!command) {
+					throw new ProviderError('claude-cli', 'the claude command was not found. Install Claude Code and run `claude auth login`, or set myEditor.claudeCli.path.');
+				}
+				return streamClaudeCli(command, request);
+			}
+			case 'codex-cli': {
+				const command = findCli('codex', settings.get('codexCli.path', ''));
+				if (!command) {
+					throw new ProviderError('codex-cli', 'the codex command was not found. Install the Codex CLI and run `codex login`, or set myEditor.codexCli.path.');
+				}
+				return streamCodexCli(command, request);
+			}
 		}
 	}
 

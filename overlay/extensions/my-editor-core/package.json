@@ -16,6 +16,11 @@
   "contributes": {
     "commands": [
       {
+        "command": "myEditor.chooseModel",
+        "title": "Choose Default Model",
+        "category": "my_editor"
+      },
+      {
         "command": "myEditor.setApiKey",
         "title": "Set API Key",
         "category": "my_editor"
@@ -159,7 +164,7 @@
         "myEditor.models.default": {
           "type": "string",
           "default": "",
-          "markdownDescription": "Default chat model as `provider:model`, e.g. `anthropic:claude-opus-5` or `ollama:qwen3.5:9b-mlx`. Empty picks Anthropic if a key is set, else a local Ollama model."
+          "markdownDescription": "Default chat model as `provider:model`, e.g. `claude-cli:sonnet`, `anthropic:claude-opus-5`, `codex-cli:default`, `ollama:qwen3.5:9b-mlx` or `lmstudio:<model>`. Empty: Anthropic API, else Claude subscription, else Codex, else a local model."
         },
         "myEditor.anthropic.models": {
           "type": "array",
@@ -247,6 +252,58 @@
           "type": "boolean",
           "default": false,
           "description": "Show the chat session target picker (Local/\u2026) under the chat input."
+        },
+        "myEditor.claudeCli.enabled": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Offer Claude through your Claude Code login (subscription) when the `claude` command is installed."
+        },
+        "myEditor.claudeCli.path": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Path to the `claude` command. Empty: found on PATH or in the usual install folders."
+        },
+        "myEditor.claudeCli.models": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "opus",
+            "sonnet",
+            "haiku"
+          ],
+          "markdownDescription": "Claude Code model names to offer (`opus`, `sonnet`, `haiku`, a full model id, or `default`)."
+        },
+        "myEditor.codexCli.enabled": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Offer GPT through your Codex login (ChatGPT subscription) when the `codex` command is installed."
+        },
+        "myEditor.codexCli.path": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Path to the `codex` command. Empty: found on PATH or in the usual install folders."
+        },
+        "myEditor.codexCli.models": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "default"
+          ],
+          "markdownDescription": "Codex model names to offer; `default` uses the model in your Codex config."
+        },
+        "myEditor.lmstudio.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Offer models from LM Studio's local server when it is running."
+        },
+        "myEditor.lmstudio.baseUrl": {
+          "type": "string",
+          "default": "http://localhost:1234/v1",
+          "description": "LM Studio server URL (OpenAI-compatible)."
         }
       }
     },

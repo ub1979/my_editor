@@ -145,13 +145,14 @@ export class Navigator implements vscode.Disposable {
 		}
 	}
 
-	/** The navigator's model (D9): its own setting, else a local Ollama model, else Claude Haiku, else the default. */
+	/** The navigator's model (D9): its own setting, else a local model, else Claude Haiku (API, then subscription), else the default. */
 	private async pickModel(): Promise<vscode.LanguageModelChat | undefined> {
 		const entries = await loadCatalog(this.keys);
 		const wanted = vscode.workspace.getConfiguration('myEditor').get<string>('navigator.model');
 		const entry = entries.find(e => e.key === wanted)
-			?? entries.find(e => e.provider === 'ollama' && e.detail.endsWith('local'))
+			?? entries.find(e => e.detail.endsWith('local'))
 			?? entries.find(e => e.key === 'anthropic:claude-haiku-4-5')
+			?? entries.find(e => e.key === 'claude-cli:haiku')
 			?? pickDefault(entries);
 		if (!entry) {
 			return undefined;

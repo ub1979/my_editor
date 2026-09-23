@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import { loadCatalog, pickDefault } from '../models/catalog';
+import { ApiKeys } from '../models/secrets';
 import { readProjectState } from './state';
 
 const CONVENTIONS_TEMPLATE = `# Conventions
@@ -23,7 +25,7 @@ export class ProjectView implements vscode.WebviewViewProvider {
 	static readonly id = 'myEditor.project';
 	private view: vscode.WebviewView | undefined;
 
-	constructor(private readonly context: vscode.ExtensionContext) {
+	constructor(private readonly context: vscode.ExtensionContext, private readonly keys: ApiKeys) {
 		const watcher = vscode.workspace.createFileSystemWatcher('**/.my_editor/**');
 		context.subscriptions.push(
 			watcher,
@@ -54,8 +56,8 @@ export class ProjectView implements vscode.WebviewViewProvider {
 		if (!this.view) {
 			return;
 		}
-		const [state, models] = await Promise.all([readProjectState(), vscode.lm.selectChatModels({ vendor: 'my-editor' })]);
-		void this.view.webview.postMessage({ type: 'state', state, model: models[0]?.name });
+		const [state, entries] = await Promise.all([readProjectState(), loadCatalog(this.keys)]);
+		void this.view.webview.postMessage({ type: 'state', state, model: pickDefault(entries)?.label });
 	}
 
 	private async onMessage(message: { type: string; stage?: string; path?: string }): Promise<void> {
@@ -69,7 +71,7 @@ export class ProjectView implements vscode.WebviewViewProvider {
 			case 'folder':
 				return this.openFolder(message.path ?? '');
 			case 'models':
-				await vscode.commands.executeCommand('myEditor.setApiKey');
+				await vscode.commands.executeCommand('myEditor.chooseModel');
 				return;
 			case 'brain':
 				await vscode.commands.executeCommand('myEditor.buildBrain');
