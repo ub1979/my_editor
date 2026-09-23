@@ -107,6 +107,7 @@ export class Home {
 				title: 'Branch (optional)',
 				prompt: 'Enter a branch to check out, or leave this empty for the repository default.',
 				placeHolder: 'codex/production-predictdial-delivery-v1',
+				ignoreFocusOut: true,
 				validateInput: value => !value.trim() || validBranchName(value.trim()) ? undefined : 'Enter a valid Git branch name.',
 			});
 			if (chosen === undefined) { return; }
@@ -121,6 +122,7 @@ export class Home {
 		if (!parent) { return; }
 		const name = await vscode.window.showInputBox({
 			title: 'Project folder name', value: branch && !source.branch ? `${source.folderName}-${branch.split('/').pop()}` : source.folderName,
+			ignoreFocusOut: true,
 			validateInput: value => /^[\w .-]+$/.test(value.trim()) && !['.', '..'].includes(value.trim())
 				? undefined : 'Use a folder name without slashes.',
 		});

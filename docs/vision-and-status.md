@@ -1,7 +1,7 @@
 # my_editor: aim, objectives, and current status
 
 - **As of:** 24 September 2026
-- **Current version:** 0.0.3 alpha
+- **Current version:** 0.0.4 alpha
 - **Stage:** Working macOS alpha; still being validated on real projects
 
 ## Aim

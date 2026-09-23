@@ -2,6 +2,10 @@
 
 my_editor uses the version in `overlay/extensions/my-editor-core/package.json` as its own release number. The Home page displays that version. The underlying editor shell keeps its upstream version independently.
 
+## 0.0.4 alpha — 2026-09-24
+
+- The Branch and Project folder name prompts in Clone from Git stay open when the editor loses focus, so users can copy a branch name from another app and return to paste it.
+
 ## 0.0.3 alpha — 2026-09-24
 
 - Clone from Git now accepts GitHub branch-page links and checks out the branch they name.
