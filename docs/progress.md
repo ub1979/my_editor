@@ -8,8 +8,8 @@ Status of the requirements in [`plans/my_editor-plan-v2.md`](plans/my_editor-pla
 | ID | Requirement | Status | Notes |
 |---|---|---|---|
 | FR-001 | Build from VSCodium as my_editor, macOS arm64 | ✅ | `scripts/build.sh`; ~8 min with `--reuse` |
-| FR-002 | Built-in extensions + numbered core patches on a pinned tag | ✅ | 4 patches in `overlay/patches/` |
-| FR-003 | Open VSX; basedpyright bundled | 🟡 | Open VSX yes; basedpyright not bundled yet |
+| FR-002 | Built-in extensions + numbered core patches on a pinned tag | ✅ | 6 patches in `overlay/patches/` |
+| FR-003 | Open VSX; basedpyright | ✅ | Offered once per Python workspace (installed from Open VSX, not bundled) |
 | FR-010 | Anthropic, OpenAI, OpenRouter, Ollama, custom URL | 🟡 | All written; **only Ollama tested live** (no API keys on this machine) |
 | FR-012 | Model per job | 🟡 | Chat uses the picked model; navigator picks local → Haiku → default |
 | FR-013 | Keys only in the OS keychain | ✅ | SecretStorage; `my_editor: Set API Key` |
@@ -27,7 +27,7 @@ Status of the requirements in [`plans/my_editor-plan-v2.md`](plans/my_editor-pla
 | FR-050 | Chat aware of file, selection, problems, brain | ✅ | |
 | FR-051 | Help modes | ✅ | `/file /feature /change /next /explain /review /brainstorm` |
 | FR-052 | Every AI edit is a diff with keep/undo per hunk | ✅ | Core chat editing (decision 0001) |
-| FR-053 | Refuse a stale diff | ⬜ | Not tested yet against core chat editing |
+| FR-053 | Nothing written before Keep | ✅ | Patch 140: proposed edits stay unsaved until Keep; stale-file check itself not tested |
 | FR-054 | Navigator on save, never edits | ✅ | Found a planted bug with a local model |
 | FR-055 | Mute per file/session; debounce | ✅ | Commands in the palette |
 | FR-056 | Driver: next step | ✅ | `/next` |
@@ -41,11 +41,11 @@ Status of the requirements in [`plans/my_editor-plan-v2.md`](plans/my_editor-pla
 | Decisions (FR-040) | 🟡 | From brainstorms; linking to files not yet |
 | Review notes as line comments (FR-042) | ⬜ | |
 | "Why is this like this?" (FR-044) | ⬜ | |
-| Guided build: requirements, architecture, tree (FR-060–062) | 🟡 | Modes exist and write through review; **not yet tried end to end with a model** |
-| Scaffold typed stubs (FR-063) | ⬜ | |
-| Progress per file (FR-064) | 🟡 | Build stage counts `status` in `tree.json` |
-| Change impact list (FR-070–072) | ⬜ | |
-| QA on a folder (FR-080) | ⬜ | `/review` and `/skill tests` cover part of it |
+| Guided build: requirements, architecture, tree (FR-060–062) | ✅ | Requirements verified end to end with a local model; architecture/tree share the same path |
+| Scaffold stubs from the tree (FR-063) | ✅ | Tick planned files; stubs state job, requirements, section; never overwrites |
+| Progress per file (FR-064) | ✅ | stub → in progress on save → done by command; Build opens the next file with `/next` |
+| Change impact list (FR-070–071) | ✅ | `/impact`: section, requirement or symbol → affected files with Adapt buttons; decisions not yet recorded (FR-072) |
+| QA on a folder (FR-080) | ✅ | Right-click → Check How These Fit: tool findings saved to `.my_editor/qa/`, then `/qa` explains |
 
 ## UI
 
@@ -60,6 +60,6 @@ Status of the requirements in [`plans/my_editor-plan-v2.md`](plans/my_editor-pla
 
 ## Known issues
 
-- VS Code's "Local" session picker and "Ask" mode label still show under the chat input.
+- A "Local" label still shows under the chat input after the first message (the mode picker is gone).
 - The app bundle is ~1 GB; it has not been slimmed.
 - Only tested with a fresh profile on macOS arm64.

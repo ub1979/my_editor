@@ -15,6 +15,7 @@
     "src/brain/facts.ts",
     "src/navigator/hunks.ts",
     "src/brain/fit.ts",
-    "src/project/stubs.ts"
+    "src/project/stubs.ts",
+    "src/project/impactSubject.ts"
   ]
 }

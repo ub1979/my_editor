@@ -10,6 +10,7 @@ import { DecisionDraft, saveDecision } from './records/decisions';
 import { ProjectView } from './project/view';
 import { offerPythonSupport } from './python';
 import { checkFit } from './qa/checkFit';
+import { adaptFile } from './project/impact';
 import { openNextFile, scaffoldFromTree, toggleFileDone, trackProgress } from './project/tree';
 
 /** Entry point of the built-in core. */
@@ -45,6 +46,7 @@ export function activate(context: vscode.ExtensionContext): void {
 		vscode.commands.registerCommand('myEditor.setApiKey', () => keys.promptAndStore()),
 		vscode.commands.registerCommand('myEditor.refreshModels', () => models.refresh()),
 		vscode.commands.registerCommand('myEditor.checkFit', (uri?: vscode.Uri, uris?: vscode.Uri[]) => checkFit(uri, uris)),
+		vscode.commands.registerCommand('myEditor.adaptFile', (path: string, change: string) => adaptFile(path, change)),
 		vscode.commands.registerCommand('myEditor.saveDecision', (draft: DecisionDraft) => saveDecision(draft)),
 		vscode.commands.registerCommand('myEditor.buildBrain', () => vscode.window.withProgress(
 			{ location: vscode.ProgressLocation.Notification, title: 'Building the project brain' },

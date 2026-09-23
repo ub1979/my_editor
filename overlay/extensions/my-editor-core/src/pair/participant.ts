@@ -5,6 +5,7 @@ import { documentFromReply, lastCodeBlock } from './codeBlock';
 import { Mode, MODES, systemPrompt } from './prompts';
 import { loadSkills } from '../skills/loader';
 import { neighbourSummary } from '../brain/brain';
+import { computeImpact } from '../project/impact';
 
 const HISTORY_TURNS = 6;
 
@@ -31,6 +32,10 @@ async function handle(
 			return {};
 		}
 		({ mode, prompt } = chosen);
+	}
+	if (request.command === 'impact') {
+		await showImpact(prompt, stream);
+		return { metadata: { mode: 'impact' } };
 	}
 	let file: FileContext | undefined;
 	try {
@@ -150,6 +155,25 @@ async function resolveSkill(
 		return undefined;
 	}
 	return { mode: { id: `skill:${skill.name}`, writes: skill.writes, instruction: skill.instruction }, prompt: rest.join(' ') };
+}
+
+/** `/impact <what changed>`: the affected files, each with a button to adapt it through a reviewed edit. */
+async function showImpact(change: string, stream: vscode.ChatResponseStream): Promise<void> {
+	const impact = await computeImpact();
+	if (!impact) {
+		stream.markdown('Open the file, requirement or architecture section you changed, put the cursor on it, and ask again.');
+		return;
+	}
+	if (!impact.files.length) {
+		stream.markdown(`Nothing else depends on ${impact.subject}, as far as the project brain, the tree and the language server can tell.`);
+		return;
+	}
+	const description = change.trim() || `a change to ${impact.subject.replace(/`/g, '')}`;
+	stream.markdown(`**${impact.files.length} file${impact.files.length === 1 ? '' : 's'}** may need to follow ${impact.subject}:\n\n`);
+	stream.markdown(impact.files.map(f => `- \`${f.path}\` — ${f.reason}`).join('\n') + '\n\nAdapt them one at a time; each change comes back for you to keep or undo.\n\n');
+	for (const file of impact.files.slice(0, 12)) {
+		stream.button({ command: 'myEditor.adaptFile', title: `Adapt ${file.path.split('/').pop()}`, arguments: [file.path, description] });
+	}
 }
 
 /** For `/qa <report>`: the report, the architecture, and the checked files (bounded). */

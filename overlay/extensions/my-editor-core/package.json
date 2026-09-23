@@ -69,6 +69,11 @@
         "command": "myEditor.toggleDone",
         "title": "Mark File Done / In Progress",
         "category": "my_editor"
+      },
+      {
+        "command": "myEditor.adaptFile",
+        "title": "Adapt File to a Change",
+        "category": "my_editor"
       }
     ],
     "languageModelChatProviders": [
@@ -129,6 +134,10 @@
           {
             "name": "qa",
             "description": "Explain a fit check (right-click files \u2192 Check How These Fit)"
+          },
+          {
+            "name": "impact",
+            "description": "What does this change affect? (cursor on a symbol, requirement or section)"
           },
           {
             "name": "skill",
@@ -259,6 +268,10 @@
       "commandPalette": [
         {
           "command": "myEditor.saveDecision",
+          "when": "false"
+        },
+        {
+          "command": "myEditor.adaptFile",
           "when": "false"
         }
       ],

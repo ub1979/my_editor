@@ -20,6 +20,13 @@ export async function runTestHooks(): Promise<void> {
 		const root = vscode.workspace.workspaceFolders?.[0]?.uri;
 		await vscode.commands.executeCommand(command, ...(arg && root ? [vscode.Uri.joinPath(root, arg)] : []));
 	}
+	// MY_EDITOR_TEST_CURSOR: "line:column" (1-based) to place the cursor in the active editor first.
+	const cursor = process.env.MY_EDITOR_TEST_CURSOR?.split(':').map(Number);
+	const editor = vscode.window.activeTextEditor ?? vscode.window.visibleTextEditors[0];
+	if (cursor && editor) {
+		const position = new vscode.Position(cursor[0] - 1, cursor[1] - 1);
+		editor.selection = new vscode.Selection(position, position);
+	}
 	if (query) {
 		await vscode.commands.executeCommand('workbench.action.chat.open', { query });
 	}
