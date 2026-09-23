@@ -17,7 +17,7 @@ export function registerPairParticipant(): vscode.Disposable {
 			stream.markdown(chunk);
 		}
 
-		const editor = vscode.window.activeTextEditor;
+		const editor = vscode.window.activeTextEditor ?? vscode.window.visibleTextEditors[0];
 		if (!editor) {
 			stream.markdown('\n\nOpen a file and ask again to see a proposed edit.');
 			return;

@@ -13,6 +13,8 @@ export async function writeSpikeReport(): Promise<void> {
 	const models = await vscode.lm.selectChatModels({});
 	lines.push('models: ' + models.map(m => `${m.vendor}/${m.id}`).join(', '));
 	lines.push('disableAIFeatures: ' + vscode.workspace.getConfiguration('chat').get('disableAIFeatures'));
+	// Give the test driver time to open a file first.
+	await new Promise(resolve => setTimeout(resolve, Number(process.env.MY_EDITOR_SPIKE_DELAY ?? 0)));
 	try {
 		await vscode.commands.executeCommand('workbench.action.chat.open', { query: '@pair hello from the spike' });
 		lines.push('chat.open: ok');
