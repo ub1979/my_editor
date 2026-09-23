@@ -8,6 +8,8 @@ import { documentFromReply, elidesCode, fileFromReply } from '../pair/codeBlock'
 import { currentFile, describeFile, FileContext, readProjectNote } from '../pair/context';
 import { Mode, MODES, systemPrompt } from '../pair/prompts';
 import { computeImpact } from '../project/impact';
+import { projectEvidence } from '../project/evidence';
+import { queryTerms, sourceExcerpt } from '../project/relevance';
 import { logExchange } from '../records/chatLog';
 import { recordsAbout } from '../records/history';
 import { loadSkills } from '../skills/loader';
@@ -121,9 +123,10 @@ export class PairEngine {
 			return { mode: mode.id, reply: '' };
 		}
 
-		const [conventions, brain, specs, neighbours] = await Promise.all([
+		const [conventions, brain, specs, neighbours, evidence] = await Promise.all([
 			readProjectNote('conventions.md'), readProjectNote('brain/index.md'), this.specs(mode),
-			file ? neighbourSummary(file.relativePath) : Promise.resolve('')]);
+			file ? neighbourSummary(file.relativePath) : Promise.resolve(''),
+			mode.id === 'chat' ? projectEvidence([prompt, ...history.slice(-4).filter(turn => turn.role === 'user').map(turn => turn.text)].join('\n')) : Promise.resolve('')]);
 		const records = mode.id === 'why' && file ? await recordsAbout(file.relativePath) : '';
 		const subject = mode.id === 'qa'
 			? await this.qaSubject(prompt)
@@ -131,7 +134,9 @@ export class PairEngine {
 				? [describeFile(file), neighbours, records ? `Project records about this file:\n${records}` : 'No decisions or chats mention this file yet.'].filter(Boolean).join('\n\n')
 				: mode.writes === 'doc'
 					? specs || 'No specs written yet.'
-					: file ? [describeFile(file), neighbours].filter(Boolean).join('\n\n') : 'No file is open.';
+					: mode.id === 'chat'
+						? [evidence, file ? file.selection ? describeFile(file) : `Open file: ${file.relativePath}\n${sourceExcerpt(file.text, queryTerms(prompt), 4000)}` : ''].filter(Boolean).join('\n\n')
+						: file ? [describeFile(file), neighbours].filter(Boolean).join('\n\n') : 'No file is selected.';
 		const request = input.kickoff
 			? 'Begin: say in one short sentence what you will help with, then ask your first question.'
 			: prompt || '(no extra instructions)';
@@ -144,7 +149,7 @@ export class PairEngine {
 		let shown = 0;
 		let writing = false;
 		await streamModel(entry, this.keys, {
-			system: systemPrompt(mode, conventions, brain),
+			system: systemPrompt(mode, conventions, brain, vscode.workspace.workspaceFolders?.[0]?.uri.fsPath),
 			turns: mergeTurns(turns),
 			token,
 			onText: chunk => {
