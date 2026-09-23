@@ -117,7 +117,7 @@ export class Home {
 		await vscode.commands.executeCommand('vscode.openFolder', folder);
 	}
 
-	/** In a project just created from Home: open chat with /requirements ready to start the interview. */
+	/** In a project just created from Home: the Requirements skill greets the user and starts the interview. */
 	async continuePendingStart(): Promise<void> {
 		const pending = this.context.globalState.get<string>(PENDING_START);
 		const root = vscode.workspace.workspaceFolders?.[0]?.uri.toString();
@@ -125,7 +125,7 @@ export class Home {
 			return;
 		}
 		await this.context.globalState.update(PENDING_START, undefined);
-		await vscode.commands.executeCommand('workbench.action.chat.open', { query: '/requirements ', isPartialQuery: true });
+		await vscode.commands.executeCommand('myEditor.chat.start', 'requirements');
 	}
 }
 

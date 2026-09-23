@@ -91,7 +91,7 @@ export async function adaptFile(path: string, change: string): Promise<void> {
 		return;
 	}
 	await vscode.window.showTextDocument(vscode.Uri.joinPath(root, path));
-	await vscode.commands.executeCommand('workbench.action.chat.open', { query: `/feature Adapt this file to this change: ${change}` });
+	await vscode.commands.executeCommand('myEditor.chat.ask', `/feature Adapt this file to this change: ${change}`);
 }
 
 /** Without a project brain: finds the files that import `path` by scanning the workspace once. */

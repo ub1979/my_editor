@@ -61,7 +61,7 @@ export async function scaffoldFromTree(): Promise<void> {
 	void vscode.window.showInformationMessage(`Created ${picked.length} stub${picked.length === 1 ? '' : 's'}. Open Build in the Project view to start file by file.`);
 }
 
-/** Opens the next file to work on and puts `/next` in chat, ready to send or edit. */
+/** Opens the next file to work on and turns the chat to the Next step skill. */
 export async function openNextFile(): Promise<void> {
 	const tree = await load();
 	if (!tree) {
@@ -80,7 +80,7 @@ export async function openNextFile(): Promise<void> {
 		}
 	}
 	await vscode.window.showTextDocument(uri);
-	await vscode.commands.executeCommand('workbench.action.chat.open', { query: '/next ', isPartialQuery: true });
+	await vscode.commands.executeCommand('myEditor.chat.start', 'next');
 }
 
 /** Marks the active file done (or back in progress) in the tree. */

@@ -17,17 +17,14 @@ export interface FileContext {
 	readonly truncated: boolean;
 }
 
-/** The editor the request is about: the active one, else the first visible, else the first #file reference. */
-export async function currentFile(request: vscode.ChatRequest): Promise<FileContext | undefined> {
+/** The editor the request is about: the active one, else the first visible, else the first attached file. */
+export async function currentFile(attached: readonly vscode.Uri[] = []): Promise<FileContext | undefined> {
 	// Only real files: never a diff, output or git view that happens to be visible.
 	const editable = (e: vscode.TextEditor | undefined) => e && EDITABLE_SCHEMES.has(e.document.uri.scheme) ? e : undefined;
 	const editor = editable(vscode.window.activeTextEditor) ?? vscode.window.visibleTextEditors.find(e => editable(e));
 	let document = editor?.document;
-	if (!document) {
-		const ref = request.references.find(r => r.value instanceof vscode.Uri);
-		if (ref) {
-			document = await vscode.workspace.openTextDocument(ref.value as vscode.Uri);
-		}
+	if (!document && attached[0]) {
+		document = await vscode.workspace.openTextDocument(attached[0]);
 	}
 	if (!document) {
 		return undefined;

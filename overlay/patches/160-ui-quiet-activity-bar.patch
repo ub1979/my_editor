@@ -1,0 +1,55 @@
+diff --git a/src/vs/workbench/browser/parts/globalCompositeBar.ts b/src/vs/workbench/browser/parts/globalCompositeBar.ts
+index 6aec4cf9..a85123bd 100644
+--- a/src/vs/workbench/browser/parts/globalCompositeBar.ts
++++ b/src/vs/workbench/browser/parts/globalCompositeBar.ts
+@@ -840,7 +840,8 @@ function simpleActivityContextMenuActions(storageService: IStorageService, isAcc
+ }
+ 
+ export function isAccountsActionVisible(storageService: IStorageService): boolean {
+-	return storageService.getBoolean(AccountsActivityActionViewItem.ACCOUNTS_VISIBILITY_PREFERENCE_KEY, StorageScope.PROFILE, true);
++	// my_editor: no accounts to sign in to, so the accounts icon starts hidden.
++	return storageService.getBoolean(AccountsActivityActionViewItem.ACCOUNTS_VISIBILITY_PREFERENCE_KEY, StorageScope.PROFILE, false);
+ }
+ 
+ function setAccountsActionVisible(storageService: IStorageService, visible: boolean) {
+diff --git a/src/vs/workbench/browser/parts/paneCompositeBar.ts b/src/vs/workbench/browser/parts/paneCompositeBar.ts
+index 048de8a0..9680e8ee 100644
+--- a/src/vs/workbench/browser/parts/paneCompositeBar.ts
++++ b/src/vs/workbench/browser/parts/paneCompositeBar.ts
+@@ -67,6 +67,15 @@ interface ICachedViewContainer {
+ 	views?: { when?: string }[];
+ }
+ 
++/**
++ * my_editor: the bars show files, the project and our own panels. These built-in views stay reachable
++ * (shortcuts, command palette) and appear in the bar only while they are open.
++ */
++const QUIET_VIEW_CONTAINERS = new Set([
++	'workbench.view.search', 'workbench.view.scm', 'workbench.view.debug', 'workbench.view.extensions',
++	'workbench.view.remote', 'workbench.view.testing', 'workbench.view.extension.test', 'workbench.panel.chat',
++]);
++
+ export interface IPaneCompositeBarOptions {
+ 	readonly partContainerClass: string;
+ 	readonly pinnedViewContainersKey: string;
+@@ -261,6 +270,9 @@ export class PaneCompositeBar extends Disposable {
+ 		} else {
+ 			// Deactivate view container action on close
+ 			this.compositeBar.deactivateComposite(id);
++			if (QUIET_VIEW_CONTAINERS.has(id)) {
++				this.hideComposite(id);
++			}
+ 		}
+ 	}
+ 
+@@ -434,6 +446,10 @@ export class PaneCompositeBar extends Disposable {
+ 		const viewContainer = isString(viewContainerOrId) ? this.getViewContainer(viewContainerOrId) : viewContainerOrId;
+ 		const viewContainerId = isString(viewContainerOrId) ? viewContainerOrId : viewContainerOrId.id;
+ 
++		if (QUIET_VIEW_CONTAINERS.has(viewContainerId)) {
++			return this.paneCompositePart.getActivePaneComposite()?.getId() !== viewContainerId;
++		}
++
+ 		if (viewContainer) {
+ 			if (viewContainer.hideIfEmpty) {
+ 				if (this.viewService.isViewContainerActive(viewContainerId)) {

@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
 import { neighbourSummary } from '../brain/brain';
 import { loadCatalog, pickDefault } from '../models/catalog';
+import { streamModel } from '../models/stream';
+import { ModelEntry } from '../models/types';
 import { ApiKeys } from '../models/secrets';
 import { readProjectNote } from '../pair/context';
 import { redact } from '../records/redact';
@@ -120,12 +122,13 @@ export class Navigator implements vscode.Disposable {
 				// Secrets in ordinary code (a pasted key, a token in a config) are masked before anything is sent.
 				`Changed lines (with a little context; "+" marks changed lines):\n${redact(excerpt(text, hunks))}`,
 			].filter(Boolean).join('\n\n');
-			const response = await model.sendRequest(
-				[vscode.LanguageModelChatMessage.User(prompt)], { modelOptions: { system: SYSTEM } }, cancel.token);
 			let reply = '';
-			for await (const part of response.text) {
-				reply += part;
-			}
+			await streamModel(model, this.keys, {
+				system: SYSTEM,
+				turns: [{ role: 'user', text: prompt }],
+				token: cancel.token,
+				onText: chunk => (reply += chunk),
+			});
 			if (document.getText() !== text) {
 				return; // The file moved on while we were thinking; the next save will review again.
 			}
@@ -139,9 +142,9 @@ export class Navigator implements vscode.Disposable {
 				diagnostic.source = 'navigator';
 				return diagnostic;
 			}));
-			this.log.info(`navigator: ${path} — ${findings.length} finding(s) from ${model.name}`);
+			this.log.info(`navigator: ${path}: ${findings.length} finding(s) from ${model.label}`);
 		} catch (err) {
-			this.log.warn(`navigator: review failed — ${String(err)}`);
+			this.log.warn(`navigator: review failed: ${String(err)}`);
 		} finally {
 			clearTimeout(timer);
 			cancel.dispose();
@@ -150,19 +153,14 @@ export class Navigator implements vscode.Disposable {
 	}
 
 	/** The navigator's model (D9): its own setting, else a local model, else Claude Haiku (API, then subscription), else the default. */
-	private async pickModel(): Promise<vscode.LanguageModelChat | undefined> {
+	private async pickModel(): Promise<ModelEntry | undefined> {
 		const entries = await loadCatalog(this.keys);
 		const wanted = vscode.workspace.getConfiguration('myEditor').get<string>('navigator.model');
-		const entry = entries.find(e => e.key === wanted)
+		return entries.find(e => e.key === wanted)
 			?? entries.find(e => e.detail.endsWith('local'))
 			?? entries.find(e => e.key === 'anthropic:claude-haiku-4-5')
 			?? entries.find(e => e.key === 'claude-cli:haiku')
 			?? pickDefault(entries);
-		if (!entry) {
-			return undefined;
-		}
-		const [model] = await vscode.lm.selectChatModels({ vendor: 'my-editor', id: entry.key });
-		return model;
 	}
 
 	dispose(): void {

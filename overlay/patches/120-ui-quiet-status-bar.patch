@@ -1,19 +1,20 @@
 diff --git a/src/vs/workbench/browser/parts/statusbar/statusbarModel.ts b/src/vs/workbench/browser/parts/statusbar/statusbarModel.ts
-index 7e033e21..6b9a80e5 100644
+index 7e033e21..3354dd8c 100644
 --- a/src/vs/workbench/browser/parts/statusbar/statusbarModel.ts
 +++ b/src/vs/workbench/browser/parts/statusbar/statusbarModel.ts
-@@ -23,6 +23,10 @@ export interface IStatusbarViewModelEntry {
+@@ -23,6 +23,11 @@ export interface IStatusbarViewModelEntry {
  export class StatusbarViewModel extends Disposable {
  
  	private static readonly HIDDEN_ENTRIES_KEY = 'workbench.statusbar.hidden';
 +	private static readonly DEFAULT_HIDDEN_ENTRIES = [
 +		'status.editor.encoding', 'status.editor.eol', 'status.editor.indentation', 'status.editor.mode',
 +		'status.languageStatus', 'status.host', 'chat.statusBarEntry', 'status.editor.tabFocusMode',
++		'status.scm.0', 'status.scm.1', 'status.scm.2', 'status.scm.provider',
 +	];
  
  	private readonly _onDidChangeEntryVisibility = this._register(new Emitter<{ id: string; visible: boolean }>());
  	readonly onDidChangeEntryVisibility = this._onDidChangeEntryVisibility.event;
-@@ -46,6 +50,10 @@ export class StatusbarViewModel extends Disposable {
+@@ -46,6 +51,10 @@ export class StatusbarViewModel extends Disposable {
  
  	private restoreState(): void {
  		const hiddenRaw = this.storageService.get(StatusbarViewModel.HIDDEN_ENTRIES_KEY, StorageScope.PROFILE);

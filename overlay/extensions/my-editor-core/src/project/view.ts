@@ -33,7 +33,8 @@ export class ProjectView implements vscode.WebviewViewProvider {
 			watcher.onDidCreate(() => this.refresh()),
 			watcher.onDidChange(() => this.refresh()),
 			watcher.onDidDelete(() => this.refresh()),
-			vscode.lm.onDidChangeChatModels(() => this.refresh()),
+			vscode.workspace.onDidChangeConfiguration(e => e.affectsConfiguration('myEditor') && this.refresh()),
+			context.secrets.onDidChange(() => this.refresh()),
 		);
 	}
 
@@ -81,7 +82,7 @@ export class ProjectView implements vscode.WebviewViewProvider {
 				await vscode.commands.executeCommand('myEditor.home');
 				return;
 			case 'chat':
-				await vscode.commands.executeCommand('workbench.action.chat.open');
+				await vscode.commands.executeCommand('myEditor.chat.focus');
 				return;
 		}
 	}
@@ -103,14 +104,11 @@ export class ProjectView implements vscode.WebviewViewProvider {
 			await vscode.commands.executeCommand('myEditor.nextFile');
 			return;
 		}
-		const starters: Record<string, string> = {
-			requirements: '/requirements ',
-			architecture: '/architecture ',
-			tree: '/tree ',
-			build: '/next ',
-			qa: '/qa ',
-		};
-		await vscode.commands.executeCommand('workbench.action.chat.open', { query: starters[stage] ?? '', isPartialQuery: true });
+		if (stage === 'qa') {
+			await vscode.commands.executeCommand('myEditor.checkFit', root);
+			return;
+		}
+		await vscode.commands.executeCommand('myEditor.chat.start', stage);
 	}
 
 	private async openConventions(): Promise<void> {

@@ -1,12 +1,14 @@
 import * as vscode from 'vscode';
 import { writeFileSync } from 'fs';
+import { loadCatalog } from '../models/catalog';
+import { ApiKeys } from '../models/secrets';
 
 /**
  * Hooks for the automated UI driver only; inert unless these environment variables are set:
  * MY_EDITOR_TEST_REPORT (file to write model/command state to), MY_EDITOR_TEST_QUERY (a chat query to
  * send after MY_EDITOR_TEST_DELAY ms), MY_EDITOR_TEST_COMMAND (a command id to run first).
  */
-export async function runTestHooks(): Promise<void> {
+export async function runTestHooks(keys: ApiKeys): Promise<void> {
 	const report = process.env.MY_EDITOR_TEST_REPORT;
 	const query = process.env.MY_EDITOR_TEST_QUERY;
 	const command = process.env.MY_EDITOR_TEST_COMMAND;
@@ -28,10 +30,10 @@ export async function runTestHooks(): Promise<void> {
 		editor.selection = new vscode.Selection(position, position);
 	}
 	if (query) {
-		await vscode.commands.executeCommand('workbench.action.chat.open', { query });
+		await vscode.commands.executeCommand('myEditor.chat.ask', query);
 	}
 	if (report) {
-		const models = await vscode.lm.selectChatModels({ vendor: 'my-editor' });
+		const models = (await loadCatalog(keys)).map(e => ({ id: e.key }));
 		const recent = await vscode.commands.executeCommand<{ workspaces: { folderUri?: vscode.Uri }[] }>('_workbench.getRecentlyOpened');
 		writeFileSync(report, `models: ${models.map(m => m.id).join(', ')}\nrecent: ${(recent?.workspaces ?? []).map(w => w.folderUri?.path).join(', ')}\n`);
 	}

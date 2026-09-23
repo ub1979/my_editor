@@ -46,6 +46,6 @@ export async function checkFit(uri?: vscode.Uri, uris?: vscode.Uri[]): Promise<v
 		const reportPath = `.my_editor/qa/${stamp}-fit.md`;
 		await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(root, reportPath),
 			new TextEncoder().encode(fitMarkdown(report, problems, now.toLocaleString())));
-		await vscode.commands.executeCommand('workbench.action.chat.open', { query: `/qa ${reportPath}` });
+		await vscode.commands.executeCommand('myEditor.chat.ask', `/qa ${reportPath}`);
 	});
 }

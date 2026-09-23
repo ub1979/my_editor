@@ -31,11 +31,6 @@
         "category": "my_editor"
       },
       {
-        "command": "myEditor.refreshModels",
-        "title": "Refresh Models",
-        "category": "my_editor"
-      },
-      {
         "command": "myEditor.buildBrain",
         "title": "Build Project Brain",
         "category": "my_editor"
@@ -84,83 +79,40 @@
         "command": "myEditor.adaptFile",
         "title": "Adapt File to a Change",
         "category": "my_editor"
-      }
-    ],
-    "languageModelChatProviders": [
+      },
       {
-        "vendor": "my-editor",
-        "displayName": "my_editor"
-      }
-    ],
-    "chatParticipants": [
+        "command": "myEditor.proposal.keep",
+        "title": "Keep This Change",
+        "category": "my_editor",
+        "icon": "$(check)"
+      },
       {
-        "id": "myEditor.pair",
-        "name": "pair",
-        "fullName": "Pair",
-        "isSticky": true,
-        "isDefault": true,
-        "description": "Ask, or use /file /feature /change /next to have code written for review",
-        "commands": [
-          {
-            "name": "explain",
-            "description": "Explain the selection or file"
-          },
-          {
-            "name": "review",
-            "description": "Review the selection or file \u2014 no edits"
-          },
-          {
-            "name": "why",
-            "description": "Why is this code like this? Answers from decisions and past chats"
-          },
-          {
-            "name": "brainstorm",
-            "description": "Explore approaches and design patterns"
-          },
-          {
-            "name": "requirements",
-            "description": "Work out what to build; writes .my_editor/specs/requirements.md"
-          },
-          {
-            "name": "architecture",
-            "description": "Design the parts and patterns; writes architecture.md"
-          },
-          {
-            "name": "tree",
-            "description": "Plan the files; writes tree.json"
-          },
-          {
-            "name": "file",
-            "description": "Write the whole file (you review the diff)"
-          },
-          {
-            "name": "feature",
-            "description": "Add or change one feature in this file"
-          },
-          {
-            "name": "change",
-            "description": "Rewrite only the selected lines"
-          },
-          {
-            "name": "next",
-            "description": "Driver: take the next small step"
-          },
-          {
-            "name": "qa",
-            "description": "Explain a fit check (right-click files \u2192 Check How These Fit)"
-          },
-          {
-            "name": "impact",
-            "description": "What does this change affect? (cursor on a symbol, requirement or section)"
-          },
-          {
-            "name": "skill",
-            "description": "Use a skill: /skill <name> <request> \u2014 /skill alone lists them"
-          }
-        ],
-        "modes": [
-          "ask"
-        ]
+        "command": "myEditor.proposal.undo",
+        "title": "Undo This Change",
+        "category": "my_editor",
+        "icon": "$(discard)"
+      },
+      {
+        "command": "myEditor.chat.start",
+        "title": "Start a Skill",
+        "category": "my_editor"
+      },
+      {
+        "command": "myEditor.chat.ask",
+        "title": "Ask the Pair",
+        "category": "my_editor"
+      },
+      {
+        "command": "myEditor.chat.skills",
+        "title": "Skills",
+        "category": "my_editor",
+        "icon": "$(layout)"
+      },
+      {
+        "command": "myEditor.chat.new",
+        "title": "New Chat",
+        "category": "my_editor",
+        "icon": "$(add)"
       }
     ],
     "configuration": {
@@ -251,16 +203,6 @@
           "default": "",
           "markdownDescription": "Model for the navigator as `provider:model`. Empty: a local Ollama model, else Claude Haiku 4.5, else the default model."
         },
-        "myEditor.chat.showModePicker": {
-          "type": "boolean",
-          "default": false,
-          "description": "Show the chat mode picker (Ask/Agent) under the chat input."
-        },
-        "myEditor.chat.showSessionTarget": {
-          "type": "boolean",
-          "default": false,
-          "description": "Show the chat session target picker (Local/\u2026) under the chat input."
-        },
         "myEditor.claudeCli.enabled": {
           "type": "boolean",
           "default": true,
@@ -325,6 +267,13 @@
           "id": "myEditor.project",
           "name": "Project"
         }
+      ],
+      "myEditorPair": [
+        {
+          "type": "webview",
+          "id": "myEditor.chat",
+          "name": "Pair"
+        }
       ]
     },
     "viewsContainers": {
@@ -333,6 +282,13 @@
           "id": "myEditor",
           "title": "Project",
           "icon": "media/project-icon.svg"
+        }
+      ],
+      "secondarySidebar": [
+        {
+          "id": "myEditorPair",
+          "title": "Pair",
+          "icon": "media/pair-icon.svg"
         }
       ]
     },
@@ -345,6 +301,22 @@
         {
           "command": "myEditor.adaptFile",
           "when": "false"
+        },
+        {
+          "command": "myEditor.chat.start",
+          "when": "false"
+        },
+        {
+          "command": "myEditor.chat.ask",
+          "when": "false"
+        },
+        {
+          "command": "myEditor.proposal.keep",
+          "when": "resourceScheme == my-editor-proposal"
+        },
+        {
+          "command": "myEditor.proposal.undo",
+          "when": "resourceScheme == my-editor-proposal"
         }
       ],
       "explorer/context": [
@@ -352,6 +324,30 @@
           "command": "myEditor.checkFit",
           "group": "7_modification@9",
           "when": "explorerResourceIsFolder || listMultiSelection || resourceExtname =~ /\\.(ts|tsx|js|jsx|mjs|cjs|py)$/"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "myEditor.proposal.keep",
+          "when": "resourceScheme == my-editor-proposal",
+          "group": "navigation@1"
+        },
+        {
+          "command": "myEditor.proposal.undo",
+          "when": "resourceScheme == my-editor-proposal",
+          "group": "navigation@2"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "myEditor.chat.skills",
+          "when": "view == myEditor.chat",
+          "group": "navigation@1"
+        },
+        {
+          "command": "myEditor.chat.new",
+          "when": "view == myEditor.chat",
+          "group": "navigation@2"
         }
       ]
     }
@@ -363,13 +359,10 @@
   },
   "devDependencies": {
     "@anthropic-ai/sdk": "^0.128.0",
+    "@types/markdown-it": "^14.2.0",
     "@types/node": "^22.0.0",
     "esbuild": "^0.28.2",
+    "markdown-it": "^15.0.2",
     "typescript": "^5.9.0"
-  },
-  "enabledApiProposals": [
-    "chatParticipantAdditions",
-    "chatProvider",
-    "defaultChatParticipant"
-  ]
+  }
 }

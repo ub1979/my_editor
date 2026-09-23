@@ -80,9 +80,9 @@
         "other": "off"
       }
     },
-    "chat.disableAIFeatures": false,
-    "chat.titleBar.signIn.enabled": false,
-    "chat.commandCenter.enabled": false,
-    "chat.agent.enabled": false
+    "chat.disableAIFeatures": true,
+    "diffEditor.renderSideBySide": false,
+    "diffEditor.renderMarginRevertIcon": true,
+    "diffEditor.ignoreTrimWhitespace": false
   }
 }
