@@ -20,7 +20,7 @@
     "workbench.activityBar.location": "top",
     "workbench.startupEditor": "none",
     "workbench.tips.enabled": false,
-    "workbench.layoutControl.enabled": false,
+    "workbench.layoutControl.enabled": true,
     "workbench.editor.centeredLayoutAutoResize": false,
     "workbench.editor.centeredLayoutFixedWidth": true,
     "workbench.editor.tabActionCloseVisibility": true,
@@ -84,6 +84,10 @@
     "diffEditor.renderSideBySide": false,
     "diffEditor.renderMarginRevertIcon": true,
     "diffEditor.ignoreTrimWhitespace": false,
-    "window.restoreWindows": "none"
+    "window.restoreWindows": "none",
+    "security.workspace.trust.enabled": false,
+    "workbench.layoutControl.type": "toggles",
+    "files.autoSave": "afterDelay",
+    "files.autoSaveDelay": 1000
   }
 }
