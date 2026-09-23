@@ -601,8 +601,8 @@ textarea::placeholder {
 	flex: 1;
 }
 
-select.model {
-	max-width: 60%;
+select.model, select.reasoning {
+	max-width: 52%;
 	padding: 3px 6px;
 	border: 0;
 	border-radius: 8px;
@@ -613,9 +613,13 @@ select.model {
 	cursor: pointer;
 }
 
-select.model:hover {
+select.model:hover, select.reasoning:hover {
 	background: var(--surface-2);
 	color: var(--text);
+}
+
+select.reasoning {
+	max-width: 42%;
 }
 
 .send {

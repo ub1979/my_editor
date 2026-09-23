@@ -5,7 +5,8 @@ import { analyseProject } from '../brain/analyse';
 import { EXCLUDE_GLOB, SOURCE_GLOB } from '../brain/brain';
 import { loadCatalog, pickDefault } from '../models/catalog';
 import { ApiKeys } from '../models/secrets';
-import { CONVERSATIONAL, PairEngine, Sink, Turn } from './engine';
+import { CONVERSATIONAL, PairEngine, Sink } from './engine';
+import { fallbackBrief, liveTurns, memoryBatch, MemoryState } from './memory';
 import { Proposal, Proposals } from './proposals';
 import { skillCards } from './skillCards';
 
@@ -40,6 +41,7 @@ interface Message {
 interface Saved {
 	messages: Message[];
 	mode?: string;
+	memory?: MemoryState;
 }
 
 const markdown = new MarkdownIt({ html: false, linkify: true, breaks: false });
@@ -53,8 +55,10 @@ export class ChatView implements vscode.WebviewViewProvider {
 	private view: vscode.WebviewView | undefined;
 	private messages: Message[] = [];
 	private mode: string | undefined;
+	private memory: MemoryState = { brief: '' };
 	private running: vscode.CancellationTokenSource | undefined;
 	private pending: { text: string; mode?: string; kickoff?: boolean } | undefined;
+	private saveQueue: Promise<void> = Promise.resolve();
 
 	constructor(
 		private readonly context: vscode.ExtensionContext,
@@ -65,6 +69,7 @@ export class ChatView implements vscode.WebviewViewProvider {
 		const saved = context.workspaceState.get<Saved>(STATE_KEY);
 		this.messages = saved?.messages.map(m => ({ ...m, done: true, progress: undefined })) ?? [];
 		this.mode = saved?.mode;
+		this.memory = saved?.memory ?? { brief: '' };
 		context.subscriptions.push(
 			proposals.onDidChange(proposal => this.onProposalChanged(proposal)),
 			vscode.window.onDidChangeActiveTextEditor(() => this.postContext()),
@@ -152,6 +157,7 @@ export class ChatView implements vscode.WebviewViewProvider {
 		this.running?.cancel();
 		this.messages = [];
 		this.mode = undefined;
+		this.memory = { brief: '' };
 		this.save();
 		await this.postInit();
 	}
@@ -193,6 +199,11 @@ export class ChatView implements vscode.WebviewViewProvider {
 				return;
 			case 'model':
 				await vscode.workspace.getConfiguration('myEditor').update('models.default', message.key, vscode.ConfigurationTarget.Global);
+				return;
+			case 'reasoning':
+				if (['default', 'low', 'medium', 'high', 'xhigh'].includes(message.key ?? '')) {
+					await vscode.workspace.getConfiguration('myEditor').update('codexCli.reasoningEffort', message.key, vscode.ConfigurationTarget.Global);
+				}
 				return;
 			case 'chooseModel':
 				await vscode.commands.executeCommand('myEditor.chooseModel');
@@ -250,12 +261,30 @@ export class ChatView implements vscode.WebviewViewProvider {
 			this.messages.push({ id: newId(), role: 'user', markdown: text.trim() || labelFor(mode), mode, proposals: [], actions: [], done: true });
 		}
 		const reply: Message = { id: newId(), role: 'assistant', markdown: '', mode, proposals: [], actions: [], done: false };
-		const history: Turn[] = this.messages.filter(m => m.done && m.markdown).slice(0, kickoff ? undefined : -1).map(m => ({ role: m.role, text: m.markdown }));
+		const prior = this.messages.filter(m => m.done && m.markdown).slice(0, kickoff ? undefined : -1);
+		const memoryMessages = prior.map(m => ({ id: m.id, role: m.role, text: m.markdown }));
 		this.messages.push(reply);
 		this.postMessages();
 
 		await this.runReply(reply, async (sink, token) => {
-			const result = await this.engine.run({ text, mode, kickoff }, history, sink, token);
+			const deterministic = mode === 'changes' || mode === 'impact' || /^\/(changes|impact)\b/.test(text.trim());
+			let batch = deterministic ? [] : memoryBatch(memoryMessages, this.memory);
+			while (batch.length) {
+				sink.progress('Keeping track of earlier conversation…');
+				let brief: string;
+				try {
+					brief = await this.engine.compactHistory(this.memory.brief, batch, token);
+				} catch {
+					brief = fallbackBrief(this.memory.brief, batch);
+				}
+				if (token.isCancellationRequested) { return; }
+				this.memory = { brief, throughId: batch[batch.length - 1].id };
+				this.save();
+				batch = memoryBatch(memoryMessages, this.memory);
+			}
+			sink.progress('');
+			const live = liveTurns(memoryMessages, this.memory).map(turn => ({ role: turn.role, text: turn.text }));
+			const result = await this.engine.run({ text, mode, kickoff, memory: this.memory.brief }, live, sink, token);
 			// Conversations keep their skill; code-writing requests run once, then chat is plain again.
 			if (!CONVERSATIONAL.has(result.mode) && this.mode === mode && mode !== undefined && !mode.startsWith('skill:')) {
 				this.mode = undefined;
@@ -330,7 +359,12 @@ export class ChatView implements vscode.WebviewViewProvider {
 	}
 
 	private save(): void {
-		void this.context.workspaceState.update(STATE_KEY, { messages: this.messages.slice(-MAX_KEPT_MESSAGES), mode: this.mode } satisfies Saved);
+		this.messages = this.messages.slice(-MAX_KEPT_MESSAGES);
+		const snapshot = {
+			messages: this.messages.map(message => ({ ...message, proposals: [...message.proposals], actions: [...message.actions] })),
+			mode: this.mode, memory: this.memory,
+		} satisfies Saved;
+		this.saveQueue = this.saveQueue.catch(() => undefined).then(() => this.context.workspaceState.update(STATE_KEY, snapshot));
 	}
 
 	private async postInit(): Promise<void> {
@@ -377,6 +411,7 @@ export class ChatView implements vscode.WebviewViewProvider {
 		void this.view.webview.postMessage({
 			type: 'models',
 			current: current?.key,
+			reasoning: vscode.workspace.getConfiguration('myEditor').get<string>('codexCli.reasoningEffort', 'default'),
 			models: entries.map(e => ({ key: e.key, label: e.label, detail: e.detail })),
 		});
 	}
@@ -392,7 +427,7 @@ function newId(): string {
 const LABELS: Record<string, string> = {
 	requirements: 'Requirements', architecture: 'Architecture', tree: 'Plan the files', brainstorm: 'Brainstorm',
 	next: 'Next step', feature: 'Add a feature', change: 'Change selection', explain: 'Explain', why: 'Why is it like this?',
-	review: 'Review', qa: 'Fit check', file: 'Write the file', impact: 'Impact',
+	review: 'Review', qa: 'Fit check', file: 'Write the file', impact: 'Impact', changes: 'Change history',
 };
 
 function labelFor(mode: string | undefined): string {

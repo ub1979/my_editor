@@ -4,18 +4,21 @@ import { loadCatalog, pickDefault } from '../models/catalog';
 import { ApiKeys } from '../models/secrets';
 import { streamModel } from '../models/stream';
 import { ChatTurn } from '../models/types';
+import { cleanBrief } from './memory';
 import { documentFromReply, elidesCode, fileFromReply } from '../pair/codeBlock';
 import { currentFile, describeFile, FileContext, readProjectNote } from '../pair/context';
 import { Mode, MODES, systemPrompt } from '../pair/prompts';
 import { computeImpact } from '../project/impact';
 import { projectEvidence } from '../project/evidence';
+import { changeContext } from '../project/gitHistory';
+import { planningContext } from '../project/planningContext';
 import { queryTerms, sourceExcerpt } from '../project/relevance';
 import { logExchange } from '../records/chatLog';
 import { recordsAbout } from '../records/history';
 import { loadSkills } from '../skills/loader';
 import { Proposal, Proposals } from './proposals';
 
-const HISTORY_TURNS = 8;
+const HISTORY_TURNS = 16;
 
 /** Where a reply goes: the chat panel implements this. */
 export interface Sink {
@@ -39,6 +42,8 @@ export interface RunInput {
 	/** A kickoff: the skill speaks first, without a visible user message. */
 	readonly kickoff?: boolean;
 	readonly modelKey?: string;
+	/** Condensed earlier turns, kept separately from the live transcript. */
+	readonly memory?: string;
 }
 
 export interface RunResult {
@@ -61,6 +66,21 @@ export class PairEngine {
 		private readonly proposals: Proposals,
 	) {}
 
+	/** Preserve older user intent before those turns leave the model's live context. */
+	async compactHistory(previous: string, turns: readonly Turn[], token: vscode.CancellationToken): Promise<string> {
+		const entries = await loadCatalog(this.keys);
+		const entry = pickDefault(entries);
+		if (!entry) { throw new Error('No model is available to compact conversation history.'); }
+		let brief = '';
+		await streamModel(entry, this.keys, {
+			system: `Summarize an ongoing Pair conversation into a working brief of at most 4,500 characters. Preserve: the user's active goal, explicit constraints and preferences, accepted decisions, work completed, files changed, unresolved questions, and next steps. Separate confirmed facts from ideas or claims that still need checking. Treat assistant statements as claims unless supported by user acceptance or recorded changes. Do not invent facts. Return only the brief.`,
+			turns: [{ role: 'user', text: `Previous working brief:\n${previous || '(none)'}\n\nOlder turns to incorporate:\n${turns.map(turn => `${turn.role === 'user' ? 'User' : 'Pair'}: ${turn.text.slice(0, 1600)}`).join('\n\n')}` }],
+			token, onText: chunk => { brief += chunk; },
+		});
+		if (!brief.trim()) { throw new Error('The summarizing model returned no working brief.'); }
+		return cleanBrief(brief);
+	}
+
 	async run(input: RunInput, history: readonly Turn[], sink: Sink, token: vscode.CancellationToken): Promise<RunResult> {
 		const parsed = /^\/([\w:-]+)\s*([\s\S]*)$/.exec(input.text.trim());
 		let modeId = parsed ? parsed[1] : input.mode ?? 'chat';
@@ -69,6 +89,11 @@ export class PairEngine {
 		if (modeId === 'impact') {
 			await this.impact(prompt, sink);
 			return { mode: 'impact', reply: '' };
+		}
+		if (modeId === 'changes') {
+			const report = await changeContext(prompt, undefined, true);
+			sink.text(report);
+			return { mode: 'changes', reply: report };
 		}
 		let mode: Mode | undefined = MODES[modeId];
 		if (modeId === 'skill' || modeId.startsWith('skill:')) {
@@ -123,10 +148,12 @@ export class PairEngine {
 			return { mode: mode.id, reply: '' };
 		}
 
-		const [conventions, brain, specs, neighbours, evidence] = await Promise.all([
+		const [conventions, brain, specs, neighbours, evidence, changes, plans] = await Promise.all([
 			readProjectNote('conventions.md'), readProjectNote('brain/index.md'), this.specs(mode),
 			file ? neighbourSummary(file.relativePath) : Promise.resolve(''),
-			mode.id === 'chat' ? projectEvidence([prompt, ...history.slice(-4).filter(turn => turn.role === 'user').map(turn => turn.text)].join('\n')) : Promise.resolve('')]);
+			mode.id === 'chat' ? projectEvidence([prompt, ...history.slice(-4).filter(turn => turn.role === 'user').map(turn => turn.text), input.memory ?? ''].join('\n'), Math.round(entry.maxInputTokens * 0.45)) : Promise.resolve(''),
+			mode.id === 'chat' ? changeContext(prompt, file?.relativePath) : Promise.resolve(''),
+			mode.id === 'chat' ? planningContext(prompt) : Promise.resolve('')]);
 		const records = mode.id === 'why' && file ? await recordsAbout(file.relativePath) : '';
 		const subject = mode.id === 'qa'
 			? await this.qaSubject(prompt)
@@ -135,13 +162,13 @@ export class PairEngine {
 				: mode.writes === 'doc'
 					? specs || 'No specs written yet.'
 					: mode.id === 'chat'
-						? [evidence, file ? file.selection ? describeFile(file) : `Open file: ${file.relativePath}\n${sourceExcerpt(file.text, queryTerms(prompt), 4000)}` : ''].filter(Boolean).join('\n\n')
+						? [evidence, plans, changes ? `Change record:\n${changes}` : '', file ? `Open file: ${file.relativePath}\n${sourceExcerpt(file.text, queryTerms(prompt), 4000)}${file.selection ? `\nSelected text:\n${file.selectedText.slice(0, 4000)}` : ''}` : ''].filter(Boolean).join('\n\n')
 						: file ? [describeFile(file), neighbours].filter(Boolean).join('\n\n') : 'No file is selected.';
 		const request = input.kickoff
 			? 'Begin: say in one short sentence what you will help with, then ask your first question.'
 			: prompt || '(no extra instructions)';
 		const turns: ChatTurn[] = [
-			...history.slice(-HISTORY_TURNS).map(turn => ({ role: turn.role, text: turn.text })),
+			...history.slice(-HISTORY_TURNS).map(turn => ({ role: turn.role, text: turn.text.slice(0, turn.role === 'user' ? 2_500 : 1_500) })),
 			{ role: 'user', text: `${subject}\n\nRequest: ${request}` },
 		];
 
@@ -149,9 +176,10 @@ export class PairEngine {
 		let shown = 0;
 		let writing = false;
 		await streamModel(entry, this.keys, {
-			system: systemPrompt(mode, conventions, brain, vscode.workspace.workspaceFolders?.[0]?.uri.fsPath),
+			system: [systemPrompt(mode, conventions, brain, vscode.workspace.workspaceFolders?.[0]?.uri.fsPath), input.memory ? `Working brief from earlier turns (refresh facts against the current brain, source and Git):\n${input.memory}` : ''].filter(Boolean).join('\n\n'),
 			turns: mergeTurns(turns),
 			token,
+			reasoningEffort: entry.provider === 'codex-cli' ? configuredReasoningEffort() : undefined,
 			onText: chunk => {
 				reply += chunk;
 				if (mode!.writes === 'none') {
@@ -274,6 +302,11 @@ export class PairEngine {
 		}));
 		return parts.filter(Boolean).join('\n\n');
 	}
+}
+
+function configuredReasoningEffort(): 'low' | 'medium' | 'high' | 'xhigh' | undefined {
+	const value = vscode.workspace.getConfiguration('myEditor').get<string>('codexCli.reasoningEffort', 'default');
+	return value === 'low' || value === 'medium' || value === 'high' || value === 'xhigh' ? value : undefined;
 }
 
 /** Merges consecutive same-role turns; providers expect alternating turns starting with the user. */

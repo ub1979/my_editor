@@ -269,6 +269,13 @@
           ],
           "markdownDescription": "Codex model names to offer; `default` uses the model in your Codex config."
         },
+		"myEditor.codexCli.reasoningEffort": {
+		  "type": "string",
+		  "enum": ["default", "low", "medium", "high", "xhigh"],
+		  "default": "default",
+		  "scope": "machine",
+		  "description": "Reasoning level for Codex CLI models. Default uses the model or Codex configuration; supported levels vary by model."
+		},
         "myEditor.lmstudio.enabled": {
           "type": "boolean",
           "default": true,

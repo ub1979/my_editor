@@ -27,6 +27,7 @@ export interface StreamRequest {
 	readonly turns: readonly ChatTurn[];
 	readonly token: vscode.CancellationToken;
 	readonly onText: (text: string) => void;
+	readonly reasoningEffort?: 'low' | 'medium' | 'high' | 'xhigh';
 }
 
 export class ProviderError extends Error {

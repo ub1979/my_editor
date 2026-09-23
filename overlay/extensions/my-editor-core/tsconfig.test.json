@@ -19,6 +19,8 @@
     "src/project/impactSubject.ts",
 	"src/project/visualPlan.ts",
 	"src/project/relevance.ts",
+	"src/project/commitParse.ts",
+	"src/chat/memory.ts",
     "src/models/cliProtocol.ts",
 	"src/models/codexModels.ts",
     "src/models/types.ts",

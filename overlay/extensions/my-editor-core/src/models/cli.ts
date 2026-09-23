@@ -137,6 +137,7 @@ export function streamCodexCli(command: string, request: StreamRequest): Promise
 		'exec', '--json', '--ephemeral', '--skip-git-repo-check', '--sandbox', 'read-only', '--color', 'never',
 		'--disable', 'browser_use', '--disable', 'computer_use', '--disable', 'apps',
 		'--disable', 'plugins', '--disable', 'remote_plugin', '-c', 'mcp_servers={}',
+		...(request.reasoningEffort ? ['-c', `model_reasoning_effort=${request.reasoningEffort}`] : []),
 		...(request.entry.model !== 'default' ? ['--model', request.entry.model] : []),
 		'-',
 	];

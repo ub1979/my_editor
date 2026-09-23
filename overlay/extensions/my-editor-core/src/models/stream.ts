@@ -11,11 +11,12 @@ export interface ModelCall {
 	readonly turns: readonly ChatTurn[];
 	readonly token: vscode.CancellationToken;
 	readonly onText: (text: string) => void;
+	readonly reasoningEffort?: 'low' | 'medium' | 'high' | 'xhigh';
 }
 
 /** Sends one conversation to a model from the catalog and streams the reply. Used by chat and navigator. */
 export async function streamModel(entry: ModelEntry, keys: ApiKeys, call: ModelCall): Promise<void> {
-	const request: StreamRequest = { entry, system: call.system, turns: call.turns, token: call.token, onText: call.onText };
+	const request: StreamRequest = { entry, system: call.system, turns: call.turns, token: call.token, onText: call.onText, reasoningEffort: call.reasoningEffort };
 	const settings = vscode.workspace.getConfiguration('myEditor');
 	const requireKey = async (provider: 'anthropic' | 'openai' | 'openrouter') => {
 		const key = await keys.get(provider);

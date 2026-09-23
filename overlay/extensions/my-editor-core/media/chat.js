@@ -28,13 +28,14 @@ const ICONS = {
 	alert: 'M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z',
 	undo: 'M3 7v6h6M21 17a9 9 0 0 0-15-6.7L3 13',
 	diff: 'M12 3v18M5 8h4M7 6v4M15 16h4',
+	link: 'M10 13a5 5 0 0 0 7.1 0l2-2a5 5 0 0 0-7.1-7.1l-1.1 1.1M14 11a5 5 0 0 0-7.1 0l-2 2a5 5 0 0 0 7.1 7.1l1.1-1.1',
 };
 
 const COMMANDS = [
 	['feature', 'Add a feature to this file'], ['change', 'Rewrite the selected lines'], ['next', 'Take the next small step'],
 	['file', 'Write the whole file'], ['explain', 'Explain the file or selection'], ['review', 'Review without editing'],
 	['why', 'Why is this code like this?'], ['brainstorm', 'Explore approaches'], ['requirements', 'Work out what to build'],
-	['architecture', 'Design the parts'], ['tree', 'Plan the files'], ['impact', 'What does a change affect?'], ['skill', 'Run a skill by name'],
+	['architecture', 'Design the parts'], ['tree', 'Plan the files'], ['impact', 'What does a change affect?'], ['changes', 'Git history and current edits'], ['skill', 'Run a skill by name'],
 ];
 
 /** @param {string} tag @param {Record<string, string>} [attrs] @param {(Node|string)[]} [children] */
@@ -81,6 +82,7 @@ let state = {
 	selection: undefined,
 	models: [],
 	model: undefined,
+	reasoning: 'default',
 	placeholder: undefined,
 	/** Code files in a project the pair has not read yet; set while the analysis is on offer. */
 	offer: undefined,
@@ -93,12 +95,13 @@ const composer = el('form', { class: 'composer' });
 const context = el('div', { class: 'context' });
 const input = /** @type {HTMLTextAreaElement} */ (el('textarea', { rows: '1', 'aria-label': 'Message the pair' }));
 const modelSelect = /** @type {HTMLSelectElement} */ (el('select', { class: 'model', 'aria-label': 'Model' }));
+const reasoningSelect = /** @type {HTMLSelectElement} */ (el('select', { class: 'reasoning', 'aria-label': 'Codex reasoning level', title: 'Codex reasoning level' }));
 const sendButton = /** @type {HTMLButtonElement} */ (el('button', { type: 'submit', class: 'send', 'aria-label': 'Send' }));
 let menu = /** @type {HTMLElement | null} */ (null);
 let menuIndex = 0;
 let showSkills = false;
 
-composer.append(context, input, el('div', { class: 'row' }, [modelSelect, el('span', { class: 'spacer' }), sendButton]));
+composer.append(context, input, el('div', { class: 'row' }, [modelSelect, reasoningSelect, el('span', { class: 'spacer' }), sendButton]));
 app.append(scroll, composer);
 
 /* Rendering */
@@ -301,6 +304,13 @@ function renderModels() {
 		}
 		modelSelect.append(option);
 	}
+	reasoningSelect.replaceChildren();
+	for (const [value, label] of [['default', 'Effort: Codex default'], ['low', 'Effort: Low'], ['medium', 'Effort: Medium'], ['high', 'Effort: High'], ['xhigh', 'Effort: Extra high']]) {
+		const option = el('option', { value }, [label]);
+		if (value === state.reasoning) { option.setAttribute('selected', ''); }
+		reasoningSelect.append(option);
+	}
+	reasoningSelect.hidden = !String(state.model ?? '').startsWith('codex-cli:');
 }
 
 /* "/" command menu */
@@ -407,10 +417,17 @@ input.addEventListener('keydown', event => {
 
 modelSelect.addEventListener('change', () => {
 	if (modelSelect.value) {
+		state.model = modelSelect.value;
+		renderModels();
 		vscode.postMessage({ type: 'model', key: modelSelect.value });
 	} else {
 		vscode.postMessage({ type: 'chooseModel' });
 	}
+});
+
+reasoningSelect.addEventListener('change', () => {
+	state.reasoning = reasoningSelect.value;
+	vscode.postMessage({ type: 'reasoning', key: reasoningSelect.value });
 });
 
 scroll.addEventListener('click', event => {
@@ -464,6 +481,7 @@ window.addEventListener('message', event => {
 		case 'models':
 			state.models = data.models;
 			state.model = data.current;
+			state.reasoning = data.reasoning ?? 'default';
 			renderModels();
 			if (state.offer) {
 				renderScroll(); // The offer names the model.
