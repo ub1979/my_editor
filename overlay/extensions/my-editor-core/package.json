@@ -200,6 +200,16 @@
           "type": "string",
           "default": "",
           "markdownDescription": "Model for the navigator as `provider:model`. Empty: a local Ollama model, else Claude Haiku 4.5, else the default model."
+        },
+        "myEditor.chat.showModePicker": {
+          "type": "boolean",
+          "default": false,
+          "description": "Show the chat mode picker (Ask/Agent) under the chat input."
+        },
+        "myEditor.chat.showSessionTarget": {
+          "type": "boolean",
+          "default": false,
+          "description": "Show the chat session target picker (Local/\u2026) under the chat input."
         }
       }
     },

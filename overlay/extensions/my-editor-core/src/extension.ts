@@ -8,6 +8,7 @@ import { ApiKeys } from './models/secrets';
 import { registerPairParticipant } from './pair/participant';
 import { DecisionDraft, saveDecision } from './records/decisions';
 import { ProjectView } from './project/view';
+import { offerPythonSupport } from './python';
 
 /** Entry point of the built-in core. */
 export function activate(context: vscode.ExtensionContext): void {
@@ -53,6 +54,7 @@ export function activate(context: vscode.ExtensionContext): void {
 		vscode.workspace.onDidSaveTextDocument(document => void updateBrainFile(document)),
 	);
 	void applyFirstRunLayout(context);
+	void offerPythonSupport(context);
 	void runTestHooks();
 }
 

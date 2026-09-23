@@ -1,0 +1,22 @@
+diff --git a/src/vs/workbench/contrib/chat/browser/actions/chatExecuteActions.ts b/src/vs/workbench/contrib/chat/browser/actions/chatExecuteActions.ts
+index 1882af79..5f0a30f8 100644
+--- a/src/vs/workbench/contrib/chat/browser/actions/chatExecuteActions.ts
++++ b/src/vs/workbench/contrib/chat/browser/actions/chatExecuteActions.ts
+@@ -483,6 +483,8 @@ export class OpenModePickerAction extends Action2 {
+ 					order: 1,
+ 					when: ContextKeyExpr.and(
+ 						ChatContextKeys.enabled,
++						// my_editor: with a single mode the picker has nothing to choose; opt in with a setting.
++						ContextKeyExpr.equals('config.myEditor.chat.showModePicker', true),
+ 						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
+ 						ChatContextKeys.inQuickChat.negate(),
+ 						// Hide the agent picker while a delegation (continue in) target is pending
+@@ -538,6 +540,8 @@ export class OpenSessionTargetPickerAction extends Action2 {
+ 					order: 0,
+ 					when: ContextKeyExpr.and(
+ 						ChatContextKeys.enabled,
++						// my_editor: sessions run locally; show the target picker only when opted in.
++						ContextKeyExpr.equals('config.myEditor.chat.showSessionTarget', true),
+ 						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
+ 						ChatContextKeys.inQuickChat.negate(),
+ 						IsSessionsWindowContext.negate(),
