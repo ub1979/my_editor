@@ -2,6 +2,8 @@ import * as vscode from 'vscode';
 import { buildBrain, updateBrainFile } from './brain/brain';
 import { AutoComments } from './comments/autoComments';
 import { PairEngine } from './chat/engine';
+import { ObservationRunner } from './chat/observationRunner';
+import { openObservationProfile } from './chat/observationSetup';
 import { Proposals } from './chat/proposals';
 import { ChatView } from './chat/view';
 import { runTestHooks } from './dev/testHooks';
@@ -27,7 +29,8 @@ export function activate(context: vscode.ExtensionContext): void {
 	const home = new Home(context);
 	const visuals = new ProjectVisualView(context);
 	const proposals = new Proposals();
-	const engine = new PairEngine(context.extensionUri, keys, proposals);
+	const observations = new ObservationRunner(context);
+	const engine = new PairEngine(context.extensionUri, keys, proposals, observations);
 	const chat = new ChatView(context, engine, proposals, keys);
 
 	const status = vscode.window.createStatusBarItem('myEditor.status', vscode.StatusBarAlignment.Left, 100);
@@ -71,6 +74,7 @@ export function activate(context: vscode.ExtensionContext): void {
 		vscode.commands.registerCommand('myEditor.navigator.clear', () => navigator.clear()),
 		vscode.commands.registerCommand('myEditor.setApiKey', () => keys.promptAndStore()),
 		vscode.commands.registerCommand('myEditor.chooseModel', () => chooseDefaultModel(keys)),
+		vscode.commands.registerCommand('myEditor.configureObservations', () => openObservationProfile()),
 		vscode.commands.registerCommand('myEditor.visualizeProject', (tab?: 'architecture' | 'tree') => visuals.show(tab)),
 		vscode.commands.registerCommand('myEditor.home', () => home.show()),
 		vscode.commands.registerCommand('myEditor.checkFit', (uri?: vscode.Uri, uris?: vscode.Uri[]) => checkFit(uri, uris)),

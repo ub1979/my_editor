@@ -70,7 +70,7 @@ button.row:hover {
 	background: var(--hover);
 }
 
-button.row:focus-visible, button.link:focus-visible {
+button.row:focus-visible, button.link:focus-visible, button.git-update:focus-visible {
 	outline: 2px solid var(--vscode-focusBorder);
 	outline-offset: 1px;
 }
@@ -134,6 +134,25 @@ button.link {
 	color: var(--accent);
 	font: inherit;
 	cursor: pointer;
+}
+
+.git p:not(.eyebrow) {
+	margin: 0 0 8px;
+}
+
+.git-update {
+	margin: 2px 12px 0 0;
+	padding: 6px 10px;
+	border: 0;
+	border-radius: 6px;
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	font: inherit;
+	cursor: pointer;
+}
+
+.git-update:hover {
+	background: var(--vscode-button-hoverBackground);
 }
 
 .model {

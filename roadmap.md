@@ -25,11 +25,17 @@ The product promise is **continuity with evidence**. Pair should know which proj
 
 ## Current baseline and limits
 
-- The codebase and installed app identify as **0.0.4 alpha**. The app is currently tested only on macOS arm64. The next version is not assigned by this roadmap.
+- The codebase and installed app identify as **0.0.5 alpha**. The app is currently tested only on macOS arm64. This source version was requested before the installed-app Pair acceptance check; it is not release-tagged.
 - Home, Project, Pair, guided planning, brain analysis, visual maps, model selection, diff review, Navigator, and some QA paths are built. Their existence does not establish that the complete workflow is reliable on a large real project.
 - The private `go-dialer` branch was cloned and Git confirmed its branch and commit. The clone naming and destination flow confused the user. A clearer editable-name prompt has been compiled and copied into the installed app, but that revised prompt has **not** been verified by the user in the UI.
 - The project brain has file-size and run limits. Pair's long-chat continuity, large-repository retrieval, complete multi-file edit loop, and restart behavior still need end-to-end checks. Change impact is a hint; a linked request-to-commit record is not complete.
-- The user will operate the editor UI for now. Verify a new version in the installed app before assigning it; push to Git only on the user's instruction.
+- Pair's former 10-check cutoff has been replaced locally with a 60-check safety bound, grouped read-only checks, and a summary of unfinished work at the bound. Automated tests pass and the compiled extension is in the installed app; a live large-project request after restart still needs verification.
+- A joined model tool reply previously appeared as raw JSON in Pair. The local parser now handles the repeated request and retries malformed tool JSON once; the installed-app behavior still needs a user-run check.
+- Long pasted messages were silently cut to 2,500 characters when reused as chat history. Pair now marks shortened messages and can fetch stored chat text in bounded chunks; a real log-retrieval check in the installed app remains open.
+- The Project view now has a local Git update card and checks the tracked remote branch on open and every ten minutes. It notifies once per new remote head, and the Update action only fast-forwards after safety checks. The installed-app notification and update flow still need a live check on a cloned project.
+- A saved Pair conversation in `m_dialer` held recent 5,000–6,000-character user pastes, with relevant log terms beyond the former 2,500-character model cutoff. Pair now includes those recent pastes under a model-aware budget, saves the user's message before requesting a model reply, and retains up to 200 messages for search. A live GPT Sol follow-up on the saved conversation remains the acceptance check; chat state is scoped to the opened workspace folder.
+- The user will operate the editor UI for now. Verify the 0.0.5 Pair flow in the installed app before calling this release complete. Git pushes require the user's instruction.
+- Pair now has a project status snapshot per turn, approved named operational observations, searchable saved records, and linked proposal events. The m_dialer observation recipes were exercised from the host runner; the installed-app Pair flow and approval UI still need a user-run check before these features are marked verified.
 
 ## Comparison
 
@@ -76,12 +82,13 @@ The milestones are ordered by dependency, not by promised release date. A milest
 **Outcome:** A user can open or clone a project and immediately see the right project, branch, files, and model. Pair can answer a project question without an open file.
 
 - Make Clone from Git show an editable project name and an unambiguous destination. Display the final path, selected branch, progress, success, and actionable failure text. Keep prompts open when switching apps. Offer Open instead of cloning over an existing folder.
-- Verify the current local clone-name changes in the installed UI; they are not yet a released feature. Keep the release version unchanged until the UI check passes.
+- Verify the current local clone-name changes in the installed UI; they are not yet a verified feature. Do not create a release tag until the UI check passes.
 - Run a fresh-profile smoke script and a manual pass: clone a private repository from a branch-page URL and from repo URL plus branch; choose a custom name; switch apps mid-prompt; confirm the opened Git branch, root path, file tree, and restart behavior.
 - Exercise Pair with no file open, then with a selected file, using at least one subscription and one local model. The response must identify the actual workspace and cite files it read. Failed provider calls must produce a useful error.
+- Exercise a single Pair request that needs at least 15 project checks. Confirm it continues past the old cutoff, supports grouped reads, and reports verified progress and remaining work if it reaches the safety bound.
 - Fix layout and file-opening behavior seen in real use. Test narrow, wide, and resized windows without requiring users to toggle panels to recover space.
 
-**Exit check:** An installed-app run of the full clone → open → ask → propose → Keep → test → restart flow is recorded with screenshots or a short result log. Do not bump the version or create a release tag until that run passes. Git pushes require the user's instruction.
+**Exit check:** An installed-app run of the full clone → open → ask → propose → Keep → test → restart flow is recorded with screenshots or a short result log. Do not create a release tag until that run passes. Git pushes require the user's instruction.
 
 ### M1 — Make the project brain trustworthy at scale
 
@@ -133,4 +140,4 @@ Browser verification, parallel tasks, remote/background agents, and richer MCP i
 
 ## Release rule
 
-For this roadmap, **built** means code exists; **verified** means an installed-app scenario passed; **released** means the version was verified and the user approved its publication. Keep those states visible. Push source changes only when the user requests it; a source push at the current version is not a new release.
+For this roadmap, **built** means code exists; **verified** means an installed-app scenario passed; **released** means the version was verified and tagged with the user's approval. Keep those states visible. Push source changes only when the user requests it; a source push at the current version is not a completed release.

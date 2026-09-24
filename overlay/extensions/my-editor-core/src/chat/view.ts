@@ -1,5 +1,4 @@
 import { randomBytes } from 'crypto';
-import MarkdownIt from 'markdown-it';
 import * as vscode from 'vscode';
 import { analyseProject } from '../brain/analyse';
 import { EXCLUDE_GLOB, SOURCE_GLOB } from '../brain/brain';
@@ -8,35 +7,18 @@ import { ApiKeys } from '../models/secrets';
 import { CONVERSATIONAL, PairEngine, Sink } from './engine';
 import { fallbackBrief, liveTurns, memoryBatch, MemoryState } from './memory';
 import { Proposal, Proposals } from './proposals';
+import { labelFor, Message, render } from './presentation';
+import { runReplyJob } from './replyJob';
+import { saveProposalEvent } from './changeJournal';
 import { skillCards } from './skillCards';
 
 const STATE_KEY = 'myEditor.chat.state';
 /** Set once the user answered the "Analyse this project?" offer, either way. */
 const ANALYSE_ANSWERED = 'myEditor.analyse.answered';
-const MAX_KEPT_MESSAGES = 60;
+const MAX_KEPT_MESSAGES = 200;
+const MAX_VISIBLE_MESSAGES = 60;
 /** Buttons a reply may offer; anything else is ignored. */
 const ALLOWED_ACTIONS = new Set(['myEditor.saveDecision', 'myEditor.adaptFile', 'myEditor.analyseProject']);
-
-interface ProposalCard {
-	readonly id: string;
-	readonly file: string;
-	readonly added: number;
-	readonly removed: number;
-	readonly isNewFile: boolean;
-	state: Proposal['state'] | 'expired';
-}
-
-interface Message {
-	readonly id: string;
-	readonly role: 'user' | 'assistant';
-	markdown: string;
-	mode?: string;
-	progress?: string;
-	error?: string;
-	proposals: ProposalCard[];
-	actions: { label: string; command: string; args: unknown[] }[];
-	done: boolean;
-}
 
 interface Saved {
 	messages: Message[];
@@ -44,7 +26,6 @@ interface Saved {
 	memory?: MemoryState;
 }
 
-const markdown = new MarkdownIt({ html: false, linkify: true, breaks: false });
 
 /**
  * The Pair chat: a panel of our own in the right sidebar. It keeps the conversation, runs the engine,
@@ -91,7 +72,10 @@ export class ChatView implements vscode.WebviewViewProvider {
 		view.webview.html = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${view.webview.cspSource} data:; style-src ${view.webview.cspSource}; script-src 'nonce-${nonce}';">
 <link rel="stylesheet" href="${view.webview.asWebviewUri(vscode.Uri.joinPath(media, 'chat.css'))}"></head>
-<body><div id="app"></div><script nonce="${nonce}" src="${view.webview.asWebviewUri(vscode.Uri.joinPath(media, 'chat.js'))}"></script></body></html>`;
+<body><div id="app"></div>
+<script nonce="${nonce}" src="${view.webview.asWebviewUri(vscode.Uri.joinPath(media, 'chatDom.js'))}"></script>
+<script nonce="${nonce}" src="${view.webview.asWebviewUri(vscode.Uri.joinPath(media, 'chatCards.js'))}"></script>
+<script nonce="${nonce}" src="${view.webview.asWebviewUri(vscode.Uri.joinPath(media, 'chat.js'))}"></script></body></html>`;
 		view.webview.onDidReceiveMessage(message => void this.onMessage(message));
 	}
 
@@ -268,6 +252,10 @@ export class ChatView implements vscode.WebviewViewProvider {
 		const prior = this.messages.filter(m => m.done && m.markdown).slice(0, kickoff ? undefined : -1);
 		const memoryMessages = prior.map(m => ({ id: m.id, role: m.role, text: m.markdown }));
 		this.messages.push(reply);
+		// Save the user's full paste before asking a model, so a stopped or crashed run cannot lose it.
+		this.save();
+		try { await this.saveQueue; }
+		catch { void vscode.window.showWarningMessage('Pair could not save this chat yet. Keep the editor open until storage is available.'); }
 		this.postMessages();
 
 		await this.runReply(reply, async (sink, token) => {
@@ -289,7 +277,8 @@ export class ChatView implements vscode.WebviewViewProvider {
 			sink.progress('');
 			const live = liveTurns(memoryMessages, this.memory).map(turn => ({ role: turn.role, text: turn.text }));
 			const proposalState = this.messages.flatMap(message => message.proposals.map(proposal => `${proposal.file}: ${proposal.state}`)).slice(-12).join('\n');
-			const result = await this.engine.run({ text, mode, kickoff, memory: this.memory.brief, proposalState }, live, sink, token);
+			const result = await this.engine.run({ text, mode, kickoff, memory: this.memory.brief, proposalState, requestId: reply.id,
+				chatArchive: memoryMessages.map(message => ({ role: message.role, text: message.text })) }, live, sink, token);
 			// Conversations keep their skill; code-writing requests run once, then chat is plain again.
 			if (!CONVERSATIONAL.has(result.mode) && this.mode === mode && mode !== undefined && !mode.startsWith('skill:')) {
 				this.mode = undefined;
@@ -299,50 +288,13 @@ export class ChatView implements vscode.WebviewViewProvider {
 
 	/** Runs one job that writes into a reply: streamed text, progress, proposal cards, buttons and a Stop button. */
 	private async runReply(reply: Message, job: (sink: Sink, token: vscode.CancellationToken) => Promise<void>): Promise<void> {
-		const source = new vscode.CancellationTokenSource();
-		this.running = source;
-		this.postMode();
-		let flush: NodeJS.Timeout | undefined;
-		const sink: Sink = {
-			text: chunk => {
-				reply.markdown += chunk;
-				flush ??= setTimeout(() => {
-					flush = undefined;
-					this.postMessage(reply);
-				}, 50);
-			},
-			progress: message => {
-				reply.progress = message;
-				this.postMessage(reply);
-			},
-			proposal: proposal => {
-				reply.proposals.push({ id: proposal.id, file: proposal.relativePath, added: proposal.added, removed: proposal.removed, isNewFile: proposal.isNewFile, state: proposal.state });
-				this.postMessage(reply);
-			},
-			action: (label, command, args) => {
-				reply.actions.push({ label, command, args });
-			},
-			error: message => {
-				reply.error = message;
-			},
-		};
-		try {
-			await job(sink, source.token);
-		} catch (err) {
-			reply.error = err instanceof Error ? err.message : String(err);
-		} finally {
-			clearTimeout(flush);
-			this.running = undefined;
-			source.dispose();
-			reply.done = true;
-			reply.progress = undefined;
-			if (!reply.markdown && !reply.error && !reply.proposals.length && !reply.actions.length) {
-				reply.markdown = source.token.isCancellationRequested ? '_Stopped._' : '';
-			}
-			this.save();
-			this.postMessage(reply);
-			this.postMode();
-		}
+		await runReplyJob(reply, job, {
+			running: source => { this.running = source; this.postMode(); },
+			update: () => this.postMessage(reply),
+			save: () => this.save(),
+			proposal: proposal => { void saveProposalEvent(reply.id, proposal, 'proposed').catch(error =>
+				vscode.window.showWarningMessage(`Could not save the change record: ${error instanceof Error ? error.message : String(error)}`)); },
+		});
 	}
 
 	private async runAction(messageId: string, index: number): Promise<void> {
@@ -358,6 +310,10 @@ export class ChatView implements vscode.WebviewViewProvider {
 			if (card) {
 				card.state = proposal.state;
 				this.postMessage(message);
+				if (proposal.state !== 'open') {
+					void saveProposalEvent(message.id, proposal, proposal.state).catch(error =>
+						vscode.window.showWarningMessage(`Could not save the change record: ${error instanceof Error ? error.message : String(error)}`));
+				}
 			}
 		}
 		this.save();
@@ -379,8 +335,9 @@ export class ChatView implements vscode.WebviewViewProvider {
 		void this.view.webview.postMessage({
 			type: 'init',
 			project: vscode.workspace.workspaceFolders?.[0]?.name,
+			projectPath: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
 			skills: await skillCards(this.context.extensionUri),
-			messages: this.messages.map(render),
+			messages: this.messages.slice(-MAX_VISIBLE_MESSAGES).map(render),
 			offer: await this.analyseOffer(),
 		});
 		this.postMode();
@@ -389,7 +346,7 @@ export class ChatView implements vscode.WebviewViewProvider {
 	}
 
 	private postMessages(): void {
-		void this.view?.webview.postMessage({ type: 'messages', messages: this.messages.map(render) });
+		void this.view?.webview.postMessage({ type: 'messages', messages: this.messages.slice(-MAX_VISIBLE_MESSAGES).map(render) });
 	}
 
 	private postMessage(message: Message): void {
@@ -427,36 +384,4 @@ const ANALYSE = '#analyse';
 
 function newId(): string {
 	return randomBytes(6).toString('hex');
-}
-
-const LABELS: Record<string, string> = {
-	requirements: 'Requirements', architecture: 'Architecture', tree: 'Plan the files', brainstorm: 'Brainstorm',
-	next: 'Next step', feature: 'Add a feature', change: 'Change selection', explain: 'Explain', why: 'Why is it like this?',
-	review: 'Review', qa: 'Fit check', file: 'Write the file', impact: 'Impact', changes: 'Change history',
-};
-
-function labelFor(mode: string | undefined): string {
-	if (!mode) {
-		return '';
-	}
-	if (mode.startsWith('skill:')) {
-		const name = mode.slice(6);
-		return name[0].toUpperCase() + name.slice(1);
-	}
-	return LABELS[mode] ?? mode;
-}
-
-/** What the webview draws: markdown rendered here with raw HTML disabled, so replies cannot inject markup. */
-function render(message: Message) {
-	return {
-		id: message.id,
-		role: message.role,
-		html: message.markdown ? markdown.render(message.markdown) : '',
-		label: message.role === 'user' && message.mode ? labelFor(message.mode) : undefined,
-		progress: message.progress,
-		error: message.error,
-		proposals: message.proposals,
-		actions: message.actions.map(a => a.label),
-		done: message.done,
-	};
 }

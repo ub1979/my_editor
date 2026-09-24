@@ -7,8 +7,10 @@ import { elidesCode } from '../pair/codeBlock';
 import { changeContext } from '../project/gitHistory';
 import { redact } from '../records/redact';
 import { isSensitiveFile } from '../records/sensitive';
+import { searchProjectRecords } from '../records/search';
 import { safeRelativePath, testSpec } from './agentProtocol';
 import { Proposals } from './proposals';
+import { ObservationRunner } from './observationRunner';
 
 const MAX_READ_BYTES = 400_000;
 const MAX_READ_LINES = 160;
@@ -22,7 +24,8 @@ export interface ToolResult {
 /** Workspace tools shared by every model provider. No model process receives workspace access directly. */
 export class AgentTools {
 	private testsRun = 0;
-	constructor(private readonly proposals: Proposals, private readonly token: vscode.CancellationToken) {}
+	constructor(private readonly proposals: Proposals, private readonly token: vscode.CancellationToken,
+		private readonly observations: ObservationRunner) {}
 
 	async execute(name: string, args: Record<string, unknown>): Promise<ToolResult> {
 		if (this.token.isCancellationRequested) { return { text: 'Stopped.' }; }
@@ -32,6 +35,8 @@ export class AgentTools {
 				case 'search': return { text: await this.search(args.query) };
 				case 'read_file': return { text: await this.readFile(args.path, args.start, args.lines) };
 				case 'git_history': return { text: (await changeContext(typeof args.question === 'string' ? args.question.slice(0, 300) : '', undefined, true)).slice(0, 10_000) };
+				case 'search_records': return { text: await searchProjectRecords(args.query) };
+				case 'observe': return { text: await this.observations.run(args.id, this.token) };
 				case 'run_tests': return { text: await this.runTests(args.command) };
 				case 'propose_file': return this.proposeFile(args.path, args.content);
 				default: return { text: `Unknown tool: ${name}. Choose a tool from the system instructions.` };

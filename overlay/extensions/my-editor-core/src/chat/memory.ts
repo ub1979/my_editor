@@ -1,4 +1,5 @@
 import { redact } from '../records/redact';
+import { looksLikeAgentProtocol } from './agentProtocol';
 import type { Turn } from './engine';
 
 export interface MemoryState {
@@ -35,6 +36,9 @@ export function cleanBrief(text: string): string {
 
 /** A conservative fallback when the summarizing model is unavailable. */
 export function fallbackBrief(previous: string, turns: readonly Turn[]): string {
-	const notes = turns.map(turn => `${turn.role === 'user' ? 'User requested' : 'Pair reported (unverified)'}: ${turn.text.replace(/\s+/g, ' ').slice(0, turn.role === 'user' ? 350 : 200)}`);
+	const notes = turns.map(turn => `${turn.role === 'user' ? 'User requested' : 'Pair reported (unverified)'}: ${
+		turn.role === 'assistant' && looksLikeAgentProtocol(turn.text)
+			? '[internal tool request shown by a prior display error]'
+			: turn.text.replace(/\s+/g, ' ').slice(0, turn.role === 'user' ? 350 : 200)}`);
 	return cleanBrief([previous, ...notes].filter(Boolean).join('\n').slice(-MAX_BRIEF));
 }

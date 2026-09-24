@@ -1,7 +1,7 @@
 # my_editor: aim, objectives, and current status
 
 - **As of:** 24 September 2026
-- **Current version:** 0.0.4 alpha
+- **Current version:** 0.0.5 alpha source build; installed-app Pair verification pending
 - **Stage:** Working macOS alpha; still being validated on real projects
 
 ## Aim
@@ -46,7 +46,7 @@ For a change, the desired record is: **request → affected requirements and fil
 
 ## What is built now
 
-Version 0.0.3 alpha includes:
+Version 0.0.5 alpha includes:
 
 - A branded VSCodium editor for macOS arm64, with Paper and Night themes, a quieter workbench, a Home screen, and Project and Pair sidebars. Home can clone a repository at a chosen branch, including from a GitHub branch-page URL.
 - Guided requirements, architecture, file planning, brainstorming, file work, review, and QA entry points. Planned architecture and file trees have visual views.
@@ -55,19 +55,20 @@ Version 0.0.3 alpha includes:
 - Keep/Undo diff review for AI changes. Test commands for npm, Go, Cargo, and pytest require approval and run against the current workspace; unkept proposals are not included.
 - Change history and an impact list based on Git, brain links, planned files, and language information. Navigator gives notes on changed lines without editing them. QA can produce a fit report for selected files or a folder.
 - Claude and Codex subscription routes, local Ollama and LM Studio routes, and API-key routes. The model can be selected in the editor.
+- Pair can retrieve long earlier chat messages, search saved records, inspect current project and brain revisions, and request approved project observations. Proposal and investigation records link evidence to a chat request.
 
 The detailed feature checklist is in [progress.md](progress.md). Release changes are in [CHANGELOG.md](../CHANGELOG.md); the original requirements and design decisions are in [my_editor-plan-v2.md](plans/my_editor-plan-v2.md).
 
 ## Where we are
 
-This is a usable **alpha**, not a finished large-project workflow. The core extension compiles and its 75 automated tests pass. The 0.0.3 extension is installed in the existing app bundle. A full editor rebuild on 23 September was blocked when Electron headers could not be downloaded; the installed app received the compiled extension instead. The new Pair tool loop has not yet had a live end-to-end run with a selected model in the app.
+This is a usable **alpha**, not a finished large-project workflow. The core extension compiles and its 102 automated tests pass. The 0.0.5 extension is installed in the existing app bundle. A full editor rebuild on 23 September was blocked when Electron headers could not be downloaded; the installed app received the compiled extension instead. The new Pair workflow still needs a live end-to-end run with a selected model in the app.
 
 Current limits matter to the product promise:
 
 - Brain analysis has size and file-count limits. It reports uncovered files, but freshness and retrieval still need testing on much larger repositories.
-- Pair's tool loop is bounded. It offers file search and reads, Git inspection, approved test commands, and reviewed file proposals; it does not have an unrestricted terminal. Large or complex changes may need several requests.
+- Pair's tool loop has a 60-check safety bound. It offers file search and reads, Git inspection, approved test commands and named observations, and reviewed file proposals; it does not have an unrestricted terminal. Large or complex changes may need several requests.
 - Test runs inspect the current workspace. A proposal must be Kept before those tests verify its code. Unkept proposals expire on app restart.
-- Change impact is a useful dependency hint. A complete change record linking proposals, checks, decisions, and commits is still to be built.
+- Change impact is a useful dependency hint. Proposal and investigation records exist, but a complete change record linking requirements, checks, decisions, and commits is still to be built.
 - The interface and model routes need more live use across different projects, providers, and window layouts.
 
 ## Next objectives
