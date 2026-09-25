@@ -83,11 +83,14 @@ Needs Node 24, Xcode command-line tools, `jq`, and about 20 GB of free disk.
 scripts/build.sh            # first build: fetches VSCodium + VS Code, ~15 min
 scripts/build.sh --reuse    # later builds reuse the downloaded source, ~10 min
 scripts/run.sh ~/some/project
-scripts/install.sh          # rebuild current source, then install into /Applications
+scripts/install.sh          # quick: compile built-in extensions, then install
+scripts/install.sh --full   # rebuild the whole editor and apply core patches, then install
 ```
 
-Run `scripts/install.sh` by itself when you want the newest source in `/Applications`; it builds first and
-stops if the build fails. `scripts/build.sh` is useful when you want to run the app without installing it.
+Run `scripts/install.sh` by itself for fast Pair, Project, and theme updates in the existing app bundle.
+Use `scripts/install.sh --full` for editor core patches, such as the save-time 400-line gate, or when no
+app has been built yet. The full option compiles VSCodium and takes much longer. Both options stop if
+their build step fails.
 
 The finished app is `app/my_editor.app`. It is self-contained and runs from anywhere. `vscodium/` (about 7 GB)
 is only the build workspace; delete it to free space, and the next build downloads it again.
