@@ -10,7 +10,7 @@ my_editor uses the version in `overlay/extensions/my-editor-core/package.json` a
 - Added 400-line warnings and a VSCodium save-time gate for human edits, plus hard checks for AI proposals and Keep. Multiple top-level classes in one source file are also flagged or rejected. The core patch needs a full build and live test.
 - Navigator, comment, and structure findings now offer Quick Fix choices for a reviewed Pair proposal or manual guidance. Comment guidance no longer inserts code automatically.
 - Split chat and Home styles into focused files. The new extension source compiles and passes automated tests; the updated app flow still needs live validation.
-- `scripts/install.sh` now compiles and refreshes built-in extensions before its quick install. `--full` rebuilds the editor shell and applies core patches when needed.
+- `scripts/install.sh` now compiles and refreshes built-in extensions before its quick install, then signs and verifies the app bundle. `--full` rebuilds the editor shell and applies core patches when needed.
 
 ## 0.0.5 alpha — 2026-09-24
 

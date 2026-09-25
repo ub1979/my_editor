@@ -30,5 +30,8 @@ case "${1:-}" in
     ;;
 esac
 [[ -d "${APP}" ]] || { echo "Build did not produce my_editor.app." >&2; exit 1; }
+codesign --force --deep --sign - "${APP}"
+codesign --verify --deep --strict "${APP}"
 rsync -a --delete "${APP}/" "/Applications/my_editor.app/"
+codesign --verify --deep --strict "/Applications/my_editor.app"
 echo "Installed /Applications/my_editor.app"
