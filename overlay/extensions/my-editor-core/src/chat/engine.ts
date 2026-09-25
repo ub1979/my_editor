@@ -199,11 +199,14 @@ export class PairEngine {
 			...modelHistoryTurns(recentHistory, entry.maxInputTokens),
 			{ role: 'user', text: `${subject}\n\nRequest: ${request}` },
 		];
-		if (usesProjectTools(mode.id)) {
+		if (usesProjectTools(mode)) {
 			const reply = await runPairAgent({ entry, mode, input: { ...input, locateOnly }, initial: turns, conventions, brain,
 			projectStatus: describeProjectStatus(projectState), projectState, availableObservations,
 				previousInvestigations, sink, token, keys: this.keys, proposals: this.proposals,
 				observations: this.observations });
+			if (mode.id === 'brainstorm' && reply.trim() && !input.kickoff) {
+				sink.action('Save as decision', 'myEditor.saveDecision', [{ title: prompt, context: prompt, discussion: reply }]);
+			}
 			void logExchange({ mode: mode.id, model: entry.label, file: file?.relativePath, prompt: input.kickoff ? '(started)' : prompt, reply });
 			return { mode: mode.id, reply, model: entry.label };
 		}
