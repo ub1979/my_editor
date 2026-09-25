@@ -29,9 +29,11 @@ line numbers. Be concrete and brief. Do not rewrite it.`,
 	},
 	review: {
 		id: 'review', writes: 'none',
-		instruction: `Review the selected code (or the file) like a careful senior colleague: bugs first, then design
-and convention problems, then small things. Give each finding a line number and one sentence of reasoning. Do not
-rewrite the code. If it is good, say so briefly.`,
+		instruction: `Review the selected code or document like a careful senior colleague. For an architecture
+document, search and read current source behind technical claims and file links before judging them. Report bugs
+first, then design and convention problems, then small things. Give each finding a path and line with concise
+reasoning. Label inferred motives as interpretations, not recorded decisions. Do not rewrite the file. If the
+reviewed material is sound, say so briefly.`,
 	},
 	brainstorm: {
 		id: 'brainstorm', writes: 'none',

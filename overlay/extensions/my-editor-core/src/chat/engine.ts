@@ -26,6 +26,7 @@ import { currentProjectStatus } from '../project/contextStatus';
 import { describeProjectStatus } from '../project/contextStatusText';
 import { recentInvestigationContext } from './investigationJournal';
 import { characterPrompt } from './characters';
+import { usesProjectTools } from './projectToolPolicy';
 import type { ActiveFile } from './activeFile';
 
 const HISTORY_TURNS = 16;
@@ -198,8 +199,8 @@ export class PairEngine {
 			...modelHistoryTurns(recentHistory, entry.maxInputTokens),
 			{ role: 'user', text: `${subject}\n\nRequest: ${request}` },
 		];
-		if (mode.id === 'chat') {
-			const reply = await runPairAgent({ entry, input: { ...input, locateOnly }, initial: turns, conventions, brain,
+		if (usesProjectTools(mode.id)) {
+			const reply = await runPairAgent({ entry, mode, input: { ...input, locateOnly }, initial: turns, conventions, brain,
 			projectStatus: describeProjectStatus(projectState), projectState, availableObservations,
 				previousInvestigations, sink, token, keys: this.keys, proposals: this.proposals,
 				observations: this.observations });

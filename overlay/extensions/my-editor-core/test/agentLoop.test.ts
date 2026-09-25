@@ -4,6 +4,42 @@ import { agentTurns, MAX_PROJECT_TOOL_CALLS, runAgentLoop } from '../src/chat/ag
 
 const initial = [{ role: 'user' as const, text: 'Inspect and fix this project.' }];
 
+test('Review requests a source check before accepting a conclusion', async () => {
+	let requests = 0;
+	let checks = 0;
+	const reply = await runAgentLoop({
+		initial,
+		requireCheck: call => call.name === 'read_file' || call.name === 'search',
+		cancelled: () => false,
+		progress: () => undefined,
+		ask: async turns => {
+			if (requests++ === 0) { return '{"action":"final","message":"I cannot verify the source."}'; }
+			if (requests === 2) {
+				assert.ok(turns.some(turn => turn.text.includes('use search or read_file')));
+				return '{"action":"tool","name":"read_file","arguments":{"path":"src/engine.ts"}}';
+			}
+			return '{"action":"final","message":"The source confirms the boundary."}';
+		},
+		execute: async () => { checks++; return 'src/engine.ts:12: boundary'; },
+	});
+	assert.equal(checks, 1);
+	assert.equal(reply, 'The source confirms the boundary.');
+});
+
+test('Review does not claim verification when the model skips source checks twice', async () => {
+	let requests = 0;
+	const reply = await runAgentLoop({
+		initial,
+		requireCheck: call => call.name === 'read_file' || call.name === 'search',
+		cancelled: () => false,
+		progress: () => undefined,
+		ask: async () => { requests++; return '{"action":"final","message":"The architecture is verified."}'; },
+		execute: async () => { throw new Error('No source check was requested.'); },
+	});
+	assert.equal(requests, 2);
+	assert.match(reply, /could not complete a source-backed review/);
+});
+
 test('Pair can make more than ten project checks and still finish the same request', async () => {
 	let requests = 0;
 	let checks = 0;

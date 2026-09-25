@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { streamModel } from '../models/stream';
 import { ApiKeys } from '../models/secrets';
 import { ChatTurn, ModelEntry } from '../models/types';
-import { MODES, systemPrompt } from '../pair/prompts';
+import { Mode, systemPrompt } from '../pair/prompts';
 import { ProjectContextStatus } from '../project/contextStatusText';
 import { Proposals } from './proposals';
 import { AGENT_INSTRUCTION } from './agentProtocol';
@@ -15,9 +15,11 @@ import { evidenceEntry, EvidenceEntry } from './investigationRecord';
 import { configuredReasoningEffort, mergeTurns } from './modelTurns';
 import { ObservationRunner } from './observationRunner';
 import { characterPrompt } from './characters';
+import { mayProposeFile } from './projectToolPolicy';
 
 export interface AgentSessionOptions {
 	readonly entry: ModelEntry;
+	readonly mode: Mode;
 	readonly input: RunInput;
 	readonly initial: ChatTurn[];
 	readonly conventions: string;
@@ -40,7 +42,7 @@ export async function runPairAgent(options: AgentSessionOptions): Promise<string
 	const chatArchive = input.chatArchive ?? initial.slice(0, -1);
 	const evidence: EvidenceEntry[] = [];
 	const system = [
-			systemPrompt(MODES.chat, conventions, brain, vscode.workspace.workspaceFolders?.[0]?.uri.fsPath),
+			systemPrompt(options.mode, conventions, brain, vscode.workspace.workspaceFolders?.[0]?.uri.fsPath),
 			characterPrompt(input.characterId),
 		options.projectStatus,
 		options.availableObservations,
@@ -48,11 +50,13 @@ export async function runPairAgent(options: AgentSessionOptions): Promise<string
 		input.memory ? `Working brief from earlier turns (refresh facts against current source and Git):\n${input.memory}` : '',
 		input.proposalState ? `Recent Pair proposals (Git and current files remain authoritative for kept changes):\n${input.proposalState}` : '',
 		input.locateOnly ? 'This turn is a change map. Search and read the current project, follow relevant callers and tests, and open the best matching files at verified lines with open_files. Report the file count, path:line, why each matters, and any search coverage limit. Discuss the approach with the developer. Do not propose or edit code in this turn.' : '',
+		options.mode.id === 'review' ? 'This is a read-only review. Use project tools to inspect current source behind technical claims in the open file. Cite the paths and lines checked. Separate an observed design choice from a guessed motive; when evidence is missing, say exactly what could not be checked. Do not propose or edit files.' : '',
 		chatArchiveIndex(chatArchive),
 		AGENT_INSTRUCTION,
 	].filter(Boolean).join('\n\n');
 	const last = await runAgentLoop({
 		initial,
+		requireCheck: options.mode.id === 'review' ? call => call.name === 'read_file' || call.name === 'search' : undefined,
 		cancelled: () => token.isCancellationRequested,
 		progress: message => sink.progress(message),
 		ask: async (turns, finalOnly, remaining) => {
@@ -69,7 +73,7 @@ export async function runPairAgent(options: AgentSessionOptions): Promise<string
 			return response;
 		},
 		execute: async call => {
-			if (input.locateOnly && call.name === 'propose_file') { return 'This turn maps the change. Explain the files and approach first; wait for the developer to request a code proposal.'; }
+			if (call.name === 'propose_file' && !mayProposeFile(options.mode.id, !!input.locateOnly)) { return 'This turn is read-only. Explain the findings and let the developer choose whether to request a fix.'; }
 			if (call.name === 'read_chat') { return readChatMessage(chatArchive, call.arguments); }
 			if (call.name === 'search_chat') { return searchChatMessages(chatArchive, call.arguments.query); }
 			const result = await tools.execute(call.name, call.arguments);

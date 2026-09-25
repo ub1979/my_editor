@@ -19,6 +19,7 @@ export interface AgentLoopOptions {
 	readonly progress: (message: string) => void;
 	readonly cancelled: () => boolean;
 	readonly onObservation?: (call: AgentToolCall, result: string) => void;
+	readonly requireCheck?: (call: AgentToolCall) => boolean;
 }
 
 /** Keep recent evidence intact while bounding old findings in long project investigations. */
@@ -65,6 +66,7 @@ function fallback(observations: readonly Observation[]): string {
 export async function runAgentLoop(options: AgentLoopOptions): Promise<string> {
 	const observations: Observation[] = [];
 	let used = 0;
+	let requiredCheckDone = false;
 	while (!options.cancelled()) {
 		const remaining = MAX_PROJECT_TOOL_CALLS - used;
 		const finalOnly = remaining === 0;
@@ -90,6 +92,17 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<string> {
 				return 'I could not read the model’s project check. No further checks were completed. Please retry this request.';
 			}
 		}
+		if (!requiredCheckDone && options.requireCheck && (!parsed || parsed.action === 'final')) {
+			if (finalOnly) { return 'I could not complete a source-backed review within the available checks.'; }
+			options.progress('Checking current source before reviewing…');
+			response = await options.ask([...turns,
+				{ role: 'assistant', text: response.slice(0, 4_000) },
+				{ role: 'user', text: 'Before concluding this review, use search or read_file on the current project source. If that check fails, report its exact limit instead of claiming the code was verified.' },
+			], finalOnly, remaining);
+			if (options.cancelled()) { return ''; }
+			parsed = parseAgentStep(response);
+			if (!parsed || parsed.action === 'final') { return 'I could not complete a source-backed review. Please retry with the project file open.'; }
+		}
 		if (!parsed) { return response.trim() || fallback(observations); }
 		if (parsed.action === 'final') {
 			return looksLikeAgentProtocol(parsed.message)
@@ -108,6 +121,7 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<string> {
 		for (let index = 0; index < calls.length; index++) {
 			const call = calls[index];
 			const result = results[index];
+			if (options.requireCheck?.(call)) { requiredCheckDone = true; }
 			options.onObservation?.(call, result);
 			const clipped = result.length > MAX_RESULT_CHARS
 				? `${call.name === 'run_tests' ? result.slice(-MAX_RESULT_CHARS) : result.slice(0, MAX_RESULT_CHARS)}\n[Tool output truncated]`
