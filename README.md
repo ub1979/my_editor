@@ -4,6 +4,13 @@ A code editor where **you** stay in control. Built on VSCodium (the open-source 
 programmer that writes only what you ask, a project brain that keeps a short map of your codebase, and a
 calm, writing-first interface.
 
+**Vision:** help humans make better programs with AI. **Mission:** give developers a project-aware pair
+programmer that consults them before coding, helps them spot and understand problems while they code, and
+offers changes they can review. The product aims for sound design, useful comments, focused files, and a
+400-line maximum for source files. The current source adds review choices, AI proposal checks, and a
+VSCodium save gate for human edits. The editor patch still needs a full build and live validation;
+see [vision, mission, and status](docs/vision-and-status.md).
+
 The plan and requirements are in [`docs/plans/my_editor-plan-v2.md`](docs/plans/my_editor-plan-v2.md).
 The current aim, objectives, and status are in [`docs/vision-and-status.md`](docs/vision-and-status.md).
 Decisions are in [`docs/decisions/`](docs/decisions/). Screenshots are in [`docs/screens/`](docs/screens/).
@@ -20,8 +27,12 @@ Decisions are in [`docs/decisions/`](docs/decisions/). Screenshots are in [`docs
   the minimap, breadcrumbs, most of the status bar and the Copilot prompts are gone.
 - **The Project view** (left sidebar): the build path (Requirements → Architecture → Flow & tree → Build → QA)
   with live status, memory (conventions, brain, decisions, chat history) and the active model.
-- **The Pair** (right sidebar): my_editor's own chat. Opening a project greets you with skill cards (Plan:
-  Requirements, Architecture, Plan the files, Brainstorm; Build: Next step, Add a feature, Change selection,
+- **The Pair** (centered editor tab, with an optional right sidebar): my_editor's own chat. Shan the
+  panda, Soki the owl, Ada the moth, Lisko the lynx, Diji the hedgehog, Poppy the penguin, and Hopper
+  the frog switch with project stage and task. You can pin one or return to Auto. All share the same model,
+  project context, and review rules. See [characters and change finder](docs/characters-and-change-finder.md).
+  Open the skill menu for Plan:
+  Requirements, Architecture, Plan the files, Brainstorm; Build: Find a change, Next step, Add a feature, Change selection,
   Explain, Why; Fix: Review, Debug, Tests, Refactor; plus your own skills). Type `/` for commands.
   Code changes come back as proposals: review them in an inline diff, undo single parts with the gutter
   arrow, then **Keep** (writes and saves) or **Undo**. Nothing touches your file before Keep.
@@ -31,9 +42,15 @@ Decisions are in [`docs/decisions/`](docs/decisions/). Screenshots are in [`docs
   Unkept proposals expire when the app restarts.
   The Pair refreshes brain, source, planning and Git context each turn, and condenses older conversation into
   a working brief while preserving the recent messages.
-- **Auto comments:** add a function or class without a comment and the Pair writes a short one in the
-  language's style (docstring, JSDoc, `///`, Go's `// Name …`). Only for code you add; ⌘Z removes it. Toggle it
-  with the speech-bubble button in the editor toolbar.
+- **Find where to change something:** describe it or use `/locate`. Pair searches the project, opens the
+  relevant files as tabs near verified lines, and explains their roles before suggesting an edit.
+- **Comment guidance:** newly added functions or classes without a useful comment receive an advisory note.
+  Its Quick Fix lets you ask Pair for a reviewed suggestion or get steps to write the comment yourself.
+  Toggle guidance with the speech-bubble button in the editor toolbar.
+- **Live quality guidance:** Navigator and structure findings offer the same reviewed-fix or manual-guidance
+  choice. Source files get a warning near 400 lines; AI proposals and Keep reject source files above 400 lines
+  or with multiple top-level classes. A VSCodium core patch blocks human saves above 400 lines after formatters;
+  its live app behavior remains to be checked.
 - **This file** (under the file tree): symbols, Pair notes and git history for the open file, in my_editor's style.
 - **A quiet window:** the left bar has only Files and Project; Search, Git, Run and Extensions still work
   from their shortcuts and appear only while open.
@@ -48,7 +65,8 @@ Decisions are in [`docs/decisions/`](docs/decisions/). Screenshots are in [`docs
   - **Local:** Ollama and LM Studio, listed whenever their servers are running.
   - **API keys** (kept in the macOS keychain): Anthropic, OpenAI, OpenRouter, any OpenAI-compatible URL.
 - **Visual project maps:** in Project, open **Architecture map** to see parts and their code links, or **File tree** to browse and search planned files. Both read the saved `.my_editor/specs/` documents.
-- **Navigator:** after each save it reviews only the changed lines and shows at most three notes. It never edits.
+- **Navigator:** after each save it reviews only the changed lines and shows at most three notes, including
+  worthwhile correctness, performance, style, design, and comment issues. It never edits.
 - **Project brain:** open a project that already has code and the pair asks first: *Shall I get to know this
   project?* If you say yes, it reads every file and writes `.my_editor/brain/`: a map of each file's imports,
   exports and a one-line summary, and a note per part. It also drafts `specs/architecture.md` and `specs/tree.json`
@@ -65,8 +83,11 @@ Needs Node 24, Xcode command-line tools, `jq`, and about 20 GB of free disk.
 scripts/build.sh            # first build: fetches VSCodium + VS Code, ~15 min
 scripts/build.sh --reuse    # later builds reuse the downloaded source, ~10 min
 scripts/run.sh ~/some/project
-scripts/install.sh          # optional: copy the app into /Applications
+scripts/install.sh          # rebuild current source, then install into /Applications
 ```
+
+Run `scripts/install.sh` by itself when you want the newest source in `/Applications`; it builds first and
+stops if the build fails. `scripts/build.sh` is useful when you want to run the app without installing it.
 
 The finished app is `app/my_editor.app`. It is self-contained and runs from anywhere. `vscodium/` (about 7 GB)
 is only the build workspace; delete it to free space, and the next build downloads it again.

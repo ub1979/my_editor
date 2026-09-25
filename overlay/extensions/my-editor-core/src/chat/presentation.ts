@@ -13,6 +13,7 @@ export interface ProposalCard {
 export interface Message {
 	readonly id: string;
 	readonly role: 'user' | 'assistant';
+	characterId?: string;
 	markdown: string;
 	mode?: string;
 	progress?: string;
@@ -26,7 +27,7 @@ const markdown = new MarkdownIt({ html: false, linkify: true, breaks: false });
 const LABELS: Record<string, string> = {
 	requirements: 'Requirements', architecture: 'Architecture', tree: 'Plan the files', brainstorm: 'Brainstorm',
 	next: 'Next step', feature: 'Add a feature', change: 'Change selection', explain: 'Explain', why: 'Why is it like this?',
-	review: 'Review', qa: 'Fit check', file: 'Write the file', impact: 'Impact', changes: 'Change history',
+	review: 'Review', qa: 'Fit check', file: 'Write the file', impact: 'Impact', changes: 'Change history', locate: 'Find a change',
 };
 
 export function labelFor(mode: string | undefined): string {
@@ -43,6 +44,7 @@ export function render(message: Message) {
 	return {
 		id: message.id,
 		role: message.role,
+		characterId: message.characterId,
 		html: message.markdown ? markdown.render(message.markdown) : '',
 		label: message.role === 'user' && message.mode ? labelFor(message.mode) : undefined,
 		progress: message.progress,

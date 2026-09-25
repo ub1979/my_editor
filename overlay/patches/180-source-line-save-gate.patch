@@ -1,0 +1,25 @@
+diff --git a/src/vs/workbench/services/textfile/common/textFileEditorModel.ts b/src/vs/workbench/services/textfile/common/textFileEditorModel.ts
+--- a/src/vs/workbench/services/textfile/common/textFileEditorModel.ts
++++ b/src/vs/workbench/services/textfile/common/textFileEditorModel.ts
+@@ -916,6 +916,21 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFileE
+ 			if (!this.isResolved()) {
+ 				return;
+ 			}
+ 
++			// my_editor: enforce the source-file limit at the final save boundary, after
++			// formatters and other save participants have changed the text model.
++			// Keeping the buffer dirty lets the developer split it without losing edits.
++			const sourcePath = this.resource.path.toLowerCase();
++			if (/\.(?:ts|tsx|mts|cts|js|jsx|mjs|cjs|py|rs|go|c|h|cc|cpp|cxx|hh|hpp|hxx|java|cs|swift|css|scss|sass|less|vue|svelte)$/.test(sourcePath)
++				&& !sourcePath.endsWith('.d.ts')) {
++				const sourceLineCount = this.textEditorModel.getLineCount();
++				const lastLineIsEmpty = this.textEditorModel.getLineContent(sourceLineCount).length === 0;
++				const effectiveLineCount = sourceLineCount - (lastLineIsEmpty ? 1 : 0);
++				if (effectiveLineCount > 400) {
++					this.logService.warn(`[my_editor] Save blocked: ${this.resource.toString()} has ${effectiveLineCount} source lines (limit 400).`);
++					return;
++				}
++			}
++
+ 			// update versionId with its new value (if pre-save changes happened)
+ 			versionId = this.versionId;

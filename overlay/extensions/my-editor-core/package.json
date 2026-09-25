@@ -2,7 +2,7 @@
   "name": "my-editor-core",
   "displayName": "my_editor Core",
   "description": "Built-in core of my_editor: project brain, skills, pair mode.",
-  "version": "0.0.5-alpha.0",
+  "version": "0.0.6-alpha.0",
   "publisher": "my-editor",
   "license": "MIT",
   "private": true,
@@ -130,14 +130,20 @@
         "icon": "$(add)"
       },
       {
+        "command": "myEditor.chat.openLounge",
+        "title": "Open Pair in Editor",
+        "category": "my_editor",
+        "icon": "$(open-preview)"
+      },
+      {
         "command": "myEditor.autoComments.turnOff",
-        "title": "Auto Comments: On (click to turn off)",
+        "title": "Comment Guidance: On (click to turn off)",
         "category": "my_editor",
         "icon": "$(comment-discussion)"
       },
       {
         "command": "myEditor.autoComments.turnOn",
-        "title": "Auto Comments: Off (click to turn on)",
+        "title": "Comment Guidance: Off (click to turn on)",
         "category": "my_editor",
         "icon": "$(comment)"
       }
@@ -301,7 +307,7 @@
         "myEditor.autoComments.enabled": {
           "type": "boolean",
           "default": true,
-          "description": "When you add a function or class without a comment, the Pair writes a short one (Cmd+Z removes it). Toggle it from the editor toolbar."
+          "description": "Show advisory notes for newly added functions or classes that may need a useful comment. Choose a reviewed Pair suggestion or manual guidance from Quick Fix. Toggle it from the editor toolbar."
         }
       }
     },
@@ -402,6 +408,11 @@
         }
       ],
       "view/title": [
+        {
+          "command": "myEditor.chat.openLounge",
+          "when": "view == myEditor.chat",
+          "group": "navigation@0"
+        },
         {
           "command": "myEditor.chat.skills",
           "when": "view == myEditor.chat",

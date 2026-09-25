@@ -3,6 +3,10 @@ const vscode = acquireVsCodeApi();
 let state = {
 	project: '',
 	projectPath: '',
+	characters: [],
+	characterId: 'bamboo',
+	pinned: false,
+	switchNote: '',
 	skills: [],
 	messages: [],
 	mode: undefined,
@@ -21,6 +25,8 @@ let state = {
 /* Layout: header, scroll area, composer. Built once; parts update in place. */
 
 const scroll = el('div', { class: 'scroll', role: 'log', 'aria-live': 'polite' });
+const header = el('header', { class: 'character-header' });
+const rail = el('nav', { class: 'character-rail', 'aria-label': 'Choose a Pair character' });
 const composer = el('form', { class: 'composer' });
 const context = el('div', { class: 'context' });
 const input = /** @type {HTMLTextAreaElement} */ (el('textarea', { rows: '1', 'aria-label': 'Message the pair' }));
@@ -32,7 +38,52 @@ let menuIndex = 0;
 let showSkills = false;
 
 composer.append(context, input, el('div', { class: 'row' }, [modelSelect, reasoningSelect, el('span', { class: 'spacer' }), sendButton]));
-app.append(scroll, composer);
+app.append(header, scroll, composer, rail);
+
+function activeCharacter() {
+	return state.characters.find(item => item.id === state.characterId)
+		?? { id: 'bamboo', name: 'Shan', role: 'Project guide', greeting: 'Where shall we look?' };
+}
+
+function renderCharacter() {
+	const chosen = activeCharacter();
+	const skills = el('button', { type: 'button', class: 'header-action', title: 'Explore skills', 'aria-label': 'Explore skills' }, [icon('grid')]);
+	skills.addEventListener('click', () => { showSkills = !showSkills; renderScroll(); });
+	const wide = el('button', { type: 'button', class: 'header-action', title: 'Open Pair in the editor', 'aria-label': 'Open Pair in the editor' }, [icon('expand')]);
+	wide.addEventListener('click', () => vscode.postMessage({ type: 'openLounge' }));
+	const side = el('button', { type: 'button', class: 'header-action', title: 'Show Pair in the sidebar', 'aria-label': 'Show Pair in the sidebar' }, [icon('sidebar')]);
+	side.addEventListener('click', () => vscode.postMessage({ type: 'openSidebar' }));
+	const auto = el('button', { type: 'button', class: `auto-character${state.pinned ? ' pinned' : ''}`,
+		title: state.pinned ? 'Use automatic character switching' : 'Character switches with your task',
+		'aria-label': state.pinned ? 'Resume automatic character switching' : 'Automatic character switching is on' },
+		[state.pinned ? 'Pinned' : 'Auto']);
+	auto.disabled = state.running;
+	auto.addEventListener('click', () => { if (state.pinned) { vscode.postMessage({ type: 'autoCharacter' }); } });
+	header.replaceChildren(el('span', { class: 'header-face' }, [avatar(true, chosen.id)]),
+		el('span', { class: 'character-identity' }, [el('strong', {}, [chosen.name]), el('small', {}, [chosen.role]),
+			...(state.switchNote ? [el('span', { class: 'switch-note' }, [state.switchNote])] : [])]),
+		el('span', { class: 'header-actions' }, [auto, skills, wide, side]));
+	rail.replaceChildren(el('span', { class: 'rail-title' }, ['SWITCH CHARACTER']));
+	const choices = el('div', { class: 'character-choices' });
+	for (const item of state.characters) {
+		const selected = item.id === state.characterId;
+		const button = el('button', { type: 'button', class: `character-choice${selected ? ' selected' : ''}`,
+			title: `${item.name} · ${item.role}`, 'aria-label': `${item.name}, ${item.role}`, 'aria-pressed': String(selected) }, [avatar(false, item.id)]);
+		button.disabled = state.running;
+		button.addEventListener('click', () => {
+			if (state.running) { return; }
+			state.characterId = item.id;
+			state.pinned = true;
+			state.switchNote = 'Chosen by you';
+			vscode.postMessage({ type: 'character', id: item.id });
+			renderCharacter();
+			if (!state.messages.length || showSkills) { renderScroll(); }
+			renderContext();
+		});
+		choices.append(button);
+	}
+	rail.append(choices);
+}
 
 function renderScroll() {
 	const atBottom = scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight < 40;
@@ -85,7 +136,7 @@ function renderContext() {
 	if (state.file) {
 		context.append(el('span', { class: 'ctx', title: state.file }, [icon('file'), el('span', {}, [state.file.split('/').pop() + (state.selection ? ` · lines ${state.selection}` : '')])]));
 	}
-	input.placeholder = state.placeholder ?? (state.mode ? `Talk to ${state.modeLabel}…` : 'Ask anything, or type / for a command');
+	input.placeholder = state.placeholder ?? (state.mode ? `Talk to ${state.modeLabel}…` : `Message ${activeCharacter().name}…`);
 }
 
 function renderSend() {
@@ -247,11 +298,16 @@ window.addEventListener('message', event => {
 		case 'init':
 			state.project = data.project ?? '';
 			state.projectPath = data.projectPath ?? '';
+			state.characters = data.characters ?? [];
+			state.characterId = data.characterId ?? 'bamboo';
+			state.pinned = !!data.pinned;
+			state.switchNote = '';
 			state.skills = data.skills;
 			state.messages = data.messages;
 			state.offer = data.offer;
 			showSkills = false;
 			renderScroll();
+			renderCharacter();
 			renderContext();
 			break;
 		case 'offer':
@@ -274,6 +330,15 @@ window.addEventListener('message', event => {
 			state.running = data.running;
 			renderContext();
 			renderSend();
+			renderCharacter();
+			break;
+		case 'character':
+			state.characterId = data.characterId;
+			state.pinned = !!data.pinned;
+			state.switchNote = data.reason ?? '';
+			renderCharacter();
+			if (!state.messages.length || showSkills) { renderScroll(); }
+			renderContext();
 			break;
 		case 'context':
 			state.file = data.file;

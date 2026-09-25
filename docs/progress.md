@@ -1,6 +1,6 @@
 # Progress against the plan
 
-Status of the requirements in [`plans/my_editor-plan-v2.md`](plans/my_editor-plan-v2.md), as of 2026-09-23.
+Status of the requirements in [`plans/my_editor-plan-v2.md`](plans/my_editor-plan-v2.md). The original checklist is from 2026-09-23; the additions below are from 2026-09-25.
 ✅ done and verified in the app · 🟡 partly done · ⬜ not started.
 
 ## v0.1 — pair mode (plan milestones M0–M3)
@@ -36,6 +36,18 @@ Status of the requirements in [`plans/my_editor-plan-v2.md`](plans/my_editor-pla
 | FR-058 | Everything AI can be switched off | 🟡 | Navigator and chat history have settings; chat via `chat.disableAIFeatures` |
 
 ## After v0.1
+
+### New product requirements (25 September 2026)
+
+| ID | Requirement | Status | Notes |
+|---|---|---|---|
+| FR-059 | Choose a reviewed AI fix or guided manual fix for a live finding | 🟡 | Source now adds Quick Fix choices to Navigator, comment, and structure findings. Running-app validation is open. |
+| FR-085 | Check correctness, performance, style, design, comments and tests against project conventions | 🟡 | Navigator prompt now requests evidence-based findings across these areas; comment guidance is advisory. Accuracy and coverage need real-project validation. |
+| FR-086 | One responsibility per source file, one class per file where relevant, and a 400-line maximum for human and AI changes | 🟡 | AI proposals and Keep are rejected above 400 lines or with multiple top-level classes. Human edits get diagnostics and a VSCodium core save gate. The core patch needs full-build validation; guided splits remain open. |
+| FR-087 | Helpful Pair characters switch with task and project, with manual override | 🟡 | Seven original mascots and source routing are implemented; live editor validation remains open. Manual choice pins the voice until Auto or a project folder change. |
+| FR-088 | Find likely change sites and open relevant files near exact lines | 🟡 | `/locate`, a Find a change card, and host-verified tab opening are implemented; real-project search quality and UI behavior need live validation. |
+
+### Other work after v0.1
 
 | Area | Status | Notes |
 |---|---|---|

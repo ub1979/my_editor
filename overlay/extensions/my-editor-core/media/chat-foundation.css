@@ -1,0 +1,242 @@
+:root {
+	--bg: var(--vscode-sideBar-background, #1a1d17);
+	--surface: var(--vscode-editorWidget-background, #1c2018);
+	--surface-2: var(--vscode-list-hoverBackground, #23281e);
+	--bubble: var(--vscode-list-activeSelectionBackground, #353d2e);
+	--line: var(--vscode-widget-border, #2e3527);
+	--text: var(--vscode-foreground, #f0efe8);
+	--muted: var(--vscode-descriptionForeground, #9aa093);
+	--accent: var(--vscode-button-background, #d9a13b);
+	--on-accent: var(--vscode-button-foreground, #1a1c17);
+	--accent-soft: color-mix(in srgb, var(--accent) 16%, transparent);
+	--focus: var(--vscode-focusBorder, #d9a13b);
+	--added: var(--vscode-gitDecoration-addedResourceForeground, #9fbf8a);
+	--removed: var(--vscode-errorForeground, #d4735f);
+	--serif: 'Iowan Old Style', 'Palatino', Georgia, serif;
+	--mono: var(--vscode-editor-font-family, ui-monospace, 'SF Mono', Menlo, monospace);
+	--radius: 14px;
+}
+
+* {
+	box-sizing: border-box;
+}
+
+html, body {
+	height: 100%;
+	margin: 0;
+	padding: 0;
+	overflow: hidden;
+	background: var(--bg);
+	color: var(--text);
+	font-family: var(--vscode-font-family, -apple-system, sans-serif);
+	font-size: 13px;
+	line-height: 1.5;
+}
+
+button {
+	font: inherit;
+	color: inherit;
+	cursor: pointer;
+}
+
+:focus-visible {
+	outline: 2px solid var(--focus);
+	outline-offset: 2px;
+}
+
+svg.icon {
+	width: 16px;
+	height: 16px;
+	flex: none;
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.8;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+
+#app {
+	display: flex;
+	flex-direction: column;
+	height: 100vh;
+	container-type: inline-size;
+}
+
+
+
+/* Header */
+
+.top {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 10px 12px 8px;
+}
+
+.top .name {
+	font-weight: 600;
+}
+
+.top .spacer {
+	flex: 1;
+}
+
+.icon-button {
+	display: grid;
+	place-items: center;
+	width: 28px;
+	height: 28px;
+	padding: 0;
+	border: 0;
+	border-radius: 8px;
+	background: transparent;
+	color: var(--muted);
+}
+
+.icon-button:hover {
+	background: var(--surface-2);
+	color: var(--text);
+}
+
+.avatar {
+	width: 24px;
+	height: 24px;
+	flex: none;
+}
+
+.avatar.big {
+	width: 52px;
+	height: 52px;
+}
+
+/* Scroll area */
+
+.scroll {
+	flex: 1;
+	overflow-y: auto;
+	padding: 6px 14px 16px;
+	scroll-behavior: smooth;
+}
+
+/* Welcome: the skills, front and centre */
+
+.welcome {
+	padding: 14px 2px 8px;
+}
+
+.hello {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	margin-bottom: 18px;
+}
+
+.hello h1 {
+	margin: 0;
+	font-family: var(--serif);
+	font-size: 22px;
+	font-weight: 500;
+	line-height: 1.15;
+}
+
+.hello p {
+	margin: 2px 0 0;
+	color: var(--muted);
+}
+
+.group-note {
+	margin: -4px 2px 8px;
+	color: var(--muted);
+	font-size: 11px;
+}
+
+.group-title {
+	margin: 16px 2px 8px;
+	color: var(--muted);
+	font-family: var(--mono);
+	font-size: 10px;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+}
+
+.skills {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));
+	gap: 8px;
+}
+
+.skill {
+	display: grid;
+	grid-template-columns: 30px 1fr;
+	gap: 2px 10px;
+	align-items: start;
+	padding: 10px 12px;
+	border: 1px solid var(--line);
+	border-radius: 12px;
+	background: var(--surface);
+	text-align: left;
+}
+
+.skill:hover {
+	border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+	background: var(--surface-2);
+}
+
+.skill .tile {
+	grid-row: span 2;
+	display: grid;
+	place-items: center;
+	width: 30px;
+	height: 30px;
+	border-radius: 9px;
+	background: var(--accent-soft);
+	color: var(--accent);
+}
+
+.skill .title {
+	min-width: 0;
+	font-weight: 600;
+}
+
+.skill .blurb {
+	color: var(--muted);
+	font-size: 12px;
+	line-height: 1.35;
+}
+
+.skill:disabled {
+	opacity: 0.5;
+	cursor: default;
+}
+
+/* The offer to read an existing project */
+
+.offer {
+	margin: 0 0 6px;
+	padding: 14px 14px 12px;
+	border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--line));
+	border-radius: 14px;
+	background: var(--accent-soft);
+}
+
+.offer p {
+	margin: 0 0 10px;
+	line-height: 1.45;
+}
+
+.offer .offer-note {
+	color: var(--muted);
+	font-size: 12px;
+}
+
+.offer .offer-title {
+	margin-bottom: 4px;
+	font-family: var(--serif);
+	font-size: 16px;
+}
+
+.offer-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}

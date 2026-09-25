@@ -25,7 +25,7 @@ The product promise is **continuity with evidence**. Pair should know which proj
 
 ## Current baseline and limits
 
-- The codebase and installed app identify as **0.0.5 alpha**. The app is currently tested only on macOS arm64. This source version was requested before the installed-app Pair acceptance check; it is not release-tagged.
+- The source identifies as **0.0.6 alpha**; the installed app still needs rebuilding and verification. The app has been tested only on macOS arm64. This source version is not release-tagged.
 - Home, Project, Pair, guided planning, brain analysis, visual maps, model selection, diff review, Navigator, and some QA paths are built. Their existence does not establish that the complete workflow is reliable on a large real project.
 - The private `go-dialer` branch was cloned and Git confirmed its branch and commit. The clone naming and destination flow confused the user. A clearer editable-name prompt has been compiled and copied into the installed app, but that revised prompt has **not** been verified by the user in the UI.
 - The project brain has file-size and run limits. Pair's long-chat continuity, large-repository retrieval, complete multi-file edit loop, and restart behavior still need end-to-end checks. Change impact is a hint; a linked request-to-commit record is not complete.
@@ -34,7 +34,7 @@ The product promise is **continuity with evidence**. Pair should know which proj
 - Long pasted messages were silently cut to 2,500 characters when reused as chat history. Pair now marks shortened messages and can fetch stored chat text in bounded chunks; a real log-retrieval check in the installed app remains open.
 - The Project view now has a local Git update card and checks the tracked remote branch on open and every ten minutes. It notifies once per new remote head, and the Update action only fast-forwards after safety checks. The installed-app notification and update flow still need a live check on a cloned project.
 - A saved Pair conversation in `m_dialer` held recent 5,000–6,000-character user pastes, with relevant log terms beyond the former 2,500-character model cutoff. Pair now includes those recent pastes under a model-aware budget, saves the user's message before requesting a model reply, and retains up to 200 messages for search. A live GPT Sol follow-up on the saved conversation remains the acceptance check; chat state is scoped to the opened workspace folder.
-- The user will operate the editor UI for now. Verify the 0.0.5 Pair flow in the installed app before calling this release complete. Git pushes require the user's instruction.
+- The user will operate the editor UI for now. Verify the 0.0.6 Pair flow in the installed app before calling this release complete. Git pushes require the user's instruction.
 - Pair now has a project status snapshot per turn, approved named operational observations, searchable saved records, and linked proposal events. The m_dialer observation recipes were exercised from the host runner; the installed-app Pair flow and approval UI still need a user-run check before these features are marked verified.
 
 ## Comparison
@@ -71,7 +71,7 @@ my_editor's strongest direction is **project continuity with explicit human revi
 
 ### Ironman skill assessment
 
-The downloaded `ironman` package has useful plain-language **discuss** and **teach** guidance, but should **not be bundled unchanged**. Its `/ironman on/off` state and reply-checking Stop hook are built for Claude Code under `~/.claude/`. my_editor currently loads a skill's `SKILL.md` for one Pair request; it does not run that hook or maintain those modes across later turns. Its code mode also asks for approval before every block, while my_editor already uses Keep/Undo to review proposed edits. Copying the package would advertise behavior the app cannot provide. A later opt-in coaching skill can adapt the voice and teaching loop to Pair, use the existing diff review, and add a native readability check only if real users find it helpful. Keep the downloaded scripts and personal glossary out of the app bundle.
+Shan the panda now adapts the downloaded `ironman` package's plain colleague and teaching guidance inside Pair's native character prompt. Its `/ironman on/off` marker and reply-checking Stop hook target Claude Code under `~/.claude/`, so they are not bundled. Its code mode asks for approval before every block; my_editor instead uses consultation and reviewable Keep/Undo proposals. The downloaded scripts and personal glossary stay out of the app. See [characters and change finder](docs/characters-and-change-finder.md). A native readability check remains a possible later improvement if users find it useful.
 
 ## Roadmap, in priority order
 
@@ -125,14 +125,19 @@ The milestones are ordered by dependency, not by promised release date. A milest
 
 ### M4 — Improve daily editing speed and presentation
 
-**Outcome:** The editor feels easy to use for long coding sessions, with clear model and context controls.
+**Outcome:** The editor helps a person write better code during long coding sessions, with clear model and context controls.
 
+**Source status (25 September):** The centered character chat, Quick Fix choices, advisory comment guidance, AI proposal checks, and a VSCodium save gate patch are implemented in source. They still need a full editor build and live acceptance test. Guided splitting and richer project-specific quality checks remain open.
+
+- Expand Navigator beyond likely bugs and broken conventions to useful, evidence-based performance, style, design and comment findings. Give each finding a choice: ask Pair for a reviewed fix or get guidance for a manual fix. Keep advice brief and avoid noisy preferences.
+- Enforce one focused responsibility per source file and one class per file where classes apply. Warn before 400 lines, prevent human saves and AI proposals from leaving a source file above 400 lines, and offer a guided split for existing oversized files. Confirm the behavior in the installed app for both human and AI edits.
+- Ensure Pair consults the developer on scope, design and verification before generating a larger change; keep the resulting diffs and checks tied to that discussion.
 - Make the active model and reasoning level visible at the point of use; show provider availability and concise failures without changing models silently.
 - Refine Home, Project, Pair, Explorer, and visual maps through user tests. Preserve layout across restart and make file navigation work at every panel size.
 - Add direct links from architecture parts and requirements to relevant files and changes. Show analysis progress without burying the user in notifications.
 - Evaluate AI Tab completion and inline edits only after the core project-aware Pair flow is stable. Measure latency, acceptance rate, and whether suggestions respect local conventions.
 
-**Exit check:** A user can clone, orient themselves, find a file, ask Pair, review a diff, and return after restart without needing undocumented shortcuts or layout repairs.
+**Exit check:** A user can clone, orient themselves, find a file, ask Pair, review a diff, and return after restart without needing undocumented shortcuts or layout repairs. In a coding session, they can act on a real finding by requesting a reviewed fix or following manual guidance; neither human saves nor kept AI proposals can grow a source file beyond 400 lines.
 
 ### M5 — Optional agent capabilities
 

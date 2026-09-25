@@ -2,7 +2,15 @@
 
 my_editor uses the version in `overlay/extensions/my-editor-core/package.json` as its own release number. The Home page displays that version. The underlying editor shell keeps its upstream version independently.
 
-## Unreleased
+## 0.0.6 alpha — 2026-09-25 (source commit; app verification pending)
+
+- Added a centered Pair chat with seven original animal specialists, automatic task and project-stage selection, and a manual pin. The right sidebar remains available; characters share the same model, tools, and review rules.
+- Added Find a change: Pair can map a requested change, open up to eight verified file locations near the right lines, and explain them before coding. Shan the panda adapts the downloaded Iron Man skill's plain colleague and teaching voice to Pair's existing diff review.
+- Opening Pair in the center now closes the right Pair sidebar, and Pair's sidebar switch closes the center tab. First-run layout no longer opens a second Pair view during project analysis.
+- Added 400-line warnings and a VSCodium save-time gate for human edits, plus hard checks for AI proposals and Keep. Multiple top-level classes in one source file are also flagged or rejected. The core patch needs a full build and live test.
+- Navigator, comment, and structure findings now offer Quick Fix choices for a reviewed Pair proposal or manual guidance. Comment guidance no longer inserts code automatically.
+- Split chat and Home styles into focused files. The new extension source compiles and passes automated tests; the updated app flow still needs live validation.
+- `scripts/install.sh` now rebuilds current source before installing, so an old app bundle cannot be copied after a failed build.
 
 ## 0.0.5 alpha — 2026-09-24
 

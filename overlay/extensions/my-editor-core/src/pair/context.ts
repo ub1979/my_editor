@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { isSensitiveFile } from '../records/sensitive';
+import type { ActiveFile } from '../chat/activeFile';
 
 const MAX_FILE_CHARS = 60_000;
 const EDITABLE_SCHEMES = new Set(['file', 'untitled']);
@@ -18,11 +19,15 @@ export interface FileContext {
 }
 
 /** The editor the request is about: the active one, else the first visible, else the first attached file. */
-export async function currentFile(attached: readonly vscode.Uri[] = []): Promise<FileContext | undefined> {
+export async function currentFile(preferred?: ActiveFile, attached: readonly vscode.Uri[] = []): Promise<FileContext | undefined> {
 	// Only real files: never a diff, output or git view that happens to be visible.
 	const editable = (e: vscode.TextEditor | undefined) => e && EDITABLE_SCHEMES.has(e.document.uri.scheme) ? e : undefined;
-	const editor = editable(vscode.window.activeTextEditor) ?? vscode.window.visibleTextEditors.find(e => editable(e));
+	const editor = vscode.window.visibleTextEditors.find(e => e.document.uri.toString() === preferred?.uri.toString() && editable(e))
+		?? editable(vscode.window.activeTextEditor) ?? vscode.window.visibleTextEditors.find(e => editable(e));
 	let document = editor?.document;
+	if (!document && preferred) {
+		try { document = await vscode.workspace.openTextDocument(preferred.uri); } catch { /* File closed or moved. */ }
+	}
 	if (!document && attached[0]) {
 		document = await vscode.workspace.openTextDocument(attached[0]);
 	}
@@ -33,7 +38,10 @@ export async function currentFile(attached: readonly vscode.Uri[] = []): Promise
 	if (isSensitiveFile(relativePath, document.languageId)) {
 		throw new Error(`${relativePath} looks like a secrets file; my_editor never sends it to a model.`);
 	}
-	const selection = editor && editor.document === document && !editor.selection.isEmpty ? editor.selection : undefined;
+	const preferredRange = preferred?.uri.toString() === document.uri.toString() && preferred.selection
+		? document.validateRange(preferred.selection) : undefined;
+	const selection = editor && editor.document === document && !editor.selection.isEmpty ? editor.selection
+		: preferredRange ? new vscode.Selection(preferredRange.start, preferredRange.end) : undefined;
 	const diagnostics = vscode.languages.getDiagnostics(document.uri)
 		.filter(d => d.severity <= vscode.DiagnosticSeverity.Warning)
 		.slice(0, 20)

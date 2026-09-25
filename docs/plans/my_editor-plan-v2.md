@@ -50,8 +50,8 @@ it. Over months, it helps you maintain and change the project the way *you* want
 
 ### The control contract
 
-These six rules are the product. Every feature must obey them, and they are enforced in code
-(tool layer), not only in prompts.
+These eight rules define the intended product. Existing safeguards are enforced in code where built;
+the 25 September additions still need implementation. Prompt instructions alone are not enforcement.
 
 1. **The AI writes only what you ask, only where you ask** — a file, a function, a selection.
 2. **Every AI write is a diff you accept.** No silent writes, ever, in any mode.
@@ -59,6 +59,8 @@ These six rules are the product. Every feature must obey them, and they are enfo
 4. **Everything the AI knows about your project is a readable file you can edit** (`.my_editor/`).
 5. **You can always code with zero AI.** Every AI feature can be switched off.
 6. **Your style wins.** Conventions and learned preferences go into every request.
+7. **Consult before coding.** Agree on the goal, scope, design and checks before Pair writes a requested small or large change; the person reviews the resulting diff.
+8. **Protect code quality.** Advise on real mistakes and maintainability while the person codes. Keep source files focused, one class per file where classes apply, and at most 400 lines after a human or AI change.
 
 ### Relationship to Lyra
 
@@ -189,6 +191,14 @@ You code. The editor is your pair.
   against conventions, architecture and the brain. Findings appear as warnings in the editor and in
   a Navigator panel ("this duplicates `formatDate` in `utils/date.ts`", "breaks the repository
   pattern in ADR-0004"). It **never edits**. You can mute it per file or per session.
+- **Live guidance (25 Sep 2026 addition):** surface actionable mistakes, performance issues, style and
+  design problems, and missing or misleading comments with a reason and source location. Let the
+  person ask Pair for a reviewed fix or request guidance to fix it by hand. Use appropriate design
+  patterns and sound programming practices without adding complexity for its own sake.
+- **File structure (25 Sep 2026 addition):** keep each source file to one responsibility and, where
+  classes are used, one class. Warn as a file approaches 400 lines. Reject AI proposals that would
+  leave a source file above 400 lines; prevent human saves above that limit and guide the person
+  through splitting existing oversized files. These are target behaviors, not alpha capabilities.
 - **Driver on request:** "take the next step" — the AI writes the next small piece of the current
   file or task as a diff. You review, accept, and take the keyboard back.
 - **Brainstorm:** talk through options, patterns and trade-offs before coding. The result can be
@@ -393,6 +403,7 @@ Priority: **MUST** = v1, **SHOULD** = v1.1, **COULD** = later. `v0.1` marks the 
 | FR-056 | Driver on request: "next step" produces a small diff for the current file or task (`v0.1`) | MUST |
 | FR-057 | Brainstorm skill; the outcome can be saved as a decision in one click (`v0.1`) | MUST |
 | FR-058 | Coding with zero AI is always possible; every AI feature can be switched off (`v0.1`) | MUST |
+| FR-059 | On a useful finding, offer a reviewed AI fix or specific guidance for a manual fix; advice itself never edits | MUST |
 
 ### Guided build
 
@@ -423,6 +434,8 @@ Priority: **MUST** = v1, **SHOULD** = v1.1, **COULD** = later. `v0.1` marks the 
 | FR-082 | Review skill on a selection, file or uncommitted changes | SHOULD |
 | FR-083 | Debug skill: finds root cause, proposes a fix as a diff | SHOULD |
 | FR-084 | Refactor-to-pattern skill, one file at a time | COULD |
+| FR-085 | During human and AI coding, check relevant correctness, performance, style, design, comments and tests against project conventions and sound programming practices | MUST |
+| FR-086 | Enforce one focused responsibility per source file, one class per file where applicable, and a 400-line maximum after human saves or AI proposals; offer guided splits for oversized files | MUST |
 
 ---
 

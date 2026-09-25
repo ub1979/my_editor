@@ -34,6 +34,7 @@ export class AgentTools {
 				case 'list_files': return { text: await this.listFiles(args.glob) };
 				case 'search': return { text: await this.search(args.query) };
 				case 'read_file': return { text: await this.readFile(args.path, args.start, args.lines) };
+				case 'open_files': return { text: await this.openFiles(args.locations) };
 				case 'git_history': return { text: (await changeContext(typeof args.question === 'string' ? args.question.slice(0, 300) : '', undefined, true)).slice(0, 10_000) };
 				case 'search_records': return { text: await searchProjectRecords(args.query) };
 				case 'observe': return { text: await this.observations.run(args.id, this.token) };
@@ -121,6 +122,38 @@ export class AgentTools {
 		const count = Number.isInteger(linesValue) ? Math.max(1, Math.min(Number(linesValue), MAX_READ_LINES)) : 100;
 		const selected = all.slice(start - 1, start - 1 + count).map((line, index) => `${start + index}| ${line}`).join('\n');
 		return `File: ${relative} (lines ${start}–${Math.min(all.length, start + count - 1)} of ${all.length})\n${redact(selected).slice(0, 16_000)}`;
+	}
+
+	/** Open verified source locations as tabs, with the best starting point in focus. */
+	private async openFiles(value: unknown): Promise<string> {
+		if (!Array.isArray(value) || value.length < 1 || value.length > 8) {
+			return 'Open 1–8 verified locations, each with a relative path and a one-based line.';
+		}
+		const locations: { relative: string; line: number; document: vscode.TextDocument }[] = [];
+		const seen = new Set<string>();
+		for (const item of value) {
+			if (!item || typeof item !== 'object' || Array.isArray(item)) { return 'Each location needs a path and line.'; }
+			const entry = item as Record<string, unknown>;
+			const { uri, relative } = this.file(entry.path);
+			if (!Number.isInteger(entry.line) || Number(entry.line) < 1 || Number(entry.line) > 1_000_000) {
+				return `Use a valid one-based line for ${relative}.`;
+			}
+			if (seen.has(relative)) { continue; }
+			const document = await vscode.workspace.openTextDocument(uri);
+			if (Number(entry.line) > document.lineCount) { return `${relative} has only ${document.lineCount} lines. Search and read the source before opening it.`; }
+			locations.push({ relative, line: Number(entry.line), document });
+			seen.add(relative);
+		}
+		const opened: string[] = [];
+		for (const location of [...locations].reverse()) {
+			if (this.token.isCancellationRequested) { break; }
+			const position = new vscode.Position(location.line - 1, 0);
+			const editor = await vscode.window.showTextDocument(location.document, { preview: false,
+				selection: new vscode.Selection(position, position) });
+			editor.revealRange(location.document.lineAt(location.line - 1).range, vscode.TextEditorRevealType.InCenter);
+			opened.unshift(`${location.relative}:${location.line}`);
+		}
+		return opened.length ? `Opened ${opened.length} verified file${opened.length === 1 ? '' : 's'} at ${opened.join(', ')}. The first is in focus.` : 'Stopped before opening files.';
 	}
 
 	private async proposeFile(value: unknown, content: unknown): Promise<ToolResult> {

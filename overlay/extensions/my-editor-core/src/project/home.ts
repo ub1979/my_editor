@@ -42,7 +42,8 @@ export class Home {
 		const nonce = randomBytes(16).toString('base64');
 		webview.html = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
-<link rel="stylesheet" href="${webview.asWebviewUri(vscode.Uri.joinPath(media, 'home.css'))}"></head>
+<link rel="stylesheet" href="${webview.asWebviewUri(vscode.Uri.joinPath(media, 'home-layout.css'))}">
+<link rel="stylesheet" href="${webview.asWebviewUri(vscode.Uri.joinPath(media, 'home-projects.css'))}"></head>
 <body><main id="root"></main><script nonce="${nonce}" src="${webview.asWebviewUri(vscode.Uri.joinPath(media, 'home.js'))}"></script></body></html>`;
 		webview.onDidReceiveMessage(message => this.onMessage(message));
 		this.panel.onDidDispose(() => (this.panel = undefined));

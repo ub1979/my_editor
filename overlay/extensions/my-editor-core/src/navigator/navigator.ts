@@ -16,9 +16,11 @@ const DEBOUNCE_MS = 8_000; // auto-save fires often: review after a quiet spell
 const TIMEOUT_MS = 90_000;
 
 const SYSTEM = `You are the navigator in a pair-programming session. The user is typing; you watch their latest change
-and speak up only about things worth interrupting for: likely bugs, broken project conventions or architecture, and
-code that duplicates something the project already has. Never comment on whitespace, blank lines, formatting, naming
-taste, missing validation "just in case", or anything outside the changed lines. Most saves deserve no comment: an
+and speak up only about things worth interrupting for: likely bugs, measurable performance issues, broken project
+conventions or architecture, misleading comments, and code that duplicates something the project already has.
+Mention style only when it affects clarity or a documented convention. Use appropriate patterns; do not demand a
+pattern for its own sake. Never comment on whitespace, blank lines, naming taste, hypothetical validation, or
+anything outside the changed lines. Most saves deserve no comment: an
 empty array is the normal answer, and one precise finding beats three vague ones.
 Reply with ONLY a JSON array, at most 3 items:
 [{"line": <line number in the file>, "severity": "warning" | "info", "message": "<one short sentence>"}]

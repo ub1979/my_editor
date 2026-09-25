@@ -1,8 +1,7 @@
 import { randomBytes } from 'crypto';
 import * as vscode from 'vscode';
 import { analyseProject } from '../brain/analyse';
-import { EXCLUDE_GLOB, SOURCE_GLOB } from '../brain/brain';
-import { loadCatalog, pickDefault } from '../models/catalog';
+import { readProjectState } from '../project/state';
 import { ApiKeys } from '../models/secrets';
 import { CONVERSATIONAL, PairEngine, Sink } from './engine';
 import { fallbackBrief, liveTurns, memoryBatch, MemoryState } from './memory';
@@ -11,6 +10,13 @@ import { labelFor, Message, render } from './presentation';
 import { runReplyJob } from './replyJob';
 import { saveProposalEvent } from './changeJournal';
 import { skillCards } from './skillCards';
+import { character, CharacterId } from './characters';
+import { chatWebviewHtml } from './webviewHtml';
+import { editorContextMessage, modelListMessage, newChatId } from './viewUpdates';
+import { ActiveFileTracker } from './activeFile';
+import { analysisOffer } from './analysisOffer';
+import { projectCharacter, routeCharacter } from './characterRouting';
+import { chatInit } from './chatInit';
 
 const STATE_KEY = 'myEditor.chat.state';
 /** Set once the user answered the "Analyse this project?" offer, either way. */
@@ -24,23 +30,25 @@ interface Saved {
 	messages: Message[];
 	mode?: string;
 	memory?: MemoryState;
+	characterId?: CharacterId;
+	pinned?: boolean;
 }
-
-
-/**
- * The Pair chat: a panel of our own in the right sidebar. It keeps the conversation, runs the engine,
- * and shows each code change as a card with Review / Keep / Undo.
- */
+/** The Pair conversation shared by the sidebar and centered editor tab. */
 export class ChatView implements vscode.WebviewViewProvider {
 	static readonly id = 'myEditor.chat';
 	private view: vscode.WebviewView | undefined;
+	private lounge: vscode.WebviewPanel | undefined;
 	private messages: Message[] = [];
+	private characterId: CharacterId = 'bamboo';
+	private pinned = false;
+	private projectRoot = vscode.workspace.workspaceFolders?.[0]?.uri.toString();
+	private readonly activeFile = new ActiveFileTracker();
+	private pendingPlaceholder: string | undefined;
 	private mode: string | undefined;
 	private memory: MemoryState = { brief: '' };
 	private running: vscode.CancellationTokenSource | undefined;
 	private pending: { text: string; mode?: string; kickoff?: boolean } | undefined;
 	private saveQueue: Promise<void> = Promise.resolve();
-
 	constructor(
 		private readonly context: vscode.ExtensionContext,
 		private readonly engine: PairEngine,
@@ -54,35 +62,44 @@ export class ChatView implements vscode.WebviewViewProvider {
 			proposals: m.proposals.map(proposal => proposal.state === 'open' ? { ...proposal, state: 'expired' as const } : proposal),
 		})) ?? [];
 		this.mode = saved?.mode;
+		this.characterId = character(saved?.characterId).id;
+		this.pinned = saved?.pinned ?? false;
 		this.memory = saved?.memory ?? { brief: '' };
 		context.subscriptions.push(
+			this.activeFile,
 			proposals.onDidChange(proposal => this.onProposalChanged(proposal)),
-			vscode.window.onDidChangeActiveTextEditor(() => this.postContext()),
-			vscode.window.onDidChangeTextEditorSelection(() => this.postContext()),
+			this.activeFile.onDidChange(() => this.postContext()),
+			vscode.workspace.onDidChangeWorkspaceFolders(() => void this.selectForProject()),
 			vscode.workspace.onDidChangeConfiguration(e => e.affectsConfiguration('myEditor') && this.postModels()),
 			context.secrets.onDidChange(() => this.postModels()),
 		);
+		void this.selectForProject();
 	}
-
 	resolveWebviewView(view: vscode.WebviewView): void {
 		this.view = view;
 		const media = vscode.Uri.joinPath(this.context.extensionUri, 'media');
 		view.webview.options = { enableScripts: true, localResourceRoots: [media] };
 		const nonce = randomBytes(16).toString('base64');
-		view.webview.html = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${view.webview.cspSource} data:; style-src ${view.webview.cspSource}; script-src 'nonce-${nonce}';">
-<link rel="stylesheet" href="${view.webview.asWebviewUri(vscode.Uri.joinPath(media, 'chat.css'))}"></head>
-<body><div id="app"></div>
-<script nonce="${nonce}" src="${view.webview.asWebviewUri(vscode.Uri.joinPath(media, 'chatDom.js'))}"></script>
-<script nonce="${nonce}" src="${view.webview.asWebviewUri(vscode.Uri.joinPath(media, 'chatCards.js'))}"></script>
-<script nonce="${nonce}" src="${view.webview.asWebviewUri(vscode.Uri.joinPath(media, 'chat.js'))}"></script></body></html>`;
-		view.webview.onDidReceiveMessage(message => void this.onMessage(message));
+		view.webview.html = chatWebviewHtml(view.webview, media, 'sidebar', nonce);
+		view.webview.onDidReceiveMessage(message => void this.onMessage(message, view.webview));
+		view.onDidChangeVisibility(() => { if (view.visible) { this.lounge?.dispose(); } });
 	}
-
+	async openLounge(): Promise<void> {
+		if (this.lounge) { this.lounge.reveal(vscode.ViewColumn.Active); await vscode.commands.executeCommand('workbench.action.closeAuxiliaryBar'); return; }
+		const panel = vscode.window.createWebviewPanel('myEditor.chatLounge', 'Pair', vscode.ViewColumn.Active,
+			{ enableScripts: true, retainContextWhenHidden: true, localResourceRoots: [vscode.Uri.joinPath(this.context.extensionUri, 'media')] });
+		this.lounge = panel;
+		panel.webview.onDidReceiveMessage(message => void this.onMessage(message, panel.webview));
+		panel.onDidDispose(() => { this.lounge = undefined; });
+		panel.webview.html = chatWebviewHtml(panel.webview, vscode.Uri.joinPath(this.context.extensionUri, 'media'), 'lounge', randomBytes(16).toString('base64'));
+		await vscode.commands.executeCommand('workbench.action.closeAuxiliaryBar');
+	}
+	private webviews(): vscode.Webview[] { return [this.view?.webview, this.lounge?.webview].filter((view): view is vscode.Webview => !!view); }
+	private broadcast(message: unknown): void { for (const webview of this.webviews()) { void webview.postMessage(message); } }
 	/** Opens the chat on a skill, e.g. from the Project view or after creating a project. */
 	async startSkill(id: string): Promise<void> {
-		await vscode.commands.executeCommand('myEditor.chat.focus');
-		if (this.view) {
+		await this.openLounge();
+		if (this.webviews().length) {
 			await this.pickSkill(id);
 		} else {
 			this.pending = { text: '', mode: id, kickoff: true };
@@ -91,8 +108,8 @@ export class ChatView implements vscode.WebviewViewProvider {
 
 	/** Sends a request as if the user typed it (Adapt buttons, fit check). */
 	async ask(text: string): Promise<void> {
-		await vscode.commands.executeCommand('myEditor.chat.focus');
-		if (this.view) {
+		await this.openLounge();
+		if (this.webviews().length) {
 			await this.send(text);
 		} else {
 			this.pending = { text };
@@ -101,8 +118,8 @@ export class ChatView implements vscode.WebviewViewProvider {
 
 	/** Reads the whole project into the brain and drafts its architecture ("Analyse this project"). */
 	async analyse(): Promise<void> {
-		await vscode.commands.executeCommand('myEditor.chat.focus');
-		if (!this.view) {
+		await this.openLounge();
+		if (!this.webviews().length) {
 			this.pending = { text: '', mode: ANALYSE };
 			return;
 		}
@@ -110,50 +127,47 @@ export class ChatView implements vscode.WebviewViewProvider {
 			return;
 		}
 		await this.context.workspaceState.update(ANALYSE_ANSWERED, true);
-		void this.view.webview.postMessage({ type: 'offer', offer: undefined });
-		this.messages.push({ id: newId(), role: 'user', markdown: 'Analyse this project', proposals: [], actions: [], done: true });
-		const reply: Message = { id: newId(), role: 'assistant', markdown: '', proposals: [], actions: [], done: false };
+		this.broadcast({ type: 'offer', offer: undefined });
+		this.messages.push({ id: newChatId(), role: 'user', markdown: 'Analyse this project', proposals: [], actions: [], done: true });
+		const reply: Message = { id: newChatId(), role: 'assistant', characterId: this.characterId, markdown: '', proposals: [], actions: [], done: false };
 		this.messages.push(reply);
 		this.postMessages();
 		await this.runReply(reply, (sink, token) => analyseProject(this.keys, this.proposals, sink, token));
 	}
 
-	/**
-	 * Whether to offer the analysis: a project with code but no brain yet, where the user has not answered.
-	 * Returns how many code files there are, so the offer can say what it will read.
-	 */
+	/** Count code files for the one-time project analysis offer. */
 	async analyseOffer(): Promise<number | undefined> {
-		const root = vscode.workspace.workspaceFolders?.[0]?.uri;
-		if (!root || this.context.workspaceState.get(ANALYSE_ANSWERED)) {
-			return undefined;
-		}
-		try {
-			await vscode.workspace.fs.stat(vscode.Uri.joinPath(root, '.my_editor', 'brain', 'map.json'));
-			return undefined;
-		} catch {
-			// No brain yet.
-		}
-		const files = await vscode.workspace.findFiles(SOURCE_GLOB, EXCLUDE_GLOB, 5_000);
-		return files.length || undefined;
+		return analysisOffer(this.context, ANALYSE_ANSWERED);
+	}
+
+	private async selectForProject(): Promise<void> {
+		const root = vscode.workspace.workspaceFolders?.[0]?.uri.toString();
+		if (root !== this.projectRoot) { this.projectRoot = root; this.pinned = false; }
+		if (this.pinned) { return; }
+		const id = projectCharacter(await readProjectState());
+		if (root !== vscode.workspace.workspaceFolders?.[0]?.uri.toString() || this.pinned) { return; }
+		this.characterId = id;
+		this.save();
+		this.broadcast({ type: 'character', characterId: id, pinned: false, reason: 'Project stage' });
 	}
 
 	toggleSkills(): void {
-		void this.view?.webview.postMessage({ type: 'toggleSkills' });
+		this.broadcast({ type: 'toggleSkills' });
 	}
-
 	async newChat(): Promise<void> {
 		this.running?.cancel();
 		this.messages = [];
 		this.mode = undefined;
+		this.pendingPlaceholder = undefined;
 		this.memory = { brief: '' };
 		this.save();
 		await this.postInit();
 	}
 
-	private async onMessage(message: { type: string; text?: string; id?: string; key?: string; index?: number; href?: string }): Promise<void> {
+	private async onMessage(message: { type: string; text?: string; id?: string; key?: string; index?: number; href?: string }, sender?: vscode.Webview): Promise<void> {
 		switch (message.type) {
 			case 'ready':
-				await this.postInit();
+				await this.postInit(sender);
 				if (this.pending) {
 					const pending = this.pending;
 					this.pending = undefined;
@@ -168,17 +182,35 @@ export class ChatView implements vscode.WebviewViewProvider {
 				return;
 			case 'send':
 				return this.send(message.text ?? '');
+			case 'openLounge':
+				return this.openLounge();
+			case 'openSidebar':
+				await vscode.commands.executeCommand('myEditor.chat.focus');
+				this.lounge?.dispose();
+				return;
+			case 'character':
+				if (this.running) { return; }
+				this.characterId = character(message.id).id;
+				this.pinned = true;
+				this.save();
+				this.broadcast({ type: 'character', characterId: this.characterId, pinned: true, reason: 'Chosen by you' });
+				return;
+			case 'autoCharacter':
+				this.pinned = false;
+				await this.selectForProject();
+				return;
 			case 'skill':
 				return this.pickSkill(message.id ?? '');
 			case 'clearMode':
 				this.mode = undefined;
+				this.pendingPlaceholder = undefined;
 				this.save();
 				return this.postMode();
 			case 'analyse':
 				return this.analyse();
 			case 'notNow':
 				await this.context.workspaceState.update(ANALYSE_ANSWERED, true);
-				void this.view?.webview.postMessage({ type: 'offer', offer: undefined });
+				this.broadcast({ type: 'offer', offer: undefined });
 				return;
 			case 'newChat':
 				return this.newChat();
@@ -226,6 +258,7 @@ export class ChatView implements vscode.WebviewViewProvider {
 			return;
 		}
 		this.mode = card.id;
+		this.pendingPlaceholder = card.start === 'compose' ? card.placeholder : undefined;
 		this.save();
 		this.postMode();
 		if (card.start === 'kickoff') {
@@ -233,7 +266,7 @@ export class ChatView implements vscode.WebviewViewProvider {
 		} else if (card.start === 'run') {
 			await this.send('');
 		} else {
-			void this.view?.webview.postMessage({ type: 'focusComposer', placeholder: card.placeholder });
+			this.broadcast({ type: 'focusComposer', placeholder: this.pendingPlaceholder });
 		}
 	}
 
@@ -241,14 +274,21 @@ export class ChatView implements vscode.WebviewViewProvider {
 		if (this.running) {
 			return;
 		}
+		const route = routeCharacter(text, this.mode, this.characterId, this.pinned);
+		if (route.id !== this.characterId) {
+			this.characterId = route.id;
+			this.save();
+			this.broadcast({ type: 'character', characterId: route.id, pinned: false, reason: route.reason });
+		}
+		this.pendingPlaceholder = undefined;
 		const mode = this.mode;
 		if (!kickoff) {
 			if (!text.trim() && !mode) {
 				return;
 			}
-			this.messages.push({ id: newId(), role: 'user', markdown: text.trim() || labelFor(mode), mode, proposals: [], actions: [], done: true });
+			this.messages.push({ id: newChatId(), role: 'user', markdown: text.trim() || labelFor(mode), mode, proposals: [], actions: [], done: true });
 		}
-		const reply: Message = { id: newId(), role: 'assistant', markdown: '', mode, proposals: [], actions: [], done: false };
+		const reply: Message = { id: newChatId(), role: 'assistant', characterId: this.characterId, markdown: '', mode, proposals: [], actions: [], done: false };
 		const prior = this.messages.filter(m => m.done && m.markdown).slice(0, kickoff ? undefined : -1);
 		const memoryMessages = prior.map(m => ({ id: m.id, role: m.role, text: m.markdown }));
 		this.messages.push(reply);
@@ -277,7 +317,7 @@ export class ChatView implements vscode.WebviewViewProvider {
 			sink.progress('');
 			const live = liveTurns(memoryMessages, this.memory).map(turn => ({ role: turn.role, text: turn.text }));
 			const proposalState = this.messages.flatMap(message => message.proposals.map(proposal => `${proposal.file}: ${proposal.state}`)).slice(-12).join('\n');
-			const result = await this.engine.run({ text, mode, kickoff, memory: this.memory.brief, proposalState, requestId: reply.id,
+			const result = await this.engine.run({ text, mode, kickoff, characterId: reply.characterId, locateOnly: route.locateOnly, activeFile: this.activeFile.current, memory: this.memory.brief, proposalState, requestId: reply.id,
 				chatArchive: memoryMessages.map(message => ({ role: message.role, text: message.text })) }, live, sink, token);
 			// Conversations keep their skill; code-writing requests run once, then chat is plain again.
 			if (!CONVERSATIONAL.has(result.mode) && this.mode === mode && mode !== undefined && !mode.startsWith('skill:')) {
@@ -323,65 +363,38 @@ export class ChatView implements vscode.WebviewViewProvider {
 		this.messages = this.messages.slice(-MAX_KEPT_MESSAGES);
 		const snapshot = {
 			messages: this.messages.map(message => ({ ...message, proposals: [...message.proposals], actions: [...message.actions] })),
-			mode: this.mode, memory: this.memory,
+			mode: this.mode, memory: this.memory, characterId: this.characterId, pinned: this.pinned,
 		} satisfies Saved;
 		this.saveQueue = this.saveQueue.catch(() => undefined).then(() => this.context.workspaceState.update(STATE_KEY, snapshot));
 	}
 
-	private async postInit(): Promise<void> {
-		if (!this.view) {
-			return;
-		}
-		void this.view.webview.postMessage({
-			type: 'init',
-			project: vscode.workspace.workspaceFolders?.[0]?.name,
-			projectPath: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
-			skills: await skillCards(this.context.extensionUri),
-			messages: this.messages.slice(-MAX_VISIBLE_MESSAGES).map(render),
-			offer: await this.analyseOffer(),
-		});
+	private async postInit(target?: vscode.Webview): Promise<void> {
+		if (!this.webviews().length) { return; }
+		const message = await chatInit(this.context, this.messages, this.characterId, this.pinned, ANALYSE_ANSWERED, MAX_VISIBLE_MESSAGES);
+		if (target) { void target.postMessage(message); }
+		else { this.broadcast(message); }
 		this.postMode();
 		this.postContext();
 		await this.postModels();
+		if (this.pendingPlaceholder) {
+			const focus = { type: 'focusComposer', placeholder: this.pendingPlaceholder };
+			if (target) { void target.postMessage(focus); }
+			else { this.broadcast(focus); }
+		}
 	}
 
-	private postMessages(): void {
-		void this.view?.webview.postMessage({ type: 'messages', messages: this.messages.slice(-MAX_VISIBLE_MESSAGES).map(render) });
-	}
+	private postMessages(): void { this.broadcast({ type: 'messages', messages: this.messages.slice(-MAX_VISIBLE_MESSAGES).map(render) }); }
 
-	private postMessage(message: Message): void {
-		void this.view?.webview.postMessage({ type: 'message', message: render(message), running: !!this.running });
-	}
+	private postMessage(message: Message): void { this.broadcast({ type: 'message', message: render(message), running: !!this.running }); }
 
-	private postMode(): void {
-		void this.view?.webview.postMessage({ type: 'mode', mode: this.mode, label: this.mode ? labelFor(this.mode) : undefined, running: !!this.running });
-	}
+	private postMode(): void { this.broadcast({ type: 'mode', mode: this.mode, label: this.mode ? labelFor(this.mode) : undefined, running: !!this.running }); }
 
-	private postContext(): void {
-		const editor = vscode.window.activeTextEditor;
-		const file = editor && editor.document.uri.scheme === 'file' ? vscode.workspace.asRelativePath(editor.document.uri, false) : undefined;
-		const selection = editor && !editor.selection.isEmpty ? `${editor.selection.start.line + 1}–${editor.selection.end.line + 1}` : undefined;
-		void this.view?.webview.postMessage({ type: 'context', file, selection });
-	}
+	private postContext(): void { this.broadcast(editorContextMessage(this.activeFile.current)); }
 
 	private async postModels(): Promise<void> {
-		if (!this.view) {
-			return;
-		}
-		const entries = await loadCatalog(this.keys);
-		const current = pickDefault(entries);
-		void this.view.webview.postMessage({
-			type: 'models',
-			current: current?.key,
-			reasoning: vscode.workspace.getConfiguration('myEditor').get<string>('codexCli.reasoningEffort', 'default'),
-			models: entries.map(e => ({ key: e.key, label: e.label, detail: e.detail })),
-		});
+		if (this.webviews().length) { this.broadcast(await modelListMessage(this.keys)); }
 	}
 }
 
 /** Stands in for a skill id while the analysis waits for the chat to open. */
 const ANALYSE = '#analyse';
-
-function newId(): string {
-	return randomBytes(6).toString('hex');
-}

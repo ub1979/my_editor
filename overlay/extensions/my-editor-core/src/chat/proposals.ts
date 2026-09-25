@@ -1,6 +1,8 @@
 import { randomBytes } from 'crypto';
 import * as vscode from 'vscode';
 import { changedHunks } from '../navigator/hunks';
+import { sourcePolicyError } from '../quality/sourcePolicy';
+import { ProposalFileSystem } from './proposalFileSystem';
 
 export const PROPOSAL_SCHEME = 'my-editor-proposal';
 
@@ -16,58 +18,6 @@ export interface Proposal {
 	readonly added: number;
 	readonly removed: number;
 	state: 'open' | 'kept' | 'undone';
-}
-
-/** Proposed file contents live in memory under their own scheme, editable so single parts can be reverted. */
-class ProposalFileSystem implements vscode.FileSystemProvider {
-	private readonly files = new Map<string, Uint8Array>();
-	private readonly changed = new vscode.EventEmitter<vscode.FileChangeEvent[]>();
-	readonly onDidChangeFile = this.changed.event;
-
-	set(uri: vscode.Uri, text: string): void {
-		this.files.set(uri.path, new TextEncoder().encode(text));
-	}
-
-	delete(uri: vscode.Uri): void {
-		this.files.delete(uri.path);
-	}
-
-	watch(): vscode.Disposable {
-		return new vscode.Disposable(() => undefined);
-	}
-
-	stat(uri: vscode.Uri): vscode.FileStat {
-		const data = this.files.get(uri.path);
-		if (!data) {
-			throw vscode.FileSystemError.FileNotFound(uri);
-		}
-		return { type: vscode.FileType.File, ctime: 0, mtime: Date.now(), size: data.byteLength };
-	}
-
-	readDirectory(): [string, vscode.FileType][] {
-		return [];
-	}
-
-	createDirectory(): void {
-		// Proposals are flat; nothing to create.
-	}
-
-	readFile(uri: vscode.Uri): Uint8Array {
-		const data = this.files.get(uri.path);
-		if (!data) {
-			throw vscode.FileSystemError.FileNotFound(uri);
-		}
-		return data;
-	}
-
-	writeFile(uri: vscode.Uri, content: Uint8Array): void {
-		this.files.set(uri.path, content);
-		this.changed.fire([{ type: vscode.FileChangeType.Changed, uri }]);
-	}
-
-	rename(): void {
-		throw vscode.FileSystemError.NoPermissions('Proposals cannot be renamed.');
-	}
 }
 
 /**
@@ -86,6 +36,8 @@ export class Proposals implements vscode.Disposable {
 	}
 
 	async propose(target: vscode.Uri, proposed: string): Promise<Proposal> {
+		const policyError = sourcePolicyError(target.fsPath, proposed);
+		if (policyError) { throw new Error(policyError); }
 		const existing = this.findOpenFor(target);
 		if (existing) {
 			await this.undo(existing.id, true);
@@ -143,6 +95,11 @@ export class Proposals implements vscode.Disposable {
 			return false;
 		}
 		const text = await this.currentProposalText(proposal);
+		const policyError = sourcePolicyError(proposal.target.fsPath, text);
+		if (policyError) {
+			void vscode.window.showWarningMessage(policyError);
+			return false;
+		}
 		if (proposal.isNewFile) {
 			try {
 				await vscode.workspace.fs.stat(proposal.target);
@@ -164,8 +121,10 @@ export class Proposals implements vscode.Disposable {
 			}
 			const edit = new vscode.WorkspaceEdit();
 			edit.replace(proposal.target, new vscode.Range(0, 0, document.lineCount, 0), text);
-			await vscode.workspace.applyEdit(edit);
-			await document.save();
+			if (!await vscode.workspace.applyEdit(edit) || !await document.save()) {
+				void vscode.window.showWarningMessage(`${proposal.relativePath} was not saved. The proposal remains open; check the file and try Keep again.`);
+				return false;
+			}
 		}
 		await this.close(proposal, 'kept');
 		await vscode.window.showTextDocument(proposal.target, { preview: false });

@@ -153,7 +153,7 @@ export class ProjectView implements vscode.WebviewViewProvider {
 				await vscode.commands.executeCommand('myEditor.home');
 				return;
 			case 'chat':
-				await vscode.commands.executeCommand('myEditor.chat.focus');
+				await vscode.commands.executeCommand('myEditor.chat.openLounge');
 				return;
 		}
 	}

@@ -11,6 +11,7 @@ import { applyFirstRunLayout } from './layout';
 import { chooseDefaultModel } from './models/catalog';
 import { ApiKeys } from './models/secrets';
 import { Navigator } from './navigator/navigator';
+import { GuidanceActions } from './navigator/actions';
 import { Home } from './project/home';
 import { adaptFile } from './project/impact';
 import { openNextFile, scaffoldFromTree, toggleFileDone, trackProgress } from './project/tree';
@@ -18,6 +19,7 @@ import { ThisFileView } from './project/thisFile';
 import { ProjectView } from './project/view';
 import { ProjectVisualView } from './project/visualView';
 import { checkFit } from './qa/checkFit';
+import { SourceWatch } from './quality/sourceWatch';
 import { DecisionDraft, saveDecision } from './records/decisions';
 
 /** Entry point of the built-in core. */
@@ -25,7 +27,8 @@ export function activate(context: vscode.ExtensionContext): void {
 	const keys = new ApiKeys(context.secrets);
 	const log = vscode.window.createOutputChannel('my_editor', { log: true });
 	const navigator = new Navigator(keys, log);
-	const autoComments = new AutoComments(keys, log);
+	const autoComments = new AutoComments();
+	const sourceWatch = new SourceWatch();
 	const home = new Home(context);
 	const visuals = new ProjectVisualView(context);
 	const proposals = new Proposals();
@@ -48,7 +51,10 @@ export function activate(context: vscode.ExtensionContext): void {
 		keys,
 		log,
 		navigator,
+		vscode.languages.registerCodeActionsProvider({ scheme: 'file' }, new GuidanceActions(),
+			{ providedCodeActionKinds: [vscode.CodeActionKind.QuickFix] }),
 		autoComments,
+		sourceWatch,
 		proposals,
 		visuals,
 		vscode.commands.registerCommand('myEditor.autoComments.turnOff', () => AutoComments.setEnabled(false)),
@@ -61,6 +67,7 @@ export function activate(context: vscode.ExtensionContext): void {
 		vscode.commands.registerCommand('myEditor.chat.ask', (text: string) => chat.ask(text)),
 		vscode.commands.registerCommand('myEditor.chat.skills', () => chat.toggleSkills()),
 		vscode.commands.registerCommand('myEditor.chat.new', () => chat.newChat()),
+		vscode.commands.registerCommand('myEditor.chat.openLounge', () => chat.openLounge()),
 		vscode.commands.registerCommand('myEditor.proposal.keep', (uri?: vscode.Uri) => {
 			const proposal = proposals.fromUri(uri ?? vscode.window.activeTextEditor?.document.uri);
 			return proposal && proposals.keep(proposal.id);
@@ -100,7 +107,7 @@ export function activate(context: vscode.ExtensionContext): void {
 	if (vscode.workspace.workspaceFolders?.length) {
 		void home.continuePendingStart();
 		// An existing project the pair has not read yet: open the chat, where it asks before reading anything.
-		void chat.analyseOffer().then(files => files && vscode.commands.executeCommand('myEditor.chat.focus'));
+		void chat.analyseOffer().then(files => { if (files) { void chat.openLounge(); } });
 	} else {
 		// No project open: show Home instead of an empty window.
 		void vscode.commands.executeCommand('workbench.action.closeSidebar');

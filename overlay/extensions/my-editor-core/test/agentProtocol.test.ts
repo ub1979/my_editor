@@ -23,6 +23,10 @@ test('agent protocol groups independent reads but never writes or test runs', ()
 	assert.equal(parseAgentStep('{"action":"tools","calls":[{"name":"read_file","arguments":{"path":"a.go"}},{"name":"propose_file","arguments":{"path":"a.go","content":"new"}}]}'), undefined);
 	assert.equal(parseAgentStep('{"action":"tools","calls":[{"name":"read_file","arguments":{"path":"a.go"}},{"name":"run_tests","arguments":{"command":"npm test"}}]}'), undefined);
 	assert.equal(parseAgentStep('{"action":"tools","calls":[{"name":"read_file","arguments":{"path":"a.go"}},{"name":"observe","arguments":{"id":"cell_a_live"}}]}'), undefined);
+	assert.equal(parseAgentStep('{"action":"tools","calls":[{"name":"search","arguments":{"query":"header"}},{"name":"open_files","arguments":{"locations":[{"path":"src/a.ts","line":5}]}}]}'), undefined);
+	assert.deepEqual(parseAgentStep('{"action":"tool","name":"open_files","arguments":{"locations":[{"path":"src/a.ts","line":5}]}}'), {
+		action: 'tool', name: 'open_files', arguments: { locations: [{ path: 'src/a.ts', line: 5 }] },
+	});
 	assert.deepEqual(parseAgentStep('{"action":"tool","name":"observe","arguments":{"id":"cell_a_live"}}'), {
 		action: 'tool', name: 'observe', arguments: { id: 'cell_a_live' },
 	});

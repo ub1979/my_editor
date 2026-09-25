@@ -2,11 +2,12 @@
 /* Rendering */
 
 function renderWelcome() {
+	const chosen = activeCharacter();
 	const groups = ['Plan', 'Build', 'Fix', 'Your skills'];
 	const box = el('section', { class: 'welcome' }, [
-		el('div', { class: 'hello' }, [avatar(true), el('div', {}, [
-			el('h1', {}, [state.messages.length ? 'Pick a skill' : 'Hi, I’m your pair.']),
-			el('p', {}, [state.project ? `What shall we work on in ${state.project}?` : 'Open a project and we can start.']),
+		el('div', { class: 'hello' }, [avatar(false, chosen.id), el('div', { class: 'welcome-bubble' }, [
+			el('h1', {}, [showSkills ? `What shall ${chosen.name} help with?` : chosen.greeting]),
+			el('p', {}, [state.project ? `Working with ${state.project}` : 'Open a project and we can start.']),
 		])]),
 	]);
 	if (state.project && !state.messages.length) {
@@ -14,6 +15,16 @@ function renderWelcome() {
 	}
 	if (state.offer) {
 		box.append(renderOffer(state.offer));
+	}
+	if (!showSkills) {
+		const shortcuts = el('div', { class: 'welcome-shortcuts' });
+		for (const [label, id] of [['Find a change', 'locate'], ['Plan a change', 'architecture'], ['Review code', 'review'], ['Find a bug', 'skill:debug']]) {
+			const button = el('button', { type: 'button', class: 'pill', title: label }, [label]);
+			button.addEventListener('click', () => vscode.postMessage({ type: 'skill', id }));
+			shortcuts.append(button);
+		}
+		box.append(shortcuts);
+		return box;
 	}
 	for (const group of groups) {
 		const cards = state.skills.filter(s => s.group === group);
@@ -126,7 +137,7 @@ function renderMessage(message) {
 		}
 		body.append(box);
 	}
-	return el('div', { class: 'message assistant', 'data-id': message.id }, [avatar(), body]);
+	return el('div', { class: 'message assistant', 'data-id': message.id }, [avatar(false, message.characterId ?? 'bamboo'), body]);
 }
 
 function htmlFragment(html) {

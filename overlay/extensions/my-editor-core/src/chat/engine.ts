@@ -25,6 +25,8 @@ import { ObservationRunner } from './observationRunner';
 import { currentProjectStatus } from '../project/contextStatus';
 import { describeProjectStatus } from '../project/contextStatusText';
 import { recentInvestigationContext } from './investigationJournal';
+import { characterPrompt } from './characters';
+import type { ActiveFile } from './activeFile';
 
 const HISTORY_TURNS = 16;
 
@@ -58,6 +60,10 @@ export interface RunInput {
 	readonly chatArchive?: readonly Turn[];
 	/** Stable id of the user's request, used for its durable investigation record. */
 	readonly requestId?: string;
+	readonly characterId?: string;
+	/** Find and open relevant source before discussing a change; no file proposals in this turn. */
+	readonly locateOnly?: boolean;
+	readonly activeFile?: ActiveFile;
 }
 
 export interface RunResult {
@@ -100,6 +106,8 @@ export class PairEngine {
 		const parsed = /^\/([\w:-]+)\s*([\s\S]*)$/.exec(input.text.trim());
 		let modeId = parsed ? parsed[1] : input.mode ?? 'chat';
 		let prompt = parsed ? parsed[2] : input.text;
+		const locateOnly = input.locateOnly || modeId === 'locate';
+		if (modeId === 'locate') { modeId = 'chat'; }
 
 		if (modeId === 'impact') {
 			await this.impact(prompt, sink);
@@ -138,7 +146,7 @@ export class PairEngine {
 
 		let file: FileContext | undefined;
 		try {
-			file = await currentFile();
+			file = await currentFile(input.activeFile);
 		} catch (err) {
 			sink.error(err instanceof Error ? err.message : String(err));
 			return { mode: mode.id, reply: '' };
@@ -191,8 +199,8 @@ export class PairEngine {
 			{ role: 'user', text: `${subject}\n\nRequest: ${request}` },
 		];
 		if (mode.id === 'chat') {
-			const reply = await runPairAgent({ entry, input, initial: turns, conventions, brain,
-				projectStatus: describeProjectStatus(projectState), projectState, availableObservations,
+			const reply = await runPairAgent({ entry, input: { ...input, locateOnly }, initial: turns, conventions, brain,
+			projectStatus: describeProjectStatus(projectState), projectState, availableObservations,
 				previousInvestigations, sink, token, keys: this.keys, proposals: this.proposals,
 				observations: this.observations });
 			void logExchange({ mode: mode.id, model: entry.label, file: file?.relativePath, prompt: input.kickoff ? '(started)' : prompt, reply });
@@ -203,7 +211,7 @@ export class PairEngine {
 		let shown = 0;
 		let writing = false;
 		await streamModel(entry, this.keys, {
-			system: [systemPrompt(mode, conventions, brain, vscode.workspace.workspaceFolders?.[0]?.uri.fsPath), describeProjectStatus(projectState), input.memory ? `Working brief from earlier turns (refresh facts against the current brain, source and Git):\n${input.memory}` : ''].filter(Boolean).join('\n\n'),
+			system: [systemPrompt(mode, conventions, brain, vscode.workspace.workspaceFolders?.[0]?.uri.fsPath), characterPrompt(input.characterId), describeProjectStatus(projectState), input.memory ? `Working brief from earlier turns (refresh facts against the current brain, source and Git):\n${input.memory}` : ''].filter(Boolean).join('\n\n'),
 			turns: mergeTurns(turns),
 			token,
 			reasoningEffort: entry.provider === 'codex-cli' ? configuredReasoningEffort() : undefined,

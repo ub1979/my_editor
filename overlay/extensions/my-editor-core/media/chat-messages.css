@@ -1,0 +1,265 @@
+/* Messages */
+
+.message {
+	display: flex;
+	gap: 8px;
+	margin: 14px 0;
+}
+
+.message.user {
+	flex-direction: column;
+	align-items: flex-end;
+}
+
+.message.user .bubble {
+	max-width: 88%;
+	padding: 8px 12px;
+	border-radius: var(--radius) var(--radius) 4px var(--radius);
+	background: var(--bubble);
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}
+
+.chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	padding: 1px 8px;
+	border-radius: 999px;
+	background: var(--accent-soft);
+	color: var(--accent);
+	font-size: 11px;
+	font-weight: 600;
+}
+
+.message.assistant .body {
+	flex: 1;
+	min-width: 0;
+	padding: 10px 12px;
+	border-radius: 4px var(--radius) var(--radius) var(--radius);
+	background: var(--surface);
+}
+
+.message.assistant .avatar {
+	margin-top: 2px;
+}
+
+.markdown > :first-child {
+	margin-top: 0;
+}
+
+.markdown > :last-child {
+	margin-bottom: 0;
+}
+
+.markdown p, .markdown ul, .markdown ol {
+	margin: 0 0 8px;
+}
+
+.markdown ul, .markdown ol {
+	padding-left: 18px;
+}
+
+.markdown li + li {
+	margin-top: 3px;
+}
+
+.markdown h1, .markdown h2, .markdown h3 {
+	margin: 12px 0 6px;
+	font-family: var(--serif);
+	font-weight: 500;
+}
+
+.markdown h1 { font-size: 18px; }
+.markdown h2 { font-size: 16px; }
+.markdown h3 { font-size: 14px; }
+
+.markdown code {
+	padding: 1px 5px;
+	border-radius: 5px;
+	background: var(--accent-soft);
+	color: var(--vscode-textPreformat-foreground, #e8bd6c);
+	font-family: var(--mono);
+	font-size: 12px;
+}
+
+.markdown pre {
+	margin: 8px 0;
+	padding: 10px 12px;
+	border-radius: 10px;
+	background: var(--vscode-textCodeBlock-background, #20241b);
+	overflow-x: auto;
+}
+
+.markdown pre code {
+	padding: 0;
+	background: none;
+	color: var(--text);
+}
+
+.markdown a {
+	color: var(--vscode-textLink-foreground, #e8bd6c);
+}
+
+.markdown blockquote {
+	margin: 8px 0;
+	padding-left: 10px;
+	border-left: 2px solid var(--line);
+	color: var(--muted);
+}
+
+.typing {
+	display: inline-flex;
+	gap: 4px;
+	padding: 4px 0;
+}
+
+.typing span {
+	width: 6px;
+	height: 6px;
+	border-radius: 50%;
+	background: var(--muted);
+	opacity: 0.5;
+}
+
+.progress {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-top: 8px;
+	color: var(--muted);
+	font-size: 12px;
+}
+
+.progress .spinner {
+	width: 12px;
+	height: 12px;
+	border: 2px solid var(--line);
+	border-top-color: var(--accent);
+	border-radius: 50%;
+}
+
+.error {
+	display: flex;
+	gap: 8px;
+	margin-top: 8px;
+	padding: 8px 10px;
+	border: 1px solid color-mix(in srgb, var(--removed) 45%, var(--line));
+	border-radius: 10px;
+	color: var(--text);
+}
+
+.error svg {
+	color: var(--removed);
+	margin-top: 2px;
+}
+
+/* A proposed change */
+
+.proposal {
+	margin-top: 10px;
+	padding: 10px 12px;
+	border: 1px solid var(--line);
+	border-radius: 12px;
+	background: var(--bg);
+}
+
+.proposal .head {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-width: 0;
+}
+
+.proposal .file {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	font-family: var(--mono);
+	font-size: 12px;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.proposal button.file {
+	padding: 0;
+	border: 0;
+	background: none;
+	color: var(--vscode-textLink-foreground, #e8bd6c);
+	text-align: left;
+	text-decoration: underline;
+	text-decoration-color: color-mix(in srgb, currentColor 40%, transparent);
+	text-underline-offset: 3px;
+}
+
+.proposal .counts {
+	font-family: var(--mono);
+	font-size: 12px;
+	white-space: nowrap;
+}
+
+.counts .plus { color: var(--added); }
+.counts .minus { color: var(--removed); }
+
+.proposal .buttons {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	margin-top: 10px;
+}
+.proposal .pill {
+	min-height: 26px;
+	padding: 3px 10px;
+	font-size: 12px;
+}
+
+.proposal .pill svg.icon {
+	width: 14px;
+	height: 14px;
+}
+
+.pill {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	min-height: 28px;
+	padding: 4px 12px;
+	border: 1px solid var(--line);
+	border-radius: 999px;
+	background: transparent;
+	font-weight: 600;
+}
+
+.pill:hover {
+	background: var(--surface-2);
+}
+
+.pill.primary {
+	border-color: transparent;
+	background: var(--accent);
+	color: var(--on-accent);
+}
+
+.pill.primary:hover {
+	filter: brightness(1.08);
+}
+
+.proposal .state {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	margin-top: 8px;
+	color: var(--muted);
+	font-size: 12px;
+}
+
+.proposal .state.kept {
+	color: var(--added);
+}
+
+.actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	margin-top: 10px;
+}

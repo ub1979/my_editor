@@ -23,6 +23,7 @@ const BUILT_IN: SkillCard[] = [
 	{ id: 'tree', title: 'Plan the files', blurb: 'Map every file before writing it', group: 'Plan', icon: 'tree', start: 'kickoff' },
 	{ id: 'brainstorm', title: 'Brainstorm', blurb: 'Explore approaches together', group: 'Plan', icon: 'bulb', start: 'kickoff' },
 	{ id: 'changes', title: 'Change history', blurb: 'See commits, current edits and likely downstream files', group: 'Plan', icon: 'history', start: 'run' },
+	{ id: 'locate', title: 'Find a change', blurb: 'Find the files and exact lines before deciding how to edit', group: 'Build', icon: 'file', start: 'compose', placeholder: 'What do you want to change?' },
 	{ id: 'next', title: 'Next step', blurb: 'I write the next small piece; you review it', group: 'Build', icon: 'step', start: 'compose', placeholder: 'What should the next step be? Or say "go".', needsFile: true },
 	{ id: 'feature', title: 'Add a feature', blurb: 'One feature in this file, nothing else', group: 'Build', icon: 'plus', start: 'compose', placeholder: 'Describe the feature to add', needsFile: true },
 	{ id: 'change', title: 'Change selection', blurb: 'Rewrite only the lines you selected', group: 'Build', icon: 'edit', start: 'compose', placeholder: 'How should the selected lines change?', needsFile: true },
