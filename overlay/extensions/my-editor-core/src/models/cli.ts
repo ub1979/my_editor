@@ -49,6 +49,7 @@ function runCli(
 		let stderr = '';
 		let failure: string | undefined;
 		let gotText = false;
+		let searching = false;
 		const stop = () => child.kill('SIGTERM');
 		const cancel = request.token.onCancellationRequested(stop);
 		const timer = setTimeout(() => {
@@ -57,7 +58,18 @@ function runCli(
 		}, TIMEOUT_MS);
 		const handle = (line: string) => {
 			const event = parse(line);
+			if (event.activity) {
+				searching = true;
+				request.onActivity?.(event.activity);
+			}
+			if (event.newBlock && gotText) {
+				request.onText('\n\n');
+			}
 			if (event.text) {
+				if (searching) {
+					searching = false;
+					request.onActivity?.('');
+				}
 				gotText = true;
 				request.onText(event.text);
 			}
@@ -108,8 +120,9 @@ function scratchDir(): string {
 
 /**
  * Claude through the user's Claude Code login (subscription). Same guard rails as Lyra's claude-cli
- * provider: no tools, no MCP, no settings, no saved session, and API-key variables removed so billing
- * never silently switches from the subscription to an API account.
+ * provider: no MCP, no settings, no saved session, and API-key variables removed so billing never silently
+ * switches from the subscription to an API account. Its only tools are web search and page reading, and
+ * only when the request allows web access; it never gets file, shell or edit tools.
  */
 export function streamClaudeCli(command: string, request: StreamRequest): Promise<void> {
 	const env = { ...process.env };
@@ -119,21 +132,26 @@ export function streamClaudeCli(command: string, request: StreamRequest): Promis
 	const args = [
 		'--print', '--output-format', 'stream-json', '--include-partial-messages', '--verbose',
 		'--no-session-persistence', '--safe-mode', '--permission-mode', 'dontAsk',
-		'--tools', '', '--strict-mcp-config', '--setting-sources=',
+		...claudeToolArgs(!!request.webAccess), '--strict-mcp-config', '--setting-sources=',
 		'--system-prompt', request.system ?? '',
 		...(request.entry.model !== 'default' ? ['--model', request.entry.model] : []),
 	];
 	return runCli('claude-cli', command, args, transcript(request.turns), scratchDir(), env, parseClaudeLine, request);
 }
 
+export function claudeToolArgs(webAccess: boolean): string[] {
+	return webAccess ? ['--tools', 'WebSearch,WebFetch', '--allowedTools', 'WebSearch', 'WebFetch'] : ['--tools', ''];
+}
+
 /**
  * GPT through the user's Codex login (ChatGPT subscription): `codex exec` in a read-only sandbox, in an
  * empty folder, without saving a session, and with the user's MCP servers, plugins, apps, browser and
- * computer use switched off. Pair chat can ask the editor host for its bounded project tools; the Codex
+ * computer use switched off. Web access adds only Codex's hosted web search. Pair chat can ask the editor host for its bounded project tools; the Codex
  * process itself cannot operate on the workspace. Replies arrive whole rather than word by word.
  */
 export function streamCodexCli(command: string, request: StreamRequest): Promise<void> {
 	const args = [
+		...(request.webAccess ? ['--search'] : []),
 		'exec', '--json', '--ephemeral', '--skip-git-repo-check', '--sandbox', 'read-only', '--color', 'never',
 		'--disable', 'browser_use', '--disable', 'computer_use', '--disable', 'apps',
 		'--disable', 'plugins', '--disable', 'remote_plugin', '-c', 'mcp_servers={}',

@@ -2,6 +2,10 @@
 
 my_editor uses the version in `overlay/extensions/my-editor-core/package.json` as its own release number. The Home page displays that version. The underlying editor shell keeps its upstream version independently.
 
+## Unreleased
+
+- Pair can search the web and read pages with the Claude and Codex subscription models, in every skill including Requirements, Architecture and Plan the files. It is told to look up unfamiliar products, models and terms before asking the user, and to name its sources. Claude gets only its WebSearch and WebFetch tools; Codex gets only its hosted web search. The progress line shows each search. Turn it off with `myEditor.pair.webAccess`. Local and API-key models are unchanged.
+
 ## 0.0.6 alpha — 2026-09-25 (source commit; app verification pending)
 
 - Added a centered Pair chat with seven original animal specialists, automatic task and project-stage selection, and a manual pin. The right sidebar remains available; characters share the same model, tools, and review rules.

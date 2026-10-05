@@ -28,6 +28,10 @@ export interface StreamRequest {
 	readonly token: vscode.CancellationToken;
 	readonly onText: (text: string) => void;
 	readonly reasoningEffort?: 'low' | 'medium' | 'high' | 'xhigh';
+	/** Lets a subscription CLI use its own web search and page reading. Other providers ignore it. */
+	readonly webAccess?: boolean;
+	/** What the model process is doing between replies, such as a web search; empty when it writes again. */
+	readonly onActivity?: (label: string) => void;
 }
 
 export class ProviderError extends Error {

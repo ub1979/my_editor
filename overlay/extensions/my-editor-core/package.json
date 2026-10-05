@@ -236,6 +236,12 @@
           "default": "",
           "markdownDescription": "Model for the navigator as `provider:model`. Empty: a local Ollama model, else Claude Haiku 4.5, else the default model."
         },
+        "myEditor.pair.webAccess": {
+          "type": "boolean",
+          "default": true,
+          "scope": "machine",
+          "markdownDescription": "Let Pair search the web and read web pages when it uses a Claude or Codex subscription model. Searches use the model's own tools; other models are unchanged. Only settable in user settings, so a project cannot turn it on."
+        },
         "myEditor.claudeCli.enabled": {
           "type": "boolean",
           "default": true,

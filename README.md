@@ -66,10 +66,13 @@ All documentation is listed in [`docs/README.md`](docs/README.md). Start with:
   Go and C/C++ (clangd). Pinned in `overlay/bundled-extensions.json`, checksum-verified at build time.
 - **Models** — pick with **my_editor: Choose Default Model** (or *Change* in the Project view):
   - **Claude subscription** through your Claude Code login (`claude` CLI): Opus, Sonnet, Haiku. The CLI runs
-    without its own tools, MCP or saved session; Pair's host tools are available in chat. API-key variables are
-    removed so billing never switches silently.
+    without file, shell or edit tools, MCP or a saved session; Pair's host tools are available in chat. API-key
+    variables are removed so billing never switches silently.
   - **ChatGPT subscription** through your Codex login (`codex exec`, read-only sandbox, empty working folder).
     Pair's project tools run in the editor host.
+  - **Web research:** with either subscription, every Pair skill (Requirements, Architecture, chat, Review and the
+    rest) can search the web and read pages with the model's own tools, and the progress line shows each search.
+    Turn it off with the `myEditor.pair.webAccess` setting. Local and API-key models don't search yet.
   - **Local:** Ollama and LM Studio, listed whenever their servers are running.
   - **API keys** (kept in the macOS keychain): Anthropic, OpenAI, OpenRouter, any OpenAI-compatible URL.
 - **Visual project maps:** in Project, open **Architecture map** to see parts and their code links, or **File tree** to browse and search planned files. Both read the saved `.my_editor/specs/` documents.

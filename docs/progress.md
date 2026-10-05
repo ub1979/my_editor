@@ -46,6 +46,7 @@ Status of the requirements in [`plans/my_editor-plan-v2.md`](plans/my_editor-pla
 | FR-086 | One responsibility per source file, one class per file where relevant, and a 400-line maximum for human and AI changes | 🟡 | AI proposals and Keep are rejected above 400 lines or with multiple top-level classes. Human edits get diagnostics and a VSCodium core save gate. The core patch needs full-build validation; guided splits remain open. |
 | FR-087 | Helpful Pair characters switch with task and project, with manual override | 🟡 | Seven original mascots and source routing are implemented; live editor validation remains open. Manual choice pins the voice until Auto or a project folder change. |
 | FR-088 | Find likely change sites and open relevant files near exact lines | 🟡 | `/locate`, a Find a change card, and host-verified tab opening are implemented; real-project search quality and UI behavior need live validation. |
+| FR-089 | Pair researches on the web before asking or advising (5 October 2026) | 🟡 | Claude and Codex subscription models use their own web search in every skill; checked from the extension's CLI code with both, not yet in the running app. Local and API-key models have no search. `myEditor.pair.webAccess` turns it off. |
 
 ### Other work after v0.1
 
@@ -76,7 +77,7 @@ Status of the requirements in [`plans/my_editor-plan-v2.md`](plans/my_editor-pla
 - Whole-file edits refuse files over 60k characters (the model only sees part of them).
 - Program paths and server URLs are user-level only; verified that a project's `.vscode/settings.json` cannot run a planted program.
 - The navigator skips `.env`/key files and redacts secrets before sending.
-- Codex runs without browser/computer use, apps, plugins or MCP servers.
+- Codex runs without browser/computer use, apps, plugins or MCP servers. Since 5 October, Pair may enable its hosted web search (and Claude's WebSearch/WebFetch), unless `myEditor.pair.webAccess` is off.
 - Replies that elide code ("… existing code …") are refused instead of applied.
 
 ## Known issues

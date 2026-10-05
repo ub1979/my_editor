@@ -27,6 +27,7 @@ import { describeProjectStatus } from '../project/contextStatusText';
 import { recentInvestigationContext } from './investigationJournal';
 import { characterPrompt } from './characters';
 import { usesProjectTools } from './projectToolPolicy';
+import { pairWebAccess, WEB_ACCESS_NOTE } from '../models/webAccess';
 import type { ActiveFile } from './activeFile';
 
 const HISTORY_TURNS = 16;
@@ -214,11 +215,13 @@ export class PairEngine {
 		let reply = '';
 		let shown = 0;
 		let writing = false;
+		const web = pairWebAccess(entry);
 		await streamModel(entry, this.keys, {
-			system: [systemPrompt(mode, conventions, brain, vscode.workspace.workspaceFolders?.[0]?.uri.fsPath), characterPrompt(input.characterId), describeProjectStatus(projectState), input.memory ? `Working brief from earlier turns (refresh facts against the current brain, source and Git):\n${input.memory}` : ''].filter(Boolean).join('\n\n'),
+			system: [systemPrompt(mode, conventions, brain, vscode.workspace.workspaceFolders?.[0]?.uri.fsPath), characterPrompt(input.characterId), web ? WEB_ACCESS_NOTE : '', describeProjectStatus(projectState), input.memory ? `Working brief from earlier turns (refresh facts against the current brain, source and Git):\n${input.memory}` : ''].filter(Boolean).join('\n\n'),
 			turns: mergeTurns(turns),
 			token,
 			reasoningEffort: entry.provider === 'codex-cli' ? configuredReasoningEffort() : undefined,
+			webAccess: web, onActivity: label => sink.progress(label),
 			onText: chunk => {
 				reply += chunk;
 				if (mode!.writes === 'none') {

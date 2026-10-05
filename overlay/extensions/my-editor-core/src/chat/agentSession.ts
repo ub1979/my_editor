@@ -16,6 +16,7 @@ import { configuredReasoningEffort, mergeTurns } from './modelTurns';
 import { ObservationRunner } from './observationRunner';
 import { characterPrompt } from './characters';
 import { mayProposeFile } from './projectToolPolicy';
+import { pairWebAccess, WEB_ACCESS_NOTE } from '../models/webAccess';
 
 export interface AgentSessionOptions {
 	readonly entry: ModelEntry;
@@ -41,6 +42,7 @@ export async function runPairAgent(options: AgentSessionOptions): Promise<string
 	const tools = new AgentTools(proposals, token, observations);
 	const chatArchive = input.chatArchive ?? initial.slice(0, -1);
 	const evidence: EvidenceEntry[] = [];
+	const web = pairWebAccess(entry);
 	const system = [
 			systemPrompt(options.mode, conventions, brain, vscode.workspace.workspaceFolders?.[0]?.uri.fsPath),
 			characterPrompt(input.characterId),
@@ -52,6 +54,7 @@ export async function runPairAgent(options: AgentSessionOptions): Promise<string
 		input.locateOnly ? 'This turn is a change map. Search and read the current project, follow relevant callers and tests, and open the best matching files at verified lines with open_files. Report the file count, path:line, why each matters, and any search coverage limit. Discuss the approach with the developer. Do not propose or edit code in this turn.' : '',
 		options.mode.id === 'review' ? 'This is a read-only review. Use project tools to inspect current source behind technical claims in the open file. Cite the paths and lines checked. Separate an observed design choice from a guessed motive; when evidence is missing, say exactly what could not be checked. Do not propose or edit files.' : '',
 		chatArchiveIndex(chatArchive),
+		web ? WEB_ACCESS_NOTE : '',
 		AGENT_INSTRUCTION,
 	].filter(Boolean).join('\n\n');
 	const last = await runAgentLoop({
@@ -68,6 +71,7 @@ export async function runPairAgent(options: AgentSessionOptions): Promise<string
 				].filter(Boolean).join('\n\n'),
 				turns: mergeTurns(turns), token,
 				reasoningEffort: entry.provider === 'codex-cli' ? configuredReasoningEffort() : undefined,
+				webAccess: web, onActivity: label => { if (label) { sink.progress(label); } },
 				onText: chunk => { response += chunk; },
 			});
 			return response;
