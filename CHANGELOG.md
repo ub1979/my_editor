@@ -48,4 +48,4 @@ my_editor uses the version in `overlay/extensions/my-editor-core/package.json` a
 - Added visual architecture and file maps, source-aware project chat, conversation continuity, and Git change history and impact views.
 - Added a Codex reasoning selector and made the full-width editor the first-run layout default.
 
-For each release, bump the core package version and lockfile together, update this changelog, then tag the commit.
+For each release, bump the core package version and lockfile together, update this changelog, then tag the commit. The full steps are in [docs/development.md](docs/development.md#releasing).

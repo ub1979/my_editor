@@ -8,12 +8,20 @@ calm, writing-first interface.
 programmer that consults them before coding, helps them spot and understand problems while they code, and
 offers changes they can review. The product aims for sound design, useful comments, focused files, and a
 400-line maximum for source files. The current source adds review choices, AI proposal checks, and a
-VSCodium save gate for human edits. The editor patch still needs a full build and live validation;
+VSCodium save gate for human edits. These are built into the installed app but still need live checks;
 see [vision, mission, and status](docs/vision-and-status.md).
 
-The plan and requirements are in [`docs/plans/my_editor-plan-v2.md`](docs/plans/my_editor-plan-v2.md).
-The current aim, objectives, and status are in [`docs/vision-and-status.md`](docs/vision-and-status.md).
-Decisions are in [`docs/decisions/`](docs/decisions/). Screenshots are in [`docs/screens/`](docs/screens/).
+All documentation is listed in [`docs/README.md`](docs/README.md). Start with:
+
+- [`docs/vision-and-status.md`](docs/vision-and-status.md): aim, objectives, and current status
+- [`docs/plans/my_editor-plan-v2.md`](docs/plans/my_editor-plan-v2.md): the plan and requirements
+- [`docs/development.md`](docs/development.md): how the build works, tests, and releasing
+- [`docs/patches.md`](docs/patches.md): the core VS Code patches and why each exists
+- [`CHANGELOG.md`](CHANGELOG.md), [`docs/decisions/`](docs/decisions/), [`docs/screens/`](docs/screens/)
+
+![Pair proposes a change; review it in the diff, then Keep or Undo](docs/screens/pair-review.png)
+
+![Home lists your projects and their stage](docs/screens/home.png)
 
 ## What works today
 
@@ -77,7 +85,7 @@ Decisions are in [`docs/decisions/`](docs/decisions/). Screenshots are in [`docs
 
 ## Build and run (macOS)
 
-Needs Node 24, Xcode command-line tools, `jq`, and about 20 GB of free disk.
+Needs Node 24, Xcode command-line tools, `jq`, Python 3, and about 20 GB of free disk.
 
 ```bash
 scripts/build.sh            # first build: fetches VSCodium + VS Code, ~15 min
@@ -87,6 +95,7 @@ scripts/install.sh          # quick: compile built-in extensions, then install
 scripts/install.sh --full   # rebuild the whole editor and apply core patches, then install
 ```
 
+Both install options copy the app to `/Applications/my_editor.app`.
 Run `scripts/install.sh` by itself for fast Pair, Project, and theme updates in the existing app bundle.
 Use `scripts/install.sh --full` for editor core patches, such as the save-time 400-line gate, or when no
 app has been built yet. The full option compiles VSCodium and takes much longer. Both options stop if
@@ -100,15 +109,26 @@ is only the build workspace; delete it to free space, and the next build downloa
 ```
 overlay/                 everything my_editor adds on top of VSCodium
   product.json           name, ids and the calm default settings
-  patches/NNN-*.patch    the few core changes (see each file's header)
+  patches/NNN-*.patch    the few core changes (listed in docs/patches.md)
+  bundled-extensions.json  pinned language extensions, sha256-checked at build time
   extensions/
-    my-editor-core/      pair, models, brain, navigator, project view, skills
-    my-editor-look/      the Paper and Night themes
-  src/                   resource overrides (app icon, empty-editor mark)
-scripts/                 build.sh, fetch-vscodium.sh, run.sh, gen-themes.py
+    my-editor-core/      pair, models, brain, navigator, home, project view, skills
+    my-editor-look/      the Paper and Night themes and file icons
+  src/                   resource overrides (app icon, empty-editor mark, workbench CSS)
+scripts/
+  build.sh               full build (--reuse to skip the source download)
+  install.sh             quick or --full install to /Applications
+  run.sh                 open the built app
+  fetch-vscodium.sh      check out the pinned VSCodium commit
+  fetch-extensions.py    download and verify the bundled language extensions
+  gen-themes.py, gen-icons.py  regenerate the themes and file icons
 upstream.json            the pinned VSCodium commit (VS Code 1.135.0)
+design/                  app icon sources
+docs/                    vision, status, plans, decisions, guides, screenshots
+roadmap.md               comparison with other editors and the roadmap
 vscodium/                the pinned checkout and build workspace (git-ignored, safe to delete)
 app/                     the finished my_editor.app (git-ignored)
+logs/                    build logs (git-ignored)
 ```
 
 VSCodium itself is never edited: `scripts/build.sh` copies the overlay into a pinned checkout and builds it.
@@ -125,3 +145,4 @@ npm test          # unit tests (node --test)
 
 To try a change without rebuilding the app, launch the built app with
 `--extensionDevelopmentPath=<path to the extension> --enable-proposed-api=my-editor.my-editor-core`.
+More detail, including the source map and the release steps, is in [`docs/development.md`](docs/development.md).

@@ -1,6 +1,6 @@
 # 0001 — Reuse the core chat and inline edit review
 
-**Date:** 2026-09-23 · **Status:** accepted · **Milestone:** M0 spike
+**Date:** 2026-09-23 · **Status:** accepted; chat half superseded by [0002](0002-own-chat-panel.md) · **Milestone:** M0 spike
 
 ## Question
 Plan §5.1 asked whether Code-OSS's built-in chat panel and inline edit review (accept/reject

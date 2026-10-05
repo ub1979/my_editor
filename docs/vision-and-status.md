@@ -1,7 +1,7 @@
 # my_editor: vision, mission, and current status
 
-- **As of:** 25 September 2026
-- **Current version:** 0.0.6 alpha source; installed-app verification pending
+- **As of:** 5 October 2026
+- **Current version:** 0.0.6 alpha, built and installed on 25 September; live checks of the new flows pending
 - **Stage:** Working macOS alpha; still being validated on real projects
 
 ## Vision
@@ -26,7 +26,7 @@ The central promise is **continuity with evidence**: Pair should remember the us
 - **Keep source files focused and short.** A source file has one clear responsibility. Where classes are used, keep one class per file. No human or AI code change should leave a source file above **400 lines**. Warn as it approaches the limit; at the limit, guide a split into cohesive files. Pair must not propose or Keep a change that crosses it. Existing oversized files need a guided refactor rather than further growth.
 - **Teach, do not take over.** The developer chooses whether to accept a suggestion, request a fix, or make the change by hand. Pair explains trade-offs and verification so the person can make an informed choice.
 
-These are product requirements. The current source now offers fix-or-guide actions for Navigator, comment, and structure findings. It rejects AI proposals and Keep actions that exceed 400 lines or contain multiple top-level classes in one file. Human edits receive live diagnostics; a VSCodium core patch blocks saves above 400 lines after save participants run. Comment guidance is advisory and does not insert code automatically. The core patch and new flow still need a full build and live app validation.
+These are product requirements. The current source now offers fix-or-guide actions for Navigator, comment, and structure findings. It rejects AI proposals and Keep actions that exceed 400 lines or contain multiple top-level classes in one file. Human edits receive live diagnostics; a VSCodium core patch blocks saves above 400 lines after save participants run. Comment guidance is advisory and does not insert code automatically. The core patch and new flow are built into the installed app and still need live checks.
 
 ## Who it serves
 
@@ -66,7 +66,7 @@ For a change, the desired record is: **request → affected requirements and fil
 
 ## What is built now
 
-The installed 0.0.5 alpha includes:
+The 0.0.5 alpha included:
 
 - A branded VSCodium editor for macOS arm64, with Paper and Night themes, a quieter workbench, a Home screen, and Project and Pair sidebars. Home can clone a repository at a chosen branch, including from a GitHub branch-page URL.
 - Guided requirements, architecture, file planning, brainstorming, file work, review, and QA entry points. Planned architecture and file trees have visual views.
@@ -77,13 +77,13 @@ The installed 0.0.5 alpha includes:
 - Claude and Codex subscription routes, local Ollama and LM Studio routes, and API-key routes. The model can be selected in the editor.
 - Pair can retrieve long earlier chat messages, search saved records, inspect current project and brain revisions, and request approved project observations. Proposal and investigation records link evidence to a chat request.
 
-The current unreleased extension source also adds a centered Pair chat with seven [original characters](characters-and-change-finder.md), task and project-stage switching, and a manual pin. A change-location request searches source and opens verified file lines for review before coding. The characters use the same model, context, permissions, and Keep/Undo review. The right sidebar remains available. Navigator, comment, and structure diagnostics can open Pair for a reviewed fix or manual guidance. Human edits receive 360-line warnings and 400-line errors, while AI proposals and Keep have a hard 400-line and one-class check. A VSCodium core patch adds a save-time 400-line check for human edits.
+Version 0.0.6 adds a centered Pair chat with seven [original characters](characters-and-change-finder.md), task and project-stage switching, and a manual pin. A change-location request searches source and opens verified file lines for review before coding. The characters use the same model, context, permissions, and Keep/Undo review. The right sidebar remains available. Navigator, comment, and structure diagnostics can open Pair for a reviewed fix or manual guidance. Human edits receive 360-line warnings and 400-line errors, while AI proposals and Keep have a hard 400-line and one-class check. A VSCodium core patch adds a save-time 400-line check for human edits.
 
 The detailed feature checklist is in [progress.md](progress.md). Release changes are in [CHANGELOG.md](../CHANGELOG.md); the original requirements and design decisions are in [my_editor-plan-v2.md](plans/my_editor-plan-v2.md).
 
 ## Where we are
 
-This is a usable **alpha**, not a finished large-project workflow. The current 0.0.6 extension source compiles and its automated tests pass. The earlier 0.0.5 extension was installed in an existing app bundle. A full editor rebuild on 23 September was blocked when Electron headers could not be downloaded. The 0.0.6 chat and guidance changes have not been validated in a running app; this workspace's app bundle currently fails to launch.
+This is a usable **alpha**, not a finished large-project workflow. The 0.0.6 extension compiles and its automated tests pass. On 25 September the app was rebuilt with all ten core patches, including the 400-line save gate, and installed in `/Applications`. The 0.0.6 chat and guidance changes have not yet been checked in live use.
 
 Current limits matter to the product promise:
 
@@ -92,7 +92,7 @@ Current limits matter to the product promise:
 - Test runs inspect the current workspace. A proposal must be Kept before those tests verify its code. Unkept proposals expire on app restart.
 - Change impact is a useful dependency hint. Proposal and investigation records exist, but a complete change record linking requirements, checks, decisions, and commits is still to be built.
 - The interface and model routes need more live use across different projects, providers, and window layouts.
-- Navigator reviews changed lines on save and can suggest evidenced performance, style, design, and comment issues as well as likely mistakes. Comment guidance is advisory. The Quick Fix choices, AI proposal gate, and core save patch are implemented in source but need app validation. Focused responsibility and design patterns also need judgment rather than a simple automatic rule.
+- Navigator reviews changed lines on save and can suggest evidenced performance, style, design, and comment issues as well as likely mistakes. Comment guidance is advisory. The Quick Fix choices, AI proposal gate, and core save patch are in the installed app but still need live checks. Focused responsibility and design patterns also need judgment rather than a simple automatic rule.
 
 ## Next objectives
 

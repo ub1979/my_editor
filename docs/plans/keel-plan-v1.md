@@ -3,7 +3,7 @@
 
 **Author:** Syed Sheheryar Bukhari
 **Date:** 23 September 2026
-**Status:** Draft for review
+**Status:** Superseded by [my_editor plan v2](my_editor-plan-v2.md); kept for history
 **Working name:** Keel *(the spine a build is laid on — verify availability on Open VSX and the VS Code Marketplace before committing)*
 
 ---

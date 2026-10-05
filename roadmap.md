@@ -1,6 +1,6 @@
 # my_editor comparison and roadmap
 
-**As of 24 September 2026.** This compares my_editor's current macOS alpha with **Cursor's editor** and **Google Antigravity IDE**. Antigravity 2.0 is a separate agent manager and is outside this comparison. Competitor entries describe documented capabilities, not hands-on test results. my_editor entries use the [current product status](docs/vision-and-status.md), [feature checklist](docs/progress.md), and recent clone-flow work. A feature marked *built* still needs an end-to-end check in the installed app before it is treated as reliable.
+**As of 24 September 2026; build status refreshed 5 October.** This compares my_editor's current macOS alpha with **Cursor's editor** and **Google Antigravity IDE**. Antigravity 2.0 is a separate agent manager and is outside this comparison. Competitor entries describe documented capabilities, not hands-on test results. my_editor entries use the [current product status](docs/vision-and-status.md), [feature checklist](docs/progress.md), and recent clone-flow work. A feature marked *built* still needs an end-to-end check in the installed app before it is treated as reliable.
 
 ## Aim
 
@@ -25,7 +25,7 @@ The product promise is **continuity with evidence**. Pair should know which proj
 
 ## Current baseline and limits
 
-- The source identifies as **0.0.6 alpha**; the installed app still needs rebuilding and verification. The app has been tested only on macOS arm64. This source version is not release-tagged.
+- The source identifies as **0.0.6 alpha**; the app was rebuilt and installed on 25 September and still needs live verification. The app has been tested only on macOS arm64. This source version is not release-tagged.
 - Home, Project, Pair, guided planning, brain analysis, visual maps, model selection, diff review, Navigator, and some QA paths are built. Their existence does not establish that the complete workflow is reliable on a large real project.
 - The private `go-dialer` branch was cloned and Git confirmed its branch and commit. The clone naming and destination flow confused the user. A clearer editable-name prompt has been compiled and copied into the installed app, but that revised prompt has **not** been verified by the user in the UI.
 - The project brain has file-size and run limits. Pair's long-chat continuity, large-repository retrieval, complete multi-file edit loop, and restart behavior still need end-to-end checks. Change impact is a hint; a linked request-to-commit record is not complete.

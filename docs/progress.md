@@ -8,8 +8,8 @@ Status of the requirements in [`plans/my_editor-plan-v2.md`](plans/my_editor-pla
 | ID | Requirement | Status | Notes |
 |---|---|---|---|
 | FR-001 | Build from VSCodium as my_editor, macOS arm64 | ✅ | `scripts/build.sh`; ~8 min with `--reuse` |
-| FR-002 | Built-in extensions + numbered core patches on a pinned tag | ✅ | 6 patches in `overlay/patches/` |
-| FR-003 | Open VSX; basedpyright | ✅ | Offered once per Python workspace (installed from Open VSX, not bundled) |
+| FR-002 | Built-in extensions + numbered core patches on a pinned tag | ✅ | 10 patches in `overlay/patches/`, listed in [patches.md](patches.md) |
+| FR-003 | Open VSX; basedpyright | ✅ | Bundled: pinned in `overlay/bundled-extensions.json` and sha256-checked from Open VSX at build time, with Python, Rust, Go and C/C++ support |
 | FR-010 | Providers | 🟡 | Claude CLI (subscription), Codex CLI, Ollama and LM Studio **tested live in the app**; Anthropic/OpenAI/OpenRouter API keys written but untested (no keys here) |
 | FR-011 | Subscription route | ✅ | `claude` and `codex` CLIs, Lyra-style guard rails |
 | FR-012 | Model per job | 🟡 | Chat uses the picked model; navigator picks local → Haiku → default |
@@ -26,9 +26,9 @@ Status of the requirements in [`plans/my_editor-plan-v2.md`](plans/my_editor-pla
 | FR-036 | Brain hand-editable | ✅ | Notes outside the auto markers and `note` fields survive rebuilds |
 | FR-041 | Chat history, secrets redacted | ✅ | `.my_editor/chats/`, code collapsed to keep git small |
 | FR-050 | Chat aware of file, selection, problems, brain | ✅ | |
-| FR-051 | Help modes | ✅ | `/file /feature /change /next /explain /review /brainstorm` |
-| FR-052 | Every AI edit is a diff with keep/undo per hunk | ✅ | Core chat editing (decision 0001) |
-| FR-053 | Nothing written before Keep | ✅ | Patch 140: proposed edits stay unsaved until Keep; stale-file check itself not tested |
+| FR-051 | Help modes | ✅ | `/file /feature /change /next /explain /why /review /qa /brainstorm /locate /impact`, plus `/requirements /architecture /tree` for planning |
+| FR-052 | Every AI edit is a diff with keep/undo per hunk | ✅ | Pair proposals in an in-memory file system, shown as an inline diff (decision 0002, which replaced the core chat of 0001) |
+| FR-053 | Nothing written before Keep | ✅ | Proposals live in memory until Keep (decision 0002); Keep warns if the file changed since, but that check is not tested |
 | FR-054 | Navigator on save, never edits | ✅ | Found a planted bug with a local model |
 | FR-055 | Mute per file/session; debounce | ✅ | Commands in the palette |
 | FR-056 | Driver: next step | ✅ | `/next` |
