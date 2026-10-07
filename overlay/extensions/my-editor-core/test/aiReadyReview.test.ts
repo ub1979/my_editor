@@ -1,6 +1,8 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
+import { fileStats } from '../src/aiready/health';
 import { excerpt, parseReview, reviewParts, ReviewPart } from '../src/aiready/healthReview';
+import { renderReport } from '../src/aiready/report';
 
 const numbered = (count: number) => Array.from({ length: count }, (_, i) => `line ${i + 1}`).join('\n');
 const LIMITS = { maxCalls: 40, fileChars: 6_000, callChars: 40_000 };
@@ -56,4 +58,29 @@ test('reviewParts marks the result partial when stopped', async () => {
 	const result = await reviewParts([part('a', 1)], async () => '[]', LIMITS, () => true);
 	assert.deepEqual(result.notReviewed, ['a']);
 	assert.equal(result.partial, true);
+});
+
+test('renderReport lists files, suggestions, unreviewed parts and the next step', () => {
+	const report = renderReport({
+		project: 'shop', date: '2026-10-07', model: 'Claude Sonnet',
+		stats: [fileStats('src/big.ts', 'x\n'.repeat(450))],
+		findings: [
+			{ kind: 'too-long', file: 'src/big.ts', text: '450 lines; the limit is 400.' },
+			{ kind: 'mixed-job', file: 'src/big.ts', line: 12, text: 'Parses and renders.', grouping: 'parse: a, b; render: c' },
+			{ kind: 'bug', file: 'src/big.ts', line: 40, text: 'Total ignores discounts.' },
+			{ kind: 'no-test-runner', text: 'No test command was found, so changes cannot be checked by tests yet.' },
+		],
+		commands: { languages: ['JavaScript/TypeScript'], checks: [], tests: [] },
+		review: { reviewed: ['src'], notReviewed: ['lib'], partial: true },
+	});
+	assert.match(report, /^# AI-ready health report: shop/);
+	assert.match(report, /stopped early/);
+	assert.match(report, /\| Over 400 lines \| 1 \|/);
+	assert.match(report, /### \[src\/big\.ts\]\(\.\.\/\.\.\/src\/big\.ts\)/);
+	assert.match(report, /\[src\/big\.ts:12\]\(\.\.\/\.\.\/src\/big\.ts#L12\)/);
+	assert.match(report, /Grouping: parse: a, b; render: c/);
+	assert.match(report, /Possible bug\*\* \[src\/big\.ts:40\]/);
+	assert.match(report, /## Not reviewed by the model\n\nlib\./);
+	assert.match(report, /No test command was found/);
+	assert.doesNotMatch(report, /\n\n\n/);
 });
