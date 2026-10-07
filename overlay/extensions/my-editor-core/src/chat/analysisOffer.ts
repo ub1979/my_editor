@@ -2,6 +2,9 @@ import * as vscode from 'vscode';
 import { EXCLUDE_GLOB, SOURCE_GLOB } from '../brain/brain';
 import { OfferKind, offerKind } from '../aiready/offer';
 
+/** Set once the user answered the "Analyse this project?" offer, either way. */
+export const ANALYSE_ANSWERED = 'myEditor.analyse.answered';
+
 export interface AnalysisOffer {
 	readonly files: number;
 	readonly kind: OfferKind;

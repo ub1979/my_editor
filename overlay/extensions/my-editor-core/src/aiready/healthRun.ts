@@ -10,21 +10,20 @@ import { isSourceFile } from '../quality/sourcePolicy';
 import { redact } from '../records/redact';
 import { isSensitiveFile } from '../records/sensitive';
 import { detectCommands, RootFiles } from './commandDetect';
-import { FileStats, fileStats, HealthFinding, scanHealth, testSubject } from './health';
+import { FileStats, fileStats, FindingKind, HealthFinding, scanHealth, testSubject } from './health';
 import { DEFAULT_LIMITS, ReviewPart, reviewParts } from './healthReview';
 import { renderReport } from './report';
 
 const REPORT_DIR = ['.my_editor', 'ai-ready'];
 const REVIEW_TIMEOUT_MS = 180_000;
 
-/** "Make this project AI-ready", stage 1: get to know the project, then write its health report. Code never changes. */
+/** "Make this project AI-ready", stage 1: get to know the project, then write its health report (partial if stopped). Code never changes. */
 export async function makeAiReady(keys: ApiKeys, proposals: Proposals, sink: Sink, token: vscode.CancellationToken): Promise<void> {
 	await analyseProject(keys, proposals, sink, token);
-	if (!token.isCancellationRequested) {
-		await writeHealthReport(keys, sink, token);
-	}
+	await writeHealthReport(keys, sink, token);
 }
 
+/** Scans the project, has the model review its parts and writes the report; a stop leaves a partial report. */
 async function writeHealthReport(keys: ApiKeys, sink: Sink, token: vscode.CancellationToken): Promise<void> {
 	const folder = vscode.workspace.workspaceFolders?.[0];
 	const map = await readMap();
@@ -32,6 +31,7 @@ async function writeHealthReport(keys: ApiKeys, sink: Sink, token: vscode.Cancel
 	if (!folder || !map || !model) { return; } // Analyse has already said why.
 	sink.progress('Checking file sizes, classes and tests…');
 	const paths = Object.keys(map.files);
+	if (!paths.length) { sink.progress(''); return; }
 	const texts = new Map<string, string>();
 	for (const path of paths.filter(isSourceFile)) {
 		const text = await readText(vscode.Uri.joinPath(folder.uri, path));
@@ -51,16 +51,22 @@ async function writeHealthReport(keys: ApiKeys, sink: Sink, token: vscode.Cancel
 	const all = [...findings, ...review.findings];
 	const dir = vscode.Uri.joinPath(folder.uri, ...REPORT_DIR);
 	const uri = vscode.Uri.joinPath(dir, 'report.md');
-	await vscode.workspace.fs.createDirectory(dir);
-	await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode(renderReport({
-		project: folder.name, date: new Date().toISOString().slice(0, 10), model: model.label, stats, findings: all, commands, review,
-	})));
+	try {
+		await vscode.workspace.fs.createDirectory(dir);
+		await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode(renderReport({
+			project: folder.name, date: new Date().toISOString().slice(0, 10), model: model.label, stats, findings: all, commands, review,
+		})));
+	} catch (err) {
+		sink.progress('');
+		sink.error(`Could not write the health report: ${err instanceof Error ? err.message : String(err)}`);
+		return;
+	}
 	sink.progress('');
-	const count = (...kinds: string[]) => all.filter(f => kinds.includes(f.kind)).length;
+	const count = (...kinds: FindingKind[]) => all.filter(f => kinds.includes(f.kind)).length;
 	sink.text(`\n\n**Health report** written to \`.my_editor/ai-ready/report.md\`: ${count('too-long')} over 400 lines, `
 		+ `${count('many-classes')} with more than one class, ${count('untested')} without tests, ${count('mixed-job', 'design')} design notes `
 		+ `and ${count('bug', 'poor-code')} suggestions.${review.partial ? ' I stopped early, so the report is partial.' : ''} Nothing in the code changed.`);
-	await vscode.commands.executeCommand('markdown.showPreview', uri);
+	try { await vscode.commands.executeCommand('markdown.showPreview', uri); } catch { await vscode.window.showTextDocument(uri); }
 }
 
 /** Non-test, non-secret source grouped by part; the most flagged and largest parts are reviewed first. */
@@ -81,6 +87,7 @@ function reviewInput(texts: ReadonlyMap<string, string>, stats: readonly FileSta
 	}));
 }
 
+/** Names of the top-level entries plus the text of package.json and pyproject.toml, for command detection. */
 async function rootFiles(root: vscode.Uri): Promise<RootFiles> {
 	let names: string[] = [];
 	try { names = (await vscode.workspace.fs.readDirectory(root)).map(([name]) => name); } catch { names = []; }

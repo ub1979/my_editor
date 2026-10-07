@@ -18,7 +18,7 @@ let state = {
 	model: undefined,
 	reasoning: 'default',
 	placeholder: undefined,
-	/** Code files in a project the pair has not read yet; set while the analysis is on offer. */
+	/** The first-open offer ({ files, kind }) while it is shown; undefined once answered. */
 	offer: undefined,
 };
 

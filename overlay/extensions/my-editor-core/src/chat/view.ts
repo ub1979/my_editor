@@ -15,12 +15,11 @@ import { chatWebviewHtml } from './webviewHtml';
 import { editorContextMessage, modelListMessage, newChatId } from './viewUpdates';
 import { ActiveFileTracker } from './activeFile';
 import { makeAiReady } from '../aiready/healthRun';
+import { ANALYSE_ANSWERED } from './analysisOffer';
 import { projectCharacter, routeCharacter } from './characterRouting';
 import { chatInit } from './chatInit';
 
 const STATE_KEY = 'myEditor.chat.state';
-/** Set once the user answered the "Analyse this project?" offer, either way. */
-export const ANALYSE_ANSWERED = 'myEditor.analyse.answered';
 const MAX_KEPT_MESSAGES = 200;
 const MAX_VISIBLE_MESSAGES = 60;
 /** Buttons a reply may offer; anything else is ignored. */
