@@ -71,6 +71,8 @@ function render(state, model, sync, project) {
 		el('dd', {}, [button(state.memory.conventions ? 'Open' : 'Write', () => vscode.postMessage({ type: 'conventions' }))]),
 		el('dt', {}, ['Brain']),
 		el('dd', {}, [button(state.memory.brainFiles ? `${state.memory.brainFiles} files · analyse again` : 'Analyse', () => vscode.postMessage({ type: 'brain' }))]),
+		el('dt', {}, ['Health']),
+		el('dd', {}, [button('Check AI-readiness', () => vscode.postMessage({ type: 'aiReady' }))]),
 		el('dt', {}, ['Decisions']),
 		el('dd', {}, [state.memory.decisions ? button(String(state.memory.decisions), () => vscode.postMessage({ type: 'folder', path: '.my_editor/decisions' })) : el('span', { class: 'empty' }, ['none yet'])]),
 		el('dt', {}, ['Chat history']),

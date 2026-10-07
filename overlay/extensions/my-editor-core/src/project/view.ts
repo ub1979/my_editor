@@ -146,6 +146,9 @@ export class ProjectView implements vscode.WebviewViewProvider {
 			case 'brain':
 				await vscode.commands.executeCommand('myEditor.analyseProject');
 				return;
+			case 'aiReady':
+				await vscode.commands.executeCommand('myEditor.aiReady');
+				return;
 			case 'visual':
 				await this.visuals.show(message.tab);
 				return;
