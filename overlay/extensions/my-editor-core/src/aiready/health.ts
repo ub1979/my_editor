@@ -24,7 +24,7 @@ export interface FileStats {
 }
 
 const TESTABLE = /\.(?:[cm]?[jt]sx?|py|go|rs)$/;
-const NOT_CHECKED = /(^|\/)(?:[^/]*\.config\.[^/]+|setup\.py|conftest\.py|__init__\.py)$|(^|\/)(?:tests?|__tests__)\//;
+const NOT_CHECKED = /(^|\/)(?:[^/]*\.config\.[^/]+|setup\.py|conftest\.py|__init__\.py|__main__\.py|main\.go)$|(^|\/)\.[^/]+$|(^|\/)(?:tests?|__tests__)\//;
 
 export function fileStats(filePath: string, text: string): FileStats {
 	return {
@@ -46,10 +46,13 @@ export function testSubject(filePath: string): string | undefined {
 
 /** Source files whose tests the report checks: TS/JS, Python, Go and Rust; not tests, declarations or config. */
 export function needsTests(filePath: string): boolean {
-	return TESTABLE.test(filePath) && !filePath.endsWith('.d.ts') && !NOT_CHECKED.test(filePath) && testSubject(filePath) === undefined;
+	return TESTABLE.test(filePath) && !/\.d\.[cm]?ts$/.test(filePath) && !NOT_CHECKED.test(filePath) && testSubject(filePath) === undefined;
 }
 
-/** Findings that need no model: size, classes per file, missing tests and test command, analysis gaps. */
+/**
+ * Findings that need no model: size, classes per file, missing tests and test command, analysis gaps.
+ * Tests are matched by file base name anywhere in the project, not by folder.
+ */
 export function scanHealth(stats: readonly FileStats[], allPaths: readonly string[], commands: DetectedCommands,
 	notCovered: readonly string[]): HealthFinding[] {
 	const subjects = new Set(allPaths.map(testSubject).filter((s): s is string => !!s).map(s => s.toLowerCase()));

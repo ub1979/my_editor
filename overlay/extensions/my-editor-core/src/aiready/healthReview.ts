@@ -34,10 +34,15 @@ export interface ReviewResult {
 	readonly reviewed: string[];
 	readonly notReviewed: string[];
 	readonly partial: boolean;
+	/** The last model error, when calls failed. */
+	readonly error?: string;
 }
 
 export const DEFAULT_LIMITS: ReviewLimits = { maxCalls: 40, fileChars: 6_000, callChars: 40_000 };
 const WINDOW = 60;
+const MAX_LINE_CHARS = 300;
+const MAX_PARSE_ATTEMPTS = 50;
+const MAX_ERRORS_IN_A_ROW = 3;
 const AI_KINDS = new Set<FindingKind>(['mixed-job', 'design', 'bug', 'poor-code']);
 
 export const REVIEW_SYSTEM = `You review one part of an existing software project so it becomes easier to maintain.
@@ -51,7 +56,7 @@ Reply with only a JSON array of {"file", "line", "kind", "text", "grouping"?} ob
 
 /** Lines around the flagged places first, then the file from the top, numbered, within a character budget. */
 export function excerpt(text: string, focusLines: readonly number[], maxChars: number): Excerpt {
-	const lines = text.split('\n');
+	const lines = text.split('\n').map(line => line.length > MAX_LINE_CHARS ? `${line.slice(0, MAX_LINE_CHARS)}…` : line);
 	const windows: LineRange[] = [...focusLines.map(line => [line, line + WINDOW - 1] as LineRange), [1, lines.length]];
 	const chosen = new Set<number>();
 	let used = 0;
@@ -73,14 +78,32 @@ export function excerpt(text: string, focusLines: readonly number[], maxChars: n
 	return { text: body, ranges };
 }
 
+/** The first span of the reply that parses as a JSON array of objects, trying `[` from the left and `]` from the right. */
+function parseArray(reply: string): unknown[] | undefined {
+	const text = reply.replace(/```[a-zA-Z]*/g, '');
+	const starts: number[] = [];
+	const ends: number[] = [];
+	for (let i = 0; i < text.length; i++) {
+		if (text[i] === '[') { starts.push(i); } else if (text[i] === ']') { ends.unshift(i); }
+	}
+	let attempts = 0;
+	for (const start of starts) {
+		for (const end of ends) {
+			if (end <= start) { break; }
+			if (++attempts > MAX_PARSE_ATTEMPTS) { return undefined; }
+			try {
+				const value: unknown = JSON.parse(text.slice(start, end + 1));
+				if (Array.isArray(value) && value.every(item => item && typeof item === 'object')) { return value; }
+			} catch { /* try the next span */ }
+		}
+	}
+	return undefined;
+}
+
 /** Findings from a model reply, kept only when they point at a line the model was shown; undefined if unreadable. */
 export function parseReview(reply: string, shown: ReadonlyMap<string, readonly LineRange[]>): HealthFinding[] | undefined {
-	const start = reply.indexOf('[');
-	const end = reply.lastIndexOf(']');
-	if (start < 0 || end <= start) { return undefined; }
-	let raw: unknown;
-	try { raw = JSON.parse(reply.slice(start, end + 1)); } catch { return undefined; }
-	if (!Array.isArray(raw)) { return undefined; }
+	const raw = parseArray(reply);
+	if (!raw) { return undefined; }
 	const findings: HealthFinding[] = [];
 	for (const item of raw) {
 		if (!item || typeof item !== 'object') { continue; }
@@ -123,20 +146,24 @@ export async function reviewParts(parts: readonly ReviewPart[], ask: (system: st
 	const reviewed: string[] = [];
 	const notReviewed: string[] = [];
 	let calls = 0;
+	let errorsInARow = 0;
+	let error: string | undefined;
 	for (const part of [...parts].sort((a, b) => b.priority - a.priority)) {
 		const { text, shown } = partRequest(part, limits);
 		let found: HealthFinding[] | undefined;
-		for (let attempt = 0; attempt < 2 && !found && shown.size && calls < limits.maxCalls && !cancelled(); attempt++) {
+		for (let attempt = 0; attempt < 2 && !found && shown.size && calls < limits.maxCalls && errorsInARow < MAX_ERRORS_IN_A_ROW && !cancelled(); attempt++) {
 			calls++;
 			let reply = '';
 			try {
 				reply = await ask(REVIEW_SYSTEM, attempt ? `${text}\n\nYour previous reply was not a valid JSON array. Reply with only the array.` : text);
-			} catch {
-				reply = '';
+				errorsInARow = 0;
+			} catch (caught) {
+				errorsInARow++;
+				error = caught instanceof Error ? caught.message : String(caught);
 			}
 			found = parseReview(reply, shown);
 		}
 		if (found) { reviewed.push(part.name); findings.push(...found); } else { notReviewed.push(part.name); }
 	}
-	return { findings, reviewed, notReviewed, partial: cancelled() };
+	return { findings, reviewed, notReviewed, partial: cancelled(), ...(error ? { error } : {}) };
 }

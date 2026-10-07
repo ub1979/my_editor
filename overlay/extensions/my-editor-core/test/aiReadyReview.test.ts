@@ -80,7 +80,46 @@ test('renderReport lists files, suggestions, unreviewed parts and the next step'
 	assert.match(report, /\[src\/big\.ts:12\]\(\.\.\/\.\.\/src\/big\.ts#L12\)/);
 	assert.match(report, /Grouping: parse: a, b; render: c/);
 	assert.match(report, /Possible bug\*\* \[src\/big\.ts:40\]/);
-	assert.match(report, /## Not reviewed by the model\n\nlib\./);
+	assert.match(report, /## Not reviewed by the model\n\nlib\. They hit/);
 	assert.match(report, /No test command was found/);
 	assert.doesNotMatch(report, /\n\n\n/);
+});
+
+test('excerpt cuts very long lines and keeps the lines around them', () => {
+	const cut = excerpt('a\nb\n' + 'x'.repeat(10_000) + '\nc', [3], 500);
+	assert.match(cut.text, /^3: x{300}…$/m);
+	for (const n of [1, 2, 4]) { assert.match(cut.text, new RegExp(`^${n}: `, 'm'), String(n)); }
+	assert.ok(cut.text.length <= 510);
+});
+
+test('parseReview finds the array among prose, brackets and code fences', () => {
+	const shown = new Map([['src/a.ts', [[1, 200]] as [number, number][]]]);
+	const item = '[{"file":"src/a.ts","line":105,"kind":"bug","text":"x"}]';
+	for (const reply of [`See [1] below:\n${item}`, `${item} (see [note])`, '```json\n' + item + '\n```']) {
+		assert.equal(parseReview(reply, shown)?.length, 1, reply);
+	}
+});
+
+test('reviewParts gives up after three failed calls in a row and reports why', async () => {
+	let calls = 0;
+	const result = await reviewParts(['a', 'b', 'c', 'd', 'e'].map(name => part(name, 1)),
+		async () => { calls++; throw new Error('offline'); }, LIMITS, () => false);
+	assert.equal(calls, 3);
+	assert.equal(result.error, 'offline');
+	assert.equal(result.notReviewed.length, 5);
+});
+
+test('renderReport neutralises model text and encodes links', () => {
+	const base = { project: 'p', date: 'd', model: 'm', stats: [], commands: { languages: [], checks: [], tests: [] },
+		review: { reviewed: [], notReviewed: ['lib'], partial: false } };
+	const report = renderReport({ ...base, findings: [
+		{ kind: 'design', file: 'src/my file#2.ts', line: 3, text: 'x\n## Summary\n![p](https://evil.example/a) <img src=y>' }] });
+	assert.doesNotMatch(report, /^## Summary$\n(?=[\s\S]*^## Summary$)/m);
+	assert.equal(report.split('\n').filter(l => l.startsWith('## Summary')).length, 1);
+	assert.doesNotMatch(report, /(^|[^\\])!\[/);
+	assert.doesNotMatch(report, /(^|[^\\])<img/);
+	assert.ok(report.includes('../../src/my%20file%232.ts'));
+	const failed = renderReport({ ...base, findings: [], review: { ...base.review, error: 'offline' } });
+	assert.match(failed, /The model could not be reached: offline/);
+	assert.match(failed, /call limit/);
 });

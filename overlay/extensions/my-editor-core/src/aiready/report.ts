@@ -1,3 +1,4 @@
+import { MAX_SOURCE_LINES } from '../quality/sourcePolicy';
 import type { DetectedCommands } from './commandDetect';
 import type { FileStats, FindingKind, HealthFinding } from './health';
 import type { ReviewResult } from './healthReview';
@@ -9,11 +10,11 @@ export interface ReportInput {
 	readonly stats: readonly FileStats[];
 	readonly findings: readonly HealthFinding[];
 	readonly commands: DetectedCommands;
-	readonly review: Pick<ReviewResult, 'reviewed' | 'notReviewed' | 'partial'>;
+	readonly review: Pick<ReviewResult, 'reviewed' | 'notReviewed' | 'partial' | 'error'>;
 }
 
 const LABELS: Record<FindingKind, string> = {
-	'too-long': 'Over 400 lines', 'near-limit': 'Close to 400 lines', 'many-classes': 'More than one class', untested: 'No tests',
+	'too-long': `Over ${MAX_SOURCE_LINES} lines`, 'near-limit': `Close to ${MAX_SOURCE_LINES} lines`, 'many-classes': 'More than one class', untested: 'No tests',
 	'no-test-runner': 'No test command', 'not-covered': 'Not covered', 'mixed-job': 'More than one job', design: 'Design',
 	bug: 'Possible bug', 'poor-code': 'Hard to maintain',
 };
@@ -26,9 +27,15 @@ const NEXT_STEP = [
 	'Tests for untested files',
 ];
 
+/** Model or project text made safe for one Markdown line: whitespace collapsed, Markdown characters escaped. */
+function plain(text: string): string {
+	return text.replace(/\s+/g, ' ').trim().replace(/[\\`*_{}\[\]()#+!<>|]/g, c => `\\${c}`);
+}
+
 /** A link from `.my_editor/ai-ready/report.md` to a project file, at a line when known. */
 function link(file: string, line?: number): string {
-	return `[${file}${line ? `:${line}` : ''}](../../${encodeURI(file)}${line ? `#L${line}` : ''})`;
+	const href = file.split('/').map(s => encodeURIComponent(s).replace(/[()]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase())).join('/');
+	return `[${`${file}${line ? `:${line}` : ''}`.replace(/[\[\]]/g, c => `\\${c}`)}](../../${href}${line ? `#L${line}` : ''})`;
 }
 
 /** The health report as Markdown: summary, build and test commands, files, suggestions, gaps, next step. */
@@ -55,18 +62,20 @@ export function renderReport(input: ReportInput): string {
 		commands.languages.length ? `Languages: ${commands.languages.join(', ')}.` : 'No build files were recognised.',
 		commands.checks.length ? `Checks: ${commands.checks.map(c => `\`${c}\``).join(', ')}.` : 'No build or type check was found.',
 		commands.tests.length ? `Tests: ${commands.tests.map(c => `\`${c}\``).join(', ')}.` : 'No test command was found.',
-		...(general.length ? ['', ...general.map(f => `- ${f.text}`)] : []), '',
+		...(general.length ? ['', ...general.map(f => `- ${plain(f.text)}`)] : []), '',
 		'## Files that need attention', '',
 		...(files.length ? files.flatMap(file => {
 			const stat = stats.get(file);
-			return [`### ${link(file)}`, '', stat ? `${stat.lines} lines · ${stat.classes.length} class${stat.classes.length === 1 ? '' : 'es'}` : '', '',
-				...byFile.get(file)!.map(f => `- **${LABELS[f.kind]}**${f.line ? ` (${link(file, f.line)})` : ''}: ${f.text}${f.grouping ? `\n  Grouping: ${f.grouping}` : ''}`), ''];
+			return [`### ${link(file)}`, '', stat ? `${stat.lines} lines${stat.classes.length ? ` · ${stat.classes.length} class${stat.classes.length === 1 ? '' : 'es'}` : ''}` : '', '',
+				...byFile.get(file)!.map(f => `- **${LABELS[f.kind]}**${f.line ? ` (${link(file, f.line)})` : ''}: ${plain(f.text)}${f.grouping ? `\n  Grouping: ${plain(f.grouping)}` : ''}`), ''];
 		}) : ['Every file passed these checks.', '']),
 		'## Suggestions for you', '',
 		...(suggestions.length
-			? [...suggestions.map(f => `- **${LABELS[f.kind]}** ${link(f.file!, f.line)}: ${f.text}`), '', 'This check never changes behavior. To fix one, ask Pair about it.']
+			? [...suggestions.map(f => `- **${LABELS[f.kind]}** ${link(f.file!, f.line)}: ${plain(f.text)}`), '', 'This check never changes behavior. To fix one, ask Pair about it.']
 			: ['No likely bugs or fragile code were reported.']), '',
-		...(review.notReviewed.length ? ['## Not reviewed by the model', '', `${review.notReviewed.join(', ')}. Run the check again to review them.`, ''] : []),
+		...(review.notReviewed.length || review.error ? ['## Not reviewed by the model', '',
+			...(review.error ? [`The model could not be reached: ${plain(review.error)}`, ''] : []),
+			...(review.notReviewed.length ? [`${review.notReviewed.map(plain).join(', ')}. They hit the call limit, had no room for an excerpt, or the model failed; run the check again to retry.`, ''] : [])] : []),
 		'## What the fixing step will offer', '',
 		...NEXT_STEP.map(item => `- ${item}`), '',
 		'Fixes will run on a separate local branch, one per commit, each checked so the program behaves as before. That step is not built yet.', '',

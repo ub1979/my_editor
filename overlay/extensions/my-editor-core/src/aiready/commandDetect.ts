@@ -28,7 +28,7 @@ export function detectCommands(root: RootFiles): DetectedCommands {
 	}
 	if (['pyproject.toml', 'setup.py', 'requirements.txt', 'pytest.ini', 'conftest.py'].some(has)) {
 		languages.push('Python');
-		checks.push('python -m compileall -q');
+		checks.push('python -m compileall -q .');
 		if (has('pytest.ini') || has('conftest.py') || /pytest/.test(root.pyproject ?? '')) { tests.push('pytest -q -rA'); }
 	}
 	if (has('go.mod')) {

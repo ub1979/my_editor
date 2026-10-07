@@ -26,6 +26,7 @@ test('detectCommands reads build files and ignores the npm placeholder test scri
 	assert.deepEqual(detectCommands({ names: ['package.json'], packageJson: 'not json' }).tests, []);
 	assert.deepEqual(detectCommands({ names: ['pyproject.toml'], pyproject: '[tool.pytest.ini_options]' }).tests, ['pytest -q -rA']);
 	assert.deepEqual(detectCommands({ names: ['pyproject.toml'], pyproject: '[project]' }).tests, []);
+	assert.deepEqual(detectCommands({ names: ['setup.py'] }).checks, ['python -m compileall -q .']);
 	assert.deepEqual(detectCommands({ names: ['conftest.py'] }).tests, ['pytest -q -rA']);
 	assert.deepEqual(detectCommands({ names: ['go.mod'] }), { languages: ['Go'], checks: ['go build ./...', 'go vet ./...'], tests: ['go test -json ./...'] });
 	assert.deepEqual(detectCommands({ names: ['Cargo.toml'] }), { languages: ['Rust'], checks: ['cargo check'], tests: ['cargo test'] });
@@ -47,7 +48,7 @@ test('needsTests checks TS/JS, Python, Go and Rust source only', () => {
 	assert.equal(needsTests('app/cart.py'), true);
 	assert.equal(needsTests('src/lib.rs'), true);
 	for (const path of ['src/cart.test.ts', 'src/types.d.ts', 'vite.config.ts', 'setup.py', 'conftest.py', 'pkg/__init__.py',
-		'tests/helpers.py', 'tests/it.rs', 'styles/a.css', 'src/a.c']) {
+		'tests/helpers.py', 'tests/it.rs', 'styles/a.css', 'src/a.c', 'src/types.d.mts', 'cmd/main.go', 'app/__main__.py', '.eslintrc.js']) {
 		assert.equal(needsTests(path), false, path);
 	}
 });
