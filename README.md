@@ -85,6 +85,11 @@ All documentation is listed in [`docs/README.md`](docs/README.md). Start with:
   redoes files that changed. Anything it could not cover (huge or generated files, very big projects) is listed,
   never skipped silently. The brain stays current on save, and the pair uses it as
   context. To run it again, use **Analyse** in the Project view or **my_editor: Analyse This Project**.
+- **AI-ready check:** opening a project my_editor did not create asks *Shall I get to know this project and make it
+  AI-ready?* Yes runs Analyse, then writes `.my_editor/ai-ready/report.md`: files over 400 lines, files with more than
+  one class or job, untested files, the project's build and test commands, design notes and possible bugs at checked
+  lines. Nothing in the code changes, and Stop still writes a partial report. Run it again from **Project → Health**
+  or **my_editor: Make This Project AI-Ready**. Fixing on a separate local branch is the next stage.
 
 ## Build and run (macOS)
 

@@ -4,6 +4,7 @@ my_editor uses the version in `overlay/extensions/my-editor-core/package.json` a
 
 ## Unreleased
 
+- Opening a project my_editor did not create offers an AI-ready check: Analyse, then a health report of long files, extra classes, untested files, design notes and possible bugs at lines the model was shown. It changes no code; model text is escaped in the report. Also available from the Project view and the command palette.
 - Pair can search the web and read pages with the Claude and Codex subscription models, in every skill including Requirements, Architecture and Plan the files. It is told to look up unfamiliar products, models and terms before asking the user, and to name its sources. Claude gets only its WebSearch and WebFetch tools; Codex gets only its hosted web search. The progress line shows each search. Turn it off with `myEditor.pair.webAccess`. Local and API-key models are unchanged.
 
 ## 0.0.6 alpha — 2026-09-25 (source commit; app verification pending)

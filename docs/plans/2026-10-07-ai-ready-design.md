@@ -68,7 +68,7 @@ chosen model:
 
 - A file doing more than one job, with a proposed grouping of its definitions.
 - Design problems: tangled responsibilities, duplicated logic, a pattern that would simplify the code.
-- Likely bugs and poor code, labelled **suggestion**. This skill never fixes them; each has an **Ask Pair** link.
+- Likely bugs and poor code, labelled **suggestion**. This skill never fixes them; the report tells the user to ask Pair about it.
 
 Limits for the AI review:
 
@@ -203,11 +203,12 @@ A run handles at most 25 fixes. **Continue** resumes from saved state.
 
 | Unit | Stage | Job | Interface |
 |---|---|---|---|
-| `offer.ts` | 1 | Decide which offer to show and record the answer | `offerFor(root, answered: boolean): Promise<'ai-ready' \| 'analyse' \| undefined>` |
+| `offer.ts` | 1 | Which offer a folder gets (pure); `chat/analysisOffer.ts` does the file checks | `offerKind(hasMyEditorFolder, hasBrain): 'ai-ready' \| 'analyse' \| undefined` |
 | `commandDetect.ts` | 1 | Which build and test commands a project has | `detectCommands(rootFiles): DetectedCommands` (pure) |
-| `health.ts` | 1 | Deterministic findings | `scanHealth(files, map): HealthFinding[]` (pure) |
-| `healthReview.ts` | 1 | AI findings per part, location-checked | `reviewParts(parts, ask, { maxCalls, excerpt }, token): ReviewResult` (the model call and excerpt builder are passed in, so tests need no model) |
-| `report.ts` | 1 | Render and write `report.md` | `renderReport(findings, coverage): string` (pure) |
+| `health.ts` | 1 | File stats, test-file matching, deterministic findings | `fileStats(path, text)`, `scanHealth(stats, allPaths, commands, notCovered): HealthFinding[]` (pure) |
+| `healthReview.ts` | 1 | Excerpts, reply parsing, the per-part review loop | `reviewParts(parts, ask, limits, cancelled): Promise<ReviewResult>` (model call passed in) |
+| `report.ts` | 1 | Render `report.md`, escaping model text | `renderReport(input): string` (pure) |
+| `healthRun.ts` | 1 | Run Analyse, then scan, review, write and open the report | `makeAiReady(keys, proposals, sink, token)` |
 | `definitions.ts` | 2 | Per-language definition extractor | `extractDefinitions(path, text): Definition[]` (pure) |
 | `split.ts` | 2 | Validate a split plan, apply it, build the facade | `planIssues(plan, defs): string[]`, `applySplit(...)` (pure) |
 | `moveCheck.ts` | 2 | The five move rules | `checkMove(before, after): string[]` (pure; empty means pass) |
