@@ -157,6 +157,7 @@ export async function reviewParts(parts: readonly ReviewPart[], ask: (system: st
 			try {
 				reply = await ask(REVIEW_SYSTEM, attempt ? `${text}\n\nYour previous reply was not a valid JSON array. Reply with only the array.` : text);
 				errorsInARow = 0;
+				error = undefined;
 			} catch (caught) {
 				errorsInARow++;
 				error = caught instanceof Error ? caught.message : String(caught);

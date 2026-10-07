@@ -123,3 +123,11 @@ test('renderReport neutralises model text and encodes links', () => {
 	assert.match(failed, /The model could not be reached: offline/);
 	assert.match(failed, /call limit/);
 });
+
+test('reviewParts forgets a model error once a later call succeeds', async () => {
+	let calls = 0;
+	const result = await reviewParts([part('p', 1)], async () => { if (calls++ === 0) { throw new Error('blip'); } return '[]'; }, LIMITS, () => false);
+	assert.deepEqual(result.reviewed, ['p']);
+	assert.deepEqual(result.notReviewed, []);
+	assert.equal(result.error, undefined);
+});
