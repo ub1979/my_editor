@@ -38,6 +38,8 @@
 	"src/project/cloneSource.ts",
 	"src/project/gitSync.ts",
     "src/comments/detect.ts",
-    "src/brain/analysisPlan.ts"
+    "src/brain/analysisPlan.ts",
+    "src/aiready/offer.ts",
+    "src/aiready/commandDetect.ts"
   ]
 }
