@@ -41,6 +41,7 @@
     "src/brain/analysisPlan.ts",
     "src/aiready/offer.ts",
     "src/aiready/commandDetect.ts",
-    "src/aiready/health.ts"
+    "src/aiready/health.ts",
+    "src/aiready/healthReview.ts"
   ]
 }
