@@ -49,7 +49,7 @@ the code shows; where something is unclear, say so under "Open questions" instea
 Keep it short: a few sentences per section. Reply with only the document.`;
 
 /** Asks one model and returns its whole reply, giving up after a while so one stuck request cannot stall the run. */
-async function ask(entry: ModelEntry, keys: ApiKeys, system: string, text: string, token: vscode.CancellationToken, timeoutMs: number): Promise<string> {
+export async function ask(entry: ModelEntry, keys: ApiKeys, system: string, text: string, token: vscode.CancellationToken, timeoutMs: number): Promise<string> {
 	const source = new vscode.CancellationTokenSource();
 	const cancel = token.onCancellationRequested(() => source.cancel());
 	const timer = setTimeout(() => source.cancel(), timeoutMs);

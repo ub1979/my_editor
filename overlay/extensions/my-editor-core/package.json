@@ -41,6 +41,11 @@
         "category": "my_editor"
       },
       {
+        "command": "myEditor.aiReady",
+        "title": "Make This Project AI-Ready",
+        "category": "my_editor"
+      },
+      {
         "command": "myEditor.buildBrain",
         "title": "Build Project Brain",
         "category": "my_editor"

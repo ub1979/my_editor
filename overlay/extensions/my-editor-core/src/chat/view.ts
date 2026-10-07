@@ -14,13 +14,13 @@ import { character, CharacterId } from './characters';
 import { chatWebviewHtml } from './webviewHtml';
 import { editorContextMessage, modelListMessage, newChatId } from './viewUpdates';
 import { ActiveFileTracker } from './activeFile';
-import { analysisOffer } from './analysisOffer';
+import { makeAiReady } from '../aiready/healthRun';
 import { projectCharacter, routeCharacter } from './characterRouting';
 import { chatInit } from './chatInit';
 
 const STATE_KEY = 'myEditor.chat.state';
 /** Set once the user answered the "Analyse this project?" offer, either way. */
-const ANALYSE_ANSWERED = 'myEditor.analyse.answered';
+export const ANALYSE_ANSWERED = 'myEditor.analyse.answered';
 const MAX_KEPT_MESSAGES = 200;
 const MAX_VISIBLE_MESSAGES = 60;
 /** Buttons a reply may offer; anything else is ignored. */
@@ -116,11 +116,11 @@ export class ChatView implements vscode.WebviewViewProvider {
 		}
 	}
 
-	/** Reads the whole project into the brain and drafts its architecture ("Analyse this project"). */
-	async analyse(): Promise<void> {
+	/** Reads the project into the brain and drafts its architecture; with aiReady, also writes the health report. */
+	async analyse(aiReady = false): Promise<void> {
 		await this.openLounge();
 		if (!this.webviews().length) {
-			this.pending = { text: '', mode: ANALYSE };
+			this.pending = { text: '', mode: aiReady ? AI_READY : ANALYSE };
 			return;
 		}
 		if (this.running) {
@@ -128,16 +128,11 @@ export class ChatView implements vscode.WebviewViewProvider {
 		}
 		await this.context.workspaceState.update(ANALYSE_ANSWERED, true);
 		this.broadcast({ type: 'offer', offer: undefined });
-		this.messages.push({ id: newChatId(), role: 'user', markdown: 'Analyse this project', proposals: [], actions: [], done: true });
+		this.messages.push({ id: newChatId(), role: 'user', markdown: aiReady ? 'Make this project AI-ready' : 'Analyse this project', proposals: [], actions: [], done: true });
 		const reply: Message = { id: newChatId(), role: 'assistant', characterId: this.characterId, markdown: '', proposals: [], actions: [], done: false };
 		this.messages.push(reply);
 		this.postMessages();
-		await this.runReply(reply, (sink, token) => analyseProject(this.keys, this.proposals, sink, token));
-	}
-
-	/** Count code files for the one-time project analysis offer. */
-	async analyseOffer(): Promise<number | undefined> {
-		return analysisOffer(this.context, ANALYSE_ANSWERED);
+		await this.runReply(reply, (sink, token) => (aiReady ? makeAiReady : analyseProject)(this.keys, this.proposals, sink, token));
 	}
 
 	private async selectForProject(): Promise<void> {
@@ -171,8 +166,8 @@ export class ChatView implements vscode.WebviewViewProvider {
 				if (this.pending) {
 					const pending = this.pending;
 					this.pending = undefined;
-					if (pending.mode === ANALYSE) {
-						await this.analyse();
+					if (pending.mode === ANALYSE || pending.mode === AI_READY) {
+						await this.analyse(pending.mode === AI_READY);
 					} else if (pending.kickoff && pending.mode) {
 						await this.pickSkill(pending.mode);
 					} else {
@@ -208,6 +203,8 @@ export class ChatView implements vscode.WebviewViewProvider {
 				return this.postMode();
 			case 'analyse':
 				return this.analyse();
+			case 'aiReady':
+				return this.analyse(true);
 			case 'notNow':
 				await this.context.workspaceState.update(ANALYSE_ANSWERED, true);
 				this.broadcast({ type: 'offer', offer: undefined });
@@ -398,3 +395,4 @@ export class ChatView implements vscode.WebviewViewProvider {
 
 /** Stands in for a skill id while the analysis waits for the chat to open. */
 const ANALYSE = '#analyse';
+const AI_READY = '#ai-ready';

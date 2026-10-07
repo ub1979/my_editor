@@ -58,17 +58,22 @@ function renderWelcome() {
 }
 
 /** Asks before reading an existing project: nothing is written until the user says yes. */
-function renderOffer(files) {
-	const yes = el('button', { type: 'button', class: 'pill primary' }, [icon('book'), 'Analyse this project']);
+function renderOffer(offer) {
+	const files = offer.files;
+	const aiReady = offer.kind === 'ai-ready';
+	const yes = el('button', { type: 'button', class: 'pill primary' }, [icon('book'), aiReady ? 'Yes, make it AI-ready' : 'Analyse this project']);
+	const only = el('button', { type: 'button', class: 'pill' }, ['Only get to know it']);
 	const no = el('button', { type: 'button', class: 'pill' }, ['Not now']);
-	yes.addEventListener('click', () => vscode.postMessage({ type: 'analyse' }));
+	yes.addEventListener('click', () => vscode.postMessage({ type: aiReady ? 'aiReady' : 'analyse' }));
+	only.addEventListener('click', () => vscode.postMessage({ type: 'analyse' }));
 	no.addEventListener('click', () => vscode.postMessage({ type: 'notNow' }));
 	return el('div', { class: 'offer' }, [
-		el('p', { class: 'offer-title' }, ['Shall I get to know this project?']),
+		el('p', { class: 'offer-title' }, [aiReady ? 'Shall I get to know this project and make it AI-ready?' : 'Shall I get to know this project?']),
 		el('p', {}, [`I’ll read its ${files >= 5000 ? 'code (over 5,000 files, so the first 5,000)' : `${files.toLocaleString('en')} code file${files === 1 ? '' : 's'}`} and write the project brain: a line on every file, a note per part and a draft architecture. Your code stays as it is.`]),
+		...(aiReady ? [el('p', {}, ['Then I’ll write a health report: files over 400 lines, files with more than one class or job, missing tests, design notes and possible bugs.'])] : []),
 		...(files > 1500 ? [el('p', { class: 'offer-note' }, ['It’s a big project, so I’ll start with the 1,500 most-used files. You can continue later.'])] : []),
 		el('p', { class: 'offer-note' }, [`Uses ${state.models.find(m => m.key === state.model)?.label ?? 'the model picked below'}. Change it below first if you like.`]),
-		el('div', { class: 'offer-actions' }, [yes, no]),
+		el('div', { class: 'offer-actions' }, aiReady ? [yes, only, no] : [yes, no]),
 	]);
 }
 

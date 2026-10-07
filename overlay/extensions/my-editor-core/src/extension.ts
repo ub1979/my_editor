@@ -2,10 +2,11 @@ import * as vscode from 'vscode';
 import { buildBrain, updateBrainFile } from './brain/brain';
 import { AutoComments } from './comments/autoComments';
 import { PairEngine } from './chat/engine';
+import { analysisOffer } from './chat/analysisOffer';
 import { ObservationRunner } from './chat/observationRunner';
 import { openObservationProfile } from './chat/observationSetup';
 import { Proposals } from './chat/proposals';
-import { ChatView } from './chat/view';
+import { ANALYSE_ANSWERED, ChatView } from './chat/view';
 import { runTestHooks } from './dev/testHooks';
 import { applyFirstRunLayout } from './layout';
 import { chooseDefaultModel } from './models/catalog';
@@ -88,6 +89,7 @@ export function activate(context: vscode.ExtensionContext): void {
 		vscode.commands.registerCommand('myEditor.adaptFile', (path: string, change: string) => adaptFile(path, change)),
 		vscode.commands.registerCommand('myEditor.saveDecision', (draft: DecisionDraft) => saveDecision(draft)),
 		vscode.commands.registerCommand('myEditor.analyseProject', () => chat.analyse()),
+		vscode.commands.registerCommand('myEditor.aiReady', () => chat.analyse(true)),
 		vscode.commands.registerCommand('myEditor.buildBrain', () => vscode.window.withProgress(
 			{ location: vscode.ProgressLocation.Notification, title: 'Building the project brain' },
 			async progress => {
@@ -107,7 +109,7 @@ export function activate(context: vscode.ExtensionContext): void {
 	if (vscode.workspace.workspaceFolders?.length) {
 		void home.continuePendingStart();
 		// An existing project the pair has not read yet: open the chat, where it asks before reading anything.
-		void chat.analyseOffer().then(files => { if (files) { void chat.openLounge(); } });
+		void analysisOffer(context, ANALYSE_ANSWERED).then(offer => { if (offer) { void chat.openLounge(); } });
 	} else {
 		// No project open: show Home instead of an empty window.
 		void vscode.commands.executeCommand('workbench.action.closeSidebar');
