@@ -40,6 +40,7 @@
     "src/comments/detect.ts",
     "src/brain/analysisPlan.ts",
     "src/aiready/offer.ts",
-    "src/aiready/commandDetect.ts"
+    "src/aiready/commandDetect.ts",
+    "src/aiready/health.ts"
   ]
 }
