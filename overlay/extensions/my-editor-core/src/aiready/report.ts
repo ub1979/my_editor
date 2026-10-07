@@ -35,7 +35,7 @@ function plain(text: string): string {
 /** A link from `.my_editor/ai-ready/report.md` to a project file, at a line when known. */
 function link(file: string, line?: number): string {
 	const href = file.split('/').map(s => encodeURIComponent(s).replace(/[()]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase())).join('/');
-	return `[${`${file}${line ? `:${line}` : ''}`.replace(/[\[\]]/g, c => `\\${c}`)}](../../${href}${line ? `#L${line}` : ''})`;
+	return `[${plain(`${file}${line ? `:${line}` : ''}`)}](../../${href}${line ? `#L${line}` : ''})`;
 }
 
 /** The health report as Markdown: summary, build and test commands, files, suggestions, gaps, next step. */

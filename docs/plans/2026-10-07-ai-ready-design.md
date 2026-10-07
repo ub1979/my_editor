@@ -1,7 +1,7 @@
 # Make a project AI-ready: design
 
 - **Date:** 7 October 2026
-- **Status:** approved design, not built. Revised after two spec reviews the same day.
+- **Status:** Stage 1 (health report) built on 7 October 2026; Stage 2 (fixes) designed, not built. Revised after three spec reviews.
 - **Builds on:** Analyse (brain, summaries, part notes, draft architecture), the 400-line source policy, Pair's approved test runs
 
 ## Goal

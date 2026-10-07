@@ -131,3 +131,14 @@ test('reviewParts forgets a model error once a later call succeeds', async () =>
 	assert.deepEqual(result.notReviewed, []);
 	assert.equal(result.error, undefined);
 });
+
+test('renderReport escapes markup in file names used as link text', () => {
+	const report = renderReport({
+		project: 'p', date: '2026-10-07', model: 'm', stats: [],
+		findings: [{ kind: 'bug', file: 'src/<img src=x>.ts', line: 3, text: 'x' }],
+		commands: { languages: [], checks: [], tests: [] },
+		review: { reviewed: [], notReviewed: [], partial: false },
+	});
+	assert.doesNotMatch(report, /\[src\/<img/);
+	assert.match(report, /\[src\/\\<img src=x\\>\.ts:3\]/);
+});
