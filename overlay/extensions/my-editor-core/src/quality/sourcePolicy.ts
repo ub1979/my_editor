@@ -22,16 +22,21 @@ export function isSourceFile(filePath: string): boolean {
 
 export function hasClassSyntax(filePath: string): boolean { return CLASS_EXTENSIONS.has(path.extname(filePath).toLowerCase()); }
 
+/** Named, top-level class declarations in class-based languages, with their one-based lines. */
+export function classDeclarations(text: string, filePath: string): { name: string; line: number }[] {
+	if (!hasClassSyntax(filePath)) { return []; }
+	const found: { name: string; line: number }[] = [];
+	const declaration = /^(?:(?:export|default|declare|abstract|public|private|protected|internal|sealed|final|open|data|partial|static)\s+)*class\s+([A-Za-z_$][\w$]*)\b/;
+	text.split(/\r\n|\r|\n/).forEach((line, index) => {
+		const match = declaration.exec(line);
+		if (match) { found.push({ name: match[1], line: index + 1 }); }
+	});
+	return found;
+}
+
 /** Count named, top-level class declarations in class-based languages. */
 export function classNames(text: string, filePath: string): string[] {
-	if (!hasClassSyntax(filePath)) { return []; }
-	const names: string[] = [];
-	const declaration = /^(?:(?:export|default|declare|abstract|public|private|protected|internal|sealed|final|open|data|partial|static)\s+)*class\s+([A-Za-z_$][\w$]*)\b/;
-	for (const line of text.split(/\r\n|\r|\n/)) {
-		const match = declaration.exec(line);
-		if (match) { names.push(match[1]); }
-	}
-	return names;
+	return classDeclarations(text, filePath).map(declaration => declaration.name);
 }
 
 /** Hard checks used both before an AI proposal is shown and before its edited form is Kept. */
