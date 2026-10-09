@@ -108,12 +108,27 @@ function exitProblem(now: CheckResult): string {
 	return `\`${now.command}\` ${now.code === 0 ? 'now passes but failed before' : `failed (exit ${now.code}) but passed before`}.`;
 }
 
-/** A one-line summary of a passing step's checks, for the commit body and the change note. */
-export function checkSummary(results: readonly CheckResult[], flaky: readonly string[]): string {
+type Baseline = Readonly<Record<string, readonly [CheckResult, CheckResult]>>;
+
+/** A one-line summary of a passing step's checks: each command `passed` or `already failing before this run (not a check)`. */
+export function checkSummary(results: readonly CheckResult[], flaky: readonly string[], baseline: Baseline): string {
 	const outcomes = Object.values([...results].reverse().find(result => result.tests)?.tests?.tests ?? {});
 	const passed = outcomes.filter(outcome => outcome === 'pass').length;
-	return `${[...new Set(results.map(result => `\`${result.command}\``))].join(', ')}: same as before`
-		+ `${outcomes.length ? ` (${passed} of ${outcomes.length} tests passing)` : ''}${flaky.length ? `; ${flaky.length} flaky excluded` : ''}.`;
+	const commands = [...new Set(results.map(result => result.command))].map(command =>
+		`\`${command}\`: ${baseline[command]?.[0].code === 0 ? 'passed' : 'already failing before this run (not a check)'}`);
+	return `${commands.join('; ')}${outcomes.length ? ` (${passed} of ${outcomes.length} tests passing)` : ''}${flaky.length ? `; ${flaky.length} flaky excluded` : ''}.`;
+}
+
+/**
+ * A step needs at least one passing verifying check (adapters mark them, say a compile check of the package). Returns
+ * why the step must be skipped when none passed at baseline, else undefined.
+ */
+export function noVerifyingCheck(checks: readonly CheckCommand[], baseline: Baseline, unit: string): string | undefined {
+	const verifying = checks.filter(check => check.verifies);
+	if (verifying.some(check => baseline[check.command]?.every(run => run.code === 0))) { return undefined; }
+	const failed = baseline[verifying[0]?.command]?.[0];
+	const line = failed?.failures.find(failure => !failure.startsWith('#')) ?? failed?.tail.split('\n').find(Boolean) ?? 'no output';
+	return `Nothing here can compile ${unit} to check this split: its build already fails (${line}). Fix the build, then run this again.`;
 }
 
 /** What recording a baseline needs from the run. */

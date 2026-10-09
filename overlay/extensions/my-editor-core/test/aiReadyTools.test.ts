@@ -139,8 +139,8 @@ test('the Go checks also build the changed package on its own, writing no binary
 	for (const check of adapter.checks('a.go')) { assert.ok(splitCommand(check.command), check.command); }
 	assert.deepEqual(adapter.checks('internal/store/a.go'), [
 		{ label: 'build', command: 'go build ./...' },
-		{ label: 'build', command: `go build -o ${nul} ./internal/store` },
-		{ label: 'vet', command: 'go vet ./internal/store' },
+		{ label: 'build', command: `go build -o ${nul} ./internal/store`, verifies: true },
+		{ label: 'vet', command: 'go vet ./internal/store', verifies: true },
 		{ label: 'test', command: 'go test -count=1 -json ./internal/store' },
 	]);
 	assert.equal(adapter.checks('a.go')[1].command, `go build -o ${nul} .`);

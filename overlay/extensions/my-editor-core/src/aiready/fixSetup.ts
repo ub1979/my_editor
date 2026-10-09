@@ -5,7 +5,7 @@ import type { Sink } from '../chat/engine';
 import { CheckResult, failureLines, runBaseline } from './baseline';
 import { fixChoices, pickFixes } from './fixPicker';
 import { logDir, RunState, saveState } from './fixState';
-import { approvalDetail, timeoutMinutes } from './fixText';
+import { alreadyFailingText, approvalDetail, timeoutMinutes } from './fixText';
 import { fileStats, scanHealth } from './health';
 import type { LanguageAdapter } from './language';
 import { runCommand, tail } from './projectCommands';
@@ -84,7 +84,7 @@ export async function startRun(env: CommandEnv, adapter: (root: string, tracked:
 	const approved = checks.map(check => check.command);
 	const folder = freeFolder(root);
 	const answer = await vscode.window.showWarningMessage('Run these commands on a new local branch?',
-		{ modal: true, detail: approvalDetail(folder, approved, local.label) }, 'Run them');
+		{ modal: true, detail: approvalDetail(folder, approved, local.label, picked.length) }, 'Run them');
 	if (answer !== 'Run them') { sink.text('The commands were not approved, so nothing changed.'); return undefined; }
 	const worktree = await prepare(root, folder);
 	try {
@@ -98,12 +98,11 @@ export async function startRun(env: CommandEnv, adapter: (root: string, tracked:
 		});
 		if ('stopped' in outcome) { return await discardUnstarted(root, worktree, sink, 'Stopped before any fix.'); }
 		if ('problem' in outcome) { return await discardUnstarted(root, worktree, sink, outcome.problem); }
-		for (const [command, [first]] of Object.entries(outcome.baseline)) {
-			if (first.code !== 0) { sink.text(`\`${command}\` already fails before any change; it must keep failing the same way.\n`); }
-		}
+		const failing = Object.entries(outcome.baseline).filter(([, [first]]) => first.code !== 0).map(([command]) => command);
+		if (failing.length) { sink.text(alreadyFailingText(failing)); }
 		const state: RunState = {
 			version: 1, root, language: local.label, worktree, startedAt: new Date().toISOString(), approved, fixes: picked, next: 0, steps: [],
-			baseline: outcome.baseline, skippedFiles: [...skipped].map(([file, reason]) => ({ file, reason })),
+			baseline: outcome.baseline, skippedFiles: [...skipped].map(([file, reason]) => ({ file, reason, lines: stats.find(s => s.path === file)?.lines })),
 		};
 		saveState(env.storage, state);
 		sink.progress('');

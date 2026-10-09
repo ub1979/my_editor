@@ -111,8 +111,8 @@ export function createGoAdapter(root: string, tools: GoTools, tracked: readonly 
 		// The package on its own too: `./...` may already fail for an unrelated reason (a missing cgo header) and hide a new break.
 		checks: file => [
 			{ label: 'build', command: 'go build ./...' },
-			{ label: 'build', command: `go build -o ${NULL_FILE} ${goPackage(file)}` },
-			{ label: 'vet', command: `go vet ${goPackage(file)}` },
+			{ label: 'build', command: `go build -o ${NULL_FILE} ${goPackage(file)}`, verifies: true },
+			{ label: 'vet', command: `go vet ${goPackage(file)}`, verifies: true },
 			{ label: 'test', command: `go test -count=1 -json ${goPackage(file)}` },
 		],
 		parseTests: parseGoTest,

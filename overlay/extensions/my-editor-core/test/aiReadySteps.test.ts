@@ -67,10 +67,13 @@ test('steps: a split is planned by ID, checked and committed; a bad plan is refu
 	assert.equal(asked.length, 2);
 	assert.match(asked[1], /It was rejected:\n- Declaration 9 does not exist/);
 	assert.equal(typeof bad === 'object' && bad.status, 'refused');
+	assert.ok(typeof bad === 'object' && bad.plan?.attempts === 2 && bad.plan.rejected.length === 2);
 	assert.deepEqual(await changedFiles(worktree), []);
 
 	const split = await runSplit({ ...ctx, ask: async () => '[{"file":"shop_describe.go","declarations":[1]}]' }, { file: 'shop.go', kind: 'split', lines: 13 });
 	assert.ok(typeof split === 'object' && split.status === 'committed', JSON.stringify(split));
+	assert.deepEqual(split.plan, { attempts: 1, rejected: [] });
+	assert.match(split.checks ?? '', /`go build -o \S+ \.`: passed/);
 	assert.deepEqual(split.moved, [{ file: 'shop_describe.go', names: ['Describe'] }]);
 	assert.equal(readFileSync(path.join(worktree, 'shop.go'), 'utf8'),
 		'package shop\n\nimport (\n\t"strings"\n)\n\n// Upper shouts.\nfunc Upper(s string) string { return strings.ToUpper(s) }\n');
@@ -127,4 +130,18 @@ test('add-tests leaves nothing staged when the commit itself fails', async t => 
 	}
 	assert.ok(!existsSync(path.join(worktree, 'shop_ai_test.go')));
 	assert.equal(execFileSync('git', ['status', '--porcelain'], { cwd: worktree, encoding: 'utf8' }), '');
+});
+
+test('a split is skipped when no compile check of its package passed at baseline', async t => {
+	const run = await setup();
+	if (!run) { t.skip('Go is not installed'); return; }
+	const { root, worktree, ctx } = run;
+	const baseline = Object.fromEntries(Object.entries(ctx.baseline).map(([command, pair]) =>
+		[command, command.startsWith('go build -o') || command.startsWith('go vet') ? pair.map(r => ({ ...r, code: 1, failures: ['fatal error: x.h: No such file'] })) : pair]));
+	let asked = 0;
+	const outcome = await runSplit({ ...ctx, baseline: baseline as typeof ctx.baseline, ask: async () => { asked++; return '[]'; } }, { file: 'shop.go', kind: 'split', lines: 13 });
+	assert.ok(typeof outcome === 'object' && outcome.status === 'skipped');
+	assert.match(outcome.reason ?? '', /^Nothing here can compile \. to check this split: its build already fails \(fatal error: x\.h: No such file\)\. Fix the build, then run this again\.$/);
+	assert.equal(asked, 0);
+	await remove(root, worktree);
 });

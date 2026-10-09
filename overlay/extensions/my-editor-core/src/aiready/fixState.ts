@@ -27,6 +27,8 @@ export interface StepRecord {
 	readonly dropped?: readonly string[];
 	readonly checks?: string;
 	readonly notes?: readonly string[];
+	/** For a split: model plan attempts and why each rejected one was rejected. */
+	readonly plan?: { readonly attempts: number; readonly rejected: readonly string[] };
 }
 
 /** A run's saved state, in global storage, keyed by project path. Nothing is written to the project during a run. */
@@ -46,7 +48,7 @@ export interface RunState {
 	/** Two baseline runs per command. */
 	readonly baseline: Record<string, readonly [CheckResult, CheckResult]>;
 	/** Files that are never split, with the reason, for the change note. */
-	readonly skippedFiles: readonly { readonly file: string; readonly reason: string }[];
+	readonly skippedFiles: readonly { readonly file: string; readonly reason: string; readonly lines?: number }[];
 }
 
 /** "Discard the rest": records every fix not yet run as discarded by the user and ends the run's queue. */

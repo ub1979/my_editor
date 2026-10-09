@@ -1,3 +1,5 @@
+import { MAX_FIXES_PER_RUN } from './fixState';
+
 /** The default and limits of `myEditor.aiReady.commandTimeoutMinutes`. */
 const DEFAULT_TIMEOUT_MINUTES = 10;
 const MAX_TIMEOUT_MINUTES = 240;
@@ -8,9 +10,15 @@ export function timeoutMinutes(value: unknown): number {
 	return Math.min(MAX_TIMEOUT_MINUTES, Math.max(1, value));
 }
 
+/** One short line and a bullet list of the commands that already fail before any change. */
+export function alreadyFailingText(commands: readonly string[]): string {
+	return commands.length ? `Some checks already fail before any change:\n\n${commands.map(command => `- \`${command}\``).join('\n')}\n` : '';
+}
+
 /** The approval modal's detail: where the commands run, the exact commands, and what they run. */
-export function approvalDetail(folder: string, approved: readonly string[], language: string): string {
-	return `In a new working copy at ${folder}, on a new branch:\n\n${approved.join('\n')}\n\n`
+export function approvalDetail(folder: string, approved: readonly string[], language: string, fixCount = 0): string {
+	const over = fixCount > MAX_FIXES_PER_RUN ? `${fixCount} fixes chosen: ${MAX_FIXES_PER_RUN} now; Continue does the rest.\n\n` : '';
+	return `${over}In a new working copy at ${folder}, on a new branch:\n\n${approved.join('\n')}\n\n`
 		+ 'They build the project and run its tests, which runs project code and tests written by the AI model. '
 		+ `my_editor also runs read-only ${language} tools (to list packages and check formatting) and local git commands there. `
 		+ 'Your files and your branch stay as they are until the end, when the health report in .my_editor/ai-ready/ is updated. Nothing is pushed.';

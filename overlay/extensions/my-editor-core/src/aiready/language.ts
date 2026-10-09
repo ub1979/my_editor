@@ -71,6 +71,8 @@ export interface SplitResult {
 export interface CheckCommand {
 	readonly label: 'build' | 'vet' | 'test';
 	readonly command: string;
+	/** Compiles the file's unit on its own; a split needs at least one of these to pass before the run. */
+	readonly verifies?: boolean;
 }
 
 export interface Prompt {

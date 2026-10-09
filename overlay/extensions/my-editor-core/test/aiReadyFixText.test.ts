@@ -2,7 +2,7 @@ import { strict as assert } from 'node:assert';
 import { readFileSync } from 'node:fs';
 import * as path from 'node:path';
 import { test } from 'node:test';
-import { approvalDetail, closingText, timeoutMinutes } from '../src/aiready/fixText';
+import { alreadyFailingText, approvalDetail, closingText, timeoutMinutes } from '../src/aiready/fixText';
 
 test('the approval modal says the commands run project code and tests written by the AI model', () => {
 	const detail = approvalDetail('/p/shop.ai-ready', ['go build ./...', 'go test -count=1 -json ./a'], 'Go');
@@ -45,4 +45,14 @@ test('the closing message names discarded fixes', () => {
 	const text = closingText({ committed: 1, discarded: 3, branch: 'b', base: 'c', note: 'n', removed: true, worktree: '/p/w', reportUpdated: false });
 	assert.match(text, /3 fixes discarded/);
 	assert.doesNotMatch(closingText({ committed: 1, branch: 'b', base: 'c', note: 'n', removed: true, worktree: '/p/w', reportUpdated: false }), /discarded/);
+});
+
+test('already-failing checks are one short line and a bullet list', () => {
+	assert.equal(alreadyFailingText(['go build ./...', 'go vet ./a']), 'Some checks already fail before any change:\n\n- `go build ./...`\n- `go vet ./a`\n');
+	assert.equal(alreadyFailingText([]), '');
+});
+
+test('the approval modal says when more fixes are chosen than one run does', () => {
+	assert.match(approvalDetail('/p/w', ['go build ./...'], 'Go', 40), /^40 fixes chosen: 25 now; Continue does the rest\./);
+	assert.doesNotMatch(approvalDetail('/p/w', ['go build ./...'], 'Go', 25), /Continue does the rest/);
 });

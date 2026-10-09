@@ -1,5 +1,5 @@
 import * as path from 'path';
-import type { FixChoice } from './fixState';
+import { FixChoice, MAX_FIXES_PER_RUN } from './fixState';
 import type { FileStats, HealthFinding } from './health';
 
 /**
@@ -30,17 +30,18 @@ export interface PickItem {
 /** Shows a multi-select list; `vscode.window.showQuickPick` with `canPickMany` fits. */
 export type ShowPicker = (items: PickItem[], options: { title: string; placeHolder: string }) => PromiseLike<readonly PickItem[] | undefined>;
 
-/** The multi-select list of fixes: splits pre-selected, add-tests not. Undefined when the user cancels. */
+/** The multi-select list of fixes: the biggest splits pre-selected (at most one run's worth), add-tests not. Undefined when the user cancels. */
 export async function pickFixes(choices: readonly FixChoice[], show: ShowPicker): Promise<FixChoice[] | undefined> {
+	let preselected = 0;
 	const items = choices.map(choice => ({
 		label: choice.file,
 		description: `${choice.lines} lines · ${choice.kind === 'split' ? 'split into focused files' : 'add tests'}`,
-		picked: choice.kind === 'split',
+		picked: choice.kind === 'split' && preselected++ < MAX_FIXES_PER_RUN,
 		choice,
 	}));
 	const picked = await show(items, {
-		title: 'Fix on a local branch',
-		placeHolder: 'Choose the fixes. Each one is checked and committed on its own; at most 25 run at a time.',
+		title: `Fix on a local branch: ${MAX_FIXES_PER_RUN} fixes per run`,
+		placeHolder: 'Each fix is checked and committed alone',
 	});
 	return picked?.map(item => item.choice);
 }

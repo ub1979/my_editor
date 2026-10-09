@@ -1,6 +1,6 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
-import { CheckResult, checkSummary, compareWithBaseline, failureLines, flakyTests, Outcome, runBaseline, unverified } from '../src/aiready/baseline';
+import { CheckResult, checkSummary, noVerifyingCheck, compareWithBaseline, failureLines, flakyTests, Outcome, runBaseline, unverified } from '../src/aiready/baseline';
 
 const tests = (outcomes: Record<string, Outcome>, packages: Record<string, Outcome> = {}) => ({ tests: outcomes, packages });
 const testRun = (code: number, outcomes: Record<string, Outcome>, packages: Record<string, Outcome> = {}): CheckResult =>
@@ -53,9 +53,25 @@ test('a vet failure that existed before must stay the same, wherever its line mo
 	assert.deepEqual(compareWithBaseline(downloading, checkRun(1, before)).problems, [], 'a line in only one baseline run is volatile');
 });
 
-test('checkSummary names each command once and counts the last test run', () => {
-	const summary = checkSummary([checkRun(0, ''), testRun(0, { 'm A': 'pass', 'm B': 'skip' }), testRun(0, { 'm A': 'pass', 'm B': 'pass' })], ['m C']);
-	assert.equal(summary, '`go vet ./internal/store`, `go test -count=1 -json ./a`: same as before (2 of 2 tests passing); 1 flaky excluded.');
+test('checkSummary names each command once, says which already failed, and counts the last test run', () => {
+	const vet = checkRun(0, '');
+	const run = testRun(0, { 'm A': 'pass', 'm B': 'pass' });
+	const baseline = { [vet.command]: [vet, vet] as const, [run.command]: [{ ...run, code: 1 }, { ...run, code: 1 }] as const };
+	const summary = checkSummary([vet, testRun(0, { 'm A': 'pass', 'm B': 'skip' }), run], ['m C'], baseline);
+	assert.equal(summary, '`go vet ./internal/store`: passed; `go test -count=1 -json ./a`: already failing before this run (not a check) (2 of 2 tests passing); 1 flaky excluded.');
+});
+
+test('a split needs at least one verifying check that passed at baseline', () => {
+	const build = (code: number, failures: string[] = []): CheckResult => ({ command: 'go build ./pkg', code, failures, tail: 'tail line', log: '' });
+	const vet = (code: number): CheckResult => ({ command: 'go vet ./pkg', code, failures: [], tail: '', log: '' });
+	const checks = [{ label: 'build' as const, command: 'go build ./...' }, { label: 'build' as const, command: 'go build ./pkg', verifies: true },
+		{ label: 'vet' as const, command: 'go vet ./pkg', verifies: true }, { label: 'test' as const, command: 'go test ./pkg' }];
+	const pair = (r: CheckResult) => [r, r] as const;
+	const failing = { 'go build ./pkg': pair(build(1, ['# pkg', 'fatal error: x.h: No such file'])), 'go vet ./pkg': pair(vet(1)) };
+	assert.equal(noVerifyingCheck(checks, failing, './pkg'),
+		'Nothing here can compile ./pkg to check this split: its build already fails (fatal error: x.h: No such file). Fix the build, then run this again.');
+	assert.equal(noVerifyingCheck(checks, { ...failing, 'go vet ./pkg': pair(vet(0)) }, './pkg'), undefined);
+	assert.match(noVerifyingCheck(checks.slice(0, 1), {}, './pkg') ?? '', /^Nothing here can compile \.\/pkg/);
 });
 
 test('a baseline run that timed out or did not start stops the run with what to do', async () => {

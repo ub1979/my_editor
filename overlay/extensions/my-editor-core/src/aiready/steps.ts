@@ -2,7 +2,7 @@ import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'fs
 import * as path from 'path';
 import { fileFromReply } from '../pair/codeBlock';
 import { sourceLines } from '../quality/sourcePolicy';
-import { CheckResult, checkSummary, compareWithBaseline, unverified } from './baseline';
+import { CheckResult, checkSummary, compareWithBaseline, noVerifyingCheck, unverified } from './baseline';
 import type { FixChoice, StepRecord } from './fixState';
 import type { FileInfo, LanguageAdapter, SplitPlan } from './language';
 import { checkMove } from './moveCheck';
@@ -61,25 +61,36 @@ function relative(dir: string, name: string): string {
 export async function runSplit(ctx: StepContext, fix: FixChoice): Promise<StepOutcome> {
 	const { adapter, worktree } = ctx;
 	const abs = (file: string) => path.join(worktree, file);
-	const done = (status: StepRecord['status'], reason: string): StepRecord => ({ file: fix.file, kind: 'split', status, reason });
+	const rejected: string[] = [];
+	let asked = 0;
+	const done = (status: StepRecord['status'], reason: string): StepRecord =>
+		({ file: fix.file, kind: 'split', status, reason, ...(asked ? { plan: { attempts: asked, rejected } } : {}) });
 	const info = await adapter.parse(fix.file);
 	if (info.skip) { return done('skipped', `Never split: ${info.skip}.`); }
 	if (!info.declarations.some(d => d.movable)) { return done('refused', 'Nothing in it may move.'); }
+	const dir = path.posix.dirname(fix.file);
+	const blocked = noVerifyingCheck(adapter.checks(fix.file), ctx.baseline, dir === '.' ? '.' : `./${dir}`);
+	if (blocked) { return done('skipped', blocked); }
 	const source = readFileSync(abs(fix.file));
 	const input = { source, info, existing: readdirSync(path.dirname(abs(fix.file))) };
 	const prompt = adapter.splitPrompt(info, sourceLines(source.toString('utf8')));
 	ctx.progress(`Planning how to split ${fix.file}…`);
 	let reply = await ctx.ask(prompt.system, prompt.text);
+	asked++;
 	let plan = parsePlan(reply);
 	let problems = plan ? planProblems(adapter, input, plan) : ['The reply was not a JSON array of {"file", "declarations"}.'];
 	if (problems.length && !ctx.cancelled()) {
+		rejected.push(problems.slice(0, 5).join(' '));
 		reply = await ctx.ask(prompt.system, retryText(prompt, reply, problems));
+		asked++;
 		plan = parsePlan(reply);
 		problems = plan ? planProblems(adapter, input, plan) : ['The reply was not a JSON array of {"file", "declarations"}.'];
 	}
 	if (ctx.cancelled()) { return 'stopped'; }
-	if (problems.length || !plan) { return done('refused', `The split plan was rejected twice: ${problems.slice(0, 5).join(' ')}`); }
-	const dir = path.posix.dirname(fix.file);
+	if (problems.length || !plan) {
+		rejected.push(problems.slice(0, 5).join(' '));
+		return done('refused', `The split plan was rejected twice: ${problems.slice(0, 5).join(' ')}`);
+	}
 	const unitBefore = await Promise.all((await adapter.unitFiles(fix.file)).map(file => adapter.parse(file)));
 	const formatted = !(await adapter.unformatted([fix.file])).length;
 	const result = adapter.buildSplit(source, info, plan);
@@ -102,11 +113,12 @@ export async function runSplit(ctx: StepContext, fix: FixChoice): Promise<StepOu
 		}
 		const byId = new Map(info.declarations.map(d => [d.id, d]));
 		const moved = plan.map(group => ({ file: group.file, names: group.declarations.map(id => byId.get(id)!.names.join(', ')) }));
-		const summary = checkSummary(checks.results, ctx.flaky);
+		const summary = checkSummary(checks.results, ctx.flaky, ctx.baseline);
 		const body = ['Moved whole declarations byte for byte; nothing else changed.', '',
 			...moved.map(m => `${m.file}: ${m.names.join('; ')}`), '', `Move check: passed. Checks: ${summary}`].join('\n');
 		const sha = await commit(worktree, [fix.file, ...newFiles], `my_editor: split into ${newFiles.length} file${newFiles.length === 1 ? '' : 's'} (${fix.file})`, body);
-		return { file: fix.file, kind: 'split', status: 'committed', commit: sha, moved, checks: summary, notes: oversizeNotes(result, info, plan) };
+		const notes = oversizeNotes(result, info, plan);
+		return { file: fix.file, kind: 'split', status: 'committed', commit: sha, moved, checks: summary, notes, plan: { attempts: asked, rejected } };
 	} catch (error) {
 		await restore(worktree, newFiles);
 		return done('skipped', error instanceof Error ? error.message : String(error));
@@ -177,7 +189,7 @@ export async function runAddTests(ctx: StepContext, fix: FixChoice): Promise<Ste
 				feedback = outcome;
 				continue;
 			}
-			const summary = checkSummary(outcome.results, ctx.flaky);
+			const summary = checkSummary(outcome.results, ctx.flaky, ctx.baseline);
 			const body = `Adds ${testFile}; no source file changed.\n\nChecks: ${summary}${outcome.dropped.length ? `\nDropped failing tests: ${outcome.dropped.join(', ')}` : ''}`;
 			const sha = await commit(worktree, [testFile], `my_editor: add tests for ${path.posix.basename(fix.file)} (${fix.file})`, body);
 			committed = true;

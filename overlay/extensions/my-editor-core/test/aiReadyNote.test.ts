@@ -27,6 +27,30 @@ test('fix choices: Go files only, never-split files left out, biggest first, spl
 	assert.equal(await pickFixes(choices, async () => undefined), undefined);
 });
 
+test('the picker pre-selects at most 25 splits, biggest first, and says 25 per run in the title', async () => {
+	const many = Array.from({ length: 60 }, (_, i) => fix(`f${i}.go`, 'split', 1000 - i));
+	let shown: { picked: boolean }[] = [];
+	let options = { title: '', placeHolder: '' };
+	await pickFixes(many, async (items, shownOptions) => { shown = items; options = shownOptions; return undefined; });
+	assert.equal(shown.filter(item => item.picked).length, 25);
+	assert.ok(shown.slice(0, 25).every(item => item.picked) && shown.slice(25).every(item => !item.picked));
+	assert.match(options.title, /25 fixes per run/);
+	assert.ok(options.placeHolder.length <= 50, options.placeHolder);
+});
+
+test('the change note shows plan attempts and lists only skipped files over 400 lines', () => {
+	const run = state('/p/shop');
+	run.steps[0] = { ...run.steps[0], plan: { attempts: 2, rejected: ['Declaration 9 does not exist.'] } };
+	run.steps[2] = { ...run.steps[2], plan: { attempts: 2, rejected: ['a', 'b'] } };
+	(run as { skippedFiles: unknown }).skippedFiles = [{ file: 'gen.go', reason: 'generated code', lines: 900 },
+		{ file: 'x.go', reason: 'cgo', lines: 120 }, { file: 'y.go', reason: 'cgo', lines: 50 }];
+	const note = renderChangeNote(run, new Date('2026-10-09T12:34:00Z'));
+	assert.match(note, /Plan: 2 attempts; rejected: Declaration 9 does not exist\./);
+	assert.match(note, /`c\.go` \(split\): refused\. The move check failed: Rule 2\. Plan: 2 attempts; rejected: a \/ b/);
+	assert.match(note, /## Files never split\n\n- `gen\.go`: generated code\.\n- plus 2 files that need no split/);
+	assert.doesNotMatch(note, /x\.go/);
+});
+
 function state(root: string): RunState {
 	return {
 		version: 1, root, language: 'Go', worktree: { branch: 'my_editor/ai-ready', path: `${root}.ai-ready`, base: '0123456789abcdef' },
@@ -34,12 +58,12 @@ function state(root: string): RunState {
 		fixes: [fix('a.go', 'split', 900), fix('b.go', 'tests', 500), fix('c.go', 'split', 450), fix('d.go', 'split', 420)],
 		steps: [
 			{ file: 'a.go', kind: 'split', status: 'committed', commit: 'abcdef123', moved: [{ file: 'a_query.go', names: ['Find', 'List'] }],
-				checks: '`go build ./...`: same as before.', notes: ['a.go stays at 450 lines: func Big alone is 430 lines and needs a real refactor.'] },
+				checks: '`go build ./...`: passed.', notes: ['a.go stays at 450 lines: func Big alone is 430 lines and needs a real refactor.'] },
 			{ file: 'b.go', kind: 'tests', status: 'committed', commit: 'fedcba987', testFile: 'b_ai_test.go', dropped: ['TestAiSlow'] },
 			{ file: 'c.go', kind: 'split', status: 'refused', reason: 'The move check failed: Rule 2.' },
 		],
 		baseline: { 'go test -count=1 -json ./a': [testRun(1, 'pass'), testRun(0, 'fail')] },
-		skippedFiles: [{ file: 'gen.go', reason: 'generated code' }],
+		skippedFiles: [{ file: 'gen.go', reason: 'generated code', lines: 800 }],
 	};
 }
 

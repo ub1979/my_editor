@@ -1,4 +1,5 @@
 import * as path from 'path';
+import { MAX_SOURCE_LINES } from '../quality/sourcePolicy';
 import { flakyTests } from './baseline';
 import type { RunState, StepRecord } from './fixState';
 
@@ -18,6 +19,13 @@ export function runFlaky(state: RunState): string[] {
 	return Object.values(state.baseline).flatMap(([first, second]) => flakyTests(first.tests, second.tests));
 }
 
+/** "Plan: 2 attempts; rejected: …" when the model's plan was asked for more than once or rejected. */
+function planText(step: StepRecord): string {
+	const plan = step.plan;
+	if (!plan || (plan.attempts < 2 && !plan.rejected.length)) { return ''; }
+	return `Plan: ${plan.attempts} attempt${plan.attempts === 1 ? '' : 's'}${plan.rejected.length ? `; rejected: ${plan.rejected.join(' / ')}` : ''}`;
+}
+
 function stepLine(step: StepRecord): string {
 	const short = step.commit?.slice(0, 7);
 	if (step.kind === 'split') {
@@ -25,6 +33,13 @@ function stepLine(step: StepRecord): string {
 		return `- \`${short}\` Split \`${step.file}\` into ${moved}.`;
 	}
 	return `- \`${short}\` Added tests for \`${step.file}\` in \`${step.testFile}\`${step.dropped?.length ? `; dropped failing tests ${step.dropped.join(', ')}` : ''}.`;
+}
+
+/** Skipped files over the limit with their reasons, then one count for the rest (a file with no recorded size is listed). */
+function neverSplit(state: RunState): string[] {
+	const long = state.skippedFiles.filter(s => s.lines === undefined || s.lines > MAX_SOURCE_LINES);
+	const rest = state.skippedFiles.length - long.length;
+	return [...long.map(s => `- \`${s.file}\`: ${s.reason}.`), ...(rest ? [`- plus ${rest} file${rest === 1 ? '' : 's'} that need no split`] : [])];
 }
 
 /** The change note committed on the branch at close (pure). */
@@ -42,13 +57,14 @@ export function renderChangeNote(state: RunState, at: Date): string {
 		`${at.toISOString().slice(0, 16).replace('T', ' ')} UTC · branch \`${branch}\` from \`${base.slice(0, 7)}\` · ${state.language}`, '',
 		'Each commit moves code into new files or adds tests; none is meant to change what the program does. Every split passed the move check '
 		+ '(each moved declaration copied byte for byte, nothing else changed, the same declarations and doc comments in the package), '
-		+ 'then the build, vet and tests of its package, with the same results as before the run.', '',
+		+ 'then the checks of its package, with the same results as before the run. A check that already failed before the run is marked '
+		+ '"not a check" on its commit: it proves nothing about that commit.', '',
 		'## Commits', '',
-		...(committed.length ? committed.flatMap(step => [stepLine(step), ...(step.checks ? [`  Checks: ${step.checks}`] : [])]) : ['No fix was committed.']), '',
-		...(notDone.length ? ['## Skipped or refused', '', ...notDone.map(step => `- \`${step.file}\` (${step.kind === 'split' ? 'split' : 'tests'}): ${step.status}. ${step.reason ?? ''}`.trimEnd()), ''] : []),
+		...(committed.length ? committed.flatMap(step => [stepLine(step), ...(step.checks ? [`  Checks: ${step.checks}`] : []), ...(planText(step) ? [`  ${planText(step)}`] : [])]) : ['No fix was committed.']), '',
+		...(notDone.length ? ['## Skipped or refused', '', ...notDone.map(step => `- \`${step.file}\` (${step.kind === 'split' ? 'split' : 'tests'}): ${step.status}. ${step.reason ?? ''} ${planText(step)}`.trimEnd()), ''] : []),
 		...(pending.length ? ['## Not run yet', '', ...pending.map(fix => `- \`${fix.file}\` (${fix.kind === 'split' ? 'split' : 'tests'})`), ''] : []),
 		...(discarded.length ? ['## Discarded by you', '', ...discarded.map(step => `- \`${step.file}\` (${step.kind === 'split' ? 'split' : 'tests'})`), ''] : []),
-		...(state.skippedFiles.length ? ['## Files never split', '', ...state.skippedFiles.map(s => `- \`${s.file}\`: ${s.reason}.`), ''] : []),
+		...(state.skippedFiles.length ? ['## Files never split', '', ...neverSplit(state), ''] : []),
 		...(flaky.length ? ['## Flaky tests excluded from comparison', '', ...flaky.map(name => `- ${name}`), ''] : []),
 		...(failing.length ? ['## Checks that already failed before the run', '',
 			'They had to fail the same way after every fix, so they prove less for the files they cover:', '',
