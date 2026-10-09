@@ -131,3 +131,15 @@ test('a go.mod that needs a newer Go than installed stops with a plain message',
 	assert.equal(await goVersionProblem(go, dir), undefined);
 	assert.ok(!existsSync(path.join(dir, 'go.sum')));
 });
+
+test('the Go checks also build the changed package on its own, writing no binary', () => {
+	const tools = { go: 'go', helper: '', platforms: { os: new Set<string>(), arch: new Set<string>() } };
+	const adapter = createGoAdapter('/nowhere', tools, []);
+	assert.deepEqual(adapter.checks('internal/store/a.go'), [
+		{ label: 'build', command: 'go build ./...' },
+		{ label: 'build', command: `go build -o ${os.devNull} ./internal/store` },
+		{ label: 'vet', command: 'go vet ./internal/store' },
+		{ label: 'test', command: 'go test -count=1 -json ./internal/store' },
+	]);
+	assert.equal(adapter.checks('a.go')[1].command, `go build -o ${os.devNull} .`);
+});

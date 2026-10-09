@@ -105,8 +105,10 @@ export function createGoAdapter(root: string, tools: GoTools, tracked: readonly 
 			const result = await runTool(tools.gofmt, ['-l', ...files], root);
 			return result.stdout.split('\n').map(line => line.trim()).filter(Boolean);
 		},
+		// The package on its own too: `./...` may already fail for an unrelated reason (a missing cgo header) and hide a new break.
 		checks: file => [
 			{ label: 'build', command: 'go build ./...' },
+			{ label: 'build', command: `go build -o ${os.devNull} ${goPackage(file)}` },
 			{ label: 'vet', command: `go vet ${goPackage(file)}` },
 			{ label: 'test', command: `go test -count=1 -json ${goPackage(file)}` },
 		],
