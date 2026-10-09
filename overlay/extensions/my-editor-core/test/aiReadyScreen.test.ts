@@ -1,5 +1,5 @@
 import { strict as assert } from 'node:assert';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { test } from 'node:test';
@@ -58,6 +58,12 @@ test('screening settles fixes before any model call: no passing build, never spl
 	assert.equal((await screen(fix('here.go', 'tests')))?.step.reason, 'here_ai_test.go already exists.');
 	assert.equal(await screen(fix('store/a.go', 'tests')), undefined);
 	assert.match((await screen(fix('gone.go')))?.step.reason ?? '', /cannot parse gone\.go/);
+	mkdirSync(path.join(root, 'store'));
+	writeFileSync(path.join(root, 'store', 'a.go'), 'x\n'.repeat(363));
+	const short = await screen(fix('store/a.go'));
+	assert.deepEqual([short?.step.status, short?.step.reason, short?.step.early], ['skipped', 'Already 363 lines on this branch (the limit is 400).', true]);
+	writeFileSync(path.join(root, 'store', 'a.go'), 'x\n'.repeat(401));
+	assert.equal(await screen(fix('store/a.go')), undefined);
 });
 
 test('the up-front pass puts settled fixes first, in order, and keeps the order of the rest', async () => {

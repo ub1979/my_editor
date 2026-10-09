@@ -1,5 +1,6 @@
-import { existsSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import * as path from 'path';
+import { MAX_SOURCE_LINES, sourceLines } from '../quality/sourcePolicy';
 import { type CheckResult, buildBlocker, noVerifyingCheck } from './baseline';
 import type { FixChoice, StepRecord } from './fixState';
 import type { FileInfo, LanguageAdapter } from './language';
@@ -50,7 +51,17 @@ export async function screenFix(adapter: Screener, worktree: string, baseline: B
 		const message = error instanceof Error ? error.message : String(error);
 		return { step: { file: fix.file, kind: fix.kind, status: 'skipped', reason: message, early: true }, brief: message, unchecked: false };
 	}
-	return screenParsed(adapter, worktree, baseline, fix, info);
+	return screenParsed(adapter, worktree, baseline, fix, info) ?? alreadyShort(worktree, fix);
+}
+
+/** The picker sized files in the user's folder; the run's branch may already have split this one in an earlier run. */
+function alreadyShort(worktree: string, fix: FixChoice): EarlyOutcome | undefined {
+	const file = path.join(worktree, fix.file);
+	if (fix.kind !== 'split' || !existsSync(file)) { return undefined; }
+	const lines = sourceLines(readFileSync(file, 'utf8'));
+	if (lines > MAX_SOURCE_LINES) { return undefined; }
+	const reason = `Already ${lines} lines on this branch (the limit is ${MAX_SOURCE_LINES}).`;
+	return { step: { file: fix.file, kind: fix.kind, status: 'skipped', reason, early: true }, brief: `already ${lines} lines on this branch`, unchecked: false };
 }
 
 /** The queue after one pass right after the baseline: settled fixes first (in order), then the rest in order. */
