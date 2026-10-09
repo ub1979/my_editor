@@ -1,6 +1,7 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
 import { fileScope, tsProject } from '../src/aiready/tsProject';
+import { findsFolder, pathFinders } from '../src/aiready/tsScan';
 import { ESM, project, ts } from './tsFixture';
 
 const OK = JSON.stringify({ compilerOptions: { module: 'esnext', moduleResolution: 'bundler', strict: true }, include: ['src'] });
@@ -57,4 +58,26 @@ test('transform tools from dependencies or config files narrow to types-only mov
 	for (const [files, reason] of cases) { assert.equal(scope(files), `types: ${reason}`, JSON.stringify(files)); }
 	assert.equal(scope(dep('esbuild')), 'runtime: ', 'esbuild as a dependency alone does not say it builds the code');
 	assert.equal(scope(dep('rollup')), 'runtime: ');
+});
+
+/** Which files find `src/plugins/` by a path string, as `file:below` or `file:patterns`. */
+function finders(files: Record<string, string>): string[] {
+	const { root, tracked } = project({ 'package.json': '{"name":"p"}', 'src/plugins/a.ts': 'export const a = 1;\n', ...files });
+	const found = pathFinders(tsProject(ts, root, tracked));
+	return found.filter(f => findsFolder(f, 'src/plugins', ['src/plugins/a.ts', 'src/plugins/zzprobe.ts'])).map(f => `${f.file}:${f.below ?? f.patterns?.join('|')}`);
+}
+
+test('folder loaders: arrays of globs, member calls, a glob joined to __dirname, package.json scripts and .mocharc spec find a folder', () => {
+	assert.deepEqual(finders({ 'src/main.ts': "const m = import.meta.glob(['./plugins/*.ts', '!./plugins/x.ts']);\n" }), ['src/main.ts:./plugins/*.ts|!./plugins/x.ts']);
+	assert.deepEqual(finders({ 'scripts/b.mjs': "globSync(['lib/*.ts', 'src/plugins/*.ts']);\n" }), ['scripts/b.mjs:lib/*.ts|src/plugins/*.ts']);
+	assert.deepEqual(finders({ 'scripts/b.mjs': "fg.sync('src/plugins/*.ts');\nglob.sync('src/**/*.ts');\nawait globby.globby(['src/plugins']);\n" }),
+		['scripts/b.mjs:src/plugins/*.ts', 'scripts/b.mjs:src/**/*.ts', 'scripts/b.mjs:src/plugins']);
+	assert.deepEqual(finders({ 'src/db.ts': "new DataSource({ entities: [__dirname + '/plugins/*.ts'] });\n" }), ['src/db.ts:src']);
+	assert.deepEqual(finders({ 'src/db.ts': "new DataSource({ entities: [User], migrations: options.migrations });\n" }), []);
+	assert.deepEqual(finders({ 'package.json': '{"name":"p","scripts":{"build":"esbuild \'src/plugins/*.ts\' --outdir=dist","x":"tsc"}}' }),
+		['package.json:src/plugins/*.ts']);
+	assert.deepEqual(finders({ '.mocharc.yml': "spec: 'src/plugins/**/*.ts'\n" }), ['.mocharc.yml:src/plugins/**/*.ts']);
+	assert.deepEqual(finders({ '.mocharc.yaml': 'require: x\nspec:\n  - lib/*.ts\n  - src/plugins/**/*.ts\nui: bdd\n' }), ['.mocharc.yaml:lib/*.ts|src/plugins/**/*.ts']);
+	assert.deepEqual(finders({ '.mocharc.json': '{"spec":["src/plugins/*.ts"]}' }), ['.mocharc.json:src/plugins/*.ts']);
+	assert.deepEqual(finders({ 'scripts/b.mjs': "globSync(['lib/*.ts']);\nfg.sync('lib/**');\n" }), []);
 });

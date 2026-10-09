@@ -11,12 +11,91 @@ export interface PathFinder {
 	readonly patterns?: readonly string[];
 }
 
-const CALL = /\b(readdirSync|readdir|opendirSync|opendir|globSync|glob|globby|fg|fastGlob|import\.meta\.glob|require\.context)\s*\(\s*(?:(['"`])([^'"`\n]*)\2)?/g;
-const KEY = /\b(entities|migrations|subscribers|entry|entryPoints|input)\s*:\s*\[?((?:\s*(['"`])[^'"`\n]*\3\s*,?)+)/g;
+const CALL = new RegExp('\\b(?:readdirSync|readdir|opendirSync|opendir|import\\.meta\\.glob|require\\.context'
+	+ '|(?:globSync|globbySync|globby|glob|fg|fastGlob|tinyglobby)(?:\\.\\w+)?)\\s*\\(', 'g');
+const KEY = /\b(?:entities|migrations|subscribers|entry|entryPoints|input|spec)['"]?\s*:[ \t]*/g;
 const SCANNED = /\.(?:[cm]?[jt]sx?|json|vue|svelte|astro|html|ya?ml)$/;
-const NOT_SCANNED = /(^|\/)(node_modules|dist|build|out|coverage|vendor)\/|(^|\/)(package(-lock)?\.json|[jt]sconfig[^/]*\.json|\.eslintrc[^/]*|eslint\.config\.\w+|\.prettierrc[^/]*|prettier\.config\.\w+)$|\.d\.[cm]?ts$/;
+const NOT_SCANNED = new RegExp('(^|/)(node_modules|dist|build|out|coverage|vendor)/|\\.d\\.[cm]?ts$'
+	+ '|(^|/)(package(-lock)?\\.json|[jt]sconfig[^/]*\\.json|\\.eslintrc[^/]*|eslint\\.config\\.\\w+|\\.prettierrc[^/]*|prettier\\.config\\.\\w+)$');
+const LITERAL = /^(['"`])([^'"`\n]*)\1$/;
+const GLOB_STRING = /(['"`])[^'"`\n]*[*?{][^'"`\n]*\1/;
 
-/** Every place in the tracked files that finds files by a path string (`readdirSync`, `import.meta.glob`, ORM entity globs, build entries). */
+/**
+ * One expression from `start` (after spaces, and line breaks too when `lines`): its text, up to a top-level `,`,
+ * closing bracket or line end with quotes respected, and where it ends.
+ */
+function expression(text: string, start: number, lines = true): { value: string; end: number } {
+	let i = start;
+	while (i < text.length && (text[i] === ' ' || text[i] === '\t' || (lines && /\s/.test(text[i])))) { i++; }
+	const from = i;
+	let depth = 0;
+	for (; i < text.length; i++) {
+		const c = text[i];
+		if (c === '"' || c === '\'' || c === '`') {
+			const close = text.indexOf(c, i + 1);
+			if (close < 0) { i = text.length; break; }
+			i = close;
+		} else if ('([{'.includes(c)) { depth++; }
+		else if (')]}'.includes(c)) { if (depth === 0) { break; } depth--; }
+		else if (depth === 0 && (c === ',' || c === '\n')) { break; }
+	}
+	return { value: text.slice(from, i).trim(), end: i };
+}
+
+/** The elements of an array literal's text, or the text itself. */
+function elements(value: string): string[] {
+	if (!value.startsWith('[')) { return value ? [value] : []; }
+	const out: string[] = [];
+	for (let at = 1; at < value.length;) {
+		const element = expression(value, at);
+		if (element.value) { out.push(element.value); }
+		if (value[element.end] !== ',') { break; }
+		at = element.end + 1;
+	}
+	return out;
+}
+
+/**
+ * A finder from a call's first argument or a key's value: quoted strings (alone or in an array) are patterns; a
+ * non-literal argument, or a non-literal element holding a glob (`__dirname + '/plugins/*.ts'`), finds
+ * everything below the file's folder.
+ */
+function finderOf(file: string, value: string, call: boolean): PathFinder | undefined {
+	const patterns: string[] = [];
+	let below = call && !value;
+	for (const element of elements(value)) {
+		const literal = LITERAL.exec(element);
+		if (literal && !literal[2].includes('${')) { patterns.push(literal[2]); }
+		else if (call || GLOB_STRING.test(element)) { below = true; }
+	}
+	if (below) { return { file, below: path.posix.dirname(file) }; }
+	return patterns.length ? { file, patterns } : undefined;
+}
+
+/** `spec:` followed by a YAML list in a `.mocharc.yml`. */
+function yamlList(text: string, end: number): string[] {
+	const items: string[] = [];
+	for (const line of text.slice(end).split('\n').slice(1)) {
+		const item = /^\s+-\s*(.+?)\s*$/.exec(line);
+		if (!item) { break; }
+		items.push(item[1].replace(/^(['"])(.*)\1$/, '$2'));
+	}
+	return items;
+}
+
+/** Globs in package.json scripts (`esbuild 'src/*.ts'`, `mocha --spec=test/**`), relative to the package; none without packages. */
+function scriptFinders(project: TsProject): PathFinder[] {
+	return [...project.packages ?? []].flatMap(([dir, pkg]) => {
+		const patterns = Object.values(pkg.scripts ?? {}).flatMap(script => script.split(/\s+/))
+			.map(token => token.replace(/^--?[\w-]+=/, '').replace(/^(['"])(.*)\1$/, '$2')).filter(token => /^[\w./*?{},@!+-]+$/.test(token) && /[*{]/.test(token));
+		return patterns.length ? [{ file: dir === '.' ? 'package.json' : `${dir}/package.json`, patterns }] : [];
+	});
+}
+
+/**
+ * Every place in the tracked files that finds files by a path string (`readdirSync`, `import.meta.glob`, glob libraries,
+ * ORM entity globs, build entries, Mocha `spec`), and globs in package.json scripts.
+ */
 export function pathFinders(project: TsProject): PathFinder[] {
 	const finders: PathFinder[] = [];
 	for (const file of project.tracked.filter(f => SCANNED.test(f) && !NOT_SCANNED.test(f))) {
@@ -24,14 +103,17 @@ export function pathFinders(project: TsProject): PathFinder[] {
 		try { text = readFileSync(path.join(project.root, file), 'utf8'); } catch { continue; }
 		if (text.length > 512 * 1024) { continue; }
 		for (const match of text.matchAll(CALL)) {
-			if (match[3] === undefined || match[3].includes('${')) { finders.push({ file, below: path.posix.dirname(file) }); }
-			else { finders.push({ file, patterns: [match[3]] }); }
+			const finder = finderOf(file, expression(text, match.index + match[0].length).value, true);
+			if (finder) { finders.push(finder); }
 		}
 		for (const match of text.matchAll(KEY)) {
-			finders.push({ file, patterns: [...match[2].matchAll(/(['"`])([^'"`\n]*)\1/g)].map(m => m[2]) });
+			const end = match.index + match[0].length;
+			const { value } = expression(text, end, false);
+			const finder = value ? finderOf(file, value, false) : { file, patterns: yamlList(text, end) };
+			if (finder?.patterns?.length || finder?.below) { finders.push(finder); }
 		}
 	}
-	return finders;
+	return [...finders, ...scriptFinders(project)];
 }
 
 /** A glob as a regular expression over `/`-separated relative paths: `**`, `*`, `?`, `[…]`, `{a,b}` and `?(…)`/`+(…)`/`@(…)`/`*(…)`/`!(…)`. */
@@ -71,7 +153,7 @@ export function findsFolder(finder: PathFinder, dir: string, probes: readonly st
 	if (finder.below !== undefined) { return inside(finder.below); }
 	const bases = ['.', path.posix.dirname(finder.file)];
 	for (const pattern of finder.patterns ?? []) {
-		if (!pattern || /^[a-z]+:/i.test(pattern)) { continue; }
+		if (!pattern || pattern.startsWith('!') || /^[a-z]+:/i.test(pattern)) { continue; }
 		for (const base of bases) {
 			const full = path.posix.normalize(path.posix.join(base, pattern)).replace(/\/+$/, '');
 			if (/[*?{]/.test(pattern)) {
