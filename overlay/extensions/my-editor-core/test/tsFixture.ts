@@ -1,10 +1,12 @@
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import type { SplitPlan, SplitResult } from '../src/aiready/language';
 import { tsFileFacts } from '../src/aiready/tsAst';
 import { analysisOptions, jsxRoots } from '../src/aiready/tsConfig';
 import { loadTypeScript, Ts } from '../src/aiready/tsLoad';
 import { specifierStyle, TsFileContext, TsFileInfo, tsFileInfoView, tsSkipReason } from '../src/aiready/tsRules';
+import { buildTsSplit } from '../src/aiready/tsSplit';
 
 /** The TypeScript the tests use: `MY_EDITOR_TS` (the editor's shipped copy) or the dev dependency. */
 export const TS_DIR = process.env.MY_EDITOR_TS ?? path.dirname(require.resolve('typescript/package.json'));
@@ -43,4 +45,19 @@ export function tsInfo(file: string, text: string, context: Partial<TsFileContex
 	const full = { ...CONTEXT, ...context };
 	const own = specifierStyle(facts);
 	return tsFileInfoView(file, facts, full, tsSkipReason(file, text, facts, full), style ?? (own === 'mixed' ? undefined : own ?? 'js'), jsxRoots(undefined));
+}
+
+/** Every relative specifier resolves. */
+export const RESOLVES = { resolves: () => true };
+
+/** Splits text with a plan, or returns the thrown reasons. */
+export function split(file: string, text: string, plan: SplitPlan, context: Partial<TsFileContext> = {}, style?: TsFileInfo['style']): SplitResult | string {
+	try { return buildTsSplit(Buffer.from(text), tsInfo(file, text, context, style), plan, RESOLVES); }
+	catch (error) { return error instanceof Error ? error.message : String(error); }
+}
+
+/** The text of a split's new file by index, or the original. */
+export function text(result: SplitResult | string, index?: number): string {
+	if (typeof result === 'string') { throw new Error(result); }
+	return (index === undefined ? result.original : result.files[index].text).toString('utf8');
 }
