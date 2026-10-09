@@ -1,10 +1,13 @@
-const STOP = new Set('a an and are as at be by can check could do does for from have how i in is it me my of on or our please project see should show that the their them there these this to us want what when where which why with you your all able few secs seconds lines files code'.split(' '));
+const STOP = new Set(('a an and are as at be by can check could do does for from have how i in is it me my of on or our please project '
+	+ 'see should show that the their them there these this to us want what when where which why with you your all able few secs '
+	+ 'seconds lines files code').split(' '));
+const STORAGE_WORDS = /^(db|database|postgres|postgresql|sql|query|queries|index|indexes|migration|migrations|rows|throughput|ingest|processing|millions)$/;
 
 /** Terms used to find source evidence for a question, including common names for the same subsystem. */
 export function queryTerms(question: string): string[] {
 	const words = question.toLowerCase().match(/[a-z][a-z0-9_]{2,}/g) ?? [];
 	const terms = new Set(words.filter(word => !STOP.has(word)));
-	if (words.some(word => /^(db|database|postgres|postgresql|sql|query|queries|index|indexes|migration|migrations|rows|throughput|ingest|processing|millions)$/.test(word))) {
+	if (words.some(word => STORAGE_WORDS.test(word))) {
 		'postgres sql database db query index migration store repository redis cache cdr spool insert batch'.split(' ').forEach(word => terms.add(word));
 	}
 	if (words.some(word => /^(redis|cache|hopper|queue)$/.test(word))) {

@@ -42,7 +42,10 @@ function plural(n: number, word: string): string {
 export async function readProjectState(): Promise<ProjectState> {
 	const folder = vscode.workspace.workspaceFolders?.[0];
 	if (!folder) {
-		return { name: 'No project open', summary: 'Open a folder to start.', hasWorkspace: false, stages: [], memory: { conventions: false, decisions: 0, chatDays: 0, brain: false, brainFiles: 0 } };
+		return {
+			name: 'No project open', summary: 'Open a folder to start.', hasWorkspace: false, stages: [],
+			memory: { conventions: false, decisions: 0, chatDays: 0, brain: false, brainFiles: 0 },
+		};
 	}
 	return readProjectStateAt(folder.uri, folder.name);
 }

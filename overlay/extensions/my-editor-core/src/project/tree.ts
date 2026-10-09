@@ -58,7 +58,8 @@ export async function scaffoldFromTree(): Promise<void> {
 		file.status = 'stub';
 	}
 	await serial(() => save(tree.root, tree.files));
-	void vscode.window.showInformationMessage(`Created ${picked.length} stub${picked.length === 1 ? '' : 's'}. Open Build in the Project view to start file by file.`);
+	void vscode.window.showInformationMessage(
+		`Created ${picked.length} stub${picked.length === 1 ? '' : 's'}. Open Build in the Project view to start file by file.`);
 }
 
 /** Opens the next file to work on and turns the chat to the Next step skill. */

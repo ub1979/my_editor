@@ -26,7 +26,8 @@ export function hasClassSyntax(filePath: string): boolean { return CLASS_EXTENSI
 export function classDeclarations(text: string, filePath: string): { name: string; line: number }[] {
 	if (!hasClassSyntax(filePath)) { return []; }
 	const found: { name: string; line: number }[] = [];
-	const declaration = /^(?:(?:export|default|declare|abstract|public|private|protected|internal|sealed|final|open|data|partial|static)\s+)*class\s+([A-Za-z_$][\w$]*)\b/;
+	const modifiers = 'export|default|declare|abstract|public|private|protected|internal|sealed|final|open|data|partial|static';
+	const declaration = new RegExp(String.raw`^(?:(?:${modifiers})\s+)*class\s+([A-Za-z_$][\w$]*)\b`);
 	text.split(/\r\n|\r|\n/).forEach((line, index) => {
 		const match = declaration.exec(line);
 		if (match) { found.push({ name: match[1], line: index + 1 }); }

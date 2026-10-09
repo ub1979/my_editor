@@ -54,5 +54,8 @@ export async function projectEvidence(question: string, maxChars = MAX_TOTAL_CHA
 			remaining -= excerpt.length;
 		} catch { /* File moved since discovery; continue with the others. */ }
 	}
-	return `${identity}\n\nSource excerpts read from this workspace (line numbers refer to each file):\n${evidence.length ? evidence.join('\n\n') : 'No matching source files were found for this question.'}\n\nThese are selected excerpts, not a complete project audit. Use them to identify concrete paths; state clearly when measurements or query plans are still needed.`;
+	const excerpts = evidence.length ? evidence.join('\n\n') : 'No matching source files were found for this question.';
+	return `${identity}\n\nSource excerpts read from this workspace (line numbers refer to each file):\n${excerpts}\n\n`
+		+ 'These are selected excerpts, not a complete project audit. '
+		+ 'Use them to identify concrete paths; state clearly when measurements or query plans are still needed.';
 }

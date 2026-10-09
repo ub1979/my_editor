@@ -76,7 +76,9 @@ export async function updateGitProject(cwd: string): Promise<GitUpdateResult> {
 	if (state.kind !== 'tracked') { return { state, updated: false, reason: 'This branch has no upstream to update from.' }; }
 	if (state.fetchError) { return { state, updated: false, reason: `Could not check the remote: ${state.fetchError}` }; }
 	if (!state.behind) { return { state, updated: false, reason: 'This branch is already up to date.' }; }
-	if (state.ahead) { return { state, updated: false, reason: 'This branch has local commits as well as remote commits. Review them in Source Control before updating.' }; }
+	if (state.ahead) {
+		return { state, updated: false, reason: 'This branch has local commits as well as remote commits. Review them in Source Control before updating.' };
+	}
 	if (state.localEdits) { return { state, updated: false, reason: 'Commit or stash local file edits in Source Control before updating.' }; }
 	try {
 		await git(cwd, ['merge', '--ff-only', '@{upstream}'], 30_000);

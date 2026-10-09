@@ -6,6 +6,11 @@ import { CliEvent, parseClaudeLine, parseCodexLine, transcript } from './cliProt
 import { ProviderError, ProviderId, StreamRequest } from './types';
 
 const TIMEOUT_MS = 10 * 60_000;
+/** Told to a CLI agent so it relies on the host's project checks, not its own look around a scratch folder. */
+const ISOLATED_PROCESS_NOTE = 'This model process runs in an isolated temporary folder. '
+	+ "Do not inspect that folder or use your own shell tools to infer the user's project state. "
+	+ 'The my_editor host supplies the real project context and executes only the structured host checks described above '
+	+ 'when that protocol is present. Use their results and say precisely what they do or do not establish.';
 
 function executable(file: string): boolean {
 	try {
@@ -160,7 +165,7 @@ export function streamCodexCli(command: string, request: StreamRequest): Promise
 		'-',
 	];
 	const input = request.system
-		? `Follow these instructions:\n${request.system}\n\nThis model process runs in an isolated temporary folder. Do not inspect that folder or use your own shell tools to infer the user's project state. The my_editor host supplies the real project context and executes only the structured host checks described above when that protocol is present. Use their results and say precisely what they do or do not establish.\n\n${transcript(request.turns)}`
+		? `Follow these instructions:\n${request.system}\n\n${ISOLATED_PROCESS_NOTE}\n\n${transcript(request.turns)}`
 		: transcript(request.turns);
 	return runCli('codex-cli', command, args, input, scratchDir(), process.env, parseCodexLine, request);
 }

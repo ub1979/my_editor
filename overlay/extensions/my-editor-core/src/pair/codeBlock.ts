@@ -23,7 +23,12 @@ export function fileFromReply(text: string): string | undefined {
  * or `# rest unchanged` — which would delete those lines if applied.
  */
 export function elidesCode(code: string): boolean {
-	const omitted = /(?:existing|remaining|previous|other|unchanged) (?:code|methods|functions|imports|implementation|logic|content)|rest of (?:the )?(?:file|code|class|module|function|implementation)|(?:code|content|file|methods?) (?:stays |remains |is )?unchanged|same as before/i;
+	const omitted = new RegExp([
+		'(?:existing|remaining|previous|other|unchanged) (?:code|methods|functions|imports|implementation|logic|content)',
+		'rest of (?:the )?(?:file|code|class|module|function|implementation)',
+		'(?:code|content|file|methods?) (?:stays |remains |is )?unchanged',
+		'same as before',
+	].join('|'), 'i');
 	const comment = /^\s*(?:\/\/|#|\/\*|<!--|--)(.*)$/;
 	return code.split('\n').some(line => {
 		const body = comment.exec(line)?.[1];

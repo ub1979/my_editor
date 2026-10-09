@@ -15,7 +15,8 @@ export function describeProjectStatus(status: ProjectContextStatus | undefined):
 	const lines = [`Open project: ${status.name} (${status.path}).`];
 	if (status.head) { lines.push(`Local Git HEAD: ${status.head}.`); }
 	if (status.git.kind === 'tracked') {
-		lines.push(`Branch ${status.git.branch}, tracking ${status.git.upstream}; last fetched upstream snapshot: ${status.git.behind ?? 0} behind, ${status.git.ahead ?? 0} ahead. This does not check the live remote.`);
+		lines.push(`Branch ${status.git.branch}, tracking ${status.git.upstream}; `
+			+ `last fetched upstream snapshot: ${status.git.behind ?? 0} behind, ${status.git.ahead ?? 0} ahead. This does not check the live remote.`);
 		if (status.git.localEdits || status.git.untracked) { lines.push('Working tree has local changes; inspect them before describing the committed state.'); }
 	} else if (status.git.kind === 'no-upstream') { lines.push(`Branch ${status.git.branch}; no upstream branch is configured.`); }
 	lines.push(status.brainCommit

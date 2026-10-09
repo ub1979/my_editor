@@ -40,7 +40,10 @@ export async function checkFit(uri?: vscode.Uri, uris?: vscode.Uri[]): Promise<v
 		const report = analyzeFit(project.filter(f => selected.has(f.path)), project);
 		const problems = [...selected].flatMap(path => vscode.languages.getDiagnostics(vscode.Uri.joinPath(root, path))
 			.filter(d => d.severity <= vscode.DiagnosticSeverity.Warning)
-			.map(d => ({ file: path, line: d.range.start.line + 1, severity: d.severity === vscode.DiagnosticSeverity.Error ? 'error' : 'warning', message: d.message })));
+			.map(d => ({
+				file: path, line: d.range.start.line + 1,
+				severity: d.severity === vscode.DiagnosticSeverity.Error ? 'error' : 'warning', message: d.message,
+			})));
 		const now = new Date();
 		const stamp = now.toISOString().slice(0, 16).replace(/[-:T]/g, '');
 		const reportPath = `.my_editor/qa/${stamp}-fit.md`;

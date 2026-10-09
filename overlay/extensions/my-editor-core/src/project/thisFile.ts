@@ -76,7 +76,8 @@ export class ThisFileView implements vscode.WebviewViewProvider {
 		const document = editor.document;
 		const path = vscode.workspace.asRelativePath(document.uri, false);
 		if (full) {
-			const found = await vscode.commands.executeCommand<(vscode.DocumentSymbol | vscode.SymbolInformation)[]>('vscode.executeDocumentSymbolProvider', document.uri) ?? [];
+			const found = await vscode.commands.executeCommand<(vscode.DocumentSymbol | vscode.SymbolInformation)[]>(
+				'vscode.executeDocumentSymbolProvider', document.uri) ?? [];
 			this.symbols = flatten(found);
 		}
 		const notes = vscode.languages.getDiagnostics(document.uri)

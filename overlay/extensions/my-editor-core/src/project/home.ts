@@ -218,7 +218,8 @@ function cloneGit(url: string, branch: string | undefined, destination: string, 
 
 /** Recently opened local folders, each with its my_editor progress. */
 async function recentProjects(): Promise<RecentProject[]> {
-	const recent = await vscode.commands.executeCommand<{ workspaces: { folderUri?: vscode.Uri; label?: string; remoteAuthority?: string }[] }>('_workbench.getRecentlyOpened');
+	type Recent = { workspaces: { folderUri?: vscode.Uri; label?: string; remoteAuthority?: string }[] };
+	const recent = await vscode.commands.executeCommand<Recent>('_workbench.getRecentlyOpened');
 	const folders = (recent?.workspaces ?? [])
 		.filter(w => w.folderUri && w.folderUri.scheme === 'file' && !w.remoteAuthority)
 		.slice(0, MAX_RECENT);
