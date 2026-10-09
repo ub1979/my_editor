@@ -189,6 +189,26 @@ A run handles at most 25 fixes. **Continue** resumes from saved state.
 
 ## Stage 2a: Go (first build)
 
+**Languages after Go.** The user wants the fixer for Python, Go, C/C++, C#, Rust, TypeScript and JavaScript. Stage 2a
+builds a language-neutral core (worktree, commands, baseline, steps, move check on byte spans, picker, change note)
+and a `LanguageAdapter` per language; Go is the first adapter. Each later adapter uses the language's own parser and
+gets its own safety rules and review, in this order:
+
+| Order | Language | Parser | How a split stays unchanged | Main risks to refuse |
+|---|---|---|---|---|
+| 1 | Go | `go/ast` helper | Same package: no import or caller change | init order, directives, iota groups |
+| 2 | TS/JS | TypeScript compiler API (shipped with the editor) | Original path re-exports what it exported | module side effects, cycles, CommonJS |
+| 3 | Python | `ast` module helper | Original module imports the moved names back | `__name__`/`__module__`, `global`, import-time code |
+| 4 | C# | Roslyn-free: `dotnet` build + a light parser; one type per file | Same namespace; SDK projects include new files | `partial`, file-scoped types, preprocessor |
+| 5 | Rust | `syn`-based helper via cargo | New module with `pub use` back, visibility kept | macros by order, `mod` edits, private items |
+| 6 | C/C++ | `clang` AST dump | New source file in the same target | `static` linkage, macros, build-file edits |
+
+C/C++ is last because adding a translation unit usually means editing the build files (CMake, Makefile), and
+`static` functions cannot move without changing linkage; its first version may offer only header-safe or
+one-class-per-file moves and say so. Every language gets the report and the add-tests fix before its split fix if
+that is safer to ship first.
+
+
 Go goes first because the user's real project is Go, and because a move inside one Go package is the easiest change to
 prove safe: files in a package share one namespace, so no caller, import path or re-export changes. On the user's
 dialer, 63 of 69 oversized source files can reach 400 lines by moving whole declarations; 6 hold a single declaration
