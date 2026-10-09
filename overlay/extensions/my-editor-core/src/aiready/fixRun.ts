@@ -14,7 +14,7 @@ import type { LanguageAdapter } from './language';
 import { adapterFor, languageNote } from './languages';
 import { choosePython } from './pyPick';
 import { runAddTests, runSplit, StepContext } from './steps';
-import { commit, reattach, remove, trackedFiles } from './worktree';
+import { aheadOf, commit, reattach, remove, trackedFiles } from './worktree';
 
 const ASK_TIMEOUT_MS = 300_000;
 
@@ -121,7 +121,8 @@ async function closeRun(env: CommandEnv, state: RunState, sink: Sink, mayDiffer:
 	const worktree = state.worktree.path;
 	mkdirSync(path.dirname(path.join(worktree, note)), { recursive: true });
 	writeFileSync(path.join(worktree, note), renderChangeNote(state, at, mayDiffer, existsSync(reportPath(state.root))));
-	await commit(worktree, [note], 'my_editor: change note for the AI-ready fixes', 'What this branch changed, how each change was checked, and what was left.');
+	await commit(worktree, [note], 'my_editor: change note for the AI-ready fixes',
+		'What this run changed, how each change was checked, and what was left.');
 	let removed = true;
 	try { await remove(state.root, worktree); } catch { removed = false; }
 	const reportUpdated = writeRunReport(state.root, state, note);
@@ -129,8 +130,9 @@ async function closeRun(env: CommandEnv, state: RunState, sink: Sink, mayDiffer:
 	const committed = state.steps.filter(step => step.status === 'committed').length;
 	const discarded = state.steps.filter(step => step.status === 'discarded').length;
 	const stillOver = state.steps.filter(step => step.status === 'committed').flatMap(step => step.over ?? []).length;
-	sink.text(closingText({
-		committed, discarded, branch: state.worktree.branch, base: state.worktree.base, note, removed, worktree, reportUpdated, stillOver,
-	}));
-	sink.action('Refresh the brain after merging', 'myEditor.analyseProject', []);
+	let ahead: number | undefined;
+	try { ahead = await aheadOf(state.root, state.worktree.branch); } catch { ahead = undefined; }
+	const { branch, base, userRef } = state.worktree;
+	sink.text(closingText({ committed, discarded, branch, base, note, removed, worktree, reportUpdated, stillOver, ahead, userRef }));
+	// No "Refresh the brain" action: the user's folder did not change; the note says to run Analyse after switching to the branch.
 }

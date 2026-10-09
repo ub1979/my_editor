@@ -57,7 +57,7 @@ test('the change note shows plan attempts and lists only skipped files over 400 
 
 function state(root: string): RunState {
 	return {
-		version: 1, root, language: 'Go', worktree: { branch: 'my_editor/ai-ready', path: `${root}.ai-ready`, base: '0123456789abcdef' },
+		version: 1, root, language: 'Go', worktree: { branch: 'ai_fix', path: `${root}.ai-ready`, base: '0123456789abcdef' },
 		startedAt: '2026-10-09T10:00:00Z', approved: ['go build ./...'], next: 3,
 		fixes: [fix('a.go', 'split', 900), fix('b.go', 'tests', 500), fix('c.go', 'split', 450), fix('d.go', 'split', 420)],
 		steps: [
@@ -76,13 +76,13 @@ test('the change note lists commits, refusals, flaky tests, what is left and how
 	for (const pattern of [/^# AI-ready changes: shop/, /`abcdef1` Split `a.go` into `a_query.go` \(Find, List\)/, /Checks: `go build/,
 		/`fedcba9` Added tests for `b.go` in `b_ai_test.go`; dropped failing tests TestAiSlow/, /`c.go` \(split\): refused. The move check failed/,
 		/## Not run yet\n\n- `d.go` \(split\)/, /1 file \(`gen.go`\): generated code/, /- m TestF/, /stays at 450 lines/, /glob\.\.funcN/,
-		/already failed before the run[\s\S]*- `go test -count=1 -json \.\/a`/, /git diff 0123456789ab\.\.my_editor\/ai-ready/, /Nothing was pushed/]) {
+		/already failed before the run[\s\S]*- `go test -count=1 -json \.\/a`/, /git diff 0123456789ab\.\.\.ai_fix/, /Nothing was pushed/]) {
 		assert.match(note, pattern);
 	}
 	assert.match(noteFileName(new Date(2026, 9, 9, 7, 5)), /^\.my_editor\/changes\/ai-ready-2026-10-09-0705\.md$/);
 	const report = reportWithRun('# Report\n\nBody\n\n## Fixes on a local branch\n\nOld run.\n', state('/p/shop'), 'x.md');
 	assert.equal(report, '# Report\n\nBody\n\n## Fixes on a local branch\n\n'
-		+ '2 fixes committed on `my_editor/ai-ready`, 1 skipped or refused. Details: `x.md` on that branch.\n');
+		+ '2 fixes committed on `ai_fix`, 1 skipped or refused. Details: `x.md` on that branch.\n');
 });
 
 test('discarding the rest records each fix as discarded by the user, in the note and the report', () => {

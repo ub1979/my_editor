@@ -1,6 +1,7 @@
 import { MAX_SOURCE_LINES } from '../quality/sourcePolicy';
 import { type EarlyOutcome, unitOf } from './fixScreen';
 import { MAX_FIXES_PER_RUN } from './fixState';
+import { FIX_BRANCH, type Worktree } from './worktree';
 
 /** The default and limits of `myEditor.aiReady.commandTimeoutMinutes`. */
 const DEFAULT_TIMEOUT_MINUTES = 10;
@@ -27,7 +28,8 @@ function installText(command: string): string {
 /** The approval modal's detail: where the commands run, the exact commands, what they run, and the adapter's note. */
 export function approvalDetail(folder: string, approved: readonly string[], language: string, fixCount = 0, installs = false, note = ''): string {
 	const over = fixCount > MAX_FIXES_PER_RUN ? `${fixCount} fixes chosen: ${MAX_FIXES_PER_RUN} now; Continue does the rest.\n\n` : '';
-	return `${over}In a new working copy at ${folder}, on a new branch:\n\n${approved.join('\n')}\n\n`
+	return `${over}In a new working copy at ${folder}, on the local branch ${FIX_BRANCH} (made from your branch the first time; later runs add `
+		+ `on top):\n\n${approved.join('\n')}\n\n`
 		+ (installs ? installText(approved[0]) : '')
 		+ `${installs ? 'The others' : 'They'} build the project and run its tests, which runs project code and tests written by the AI model. `
 		+ `my_editor also runs read-only ${language} tools (to list packages and check formatting) and local git commands there. ${note}`
@@ -74,16 +76,36 @@ export interface Closing {
 	readonly reportUpdated: boolean;
 	/** Files the committed splits left over the line limit. */
 	readonly stillOver?: number;
+	/** Commits the branch has that the user's branch lacks, and that branch's name (or short HEAD). */
+	readonly ahead?: number;
+	readonly userRef?: string;
+}
+
+/** Said before the run and in the change note when the user's branch has commits the fix branch lacks; else empty. */
+export function behindText(worktree: Worktree): string {
+	const behind = worktree.behind ?? 0;
+	if (!behind || !worktree.forkPoint) { return ''; }
+	return `\`${worktree.branch}\` is based on \`${worktree.forkPoint.slice(0, 7)}\`; your branch has ${behind} newer `
+		+ `commit${behind === 1 ? '' : 's'} that these fixes don't include.`;
+}
+
+/** The review commands: what the branch adds over the user's branch, how to work on it, how to delete it. */
+export function reviewText(branch: string, userRef: string): string {
+	return `Review with \`git diff ${userRef}...${branch}\` or \`git log ${userRef}..${branch}\`, work on them with `
+		+ `\`git switch ${branch}\`, or delete them with \`git branch -D ${branch}\`.`;
 }
 
 /** The closing message: what was committed, the one thing changed in the user's folder, and how to review. */
 export function closingText(close: Closing): string {
 	const { committed, branch, base, note } = close;
-	return `\n**Done.** ${committed} fix${committed === 1 ? '' : 'es'} committed on \`${branch}\`, with the change note \`${note}\`. `
+	const userRef = close.userRef ?? base.slice(0, 12);
+	const ahead = close.ahead === undefined ? '' : ` (now ${close.ahead} commit${close.ahead === 1 ? '' : 's'} ahead of \`${userRef}\`)`;
+	return `\n**Done.** ${committed} fix${committed === 1 ? '' : 'es'} committed on \`${branch}\`${ahead}, with the change note \`${note}\`. `
 		+ `${close.discarded ? `${close.discarded} fix${close.discarded === 1 ? '' : 'es'} discarded. ` : ''}`
 		+ `${close.stillOver ? `${close.stillOver} file${close.stillOver === 1 ? ' is' : 's are'} still over ${MAX_SOURCE_LINES} lines; `
 			+ 'the change note says why. ' : ''}`
-		+ `${close.reportUpdated ? 'In your folder, only the health report in `.my_editor/ai-ready/` was updated. ' : ''}Nothing was pushed.`
+		+ `${close.reportUpdated ? 'In your folder, only the health report in `.my_editor/ai-ready/` was updated. ' : ''}`
+		+ `Nothing was pushed; \`${branch}\` exists only in this repository on your machine.`
 		+ `${close.removed ? '' : ` Remove the working copy \`${close.worktree}\` when you are done with it.`}\n\n`
-		+ `Review with \`git diff ${base.slice(0, 12)}..${branch}\`, keep the changes with \`git merge ${branch}\`, or delete them with \`git branch -D ${branch}\`.`;
+		+ reviewText(branch, userRef);
 }

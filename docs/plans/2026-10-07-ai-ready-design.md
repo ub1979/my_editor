@@ -93,7 +93,7 @@ links; then suggestions; then the fix kinds stage 2 offers. Stage 2 adds per-fil
 - The folder is a Git repository with at least one commit (offer `git init` and an initial commit if not).
 - Tracked files have no uncommitted changes (`git status --porcelain --untracked-files=no`). Untracked files are
   ignored; the worktree starts from the last commit, so they don't affect the run.
-- The branch name `my_editor/ai-ready` is free, else `-2`, `-3`…
+- The branch is always `ai_fix`; each run adds on top of it, and my_editor never suggests merging it (was `my_editor/ai-ready`, then `-2`, `-3`…, until 2026-10-09).
 
 **Worktree.** `git worktree add <parent folder>/<project name>.ai-ready -b <branch> HEAD`, next to the project, so
 relative paths that leave the repository (Go `replace ../x`, npm `file:../x`, `tsconfig` `extends: ../`) still

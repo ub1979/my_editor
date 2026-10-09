@@ -90,10 +90,11 @@ All documentation is listed in [`docs/README.md`](docs/README.md). Start with:
   one class or job, untested files, the project's build and test commands, design notes and possible bugs at checked
   lines. Nothing in the code changes, and Stop still writes a partial report. Run it again from **Project → Health**
   or **my_editor: Check AI-Readiness**. For Go, TypeScript/JavaScript and Python projects, **Fix on a local branch** (after the report, or **my_editor: Fix on a
-  Local Branch**) splits long files by moving whole declarations, one checked commit per fix, on a new branch in a
-  working copy next to the project; Go files can also get new tests. TypeScript/JavaScript moves are narrower where a
+  Local Branch**) splits long files by moving whole declarations, one checked commit per fix, on the local branch
+  `ai_fix` (each run adds on top of it) in a working copy next to the project; Go files can also get new tests. TypeScript/JavaScript moves are narrower where a
   build tool could change behaviour (CommonJS, Babel, Vite, Next.js and similar move only types). Your folder is not
-  touched apart from the health report, and nothing is pushed; a change note on the branch says how to review it.
+  touched apart from the health report, and nothing is pushed; a change note on `ai_fix` says how to review it, work
+  on it with `git switch ai_fix`, or delete it. my_editor never suggests merging it.
   Python moves are refused wherever Python could notice the difference. C#, Rust and C/C++ follow.
 
 ## Build and run (macOS)

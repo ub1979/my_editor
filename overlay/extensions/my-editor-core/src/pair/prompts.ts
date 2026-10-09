@@ -120,8 +120,10 @@ function projectNote(projectPath: string): string {
 /** What Pair should know about my_editor's own fixer, so it points there instead of splitting many files by hand. */
 const FIXER_NOTE = `my_editor has a fixer for long files: Fix on a local branch (in Project → Health, or the command
 my_editor: Fix on a Local Branch). For Go, TypeScript/JavaScript and Python it splits long files by moving whole
-declarations, adds tests where it can, checks each fix (build, tests, an exact-move check) and commits it on a new
-local branch in a separate working copy; the user's own branch and files stay as they are, and nothing is pushed.
+declarations, adds tests where it can, checks each fix (build, tests, an exact-move check) and commits it on the
+local branch ai_fix in a separate working copy; every run adds its commits on top of ai_fix, the user's own branch and
+files stay as they are, and nothing is pushed. Never tell the user to merge ai_fix into main or into their working
+branch; they review it with git diff or git log, work on it with git switch ai_fix, or delete it with git branch -D.
 When the user wants many files split or the project made AI-ready, recommend it rather than splitting by hand. It
 refuses to start while tracked files have uncommitted changes (Finder .DS_Store files do not count). You cannot run
 git commands yourself; give the exact commands and let the user run them.`;

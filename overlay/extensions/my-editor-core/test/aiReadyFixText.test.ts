@@ -14,11 +14,11 @@ test('the approval modal says the commands run project code and tests written by
 });
 
 test('the closing message claims only that the health report was updated in the user folder', () => {
-	const text = closingText({ committed: 2, branch: 'my_editor/ai-ready', base: 'abcdef1234567890', note: '.my_editor/changes/x.md', removed: true, worktree: '/p/w', reportUpdated: true });
+	const text = closingText({ committed: 2, branch: 'ai_fix', base: 'abcdef1234567890', note: '.my_editor/changes/x.md', removed: true, worktree: '/p/w', reportUpdated: true });
 	assert.doesNotMatch(text, /not touched|wasn.t touched/);
-	assert.match(text, /2 fixes committed on `my_editor\/ai-ready`/);
+	assert.match(text, /2 fixes committed on `ai_fix`/);
 	assert.match(text, /only the health report in `\.my_editor\/ai-ready\/` was updated/);
-	assert.match(text, /git diff abcdef123456\.\.my_editor\/ai-ready/);
+	assert.match(text, /git diff abcdef123456\.\.\.ai_fix/);
 	const kept = closingText({ committed: 1, branch: 'b', base: 'c', note: 'n', removed: false, worktree: '/p/w', reportUpdated: false });
 	assert.doesNotMatch(kept, /health report/);
 	assert.match(kept, /Remove the working copy `\/p\/w`/);

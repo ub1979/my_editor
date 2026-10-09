@@ -5,7 +5,10 @@ import { findTool, runTool } from './projectCommands';
 
 /** Git subcommands that reach a remote. This module never builds them; `gitArgs` refuses them as a second guard. */
 const REMOTE_COMMANDS = new Set(['push', 'fetch', 'pull', 'remote', 'clone', 'ls-remote', 'submodule', 'request-pull', 'send-email', 'archive']);
-const BRANCH = 'my_editor/ai-ready';
+/** The one branch every run adds its fixes to. It is local only; my_editor never suggests merging it. */
+export const FIX_BRANCH = 'ai_fix';
+/** The branch earlier versions used; its work moves to `ai_fix` once. */
+const OLD_BRANCH = 'my_editor/ai-ready';
 
 /**
  * The full argument list for one local git command: hooks off (they could run project code, reformat files or talk to
@@ -41,7 +44,18 @@ export async function prerequisites(root: string): Promise<{ problem?: string; n
 	if (dirty) {
 		return { problem: dirty };
 	}
-	return {};
+	const busy = await branchInUse(root);
+	return busy ? { problem: busy } : {};
+}
+
+/** Where `ai_fix` is checked out, as a plain message, or undefined when it is free (or does not exist). */
+async function branchInUse(root: string): Promise<string | undefined> {
+	const listed = await worktrees(root);
+	const on = listed.find(entry => entry.branch === `refs/heads/${FIX_BRANCH}`);
+	if (!on) { return undefined; }
+	if (on === listed[0]) { return `The branch ${FIX_BRANCH} is checked out in your folder. Switch your folder to another branch, then try again.`; }
+	return `The branch ${FIX_BRANCH} is checked out in ${on.path}. Finish with that working copy or remove it `
+		+ `(\`git worktree remove ${on.path}\`), then try again.`;
 }
 
 /** Creates a repository with one commit of the current files (everything but `.my_editor/`), after the user agreed. */
@@ -59,16 +73,24 @@ export async function trackedFiles(root: string): Promise<string[]> {
 export interface Worktree {
 	readonly branch: string;
 	readonly path: string;
-	/** The commit the branch started from. */
+	/** The branch's tip when this run started: the code the baseline ran on. */
 	readonly base: string;
+	/** The user's branch (or short HEAD when detached) when the run started. */
+	readonly userRef?: string;
+	/** Commits on the user's HEAD that the branch does not contain, and where the two part. */
+	readonly behind?: number;
+	readonly forkPoint?: string;
+	/** Whether this run created the branch (so discarding the run may delete it). */
+	readonly created?: boolean;
 }
 
-/** The first free branch name: `my_editor/ai-ready`, then `-2`, `-3`… */
-async function freeBranch(root: string): Promise<string> {
-	for (let n = 1; ; n++) {
-		const name = n === 1 ? BRANCH : `${BRANCH}-${n}`;
-		if (!await succeeds(root, ['rev-parse', '--verify', '--quiet', `refs/heads/${name}`])) { return name; }
-	}
+async function hasBranch(root: string, name: string): Promise<boolean> {
+	return succeeds(root, ['rev-parse', '--verify', '--quiet', `refs/heads/${name}`]);
+}
+
+/** How many commits `branch` has that the user's HEAD does not. */
+export async function aheadOf(root: string, branch: string): Promise<number> {
+	return Number((await git(root, ['rev-list', '--count', `HEAD..${branch}`])).trim());
 }
 
 /** A free folder next to the project, so relative paths that leave the repository still resolve. */
@@ -82,14 +104,21 @@ export function freeFolder(root: string): string {
 }
 
 /**
- * Creates the branch at HEAD and checks it out in a new worktree next to the project, in `folder` (the one the user
- * approved). The user's folder is not touched.
+ * Checks out `ai_fix` in a new worktree next to the project, in `folder` (the one the user approved), so the run adds
+ * on top of earlier runs. A missing `ai_fix` starts at the old `my_editor/ai-ready` when that exists, else at HEAD.
+ * Nothing is merged or rebased, and the user's folder is not touched.
  */
 export async function prepare(root: string, folder = freeFolder(root)): Promise<Worktree> {
-	const branch = await freeBranch(root);
-	const base = (await git(root, ['rev-parse', 'HEAD'])).trim();
-	await git(root, ['worktree', 'add', '--quiet', folder, '-b', branch, base]);
-	return { branch, path: folder, base };
+	const busy = await branchInUse(root);
+	if (busy) { throw new Error(busy); }
+	const created = !await hasBranch(root, FIX_BRANCH);
+	if (created) { await git(root, ['branch', FIX_BRANCH, await hasBranch(root, OLD_BRANCH) ? OLD_BRANCH : 'HEAD']); }
+	await git(root, ['worktree', 'add', '--quiet', folder, FIX_BRANCH]);
+	const base = (await git(root, ['rev-parse', FIX_BRANCH])).trim();
+	const userRef = (await git(root, ['branch', '--show-current'])).trim() || (await git(root, ['rev-parse', '--short', 'HEAD'])).trim();
+	const behind = Number((await git(root, ['rev-list', '--count', `${FIX_BRANCH}..HEAD`])).trim());
+	const forkPoint = (await git(root, ['merge-base', 'HEAD', FIX_BRANCH])).trim();
+	return { branch: FIX_BRANCH, path: folder, base, userRef, behind, forkPoint, created };
 }
 
 function real(file: string): string {
@@ -180,8 +209,11 @@ export async function remove(root: string, worktree: string): Promise<void> {
 	await git(root, ['worktree', 'remove', '--force', worktree]);
 }
 
-/** Removes a run's worktree and deletes its branch, when the run is discarded before anything was committed on it. */
+/**
+ * Removes a run's worktree when the run is discarded before anything was committed on it; the branch goes too only
+ * when this run created it, so earlier runs' fixes stay.
+ */
 export async function discard(root: string, worktree: Worktree): Promise<void> {
 	if (existsSync(worktree.path)) { await remove(root, worktree.path); }
-	await git(root, ['branch', '-D', worktree.branch]);
+	if (worktree.created) { await git(root, ['branch', '-D', worktree.branch]); }
 }

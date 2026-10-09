@@ -34,7 +34,7 @@ test('code that may not move, or anything else over 400 lines, is also named', (
 
 function state(): RunState {
 	return {
-		version: 1, root: '/p/shop', language: 'Go', worktree: { branch: 'my_editor/ai-ready', path: '/p/w', base: '0123456789ab' },
+		version: 1, root: '/p/shop', language: 'Go', worktree: { branch: 'ai_fix', path: '/p/w', base: '0123456789ab' },
 		startedAt: '', approved: [], fixes: [{ file: 'a.go', kind: 'split', lines: 900 }], next: 1, baseline: {}, skippedFiles: [],
 		steps: [{ file: 'a.go', kind: 'split', status: 'committed', commit: 'abcdef12', moved: [{ file: 'a_big.go', names: ['buildOnboardingPlanTx'] }],
 			over: [{ file: 'a_big.go', lines: 410, reason: BIG_REASON }] }],

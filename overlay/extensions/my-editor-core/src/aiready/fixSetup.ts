@@ -6,7 +6,7 @@ import { CheckResult, failureLines, runBaseline, runSetup } from './baseline';
 import { fixChoices, pickFixes, skippedWithLines } from './fixPicker';
 import { screenFix, screenQueue } from './fixScreen';
 import { logDir, RunState, saveState } from './fixState';
-import { alreadyFailingText, approvalDetail, earlyText, timeoutMinutes } from './fixText';
+import { alreadyFailingText, approvalDetail, behindText, earlyText, timeoutMinutes } from './fixText';
 import { fileStats, scanHealth } from './health';
 import type { LanguageAdapter } from './language';
 import { runCommand, tail } from './projectCommands';
@@ -107,6 +107,7 @@ export async function startRun(env: CommandEnv, adapter: (root: string, tracked:
 	const worktree = await prepare(root, folder);
 	try {
 		sink.text(`Working on branch \`${worktree.branch}\` in \`${worktree.path}\`. Your folder stays as it is.\n`);
+		if (behindText(worktree)) { sink.text(`${behindText(worktree)} Nothing is merged or rebased.\n`); }
 		if (limits.length) { sink.text(`In this project ${limits.join('; and ')}, so splits leave the run-time code in place.\n`); }
 		logDir(env.storage, root, true);
 		const inWorktree = adapter(worktree.path, await trackedFiles(worktree.path));
@@ -158,9 +159,10 @@ async function discardUnstarted(root: string, worktree: Worktree, sink: Sink, re
 	sink.progress('');
 	try {
 		await discard(root, worktree);
-		sink.text(`${reason} The branch \`${worktree.branch}\` and its working copy were removed.`);
+		sink.text(`${reason} ${worktree.created ? `The branch \`${worktree.branch}\` and its working copy were removed.`
+			: `Its working copy was removed; \`${worktree.branch}\` keeps the earlier runs' commits.`}`);
 	} catch {
-		sink.text(`${reason} Remove the working copy \`${worktree.path}\` and the branch \`${worktree.branch}\` by hand.`);
+		sink.text(`${reason} Remove the working copy \`${worktree.path}\`${worktree.created ? ` and the branch \`${worktree.branch}\`` : ''} by hand.`);
 	}
 	return undefined;
 }

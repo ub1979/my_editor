@@ -77,7 +77,7 @@ test('steps: a split is planned by ID, checked and committed; a bad plan is refu
 	assert.deepEqual(split.moved, [{ file: 'shop_describe.go', names: ['Describe'] }]);
 	assert.equal(readFileSync(path.join(worktree, 'shop.go'), 'utf8'),
 		'package shop\n\nimport (\n\t"strings"\n)\n\n// Upper shouts.\nfunc Upper(s string) string { return strings.ToUpper(s) }\n');
-	const log = execFileSync('git', ['log', '--format=%s', '-2', 'my_editor/ai-ready'], { cwd: root, encoding: 'utf8' });
+	const log = execFileSync('git', ['log', '--format=%s', '-2', 'ai_fix'], { cwd: root, encoding: 'utf8' });
 	assert.match(log, /^my_editor: split into 1 file \(shop.go\)\nfirst\n$/);
 
 	const tests = await runAddTests({ ...ctx, ask: async () => `\`\`\`go\n${NEW_TESTS}\`\`\`` }, { file: 'shop_describe.go', kind: 'tests', lines: 6 });

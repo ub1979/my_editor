@@ -2,6 +2,12 @@
 
 my_editor uses the version in `overlay/extensions/my-editor-core/package.json` as its own release number. The Home page displays that version. The underlying editor shell keeps its upstream version independently.
 
+## Unreleased
+
+- Fixes on a local branch always go on one local branch, `ai_fix`; each run adds its commits on top of it (earlier work on `my_editor/ai-ready` is carried over once). If your branch has newer commits, the run says so and changes nothing else. my_editor never suggests merging `ai_fix`: review it with `git diff`, work on it with `git switch ai_fix`, or delete it.
+- Chosen fixes that nothing here can check (their package's build already fails) are skipped right after the baseline, said once grouped by package, and no longer use up the 25 fixes per run.
+- The change note lists files a split left over 400 lines and why, and groups the files never split by reason.
+
 ## 0.0.10 alpha — 2026-10-10 (installed; live check by the user pending)
 
 - Python projects can be fixed on a local branch too. Whole definitions move byte for byte into new modules in the same package and the original imports them back, in a layout that black and ruff accept. An import check with the project's own interpreter proves every copied import still gives the same objects. Moves are refused where Python could notice: code that runs on import, decorators that register, doctests, `mock.patch` strings and warning filters naming the module, and projects that pickle or use process pools (constants only).

@@ -46,8 +46,8 @@ test('a worktree next to the project gets a branch, a commit and a restore; the 
 	const branch = git('branch', '--show-current');
 	const wt = await prepare(root);
 	assert.equal(wt.path, path.join(parent, 'shop.ai-ready'));
-	assert.equal(wt.branch, 'my_editor/ai-ready');
-	assert.equal((await prepare(root)).branch, 'my_editor/ai-ready-2');
+	assert.equal(wt.branch, 'ai_fix');
+	await assert.rejects(prepare(root), /ai_fix is checked out in/);
 	writeFileSync(path.join(wt.path, 'a.go'), 'package shop\n\nfunc A() {}\n');
 	writeFileSync(path.join(wt.path, 'b.go'), 'package shop\n');
 	assert.deepEqual(await changedFiles(wt.path), ['a.go']);
@@ -68,7 +68,7 @@ test('a worktree next to the project gets a branch, a commit and a restore; the 
 test('run state is saved per project in storage and survives a reload', () => {
 	const storage = mkdtempSync(path.join(os.tmpdir(), 'my-editor-state-'));
 	const saved: RunState = {
-		version: 1, root: '/p/shop', language: 'Go', worktree: { branch: 'my_editor/ai-ready', path: '/p/shop.ai-ready', base: 'abc' },
+		version: 1, root: '/p/shop', language: 'Go', worktree: { branch: 'ai_fix', path: '/p/shop.ai-ready', base: 'abc' },
 		startedAt: '2026-10-09T10:00:00Z', approved: ['go build ./...'], fixes: [{ file: 'a.go', kind: 'split', lines: 900 }], next: 0, steps: [],
 		baseline: {}, skippedFiles: [],
 	};

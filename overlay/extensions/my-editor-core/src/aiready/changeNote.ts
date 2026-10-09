@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import * as path from 'path';
 import { flakyTests } from './baseline';
 import type { RunState, StepRecord } from './fixState';
+import { behindText } from './fixText';
 import { neverSplitLines } from './neverSplit';
 import { STILL_OVER_HEADING, stillOverLines } from './stillOver';
 
@@ -63,10 +64,13 @@ export function renderChangeNote(state: RunState, at: Date, mayDiffer = MAY_DIFF
 	const notes = state.steps.flatMap(step => step.notes ?? []);
 	const over = committed.flatMap(step => step.over ?? []);
 	const { branch, base } = state.worktree;
-	const narrowed = state.steps.some(step => step.status === 'committed' && step.kind === 'split' && state.fixes.some(fix => fix.file === step.file && fix.narrowed));
+	const userRef = state.worktree.userRef ?? base.slice(0, 12);
+	const behind = behindText(state.worktree);
+	const narrowed = committed.some(step => step.kind === 'split' && state.fixes.some(fix => fix.file === step.file && fix.narrowed));
 	const lines = [
 		`# AI-ready changes: ${path.basename(state.root)}`, '',
 		`${at.toISOString().slice(0, 16).replace('T', ' ')} UTC · branch \`${branch}\` from \`${base.slice(0, 7)}\` · ${state.language}`, '',
+		...(behind ? [behind, ''] : []),
 		'Each commit moves code into new files or adds tests; none is meant to change what the program does. Every split passed the move check '
 		+ '(each moved declaration copied byte for byte, nothing else changed, the same declarations and doc comments in the package), '
 		+ 'then the checks of its package, with the same results as before the run. A check that already failed before the run is marked '
@@ -89,12 +93,13 @@ export function renderChangeNote(state: RunState, at: Date, mayDiffer = MAY_DIFF
 		...(hasReport ? ['- Bugs and design problems from the health report are suggestions; ask Pair about them.'] : []), '',
 		'## How to review', '',
 		'```sh',
-		`git diff ${base.slice(0, 12)}..${branch}`,
-		`git log --stat ${base.slice(0, 12)}..${branch}`,
-		`git merge ${branch}        # keep the changes`,
-		`git branch -D ${branch}    # or throw them away`,
+		`git diff ${userRef}...${branch}          # everything on ${branch} that your branch lacks`,
+		`git log --stat ${base.slice(0, 12)}..${branch}   # this run's commits`,
+		`git switch ${branch}                     # work on the fixes`,
+		`git branch -D ${branch}                  # or throw them all away`,
 		'```', '',
-		'Nothing was pushed. After merging, run **Analyse** again to refresh the project brain for the changed files.', '',
+		`Nothing was pushed; \`${branch}\` exists only in this repository on your machine. Each run adds its commits on top of it. `
+		+ `After \`git switch ${branch}\`, run **Analyse** again to refresh the project brain for the changed files.`, '',
 	];
 	return lines.join('\n');
 }
