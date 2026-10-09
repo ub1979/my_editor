@@ -12,98 +12,126 @@ function el(tag, attrs = {}, children = []) {
 	return node;
 }
 
-function button(label, onClick, className = 'link') {
-	const node = el('button', { class: className, type: 'button' }, [label]);
-	node.addEventListener('click', onClick);
+/** A button that posts one message to the extension. */
+function action(label, message, className = 'pill', title = '') {
+	const node = el('button', { class: className, type: 'button', ...(title ? { title } : {}) }, [label]);
+	node.addEventListener('click', () => vscode.postMessage(message));
 	return node;
 }
 
-function render(state, model, sync, project) {
-	root.replaceChildren();
-	const top = el('div', { class: 'top' }, [el('p', { class: 'eyebrow' }, ['Project']), button('All projects', () => vscode.postMessage({ type: 'home' }))]);
-	root.append(top, el('h1', {}, [state.name]), el('p', { class: 'summary' }, [state.summary]));
-	if (!state.hasWorkspace) {
-		return;
-	}
+function section(title, ...children) {
+	return el('section', {}, [el('p', { class: 'eyebrow' }, [title]), ...children]);
+}
 
-	const stages = el('ol', { 'aria-label': 'Stages' });
-	state.stages.forEach((stage, index) => {
+/** One line of the list: label on the left, value on the right; the whole row is the button when it can act. */
+function row(label, value, message, title = '') {
+	const parts = [el('span', { class: 'label' }, [label]), el('span', { class: message ? 'value' : 'value quiet' }, [value])];
+	if (!message) {
+		return el('div', { class: 'item' }, parts);
+	}
+	const node = el('button', { class: 'item', type: 'button', title: title || `${label}: ${value}` }, parts);
+	node.addEventListener('click', () => vscode.postMessage(message));
+	return node;
+}
+
+function stagesSection(stages) {
+	const list = el('ol', { 'aria-label': 'Stages' });
+	stages.forEach((stage, index) => {
 		const mark = stage.state === 'done' ? '✓' : String(index + 1);
-		const row = el('button', { class: `row ${stage.state}`, type: 'button', 'aria-label': `${stage.title}: ${stage.status}` }, [
+		const node = el('button', { class: `row ${stage.state}`, type: 'button', 'aria-label': `${stage.title}: ${stage.status}` }, [
 			el('span', { class: 'mark', 'aria-hidden': 'true' }, [mark]),
 			el('span', { class: 'title' }, [stage.title]),
 			el('span', { class: 'status' }, [stage.status]),
 		]);
-		row.addEventListener('click', () => vscode.postMessage({ type: 'open', stage: stage.id, path: stage.file }));
-		stages.append(el('li', {}, [row]));
+		node.addEventListener('click', () => vscode.postMessage({ type: 'open', stage: stage.id, path: stage.file }));
+		list.append(el('li', {}, [node]));
 	});
-	root.append(el('section', {}, [el('p', { class: 'eyebrow' }, ['Build path']), stages]));
-	const maps = el('div', { class: 'visual-links' }, [
-		button('Architecture map ↗', () => vscode.postMessage({ type: 'visual', tab: 'architecture' }), 'visual-link'),
-		button('File tree ↗', () => vscode.postMessage({ type: 'visual', tab: 'tree' }), 'visual-link'),
-	]);
-	root.append(el('section', {}, [el('p', { class: 'eyebrow' }, ['Visual maps']), maps]));
-	if (sync?.kind !== 'not-git') {
-		const git = el('section', { class: 'git' }, [el('p', { class: 'eyebrow' }, ['Git updates'])]);
-		if (project?.head) git.append(el('p', { class: 'status' }, [`Local commit ${project.head} · ${project.git?.branch ?? 'branch unknown'}`]));
-		if (!sync) {
-			git.append(el('p', { class: 'status' }, ['Checking the remote branch…']));
-		} else if (sync.kind === 'no-upstream') {
-			git.append(el('p', {}, [`${sync.branch ?? 'This branch'} has no tracked remote branch. Set an upstream in Source Control to receive update notices.`]));
-		} else {
-			const count = sync.behind ?? 0;
-			const ahead = sync.ahead ?? 0;
-			git.append(el('p', {}, [sync.fetchError
-				? `Could not check ${sync.upstream}; the last known Git status may be stale.`
-				: count ? `${count} new commit${count === 1 ? '' : 's'} available from ${sync.upstream}.`
-					: `Up to date with ${sync.upstream}.`]));
-			if (ahead) git.append(el('p', { class: 'status' }, [`${ahead} local commit${ahead === 1 ? '' : 's'} ahead.`]));
-			if (sync.localEdits && count) git.append(el('p', { class: 'status' }, ['Commit or stash local file edits before updating.']));
-			if (sync.fetchError) git.append(el('p', { class: 'status' }, [`Remote check failed: ${sync.fetchError}`]));
-			if (count) git.append(button('Update project', () => vscode.postMessage({ type: 'updateGit' }), 'git-update'));
-		}
-		git.append(button('Check now', () => vscode.postMessage({ type: 'checkGit' })));
-		root.append(git);
-	}
+	return section('Build path', list);
+}
 
-	const memory = el('dl', { class: 'memory' }, [
-		el('dt', {}, ['Conventions']),
-		el('dd', {}, [button(state.memory.conventions ? 'Open' : 'Write', () => vscode.postMessage({ type: 'conventions' }))]),
-		el('dt', {}, ['Brain']),
-		el('dd', {}, [button(state.memory.brainFiles ? `${state.memory.brainFiles} files · analyse again` : 'Analyse', () => vscode.postMessage({ type: 'brain' }))]),
-		el('dt', {}, ['Health']),
-		el('dd', {}, [
-			button('Check AI-readiness', () => vscode.postMessage({ type: 'aiReady' })), ' · ',
-			button('Fix on a local branch', () => vscode.postMessage({ type: 'aiReadyFix' })),
-		]),
-		el('dt', {}, ['Decisions']),
-		el('dd', {}, [state.memory.decisions
-			? button(String(state.memory.decisions), () => vscode.postMessage({ type: 'folder', path: '.my_editor/decisions' }))
-			: el('span', { class: 'empty' }, ['none yet'])]),
-		el('dt', {}, ['Chat history']),
-		el('dd', {}, [state.memory.chatDays
-			? button(`${state.memory.chatDays} day${state.memory.chatDays === 1 ? '' : 's'}`,
-				() => vscode.postMessage({ type: 'folder', path: '.my_editor/chats' }))
-			: el('span', { class: 'empty' }, ['none yet'])]),
-		el('dt', {}, ['Investigations']),
-		el('dd', {}, [button('Open records', () => vscode.postMessage({ type: 'folder', path: '.my_editor/investigations' }))]),
-		el('dt', {}, ['Reviewed changes']),
-		el('dd', {}, [button('Open records', () => vscode.postMessage({ type: 'folder', path: '.my_editor/changes' }))]),
-	]);
-	root.append(el('section', {}, [el('p', { class: 'eyebrow' }, ['Memory']), memory]));
-	if (project?.brainCommit && project?.head && !project.head.startsWith(project.brainCommit) && !project.brainCommit.startsWith(project.head)) {
-		root.append(el('p', { class: 'status' }, [`Brain mapped at ${project.brainCommit}; local code is ${project.head}. `,
-			button('Analyse again', () => vscode.postMessage({ type: 'brain' }))]));
-	}
-	root.append(el('section', {}, [
-		el('p', { class: 'eyebrow' }, ['Live observations']),
-		el('p', { class: 'status' }, ['Pair can run project checks you register here. You review each exact recipe before its first run.']),
-		button('Configure checks', () => vscode.postMessage({ type: 'observations' })),
+function mapsSection() {
+	return section('Visual maps', el('div', { class: 'actions' }, [
+		action('Architecture ↗', { type: 'visual', tab: 'architecture' }),
+		action('File tree ↗', { type: 'visual', tab: 'tree' }),
 	]));
+}
 
-	root.append(el('section', { class: 'model' }, [
-		el('span', {}, [el('span', { class: 'status' }, ['Model ']), model ?? 'none set up']),
-		button(model ? 'Change' : 'Set up', () => vscode.postMessage({ type: 'models' })),
+function readinessCard() {
+	return el('div', { class: 'card' }, [
+		el('p', { class: 'card-title' }, ['AI readiness']),
+		el('p', { class: 'card-text' }, ['Split long files and add tests on a local branch. Each fix is checked before it is committed.']),
+		el('div', { class: 'actions' }, [
+			action('Fix on a local branch', { type: 'aiReadyFix' }, 'pill primary'),
+			action('Check', { type: 'aiReady' }, 'pill', 'Write the health report without changing code'),
+		]),
+	]);
+}
+
+/** Where the local branch stands against its remote, in one short card. */
+function gitCard(sync, project) {
+	const branch = project?.git?.branch ?? sync?.branch ?? 'branch unknown';
+	const card = el('div', { class: 'card' });
+	const head = el('div', { class: 'card-head' }, [
+		el('span', { class: 'branch', title: branch }, [branch]),
+		project?.head ? el('span', { class: 'commit', title: `Local commit ${project.head}` }, [project.head]) : '',
+	]);
+	card.append(head);
+	const behind = sync?.behind ?? 0;
+	const [tone, text] = !sync ? ['quiet', 'Checking the remote…']
+		: sync.kind === 'no-upstream' ? ['quiet', 'No remote branch to follow']
+			: sync.fetchError ? ['warn', 'Could not reach the remote']
+				: behind ? ['new', `${behind} new commit${behind === 1 ? '' : 's'}`] : ['ok', 'Up to date'];
+	card.append(el('p', { class: `sync ${tone}` }, [el('span', { class: 'dot', 'aria-hidden': 'true' }), text]));
+	const notes = [];
+	if (sync?.ahead) notes.push(`${sync.ahead} local commit${sync.ahead === 1 ? '' : 's'} not pushed.`);
+	if (sync?.localEdits && behind) notes.push('Commit or stash your edits before updating.');
+	if (sync?.kind === 'no-upstream') notes.push('Set an upstream in Source Control to get update notices.');
+	if (sync?.fetchError) notes.push(sync.fetchError);
+	for (const note of notes) card.append(el('p', { class: 'card-text' }, [note]));
+	card.append(el('div', { class: 'actions' }, [
+		...(behind ? [action('Update', { type: 'updateGit' }, 'pill primary', `Fast-forward from ${sync.upstream}`)] : []),
+		action('Check now', { type: 'checkGit' }),
+	]));
+	return card;
+}
+
+function memorySection(memory, project) {
+	const list = el('div', { class: 'list' }, [
+		row('Conventions', memory.conventions ? 'Open' : 'Write', { type: 'conventions' }),
+		row('Brain', memory.brainFiles ? `${memory.brainFiles} files` : 'Analyse', { type: 'brain' },
+			memory.brainFiles ? 'Analyse again to refresh the brain' : 'Analyse the project'),
+		row('Decisions', memory.decisions ? String(memory.decisions) : 'none yet',
+			memory.decisions ? { type: 'folder', path: '.my_editor/decisions' } : undefined),
+		row('Chat history', memory.chatDays ? `${memory.chatDays} day${memory.chatDays === 1 ? '' : 's'}` : 'none yet',
+			memory.chatDays ? { type: 'folder', path: '.my_editor/chats' } : undefined),
+		row('Investigations', 'Open', { type: 'folder', path: '.my_editor/investigations' }),
+		row('Reviewed changes', 'Open', { type: 'folder', path: '.my_editor/changes' }),
+		row('Live checks', 'Configure', { type: 'observations' },
+			'Project checks Pair may run. You review each exact recipe before its first run.'),
+	]);
+	const stale = project?.brainCommit && project?.head
+		&& !project.head.startsWith(project.brainCommit) && !project.brainCommit.startsWith(project.head);
+	return section('Memory', list, ...(stale ? [el('p', { class: 'hint' }, [
+		`The brain was mapped at ${project.brainCommit}; the code is now ${project.head}. `,
+		action('Analyse again', { type: 'brain' }, 'link'),
+	])] : []));
+}
+
+function render(state, model, sync, project) {
+	root.replaceChildren();
+	root.append(
+		el('div', { class: 'top' }, [el('p', { class: 'eyebrow' }, ['Project']), action('All projects', { type: 'home' }, 'link')]),
+		el('h1', {}, [state.name]),
+		el('p', { class: 'summary' }, [state.summary]),
+	);
+	if (!state.hasWorkspace) {
+		return;
+	}
+	root.append(stagesSection(state.stages), section('Health', readinessCard()));
+	if (sync?.kind !== 'not-git') root.append(section('Git', gitCard(sync, project)));
+	root.append(mapsSection(), memorySection(state.memory, project), el('section', { class: 'model' }, [
+		el('span', { class: 'model-name' }, [el('span', { class: 'status' }, ['Model ']), model ?? 'none set up']),
+		action(model ? 'Change' : 'Set up', { type: 'models' }, 'link'),
 	]));
 }
 
