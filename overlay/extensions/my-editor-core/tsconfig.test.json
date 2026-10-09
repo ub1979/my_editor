@@ -68,6 +68,7 @@
     "src/aiready/tsScan.ts",
     "src/aiready/tsGraph.ts",
     "src/aiready/tsRefs.ts",
-    "src/aiready/tsAst.ts"
+    "src/aiready/tsAst.ts",
+    "src/aiready/tsRules.ts"
   ]
 }

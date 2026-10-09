@@ -1,7 +1,10 @@
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { tsFileFacts } from '../src/aiready/tsAst';
+import { analysisOptions, jsxRoots } from '../src/aiready/tsConfig';
 import { loadTypeScript, Ts } from '../src/aiready/tsLoad';
+import { specifierStyle, TsFileContext, TsFileInfo, tsFileInfoView, tsSkipReason } from '../src/aiready/tsRules';
 
 /** The TypeScript the tests use: `MY_EDITOR_TS` (the editor's shipped copy) or the dev dependency. */
 export const TS_DIR = process.env.MY_EDITOR_TS ?? path.dirname(require.resolve('typescript/package.json'));
@@ -28,3 +31,16 @@ export const ESM: Record<string, string> = {
 	'package-lock.json': '{}',
 	'tsconfig.json': JSON.stringify({ compilerOptions: { module: 'nodenext', moduleResolution: 'nodenext', target: 'es2022', strict: true }, include: ['src'] }),
 };
+
+export const CONTEXT: TsFileContext = {
+	scope: 'runtime', jsx: 'automatic', emitDecoratorMetadata: false, cyclic: false, sideEffectFree: false, exportsWildcard: false, listedInFiles: false, generatedAttribute: false,
+};
+export const OPTIONS = analysisOptions(ts, { module: ts.ModuleKind.NodeNext, moduleResolution: ts.ModuleResolutionKind.NodeNext, target: ts.ScriptTarget.ES2022, strict: true });
+
+/** A parsed file without a project: the given context (run-time scope by default) and specifier style (`.js`). */
+export function tsInfo(file: string, text: string, context: Partial<TsFileContext> = {}, style?: TsFileInfo['style']): TsFileInfo {
+	const facts = tsFileFacts(ts, file, text, OPTIONS);
+	const full = { ...CONTEXT, ...context };
+	const own = specifierStyle(facts);
+	return tsFileInfoView(file, facts, full, tsSkipReason(file, text, facts, full), style ?? (own === 'mixed' ? undefined : own ?? 'js'), jsxRoots(undefined));
+}
