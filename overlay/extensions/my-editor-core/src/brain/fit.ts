@@ -43,7 +43,8 @@ export function analyzeFit(selected: { path: string; text: string }[], project: 
 			}
 		}
 		graph.set(file.path, targets);
-		if (facts.exports.length && !importedAnywhere.has(file.path) && !/(^|\/)(index|main|app|extension|cli)\.[jt]sx?$/i.test(file.path) && facts.language !== 'py') {
+		const entryPoint = /(^|\/)(index|main|app|extension|cli)\.[jt]sx?$/i.test(file.path);
+		if (facts.exports.length && !importedAnywhere.has(file.path) && !entryPoint && facts.language !== 'py') {
 			unusedExports.push({ file: file.path, names: facts.exports });
 		}
 	}

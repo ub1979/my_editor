@@ -196,8 +196,10 @@ export function ensureSections(doc: string, modules: ReadonlyMap<string, readonl
 	if (!missing.length) {
 		return doc;
 	}
-	const added = missing.map(([module, paths]) =>
-		`## ${module === '.' ? 'Top-level files' : module} {#${anchorFor(module)}}\n\nFiles: ${paths.slice(0, 12).map(p => `\`${p}\``).join(', ')}${paths.length > 12 ? ', …' : ''}.`);
+	const added = missing.map(([module, paths]) => {
+		const files = `${paths.slice(0, 12).map(p => `\`${p}\``).join(', ')}${paths.length > 12 ? ', …' : ''}`;
+		return `## ${module === '.' ? 'Top-level files' : module} {#${anchorFor(module)}}\n\nFiles: ${files}.`;
+	});
 	return `${doc.trimEnd()}\n\n${added.join('\n\n')}\n`;
 }
 

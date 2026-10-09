@@ -43,7 +43,13 @@ function uniq(values: string[]): string[] {
 	return [...new Set(values)];
 }
 
-const DOC_THEN_EXPORT = /\/\*\*([\s\S]*?)\*\/\s*export\s+(?:default\s+)?(?:declare\s+)?(?:abstract\s+)?(?:async\s+)?(?:function\*?|class|interface|type|enum|const|let|var|namespace)\s+([A-Za-z_$][\w$]*)/g;
+/** `export [default] [declare] [abstract] [async] <keyword> <name>`, capturing the name. */
+const EXPORTED_DECLARATION = String.raw`export\s+(?:default\s+)?(?:declare\s+)?(?:abstract\s+)?(?:async\s+)?`
+	+ String.raw`(?:function\*?|class|interface|type|enum|const|let|var|namespace)\s+([A-Za-z_$][\w$]*)`;
+/** An exported declaration at the start of a statement. */
+const EXPORT_STATEMENT = new RegExp(String.raw`(?:^|[;}])\s*` + EXPORTED_DECLARATION, 'gm');
+/** A doc comment directly before an exported declaration, capturing the comment and the name. */
+const DOC_THEN_EXPORT = new RegExp(String.raw`\/\*\*([\s\S]*?)\*\/\s*` + EXPORTED_DECLARATION, 'g');
 
 function docText(raw: string): string | undefined {
 	return firstSentence(raw.replace(/^\s*\*\s?/gm, ' ').replace(/@\w+.*$/gm, ''));
@@ -65,6 +71,12 @@ function scriptRole(path: string, text: string): string | undefined {
 	return chosen ? docText(chosen[1]) : undefined;
 }
 
+/** `export default <expression>`: a default export with no declared name. */
+function anonymousDefaultExport(text: string): boolean {
+	return /^\s*export\s+default\b/m.test(text)
+		&& !/^\s*export\s+default\s+(?:abstract\s+)?(?:async\s+)?(?:function|class)\s+[A-Za-z_$]/m.test(text);
+}
+
 function scriptFacts(path: string, text: string, language: 'ts' | 'js'): FileFacts {
 	const imports = [
 		...[...text.matchAll(/(?:^|[;}])\s*import\s+(?:type\s+)?(?:[\s\S]*?\s+from\s+)?['"]([^'"]+)['"]/gm)].map(m => m[1]),
@@ -72,9 +84,10 @@ function scriptFacts(path: string, text: string, language: 'ts' | 'js'): FileFac
 		...[...text.matchAll(/\brequire\(\s*['"]([^'"]+)['"]\s*\)/g)].map(m => m[1]),
 	];
 	const exports = [
-		...[...text.matchAll(/(?:^|[;}])\s*export\s+(?:default\s+)?(?:declare\s+)?(?:abstract\s+)?(?:async\s+)?(?:function\*?|class|interface|type|enum|const|let|var|namespace)\s+([A-Za-z_$][\w$]*)/gm)].map(m => m[1]),
-		...[...text.matchAll(/(?:^|[;}])\s*export\s+\{([^}]*)\}(?!\s*from)/gm)].flatMap(m => m[1].split(',').map(part => part.trim().split(/\s+as\s+/).pop()!.trim()).filter(Boolean)),
-		...(/^\s*export\s+default\b/m.test(text) && !/^\s*export\s+default\s+(?:abstract\s+)?(?:async\s+)?(?:function|class)\s+[A-Za-z_$]/m.test(text) ? ['default'] : []),
+		...[...text.matchAll(EXPORT_STATEMENT)].map(m => m[1]),
+		...[...text.matchAll(/(?:^|[;}])\s*export\s+\{([^}]*)\}(?!\s*from)/gm)]
+			.flatMap(m => m[1].split(',').map(part => part.trim().split(/\s+as\s+/).pop()!.trim()).filter(Boolean)),
+		...(anonymousDefaultExport(text) ? ['default'] : []),
 	];
 	const role = scriptRole(path, text);
 	return { language, lines: text.split('\n').length, imports: uniq(imports), exports: uniq(exports), role };
@@ -87,7 +100,10 @@ function pythonFacts(text: string): FileFacts {
 	];
 	const exports = [...text.matchAll(/^(?:async\s+)?(?:def|class)\s+([A-Za-z]\w*)/gm)].map(m => m[1]);
 	const docstring = /^\s*(?:#[^\n]*\n\s*)*(?:"""|''')([\s\S]*?)(?:"""|''')/.exec(text)?.[1];
-	return { language: 'py', lines: text.split('\n').length, imports: uniq(imports), exports: uniq(exports), role: docstring ? firstSentence(docstring) : undefined };
+	return {
+		language: 'py', lines: text.split('\n').length, imports: uniq(imports), exports: uniq(exports),
+		role: docstring ? firstSentence(docstring) : undefined,
+	};
 }
 
 export function extractFacts(path: string, text: string): FileFacts {

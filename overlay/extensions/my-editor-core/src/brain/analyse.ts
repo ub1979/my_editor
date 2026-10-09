@@ -194,7 +194,10 @@ export async function analyseProject(keys: ApiKeys, proposals: Proposals, sink: 
 			}
 			continue;
 		}
-		const pieceSummaries = pieces.flatMap((p, i) => found[`${file.path}#${i + 1}`] ? [{ start: p.start, end: p.end, summary: found[`${file.path}#${i + 1}`] }] : []);
+		const pieceSummaries = pieces.flatMap((p, i) => {
+			const summary = found[`${file.path}#${i + 1}`];
+			return summary ? [{ start: p.start, end: p.end, summary }] : [];
+		});
 		const whole = combined[file.path];
 		if (whole) {
 			summaries[file.path] = { summary: whole, hash: file.hash, pieces: pieceSummaries };
@@ -212,7 +215,10 @@ export async function analyseProject(keys: ApiKeys, proposals: Proposals, sink: 
 	const groups = groupByModule(paths);
 	const partItems: SourceFile[] = [...groups]
 		.filter(([module, files]) => !map.modules?.[module] || files.some(f => summaries[f]))
-		.map(([module, files]) => ({ path: module, text: files.map(f => `- ${f}${describeEntry(map.files[f]) ? `: ${describeEntry(map.files[f])}` : ''}`).join('\n') }));
+		.map(([module, files]) => ({ path: module, text: files.map(f => {
+			const what = describeEntry(map.files[f]);
+			return `- ${f}${what ? `: ${what}` : ''}`;
+		}).join('\n') }));
 	if (partItems.length) {
 		sink.progress(`Summarising ${plural(partItems.length, 'part')} of the project…`);
 		const parts = await summarise(partItems, PART_SYSTEM, model, keys, token, () => undefined, 500);
@@ -222,7 +228,8 @@ export async function analyseProject(keys: ApiKeys, proposals: Proposals, sink: 
 	// A note per part of the project.
 	sink.progress('Writing a note for each part…');
 	for (const [module, files] of groups) {
-		await writeBrainNote(`modules/${anchorFor(module)}.md`, module === '.' ? 'Top-level files' : module, moduleNote(module, files, map.files, map.modules?.[module]));
+		const title = module === '.' ? 'Top-level files' : module;
+		await writeBrainNote(`modules/${anchorFor(module)}.md`, title, moduleNote(module, files, map.files, map.modules?.[module]));
 	}
 
 	const gaps = coverageLines({
@@ -288,7 +295,9 @@ export async function analyseProject(keys: ApiKeys, proposals: Proposals, sink: 
 	const summarised = Object.keys(summaries).length;
 	const written = [
 		'- **Brain**: written to `.my_editor/brain/`. It has the map with a line per file, a few sentences per part, the index, and a note per part.',
-		...(architecture ? [`- **Architecture**: ${existing ? `updated for ${plural(changedParts.length, 'changed part')}` : 'a draft from the code'}. Open it below, fix what is wrong, then Keep.`]
+		...(architecture
+			? [`- **Architecture**: ${existing ? `updated for ${plural(changedParts.length, 'changed part')}` : 'a draft from the code'}. `
+				+ 'Open it below, fix what is wrong, then Keep.']
 			: existing && !changedParts.length ? ['- **Architecture**: no part changed, so I left it as it is.'] : []),
 		...(tree !== treeText ? ['- **File map**: every file linked to its part. Keep it to track progress.'] : []),
 	];
