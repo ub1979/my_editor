@@ -1,7 +1,7 @@
 # Make a project AI-ready: design
 
 - **Date:** 7 October 2026
-- **Status:** Stage 1 (health report) built on 7 October 2026. Stage 2 is built language by language, Go first (decided 9 October 2026, see *Stage 2a: Go*); TS/JS and Python follow the general Stage 2 rules later.
+- **Status:** Stage 1 (health report) built on 7 October 2026; Stage 2a (Go) built on 9 October 2026. Stage 2 is built language by language, Go first (decided 9 October 2026, see *Stage 2a: Go*); TS/JS and Python follow the general Stage 2 rules later.
 - **Builds on:** Analyse (brain, summaries, part notes, draft architecture), the 400-line source policy, Pair's approved test runs
 
 ## Goal
@@ -317,6 +317,8 @@ does at most 25 fixes; **Continue** picks up the rest.
 | `goSteps.ts` | One Go fix: plan, apply, check, commit or restore | `runGoSplit`, `runGoTests` |
 | `fixRun.ts` | Orchestrate a run in Pair, Stop and Continue, run state in global storage | `fixOnBranch(...)` |
 | `changeNote.ts` | Render the change note (pure) | `renderChangeNote(state)` |
+
+Built as a language-neutral core plus a Go adapter; see plans/2026-10-09-ai-ready-stage2-go-plan.md for the file mapping.
 
 ## Records
 

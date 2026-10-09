@@ -2,6 +2,10 @@
 
 my_editor uses the version in `overlay/extensions/my-editor-core/package.json` as its own release number. The Home page displays that version. The underlying editor shell keeps its upstream version independently.
 
+## Unreleased
+
+- Go projects can be fixed on a local branch after the AI-ready report: long files are split by moving whole declarations byte for byte, and untested files get tests. Each fix is checked (move check, `go build`, `go vet`, `go test` against a baseline run twice) and committed on its own in a worktree next to the project; at most 25 per run, with Stop and Continue. Nothing is pushed.
+
 ## 0.0.7 alpha — 2026-10-07 (installed; live check by the user pending)
 
 - Opening a project my_editor did not create offers an AI-ready check: Analyse, then a health report of long files, extra classes, untested files, design notes and possible bugs at lines the model was shown. It changes no code; model text is escaped in the report. Also available from the Project view and the command palette.
