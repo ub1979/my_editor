@@ -72,7 +72,10 @@ function render(state, model, sync, project) {
 		el('dt', {}, ['Brain']),
 		el('dd', {}, [button(state.memory.brainFiles ? `${state.memory.brainFiles} files · analyse again` : 'Analyse', () => vscode.postMessage({ type: 'brain' }))]),
 		el('dt', {}, ['Health']),
-		el('dd', {}, [button('Check AI-readiness', () => vscode.postMessage({ type: 'aiReady' }))]),
+		el('dd', {}, [
+			button('Check AI-readiness', () => vscode.postMessage({ type: 'aiReady' })), ' · ',
+			button('Fix on a local branch', () => vscode.postMessage({ type: 'aiReadyFix' })),
+		]),
 		el('dt', {}, ['Decisions']),
 		el('dd', {}, [state.memory.decisions
 			? button(String(state.memory.decisions), () => vscode.postMessage({ type: 'folder', path: '.my_editor/decisions' }))

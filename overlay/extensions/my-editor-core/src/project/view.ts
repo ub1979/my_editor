@@ -149,6 +149,9 @@ export class ProjectView implements vscode.WebviewViewProvider {
 			case 'aiReady':
 				await vscode.commands.executeCommand('myEditor.aiReady');
 				return;
+			case 'aiReadyFix':
+				await vscode.commands.executeCommand('myEditor.aiReadyFix');
+				return;
 			case 'visual':
 				await this.visuals.show(message.tab);
 				return;

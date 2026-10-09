@@ -307,8 +307,11 @@ export async function analyseProject(keys: ApiKeys, proposals: Proposals, sink: 
 		written.join('\n'),
 		...(gaps.length ? [`What I could not cover fully:\n\n${gaps.join('\n')}`] : []),
 		'From now on I keep up to date as you save. Ask me anything about the project, or pick a skill.',
+		'To split long files and add tests safely, use **Fix on a local branch**: every fix is checked and committed on a new '
+			+ 'local branch, and your own branch stays as it is.',
 	].join('\n\n'));
 	if (stale.length > todo.length || failed) {
 		sink.action('Continue analysing', 'myEditor.analyseProject', []);
 	}
+	sink.action('Fix on a local branch', 'myEditor.aiReadyFix', []);
 }
