@@ -3,9 +3,12 @@ import type { Outcome, TestRun } from './baseline';
 import type { FileInfo } from './language';
 import type { PyFileInfo } from './pyRules';
 
-const PYTEST = /^(PASSED|FAILED|ERROR|XFAIL|XPASS) (\S[^\n]*?)(?: - [^\n]*)?$/gm;
+const PYTEST = /^(PASSED|FAILED|ERROR|XFAIL|XPASS) (\S[^\n]*)$/gm;
+/** A node ID: the file, `::` parts up to the first `[`, then a bracketed parameter id that may hold spaces, ` - ` and `::`. */
+const NODE = /^([^\s:]+\.py)((?:::[^\s:[]+)*)(\[.*?\])?(?=$| - )/;
 const PYTEST_OUTCOME: Record<string, Outcome> = { PASSED: 'pass', FAILED: 'fail', ERROR: 'fail', XFAIL: 'skip', XPASS: 'pass' };
-const UNITTEST = /^(\w+) \(([\w.]+)\)(?:\n[^\n]*?)? \.\.\. (ok|FAIL|ERROR|skipped|expected failure|unexpected success)\b/gm;
+/** `test (module.Class.test)`, indented with its parameters for a subtest, then (after a docstring line) ` ... outcome`. */
+const UNITTEST = /^[ \t]*(\w+) \(([\w.]+)\)(?: \([^\n]*?\))?(?:\n[^\n]*?)? \.\.\. (ok|FAIL|ERROR|skipped|expected failure|unexpected success)\b/gm;
 const UNITTEST_OUTCOME: Record<string, Outcome> = {
 	ok: 'pass', FAIL: 'fail', ERROR: 'fail', skipped: 'skip', 'expected failure': 'skip', 'unexpected success': 'pass',
 };
@@ -28,16 +31,20 @@ function add(run: { tests: Record<string, Outcome>; packages: Record<string, Out
  */
 export function parsePyTests(output: string): TestRun | undefined {
 	const run = { tests: {} as Record<string, Outcome>, packages: {} as Record<string, Outcome> };
-	for (const m of output.matchAll(PYTEST)) {
-		const [file, ...rest] = m[2].split('::');
-		if (!/\.py$/.test(file)) { continue; }
-		if (!rest.length) { add(run, file, ['(collection)'], 'fail'); continue; }
-		const last = rest.pop()!;
-		const param = /^([^[]+)(\[.*\])$/.exec(last);
-		add(run, file, [...rest, ...(param ? [param[1], param[2]] : [last])], PYTEST_OUTCOME[m[1]]);
+	// Only the summary: captured output printed in the PASSES section can look like its lines.
+	const summary = output.lastIndexOf('short test summary info');
+	for (const m of output.slice(Math.max(0, summary)).matchAll(PYTEST)) {
+		// `FAILED tests/t.py::test_a[x - y] - reason`: the reason is cut after the closing bracket, never inside it.
+		const node = NODE.exec(m[2]);
+		if (!node) { continue; }
+		const parts = node[2].split('::').filter(Boolean);
+		if (!parts.length) { add(run, node[1], ['(collection)'], 'fail'); continue; }
+		add(run, node[1], [...parts, ...(node[3] ? [node[3]] : [])], PYTEST_OUTCOME[m[1]]);
 	}
 	if (Object.keys(run.tests).length || /^(?:=+ )?no tests ran\b/m.test(output)) { return run; }
-	for (const m of output.matchAll(UNITTEST)) {
+	// Nothing after unittest's `Ran N tests` line is a result: a test's printed output can land there.
+	const ran = [...output.matchAll(/^Ran \d+ tests? in /gm)].pop();
+	for (const m of output.slice(0, ran ? ran.index : undefined).matchAll(UNITTEST)) {
 		const dotted = m[2].endsWith(`.${m[1]}`) ? m[2].slice(0, -(m[1].length + 1)) : m[2];
 		const cut = dotted.lastIndexOf('.');
 		add(run, dotted.slice(0, Math.max(0, cut)) || dotted, [dotted.slice(cut + 1), m[1]], UNITTEST_OUTCOME[m[3]]);
