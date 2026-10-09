@@ -59,6 +59,7 @@
     "src/aiready/worktree.ts",
     "src/aiready/fixState.ts",
     "src/aiready/fixPicker.ts",
-    "src/aiready/changeNote.ts"
+    "src/aiready/changeNote.ts",
+    "src/aiready/steps.ts"
   ]
 }
