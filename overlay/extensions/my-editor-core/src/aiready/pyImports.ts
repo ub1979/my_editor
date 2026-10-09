@@ -49,17 +49,74 @@ export function copiedLead(source: Buffer, item: PyLead, keep: ReadonlySet<strin
 	return undefined;
 }
 
-/** `from .rows import a as a, b as b`, wrapped one name per line the way black does when it is longer than `lineLength`. */
+/** Natural order (`describe2` before `describe10`), as ruff's isort compares names. */
+function natural(a: string, b: string): number {
+	const x = a.match(/\d+|\D+/g) ?? [];
+	const y = b.match(/\d+|\D+/g) ?? [];
+	for (let i = 0; i < Math.min(x.length, y.length); i++) {
+		if (x[i] === y[i]) { continue; }
+		if (/^\d/.test(x[i]) && /^\d/.test(y[i]) && Number(x[i]) !== Number(y[i])) { return Number(x[i]) - Number(y[i]); }
+		return x[i] < y[i] ? -1 : 1;
+	}
+	return x.length - y.length;
+}
+
+/** Ruff's isort member order (`order-by-type`): CONSTANTS, then Classes, then the rest, each case-insensitively and naturally. */
+export function isortOrder(a: string, b: string): number {
+	const type = (n: string) => (n.length > 1 && n === n.toUpperCase() && n !== n.toLowerCase() ? 0 : /^[A-Z]/.test(n) ? 1 : 2);
+	return type(a) - type(b) || natural(a.toLowerCase(), b.toLowerCase()) || natural(a, b);
+}
+
+/** `from .stem import a, b` (no aliases, so isort keeps it one statement), names sorted, wrapped as black does when too long. */
+export function siblingImport(stem: string, names: readonly string[], lineLength: number): string {
+	const sorted = [...names].sort(isortOrder);
+	const line = `from .${stem} import ${sorted.join(', ')}`;
+	return line.length <= lineLength ? line : `from .${stem} import (\n${sorted.map(n => `    ${n},\n`).join('')})`;
+}
+
+/** `from .rows import a as a`, wrapped the way black does when it is longer than `lineLength`. */
 export function facadeLine(stem: string, names: readonly string[], lineLength: number): string {
 	const line = `from .${stem} import ${names.map(n => `${n} as ${n}`).join(', ')}`;
 	return line.length <= lineLength ? line : `from .${stem} import (\n${names.map(n => `    ${n} as ${n},\n`).join('')})`;
 }
 
+/** One facade statement: its module (the new file's stem), the names it re-exports and its text. */
+export interface FacadeEntry {
+	readonly module: string;
+	readonly names: readonly string[];
+	readonly text: string;
+}
+
+/**
+ * The facade the way ruff's isort writes it: aliased imports are never combined (`combine-as-imports` is off), so one
+ * statement per name, sorted by module and then by name. Entries already in the file (an earlier split) keep their text.
+ */
+export function facadeStatements(entries: readonly FacadeEntry[], fresh: readonly { module: string; names: readonly string[] }[], lineLength: number):
+	string[] {
+	const all = [...entries, ...fresh.flatMap(f => f.names.map(n => ({ module: f.module, names: [n], text: facadeLine(f.module, [n], lineLength) })))];
+	return all.sort((a, b) => natural(a.module.toLowerCase(), b.module.toLowerCase()) || natural(a.module, b.module) || isortOrder(a.names[0], b.names[0]))
+		.map(e => e.text);
+}
+
+/** Where the facade goes in the original: the old facade's whole lines (or an empty span), and whether a blank line goes before it. */
+export interface FacadePlace {
+	readonly start: number;
+	readonly end: number;
+	/** False after a relative import, which isort keeps in the same section as the facade. */
+	readonly blankBefore: boolean;
+}
+
+const DEFINITION = /^(?:async\s+def|def|class)\b|^@/;
+
 /**
  * The original after the move: its old lines minus the moved spans, blank runs around them collapsed to the longer
- * bordering run (at most two), and the facade lines inserted where the leading block ends (`facadeAt`).
+ * bordering run (at most two), and the facade lines in place of the old facade (or where the leading block ends). The
+ * facade gets a blank line before it (black after a docstring, isort between sections) and, before the next code, two
+ * blank lines when that is a def or class and one otherwise (isort's lines after imports; black wants two before a def).
  */
-export function rebuildOriginal(source: Buffer, removed: readonly { start: number; end: number }[], facadeAt: number, facade: readonly string[]): Buffer {
+export function rebuildOriginal(source: Buffer, removed: readonly { start: number; end: number }[], place: FacadePlace | undefined,
+	facade: readonly string[]): Buffer {
+	const MARK = '\u0000facade';
 	const items: (string | undefined)[] = [];
 	let offset = 0;
 	const text = source.toString('utf8');
@@ -68,10 +125,20 @@ export function rebuildOriginal(source: Buffer, removed: readonly { start: numbe
 		const start = offset;
 		const end = offset + Buffer.byteLength(line);
 		offset = end + 1;
-		if (start === facadeAt) { items.push(...facade.flatMap(f => f.split('\n'))); }
+		if (place && start === place.start) { items.push(MARK); }
+		if (place && place.end > place.start && start >= place.start && end <= place.end) { continue; }
 		items.push(removed.some(span => start >= span.start && end <= span.end) ? undefined : line);
 	}
-	if (facadeAt >= offset) { items.push(...facade.flatMap(f => f.split('\n'))); }
+	if (place && place.start >= offset) { items.push(MARK); }
 	const out = collapse(items, 'longest');
+	const at = out.indexOf(MARK);
+	if (at >= 0) {
+		let next = at + 1;
+		while (next < out.length && out[next].trim() === '') { next++; }
+		const code = out.slice(next).find(line => !line.trimStart().startsWith('#'));
+		const after = next >= out.length ? [] : Array<string>(code !== undefined && DEFINITION.test(code) ? 2 : 1).fill('');
+		const before = place!.blankBefore && at > 0 && out[at - 1].trim() !== '' ? [''] : [];
+		out.splice(at, next - at, ...before, ...facade.flatMap(f => f.split('\n')), ...after);
+	}
 	return Buffer.from(out.length ? `${out.join('\n')}\n` : '');
 }

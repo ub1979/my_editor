@@ -12,8 +12,9 @@ const firstLine = (text: string) => `\`${text.split('\n')[0].trim()}\``;
 
 /**
  * Move rule 2's import part for Python. The original: its leading block byte-identical, then only the facade, which
- * names exactly the plan's new files and, per file, exactly its moved names, each as `name as name`. A new file: only
- * `__future__` copies, filtered copies of leading-block statements, whole copies of compound ones, and imports of
+ * names exactly the plan's new files and, across its statements per file, exactly that file's moved names, each as
+ * `name as name` (facade statements an earlier split left are ignored). A new file: every `__future__` statement of the
+ * original, and otherwise only filtered copies of leading-block statements, whole copies of compound ones, and imports of
  * names its sibling new files define.
  */
 export function pyImportProblems(before: ParsedFile, after: ParsedFile, files: readonly ParsedFile[]): string[] {
@@ -25,19 +26,27 @@ export function pyImportProblems(before: ParsedFile, after: ParsedFile, files: r
 	const kept = now.facts.lead.filter((_, i) => !now.facade.includes(i)).map(item => text(after, item));
 	if (kept.length !== oldLead.length || kept.some((t, i) => t !== oldLead[i])) { problems.push(`Rule 2: the leading imports of ${was.path} changed.`); }
 	const stems = files.map(f => stem(f.info.path));
-	const facade = now.facade.map(i => now.facts.lead[i].imports[0]);
+	const earlier = new Set(was.facade.map(i => text(before, was.facts.lead[i])));
+	const facade = now.facade.map(i => now.facts.lead[i]).filter(item => !earlier.has(text(after, item))).map(item => item.imports[0]);
+	const region = now.importRegion;
+	const between = region ? now.facade.map(i => now.facts.lead[i]).reduceRight((rest, item) =>
+		rest.slice(0, item.start - region.start) + rest.slice(item.end - region.start), after.text.subarray(region.start, region.end).toString('utf8')) : '';
+	if (between.trim()) { problems.push(`Rule 2: the facade of ${was.path} has more than import statements: ${firstLine(between.trim())}.`); }
+	const listed = new Map(stems.map(s => [s, [] as string[]]));
 	for (const imp of facade) {
-		const index = stems.indexOf(imp.module);
-		if (index < 0) { problems.push(`Rule 2: the facade imports .${imp.module}, which is not a new file of this split.`); continue; }
+		if (!listed.has(imp.module)) { problems.push(`Rule 2: the facade imports .${imp.module}, which is not a new file of this split.`); continue; }
+		listed.get(imp.module)!.push(...imp.aliases.map(a => a.name));
+	}
+	stems.forEach((s, index) => {
 		const moved = files[index].info.declarations.flatMap(d => d.names).sort().join(', ');
-		const listed = imp.aliases.map(a => a.name).sort().join(', ');
-		if (moved !== listed) { problems.push(`Rule 2: the facade line for ${imp.module}.py names ${listed || 'nothing'}, not exactly its moved names (${moved}).`); }
-	}
-	if (facade.length !== stems.length || stems.some(s => !facade.some(imp => imp.module === s))) {
-		problems.push('Rule 2: the facade does not import every new file exactly once.');
-	}
+		const names = listed.get(s)!.sort().join(', ');
+		if (moved !== names) { problems.push(`Rule 2: the facade imports ${names || 'nothing'} from ${s}.py, not exactly its moved names (${moved}).`); }
+	});
+	const futures = was.facts.lead.filter(item => item.kind === 'future').map(item => text(before, item));
 	files.forEach((file, index) => {
 		const info = file.info as PyFileInfo;
+		const own = info.facts.lead.map(item => text(file, item));
+		for (const future of futures.filter(f => !own.includes(f))) { problems.push(`Rule 3: ${info.path} lacks ${firstLine(future)}, which the original has.`); }
 		for (const item of info.facts.lead) {
 			const t = text(file, item);
 			const imp = item.imports[0];

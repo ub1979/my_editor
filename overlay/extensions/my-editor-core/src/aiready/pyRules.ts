@@ -135,8 +135,14 @@ export function pyFileInfoView(file: string, text: Buffer, facts: PyFacts, conte
 	const firstLine = text.indexOf(10);
 	const comment = text[0] === 0x23 && firstLine > 0;
 	const prelude = comment ? { start: 0, end: firstLine + 1 + (text[firstLine + 1] === 10 ? 1 : 0) } : { start: 0, end: 0 };
-	const region = facade.length
-		? { start: facts.lead[facade[0]].start, end: facts.lead[facade[facade.length - 1]].end } : { start: facts.facadeAt, end: facts.facadeAt };
+	// The region takes in the blank lines before the facade, which the split adds (black and isort want one there).
+	const back = (at: number) => {
+		while (at > 1 && text[at - 1] === 10 && text.lastIndexOf(10, at - 2) + 1 <= at - 1
+			&& text.subarray(text.lastIndexOf(10, at - 2) + 1, at - 1).toString('utf8').trim() === '') { at = text.lastIndexOf(10, at - 2) + 1; }
+		return at;
+	};
+	const region = facade.length ? { start: back(facts.lead[facade[0]].start), end: facts.lead[facade[facade.length - 1]].end }
+		: { start: back(facts.facadeAt), end: back(facts.facadeAt) };
 	return {
 		path: file, declarations, facts, context, facade, skip, spans: facts.decls.map(d => text.subarray(d.start, d.end).toString('utf8')),
 		narrowed: !skip && context.constantsOnly ? `only constants may move (${context.constantsOnly})` : undefined,

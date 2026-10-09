@@ -1,6 +1,7 @@
 import * as path from 'path';
 import type { NewFile, SplitPlan, SplitResult } from './language';
-import { copiedLead, facadeLine, rebuildOriginal } from './pyImports';
+import type { PyLead } from './pyAst';
+import { copiedLead, facadeStatements, rebuildOriginal, siblingImport } from './pyImports';
 import { hookOf, PyDeclaration, PyFileInfo } from './pyRules';
 
 /** The exact first lines of a module split from `file`. */
@@ -68,18 +69,6 @@ function cyclic(edges: ReadonlyMap<number, ReadonlySet<number>>): boolean {
 	return [...edges.keys()].some(visit);
 }
 
-/** Plan groups in an order where a file comes after the files it imports. */
-function ordered(count: number, edges: ReadonlyMap<number, ReadonlySet<number>>): number[] {
-	const out: number[] = [];
-	const add = (g: number) => {
-		if (out.includes(g)) { return; }
-		[...(edges.get(g) ?? [])].sort((a, b) => a - b).forEach(add);
-		out.push(g);
-	};
-	for (let g = 0; g < count; g++) { add(g); }
-	return out;
-}
-
 export interface PySplitOptions {
 	readonly lineLength: number;
 	readonly deferred: boolean;
@@ -88,14 +77,16 @@ export interface PySplitOptions {
 /**
  * New modules and the new original. Each new module: the split header, the original's `__future__` imports, filtered
  * copies of the leading-block statements its spans use (compound ones whole, with the imports their conditions read),
- * imports of sibling new modules, then the moved spans byte for byte, two blank lines apart. The original keeps every
- * byte except the moved spans and gains the facade after its leading block. Throws with every problem when the plan
- * breaks a rule. A file that is never split (a test file whose failing tests are dropped) only loses the spans.
+ * imports of sibling new modules, then the moved spans byte for byte, two blank lines apart. Blank lines follow ruff's
+ * isort: after `__future__`, between statements the original kept apart (its sections), before the sibling imports, and
+ * two before a def or class (else one). The original keeps every byte except the moved spans and gains the facade after
+ * its leading block, sorted in with an earlier split's facade. Throws with every problem when the plan breaks a rule. A
+ * file that is never split (a test file whose failing tests are dropped) only loses the spans.
  */
 export function buildPySplit(source: Buffer, info: PyFileInfo, plan: SplitPlan, options: PySplitOptions): SplitResult {
 	const byId = new Map(info.declarations.map(d => [d.id, d]));
 	const removed = plan.flatMap(group => group.declarations.map(id => byId.get(id)!.span));
-	if (info.skip) { return { original: rebuildOriginal(source, removed, -1, []), files: [] }; }
+	if (info.skip) { return { original: rebuildOriginal(source, removed, undefined, []), files: [] }; }
 	const { problems, edges } = pyPlanProblems(info, plan, options.deferred || info.facts.future);
 	if (problems.length) { throw new Error(problems.join(' ')); }
 	const lead = info.facts.lead;
@@ -106,17 +97,27 @@ export function buildPySplit(source: Buffer, info: PyFileInfo, plan: SplitPlan, 
 		for (const item of lead) {
 			if (item.kind !== 'import' && item.binds.some(n => used.has(n))) { item.needs.forEach(n => used.add(n)); }
 		}
-		const imports = lead.map(item => (item.kind === 'future' || item.binds.some(n => used.has(n)) ? copiedLead(source, item, used) : undefined))
-			.filter((t): t is string => t !== undefined);
-		const siblings = [...edges.get(g)!].sort((a, b) => a - b).map(eg => {
-			const wanted = names(eg).filter(n => used.has(n));
-			return `from .${stem(plan[eg].file)} import ${wanted.join(', ')}`;
+		const kept = lead.map(item => ({ item, text: item.kind === 'future' || item.binds.some(n => used.has(n)) ? copiedLead(source, item, used) : undefined }))
+			.filter((k): k is { item: PyLead; text: string } => k.text !== undefined);
+		const head = kept.map((k, i) => {
+			const prev = kept[i - 1]?.item;
+			const apart = prev && (prev.kind === 'future' && k.item.kind !== 'future' || /\n[ \t]*\n/.test(source.subarray(prev.end, k.item.start).toString('utf8')));
+			return `${apart ? '\n' : ''}${k.text}`;
 		});
-		const head = [...imports, ...siblings];
+		const siblings = [...edges.get(g)!].sort((a, b) => stem(plan[a].file).localeCompare(stem(plan[b].file)))
+			.map(eg => siblingImport(stem(plan[eg].file), names(eg).filter(n => used.has(n)), options.lineLength));
+		const imports = [...head, ...siblings.map((t, i) => (i === 0 && head.length ? `\n${t}` : t))];
 		const body = decls.map(d => source.subarray(d.span.start, d.span.end).toString('utf8')).join('\n\n\n');
-		const header = pySplitHeader(info.path);
-		return { name: group.file, text: Buffer.from(`${header}${head.length ? `${head.join('\n')}\n\n\n` : '\n'}${body}\n`) };
+		const gap = imports.length ? (/def$|^class$/.test(decls[0].kind) ? '\n\n\n' : '\n\n') : '\n';
+		return { name: group.file, text: Buffer.from(`${pySplitHeader(info.path)}${imports.join('\n')}${gap}${body}\n`) };
 	});
-	const facade = ordered(plan.length, edges).map(g => facadeLine(stem(plan[g].file), names(g), options.lineLength));
-	return { original: rebuildOriginal(source, removed, info.facts.facadeAt, facade), files };
+	const old = info.facade.map(i => lead[i]);
+	const entries = old.map(item => ({ module: item.imports[0].module, names: item.imports[0].aliases.map(a => a.name),
+		text: source.subarray(item.start, item.end).toString('utf8') }));
+	const facade = facadeStatements(entries, plan.map((group, g) => ({ module: stem(group.file), names: names(g) })), options.lineLength);
+	const last = lead.filter((_, i) => !info.facade.includes(i)).pop();
+	const relative = last?.kind === 'import' && last.imports[0]?.kind === 'from' && last.imports[0].level > 0;
+	const place = old.length ? { start: old[0].start, end: old[old.length - 1].end, blankBefore: !relative }
+		: { start: info.facts.facadeAt, end: info.facts.facadeAt, blankBefore: !relative };
+	return { original: rebuildOriginal(source, removed, place, facade), files };
 }

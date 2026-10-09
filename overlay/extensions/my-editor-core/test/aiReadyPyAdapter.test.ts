@@ -81,7 +81,7 @@ test('a split runs end to end: plan, move check, the import check and the tests,
 	const step = await runSplit(ctx, { file: 'pkg/report.py', kind: 'split', lines: 0 });
 	assert.equal(step !== 'stopped' && step.status, 'committed', JSON.stringify(step));
 	assert.equal(readFileSync(path.join(root, 'pkg/report.py'), 'utf8'),
-		'"""Rows."""\nimport json\nfrom .limits import LIMIT as LIMIT, clamp as clamp\n\n\ndef parse(line):\n    return json.loads(line)\n\n\n'
+		'"""Rows."""\nimport json\n\nfrom .limits import LIMIT as LIMIT\nfrom .limits import clamp as clamp\n\n\ndef parse(line):\n    return json.loads(line)\n\n\n'
 		+ 'def report(lines):\n    return [clamp(parse(line)) for line in lines]\n');
 	assert.equal(readFileSync(path.join(root, 'pkg/limits.py'), 'utf8'),
 		'# Split from report.py by my_editor.\n\n\nLIMIT = 10\n\n\ndef clamp(x):\n    return min(x, LIMIT)\n');
