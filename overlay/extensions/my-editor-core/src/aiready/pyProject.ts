@@ -62,11 +62,11 @@ function generatedPatterns(texts: ReadonlyMap<string, string>): RegExp[] {
 export function pyProject(root: string, python: PyInterpreter, helperDir: string, storageDir: string, tracked: readonly string[]): PyProject {
 	const texts = readTexts(root, tracked);
 	const config = pyToolConfig(texts);
-	const scan = pyScan(texts);
 	const set = new Set(tracked);
 	const roots = ['.', ...(tracked.some(f => /^src\/[^/]+\/__init__\.py$/.test(f)) ? ['src'] : []), ...config.pythonPath.filter(p => p !== '.' && p !== 'src')];
 	const packages = [...new Set(roots.flatMap(r => tracked.filter(f => path.posix.dirname(path.posix.dirname(f)) === r && f.endsWith('/__init__.py'))
-		.map(f => path.posix.basename(path.posix.dirname(f)))))].filter(name => !NOT_PACKAGE.test(name)).sort();
+		.map(f => path.posix.basename(path.posix.dirname(f)))))].filter(name => !NOT_PACKAGE.test(name) && IDENTIFIER.test(name)).sort();
+	const scan = pyScan(texts, packages);
 	const shadows = (name: string) => roots.some(r => set.has(path.posix.join(r, `${name}.py`)) || set.has(path.posix.join(r, name, '__init__.py')));
 	const shadowed = new Set(python.stdlib.filter(shadows));
 	const dependency = config.dependencies.find(name => PICKLING_LIBRARIES.includes(name));
@@ -151,7 +151,9 @@ export function modulePatches(project: PyProject, module: string): PyPatches {
 
 /** Where tracked code or config filters warnings by this module, if anywhere. */
 export function warningFilter(project: PyProject, module: string): string | undefined {
-	const line = project.scan.warningLines.find(l => l.text.replace(/\\/g, '').includes(module));
+	// Config values span lines (a TOML array, an indented INI list); code and other files are read line by line.
+	const values = project.config.entries.filter(e => /filterwarnings|addopts|PYTHONWARNINGS|^env$/i.test(e.key)).map(e => ({ file: e.file, text: e.value }));
+	const line = [...values, ...project.scan.warningLines].find(l => l.text.replace(/\\/g, '').includes(module));
 	return line ? `${line.file} filters warnings by ${module}` : undefined;
 }
 

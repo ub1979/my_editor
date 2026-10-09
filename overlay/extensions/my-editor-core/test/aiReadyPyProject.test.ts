@@ -30,6 +30,7 @@ test('config: requires-python decides deferred annotations; line length, pytest 
 	assert.deepEqual(config.dependencies, ['celery', 'requests', 'cloud-pickle']);
 	assert.equal(pyToolConfig(new Map([['setup.cfg', '[options]\npython_requires = >=3.9\n']])).deferredAnnotations, false);
 	assert.equal(pyToolConfig(new Map()).deferredAnnotations, false);
+	assert.equal(pyToolConfig(new Map([['pyproject.toml', '[project]\nrequires-python = ">3.13"\n']])).deferredAnnotations, false, '3.13.1 is allowed');
 	assert.deepEqual(configEntries('setup.cfg', '[options]\ninstall_requires =\n    dill\n    numpy\n').map(e => e.value), ['\n    dill\n    numpy']);
 });
 
@@ -49,6 +50,16 @@ test('reviewer probe p5: multiprocessing, process pools, torch.save, PyYAML pyth
 	}
 	assert.match(load({ 'reg.py': 'def owner(f):\n    return f.__module__\n' }).constantsOnly ?? '',
 		/looks at where things are defined: reg\.py:2 reads __module__/);
+});
+
+test('review item 7: a pickler after another module on one import line, and vars() or __dict__ of a project module', () => {
+	assert.match(load({ 'run.py': 'import os, pickle\n' }).constantsOnly ?? '', /run\.py:1 uses pickle/);
+	assert.match(load({ 'run.py': 'import os as o, multiprocessing\n' }).constantsOnly ?? '', /uses multiprocessing/);
+	assert.match(load({ 'reg.py': 'from pkg import report\nNAMES = list(vars(report))\n' }).constantsOnly ?? '', /reg\.py:2 reads vars\(report\)/);
+	assert.match(load({ 'reg.py': 'import pkg.report as r\nNAMES = r.__dict__.keys()\n' }).constantsOnly ?? '', /reg\.py:2 reads r\.__dict__/);
+	assert.match(load({ 'pkg/reg.py': 'from . import report\nNAMES = report.__dict__\n' }).constantsOnly ?? '', /reads report\.__dict__/);
+	assert.equal(load({ 'reg.py': 'import json\nclass C:\n    def d(self):\n        return vars(self), self.__dict__, json.__dict__\n' }).constantsOnly,
+		undefined);
 });
 
 test('module names: flat and src layouts, a namespace package and a top-level module', () => {
@@ -83,6 +94,12 @@ test('tool config naming the file or module skips it', () => {
 test('scripts, plugins, folder scans, reloads, sys.modules edits, star imports and stubs skip a module', () => {
 	assert.match(skipOf({ Makefile: 'run:\n\tpython -m pkg.report --fast\n' }) ?? '', /runs it as a script \(python -m pkg\.report\)/);
 	assert.match(skipOf({ '.github/workflows/ci.yml': 'run: python pkg/report.py\n' }) ?? '', /runs it as a script/);
+	for (const [file, text] of [['Makefile', 'run:\n\t$(PYTHON) -m pkg.report\n'], ['ci.sh', 'python -W error -m pkg.report\n'],
+		['tox.ini', '[testenv]\ncommands = {envpython} -m pkg.report\n'],
+		['run.py', 'import subprocess, sys\nsubprocess.run([sys.executable, "-m", "pkg.report"])\n'],
+		['go.py', 'import runpy\nrunpy.run_module("pkg.report")\n'], ['ci2.sh', 'python3.12 -X dev -m pkg.report\n']]) {
+		assert.match(skipOf({ [file]: text }) ?? '', /runs it as a script \(python -m pkg\.report\)/, file);
+	}
 	assert.match(skipOf({ 'pyproject.toml': '[project.entry-points.pytest11]\nmine = "pkg.report"\n' }) ?? '', /pytest loads it as a plugin/);
 	assert.match(skipOf({ 'pkg/__init__.py': 'import pkgutil\nfor m in pkgutil.iter_modules(__path__):\n    pass\n' }) ?? '', /lists the files of pkg\//);
 	assert.match(skipOf({ 'pkg/loader.py': 'import os\nNAMES = os.listdir(os.path.dirname(__file__))\n' }) ?? '', /lists the files of pkg\//);
@@ -112,11 +129,32 @@ test('patches: strings, patch.object with and without a literal name, assignment
 	assert.equal(found.prefix, 'tests/test_a.py:12');
 });
 
+test('review item 7: patch strings built by format, % or rf, import_module bindings, tuple targets and del lists', () => {
+	const found = (text: string) => modulePatches(load({ 'tests/test_a.py': text }), 'pkg.report');
+	for (const text of ['t = "{}.helper".format("pkg.report")\n', 't = "%s.helper" % "pkg.report"\n', 't = rf"pkg.report.{name}"\n',
+		't = Fr"pkg.report.{name}"\n']) {
+		assert.equal(found(text).prefix, 'tests/test_a.py:1', text);
+	}
+	const bound = found('import importlib\nr = importlib.import_module("pkg.report")\nr.A, r.B = 1, 2\ndel r.C, r.D\n');
+	assert.deepEqual([...bound.assigned.keys()], ['A', 'B', 'C', 'D']);
+	assert.deepEqual([...found('from pkg import report\nprint(report.A, x=report.B)\nf(report.C)\n').assigned.keys()], []);
+	assert.deepEqual([...found('from pkg import report\n(report.A, report.B) = 1, 2\nreport.E += 1\n').assigned.keys()], ['A', 'B', 'E']);
+});
+
 test('reviewer probe p4: a warnings filter naming the module is found in config and code', () => {
 	const config = '[tool.pytest.ini_options]\nfilterwarnings = ["ignore::DeprecationWarning:pkg.report"]\n';
 	assert.match(warningFilter(load({ 'pyproject.toml': config }), 'pkg.report') ?? '', /filters warnings by pkg\.report/);
 	assert.ok(warningFilter(load({ 'conftest.py': 'import warnings\nwarnings.filterwarnings("ignore", module=r"pkg\\.report")\n' }), 'pkg.report'));
 	assert.equal(warningFilter(load({}), 'pkg.report'), undefined);
+});
+
+test('review item 7: warnings filters across lines, and only package names reach mypy', () => {
+	const multi = '[tool.pytest.ini_options]\nfilterwarnings = [\n    "error",\n    "ignore::DeprecationWarning:pkg.report",\n]\n';
+	assert.match(warningFilter(load({ 'pyproject.toml': multi }), 'pkg.report') ?? '', /pyproject\.toml filters warnings by pkg\.report/);
+	const ini = '[pytest]\nfilterwarnings =\n    error\n    ignore::UserWarning:pkg.report\n';
+	assert.match(warningFilter(load({ 'pytest.ini': ini }), 'pkg.report') ?? '', /pytest\.ini filters warnings by pkg\.report/);
+	const odd = load({ '--install-types/__init__.py': '', 'tests/test_report.py': '', 'mypy.ini': '[mypy]\n' });
+	assert.deepEqual(odd.packages, ['pkg']);
 });
 
 test('check commands: the import check by its path (a project file cannot shadow it), mypy, then pytest without plugins that reorder', () => {

@@ -34,10 +34,14 @@ export interface PyScan {
 
 const PICKLERS = ['pickle', 'cPickle', '_pickle', 'dill', 'cloudpickle', 'joblib', 'shelve', 'jsonpickle', 'copyreg', 'multiprocessing', 'celery', 'rq',
 	'dramatiq', 'ray', 'dask'];
-const PICKLE_IMPORT = new RegExp(`^\\s*(?:import|from)\\s+(${PICKLERS.join('|')})\\b`, 'm');
+const PICKLE_IMPORT = new RegExp(`^[ \\t]*(?:import\\s+(?:[\\w.]+(?:\\s+as\\s+\\w+)?\\s*,\\s*)*|from\\s+)(${PICKLERS.join('|')})\\b`, 'm');
 const PICKLE_USE = /\bProcessPoolExecutor\b|\btorch\.(?:save|load)\s*\(|\byaml\.(?:unsafe_load|Loader|UnsafeLoader)\b|\bdef\s+__reduce(?:_ex)?__\b/;
 const MODULE_READ = /\b__module__\b|\binspect\.(?:getmodule|getmembers)\b|\b(?:getmodule|getmembers)\s*\(|\bpyclbr\b/;
-const SCRIPT = /\bpython(?:3(?:\.\d+)?)?\s+(?:-[A-Za-z]+\s+)*(?:-m\s+([\w.]+)|([\w./-]+\.py)\b)/g;
+/** An interpreter (`python3.12`, `$(PYTHON)`, `${PYTHON}`, tox's `{envpython}`), options (`-W error`, `-X dev`), then `-m` or a file. */
+const SCRIPT = new RegExp([/(?:\bpython(?:\d+(?:\.\d+)?)?|\$\(\w*PYTHON\w*\)|\$\{\w*PYTHON\w*\}|\{envpython\})(?:\.exe)?\s+/,
+	/(?:-[WX]\s*\S+\s+|-[A-Za-z]+\s+)*(?:-m\s*([\w.]+)|([\w./-]+\.py)\b)/].map(re => re.source).join(''), 'g');
+/** `[sys.executable, "-m", "pkg.mod"]`-style argument lists and `runpy.run_module("pkg.mod")`. */
+const SCRIPT_CALL = /["']-m["']\s*,\s*["']([\w.]+)["']|\brunpy\.run_module\s*\(\s*["']([\w.]+)["']|\brunpy\.run_path\s*\(\s*["']([\w./-]+\.py)["']/g;
 const FOLDER_CALL = new RegExp([/\b(?:pkgutil\.)?(?:iter_modules|walk_packages)\s*\(/, /\bos\.(?:listdir|scandir|walk)\s*\(/, /\bglob\.i?glob\s*\(/,
 	/\.r?glob\s*\(/, /\.iterdir\s*\(/, /\bresources\.files\s*\(/].map(re => re.source).join('|'), 'g');
 
@@ -56,8 +60,29 @@ function callText(text: string, index: number, length: number): string {
 	return text.slice(start, end);
 }
 
+/** Names a file binds to the project's modules (or names in them): `import pkg.x as m`, `from pkg import x`, relative imports, `import_module`. */
+function projectNames(text: string, packages: readonly string[]): string[] {
+	const ours = (module: string) => packages.includes(module.split('.')[0]);
+	const names: string[] = [];
+	for (const m of text.matchAll(/^[ \t]*import\s+([^\n#]+)/gm)) {
+		for (const [name, alias] of m[1].split(',').map(p => p.trim().split(/\s+as\s+/))) { if (ours(name)) { names.push(alias ?? name.split('.')[0]); } }
+	}
+	for (const m of text.matchAll(/^[ \t]*from\s+(\.*)([\w.]*)\s+import\s+(\([^)]*\)|[^\n#]*)/gm)) {
+		if (!m[1] && !ours(m[2])) { continue; }
+		names.push(...m[3].replace(/#[^\n]*|[()]/g, '').split(',').map(p => p.trim().split(/\s+as\s+/).pop()!).filter(n => /^\w+$/.test(n)));
+	}
+	for (const m of text.matchAll(/^[ \t]*(\w+)\s*=\s*(?:importlib\.)?import_module\s*\(\s*["']([\w.]+)["']/gm)) { if (ours(m[2])) { names.push(m[1]); } }
+	return [...new Set(names)];
+}
+
+/** `vars(m)` or `m.__dict__` of a name bound to a project module: the project lists what a module defines. */
+function moduleView(text: string, packages: readonly string[]): RegExpExecArray | null {
+	const names = projectNames(text, packages).map(esc).join('|');
+	return names ? new RegExp(`\\bvars\\s*\\(\\s*(?:${names})\\b[\\w.]*\\s*\\)|(?<![\\w.])(?:${names})(?:\\.\\w+)*\\.__dict__\\b`).exec(text) : null;
+}
+
 /** Scans tracked files: `.py`/`.pyi` code for uses, and every text file for script references and `!!python/` tags. */
-export function pyScan(texts: ReadonlyMap<string, string>): PyScan {
+export function pyScan(texts: ReadonlyMap<string, string>, packages: readonly string[] = []): PyScan {
 	let pickles: string | undefined;
 	let moduleReaders: string | undefined;
 	const scriptPaths = new Set<string>();
@@ -72,14 +97,16 @@ export function pyScan(texts: ReadonlyMap<string, string>): PyScan {
 		if (!code) {
 			if (!pickles && text.includes('!!python/')) { pickles = `${file} uses a PyYAML !!python/ tag`; }
 		}
-		for (const m of text.matchAll(SCRIPT)) {
-			if (m[1]) { scriptModules.add(m[1]); } else { scriptPaths.add(path.posix.normalize(m[2])); }
+		for (const m of [...text.matchAll(SCRIPT), ...text.matchAll(SCRIPT_CALL)]) {
+			const module = m[1] ?? (m.length > 3 ? m[2] : undefined);
+			const file = m.length > 3 ? m[3] : m[2];
+			if (module) { scriptModules.add(module); } else if (file) { scriptPaths.add(path.posix.normalize(file)); }
 		}
 		for (const line of text.split('\n').filter(l => /filterwarnings|simplefilter|-W\s*\S|PYTHONWARNINGS/.test(l))) { warningLines.push({ file, text: line }); }
 		if (!code) { continue; }
 		const pickle = PICKLE_IMPORT.exec(text) ?? PICKLE_USE.exec(text);
 		if (!pickles && pickle) { pickles = `${file}:${lineAt(text, pickle.index)} uses ${(pickle[1] ?? pickle[0]).trim()}`; }
-		const reader = MODULE_READ.exec(text);
+		const reader = MODULE_READ.exec(text) ?? moduleView(text, packages);
 		if (!moduleReaders && reader) { moduleReaders = `${file}:${lineAt(text, reader.index)} reads ${reader[0].replace(/\s*\($/, '')}`; }
 		for (const m of text.matchAll(FOLDER_CALL)) {
 			const call = callText(text, m.index!, m[0].length);
@@ -126,6 +153,9 @@ export function moduleAliases(text: string, module: string, filePackage: string)
 			if (name === module) { found.add(alias ?? module); }
 		}
 	}
+	for (const m of text.matchAll(/^[ \t]*(\w+)\s*=\s*(?:importlib\.)?import_module\s*\(\s*["']([\w.]+)["']\s*\)/gm)) {
+		if (m[2] === module) { found.add(m[1]); }
+	}
 	for (const m of text.matchAll(/^[ \t]*from\s+(\.*)([\w.]*)\s+import\s+(\([^)]*\)|[^\n]*)/gm)) {
 		const base = m[1] ? resolveRelative(filePackage, m[1].length, m[2]) : m[2];
 		if (base !== parent) { continue; }
@@ -158,7 +188,8 @@ export function patchFacts(texts: ReadonlyMap<string, string>, module: string, p
 		if (!/\.pyi?$/.test(file)) { continue; }
 		const at = (index: number) => `${file}:${lineAt(text, index)}`;
 		for (const s of text.matchAll(new RegExp(`["']${m}\\.(\\w+)`, 'g'))) { if (!strings.has(s[1])) { strings.set(s[1], at(s.index!)); } }
-		const built = new RegExp(`\\bf["']${m}\\.|["']${m}\\.["']\\s*\\+|["']${m}["']\\s*\\+\\s*["']\\.|%\\s*\\(\\s*["']${m}["']`).exec(text);
+		const built = new RegExp([`(?<![\\w])(?:[rRbB]?[fF]|[fF][rRbB])["']${m}\\.`, `["']${m}\\.["']\\s*\\+`, `["']${m}["']\\s*\\+\\s*["']\\.`,
+			`%\\s*\\(?\\s*["']${m}["']`, `\\.format\\s*\\([^)]*["']${m}["']`].join('|')).exec(text);
 		if (built && !prefix) { prefix = at(built.index); }
 		const chains = [...new Set([...moduleAliases(text, module, packageOf(file)), module])].map(esc);
 		for (const chain of chains) {
@@ -167,12 +198,24 @@ export function patchFacts(texts: ReadonlyMap<string, string>, module: string, p
 				objectUse ??= at(c.index!);
 				if (c[2] && !named.has(c[2])) { named.set(c[2], at(c.index!)); }
 			}
-			for (const a of text.matchAll(new RegExp(`(?:^|[^\\w.])(?:del\\s+)?${chain}\\.(\\w+)\\s*(?:[-+*/|&]?=(?!=)|$)`, 'gm'))) {
-				if (/del\s/.test(a[0]) || /=/.test(a[0])) { if (!assigned.has(a[1])) { assigned.set(a[1], at(a.index!)); } }
+			for (const t of targets(text)) {
+				for (const a of t.text.matchAll(new RegExp(`(?<![\\w.])${chain}\\.(\\w+)\\s*(?=[,)]|$)`, 'g'))) {
+					if (!assigned.has(a[1])) { assigned.set(a[1], at(t.index)); }
+				}
 			}
 		}
 	}
 	return { strings, named, assigned, objectUse, prefix };
+}
+
+/** Assignment targets (tuples included, not calls) and `del` lists of each line, with where the line starts. */
+function targets(text: string): { text: string; index: number }[] {
+	const out: { text: string; index: number }[] = [];
+	for (const m of text.matchAll(/^[ \t]*(?:del\s+([^\n#]+)|([^\n=#"']*?)\s*(?:\*\*|\/\/|<<|>>|[-+*/%@&|^])?=(?!=))/gm)) {
+		const found = (m[1] ?? m[2]).trim();
+		if (m[1] !== undefined || !/\w\s*\(|[<>!]$/.test(found)) { out.push({ text: found, index: m.index! }); }
+	}
+	return out;
 }
 
 /** Where tracked code reloads `module` or a name it cannot resolve, or edits `sys.modules` for it, its package or a computed key. */

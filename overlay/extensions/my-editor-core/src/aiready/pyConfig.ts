@@ -57,9 +57,9 @@ export function entry(entries: readonly ConfigEntry[], section: RegExp, key: str
 	return entries.find(e => section.test(e.section) && e.key === key);
 }
 
-/** The lowest Python minor version a `requires-python` spec allows, when it names one (`>=3.10` → 10). */
+/** The lowest Python minor version a `requires-python` spec allows, when it names one (`>=3.10` → 10; `>3.13` allows 3.13.1, so 13). */
 export function lowestMinor(spec: string | undefined): number | undefined {
-	const found = [...(spec ?? '').matchAll(/(>=|~=|==|>)\s*3\.(\d+)/g)].map(m => Number(m[2]) + (m[1] === '>' ? 1 : 0));
+	const found = [...(spec ?? '').matchAll(/(>=|~=|==|>)\s*3\.(\d+)/g)].map(m => Number(m[2]));
 	return found.length ? Math.max(...found) : undefined;
 }
 
