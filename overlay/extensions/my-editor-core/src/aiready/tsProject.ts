@@ -3,6 +3,7 @@ import * as path from 'path';
 import type { CheckCommand } from './language';
 import { builds, emitFormat, holder, readConfigs, TsConfig } from './tsConfig';
 import type { Ts } from './tsLoad';
+import { typesOnlyReason } from './tsTools';
 
 /** The parts of a package.json the adapter reads. */
 export interface PackageJson {
@@ -41,7 +42,7 @@ export interface TsProject {
 	readonly packages: ReadonlyMap<string, PackageJson>;
 	/** Undefined with no lockfile, or a plain reason when the lockfiles disagree. */
 	readonly manager?: Manager | string;
-	/** Why TS here is transformed by another tool or run without a compile step (types-only moves), if it is. */
+	/** Why TS here is compiled by another tool, run without a compile step or run as CommonJS by ts-node (types-only moves), if it is. */
 	readonly typesOnly?: string;
 	/** Tests run under Jest. */
 	readonly jest: boolean;
@@ -55,11 +56,6 @@ export interface TsProject {
 
 const LOCKFILES: readonly [string, Manager['name']][] = [['package-lock.json', 'npm'], ['npm-shrinkwrap.json', 'npm'], ['pnpm-lock.yaml', 'pnpm'],
 	['yarn.lock', 'yarn'], ['bun.lock', 'bun'], ['bun.lockb', 'bun']];
-const BABEL = /(^|\/)(\.babelrc(\.\w+)?|babel\.config\.\w+)$/;
-const TRANSFORM_DEPS: readonly [string, RegExp][] = [['Babel', /^(@babel\/core|babel-loader|babel-jest|@babel\/register|@babel\/preset-typescript)$/],
-	['swc', /^(@swc\/core|@swc\/jest|@swc\/register|@swc-node\/register|unplugin-swc)$/], ['Sucrase', /^(sucrase|@sucrase\/.+)$/],
-	['Metro', /^(metro|react-native|expo)$/], ['tsx', /^tsx$/], ['esbuild-register', /^(esbuild-register|@esbuild-kit\/.+)$/]];
-const STRIP_SCRIPT = /--experimental-(strip|transform)-types|\bnode\b[^&|;]*?\s[^\s&|;]+\.m?ts\b/;
 
 function readJson(file: string): PackageJson | undefined {
 	try { return JSON.parse(readFileSync(file, 'utf8')) as PackageJson; } catch { return undefined; }
@@ -80,24 +76,13 @@ export function tsProject(ts: Ts, root: string, tracked: readonly string[]): TsP
 	const dependencies = new Set(all.flatMap(deps));
 	const has = (pattern: RegExp) => tracked.some(file => pattern.test(file));
 	const scripts = all.flatMap(pkg => Object.values(pkg.scripts ?? {}));
-	const transform = (has(BABEL) || all.some(pkg => pkg.babel) ? 'Babel' : undefined)
-		?? (has(/(^|\/)\.swcrc$/) ? 'swc' : undefined)
-		?? TRANSFORM_DEPS.find(([, pattern]) => [...dependencies].some(name => pattern.test(name)))?.[0]
-		?? (has(/(^|\/)metro\.config\.\w+$/) ? 'Metro' : undefined)
-		?? (scripts.some(script => /(^|[\s&|;])tsx\s/.test(script)) ? 'tsx' : undefined)
-		?? (tracked.some(file => /\.(m?[jt]s|json)$/.test(file) && !/(^|\/)node_modules\//.test(file) && fileHas(root, file, 'tsconfigRaw')) ? 'esbuild tsconfigRaw' : undefined);
-	const runtime = (has(/(^|\/)(bun\.lockb?|bunfig\.toml)$/) ? 'Bun' : undefined) ?? (has(/(^|\/)deno\.jsonc?$/) ? 'Deno' : undefined)
-		?? (scripts.some(script => STRIP_SCRIPT.test(script)) ? 'Node\'s type stripping' : undefined);
-	const typesOnly = transform ? `${transform} transforms the code` : runtime ? `${runtime} runs the TypeScript without a compile step` : undefined;
-	const jest = dependencies.has('jest') || dependencies.has('ts-jest') || has(/(^|\/)jest\.config\.\w+$/) || scripts.some(script => /(^|[\s&|;])jest(\s|$)/.test(script));
+	const typesOnly = typesOnlyReason(ts, { root, tracked, packages, dependencies });
+	const jest = dependencies.has('jest') || dependencies.has('ts-jest') || has(/(^|\/)jest\.config\.\w+$/)
+		|| scripts.some(script => /(^|[\s&|;])jest(\s|$)/.test(script));
 	return {
 		root, tracked, configs: readConfigs(ts, root, tracked), packages, manager: manager(root, packages.get('.')), typesOnly, jest,
 		workspaces: workspaces(root, packages, tracked), dependencies, testGlobs: testGlobs(root, packages, tracked),
 	};
-}
-
-function fileHas(root: string, file: string, text: string): boolean {
-	try { return readFileSync(path.join(root, file), 'utf8').includes(text); } catch { return false; }
 }
 
 function manager(root: string, pkg: PackageJson | undefined): Manager | string | undefined {
@@ -106,7 +91,10 @@ function manager(root: string, pkg: PackageJson | undefined): Manager | string |
 	const name = declared && found.includes(declared) ? declared : found.length === 1 ? found[0] : undefined;
 	if (!name) { return found.length > 1 ? `the lockfiles of ${found.join(' and ')} disagree on how to install` : undefined; }
 	const berry = existsSync(path.join(root, '.yarnrc.yml'));
-	const install = { npm: 'npm ci', pnpm: 'pnpm install --frozen-lockfile', yarn: berry ? 'yarn install --immutable' : 'yarn install --frozen-lockfile', bun: 'bun install --frozen-lockfile' }[name];
+	const install = {
+		npm: 'npm ci', pnpm: 'pnpm install --frozen-lockfile', bun: 'bun install --frozen-lockfile',
+		yarn: berry ? 'yarn install --immutable' : 'yarn install --frozen-lockfile',
+	}[name];
 	const exec = { npm: 'npx --no --', pnpm: 'pnpm exec', yarn: 'yarn', bun: 'npx --no --' }[name];
 	return { name, install, exec };
 }
@@ -121,13 +109,15 @@ export function lockfileProblem(root: string): string | undefined {
 }
 
 function globPrefix(glob: string): RegExp {
-	return new RegExp(`^${glob.replace(/\/+$/, '').replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*\*/g, '\u0000').replace(/\*/g, '[^/]*').replace(/\u0000/g, '.*')}$`);
+	const escaped = glob.replace(/\/+$/, '').replace(/[.+^${}()|[\]\\]/g, '\\$&');
+	return new RegExp(`^${escaped.replace(/\*\*/g, '\u0000').replace(/\*/g, '[^/]*').replace(/\u0000/g, '.*')}$`);
 }
 
 /** Workspace packages (root `workspaces` or `pnpm-workspace.yaml`) by name, with their folders. */
 function workspaces(root: string, packages: ReadonlyMap<string, PackageJson>, tracked: readonly string[]): Map<string, string> {
 	const rootPkg = packages.get('.');
-	const listed = Array.isArray(rootPkg?.workspaces) ? rootPkg!.workspaces as string[] : (rootPkg?.workspaces as { packages?: string[] } | undefined)?.packages ?? [];
+	const listed = Array.isArray(rootPkg?.workspaces) ? rootPkg!.workspaces as string[]
+		: (rootPkg?.workspaces as { packages?: string[] } | undefined)?.packages ?? [];
 	const yaml = tracked.includes('pnpm-workspace.yaml') ? readFileSync(path.join(root, 'pnpm-workspace.yaml'), 'utf8') : '';
 	const globs = [...listed, ...[...yaml.matchAll(/^\s*-\s*['"]?([^'"\n#]+?)['"]?\s*$/gm)].map(m => m[1])].filter(glob => !glob.startsWith('!'));
 	const out = new Map<string, string>();
@@ -164,14 +154,17 @@ const JS = /\.(js|jsx|mjs|cjs)$/;
  * What may move in a file under version 1, or why it is skipped. Every config that builds the file counts: CommonJS
  * output or type stripping in any of them narrows the scope; `config` is the nearest, the others are built too.
  */
-export function fileScope(ts: Ts, project: TsProject, file: string): { scope: Scope; config?: TsConfig; configs: TsConfig[]; reason?: string } | { skip: string } {
+export function fileScope(ts: Ts, project: TsProject, file: string):
+	{ scope: Scope; config?: TsConfig; configs: TsConfig[]; reason?: string } | { skip: string } {
 	const configs = builds(project.configs, file);
 	const config = holder(configs, file);
 	const type = nearestPackage(project, file)?.pkg.type;
 	const broken = configs.find(c => c.error);
 	if (broken) { return { skip: `${broken.path} could not be read fully (${broken.error})` }; }
 	const unset = configs.find(c => c.options.module === undefined || c.options.moduleResolution === undefined);
-	if (unset) { return { skip: `${unset.path} does not set both "module" and "moduleResolution", so the editor's TypeScript could read it differently from yours` }; }
+	if (unset) {
+		return { skip: `${unset.path} does not set both "module" and "moduleResolution", so the editor's TypeScript could read it differently from yours` };
+	}
 	const cjs = configs.find(c => emitFormat(ts, file, c.options, type) === 'cjs');
 	if (JS.test(file)) {
 		if (file.endsWith('.cjs')) { return { skip: 'CommonJS module' }; }

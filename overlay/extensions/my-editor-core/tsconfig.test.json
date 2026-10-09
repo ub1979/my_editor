@@ -65,6 +65,7 @@
     "src/aiready/tsLoad.ts",
     "src/aiready/tsConfig.ts",
     "src/aiready/tsProject.ts",
+    "src/aiready/tsTools.ts",
     "src/aiready/tsScan.ts",
     "src/aiready/tsGraph.ts",
     "src/aiready/tsRefs.ts",

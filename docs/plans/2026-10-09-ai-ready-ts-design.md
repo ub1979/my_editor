@@ -14,15 +14,16 @@ Where the safe choice is unclear, version 1 refuses or skips.
 | Project | What may move in version 1 |
 |---|---|
 | TS compiled to ES modules and checked by `tsc`: `module` and `moduleResolution` set, no transform tool, nothing runs the code as CommonJS | Functions, interfaces and type aliases; classes, `const`/`let`/`var` and enums whose definition-time code is pure (see *What may move*) |
-| TS that runs as CommonJS anywhere: `module: commonjs`, a `.cts` file, a CommonJS package under `node16`/`nodenext`, or tests under Jest | Interfaces and type aliases only |
-| A transform tool configured or installed: Babel, swc, esbuild `tsconfigRaw`, Sucrase, Metro, `tsx`, `esbuild-register`, `ts-node` with swc | Interfaces and type aliases only |
-| TS run without a compile step: Node's type stripping (a script runs `node` on a `.ts`/`.mts` file, `--experimental-strip-types`/`--experimental-transform-types`, or tsconfig `erasableSyntaxOnly`), Bun (`bun.lock`, `bun.lockb`, `bunfig.toml`) or Deno (`deno.json`, `deno.jsonc`) | Interfaces and type aliases only |
+| TS that runs as CommonJS anywhere: `module: commonjs`, a `.cts` file, a CommonJS package under `node16`/`nodenext`, tests under Jest, or ts-node running it as CommonJS (a `"ts-node"` section in a tsconfig with `module: commonjs`, or `-r`/`--require ts-node/register` in a script or `.mocharc`) | Interfaces and type aliases only |
+| A transform tool configured or installed: Next.js (`next`); Vite (`vite`, `vite.config.*`); Vitest (`vitest`, `vitest.config.*`); webpack with `ts-loader` or `babel-loader`; Parcel (`parcel`, `@parcel/*`, `.parcelrc`); Rollup with a TS plugin (`@rollup/plugin-typescript`, `rollup-plugin-typescript2`, `rollup-plugin-esbuild`, `@rollup/plugin-babel`, …); tsup; esbuild (`esbuild` in a script, a tracked file that loads it, or `tsconfigRaw`); `tsx`; Babel; swc (`.swcrc`, `@swc/*`); Sucrase; Metro; `esbuild-register`; a `ts-node` run. An `esbuild` or `rollup` dependency alone does not count | Interfaces and type aliases only |
+| TS run without a compile step: Node's type stripping (a script runs `node`, not `ts-node`, on a `.ts`/`.mts` file, `--experimental-strip-types`/`--experimental-transform-types`, or tsconfig `erasableSyntaxOnly`), Bun (`bun.lock`, `bun.lockb`, `bunfig.toml`, `bun`/`bunx` in a script) or Deno (`deno.json`, `deno.jsonc`) | Interfaces and type aliases only |
 | Plain JS as ES modules run natively (`.mjs` or `"type": "module"`), no Jest, no transform tool, no JSX | Function declarations only |
 | CommonJS source, other plain JS, a tsconfig without `module` or `moduleResolution` | Nothing; the files are skipped with the reason |
 
 A types-only move changes no emitted JavaScript of the original, under both the elision and the verbatim reading of
 imports: the facade is `export type … from`, the original drops only unused specifiers written as types and never
-empties a declaration (see *The original*), and nothing loads the new files at run time.
+empties a declaration (see *The original*), a plan that would drop any other specifier is refused, and nothing loads
+the new files at run time. Each narrowed file names the tool that narrowed it.
 
 ## Goal
 
