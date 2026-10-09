@@ -1,7 +1,7 @@
 # Make a project AI-ready: design
 
 - **Date:** 7 October 2026
-- **Status:** Stage 1 (health report) built on 7 October 2026; Stage 2 (fixes) designed, not built. Revised after three spec reviews.
+- **Status:** Stage 1 (health report) built on 7 October 2026. Stage 2 is built language by language, Go first (decided 9 October 2026, see *Stage 2a: Go*); TS/JS and Python follow the general Stage 2 rules later.
 - **Builds on:** Analyse (brain, summaries, part notes, draft architecture), the 400-line source policy, Pair's approved test runs
 
 ## Goal
@@ -137,7 +137,7 @@ package directory (Go). Rust: none in this version.
 
 ## Fixes (stage 2)
 
-**Languages.** Splits run for TS/JS and Python in this version. Go and Rust get the report, brain and (Go) new
+**Languages.** Go is built first, by the rules in *Stage 2a: Go* below, which replace this section's extractor, split, refusal and move rules for Go. The rules here are for TS/JS and Python, which come next. Go and Rust get the report, brain and (Go) new
 tests; their split rules (init order, build tags, `mod` declarations, visibility, macros) come later.
 
 **Definition extractor** (new, per language). It returns each top-level definition's name, kind, and exact byte span
@@ -186,6 +186,90 @@ on. A passing step is committed as `my_editor: <what> (<file>)` with check resul
 identity.
 
 A run handles at most 25 fixes. **Continue** resumes from saved state.
+
+## Stage 2a: Go (first build)
+
+Go goes first because the user's real project is Go, and because a move inside one Go package is the easiest change to
+prove safe: files in a package share one namespace, so no caller, import path or re-export changes. On the user's
+dialer, 63 of 69 oversized source files can reach 400 lines by moving whole declarations; 6 hold a single declaration
+over 400 lines and stay as suggestions (a real refactor changes code).
+
+**Go parser helper.** A small Go program ships in the extension (`resources/goast/main.go`). It is built once per
+extension version with the project's own Go toolchain into the extension's global storage, and run on one file at a
+time. Using `go/parser` and `go/ast`, it prints JSON for a file:
+
+- package name; whether the file has a build constraint (`//go:build`, `// +build`), uses cgo (`import "C"`), or is
+  generated (`// Code generated … DO NOT EDIT.`);
+- each import: name, path, byte span, blank (`_`) or dot (`.`);
+- each top-level declaration: kind (`func`, `method`, `type`, `const`, `var`), names, receiver type for methods,
+  byte span including its doc comment and attached `//go:` directives, line count, the import names it uses, whether
+  it is `init`, whether a `var` initializer contains a call, whether a `var` has `//go:embed`.
+
+Byte spans are UTF-8 offsets; the host slices with `Buffer`, never JS string indices.
+
+**What may move.** `func` and `method` declarations (except `init`), `type` declarations, `const` declarations, and
+`var` declarations with no initializer or with initializers that contain no call and no `//go:embed`. Everything
+else stays in the original file. The import block is rebuilt, never moved.
+
+**Skipped files** (listed in the report, never split): `_test.go` files in this version; generated files; files with
+build constraints or cgo; files under `vendor/`; files inside a nested module (a directory below the project root
+that has its own `go.mod`, such as vendored forks or a separate service).
+
+**Split plan.** The model gets the declaration list (kind, names, receiver, line count, first doc line, imports used)
+and proposes groups: `[{ "file": "placements_query.go", "declarations": ["ListPlacements", "(*Store).queryPlacements"] }]`.
+Methods are named `(Receiver).Name`. The host rejects a plan, with the reasons sent back once, when:
+
+- a name is unknown, listed twice, or not movable;
+- a file name is not lower-case `[a-z0-9_]+.go`, already exists, ends in `_test.go`, or ends in a GOOS or GOARCH
+  suffix (`_linux.go`, `_amd64.go`, `_windows_arm64.go`…), which Go treats as a build constraint;
+- any new file, or the original after the moves, would exceed 400 lines (unless the only thing left over 400 is a
+  single declaration, which is reported).
+
+**Applying a split (host, no AI).** Each new file is: a one-line comment naming the original file, `package <name>`,
+an import block with exactly the imports its declarations use (same names and paths as the original), then the moved
+spans byte for byte in their original order, separated by one blank line. The original keeps its other content byte
+for byte, minus the moved spans and minus import specs no remaining declaration uses. Blank (`_`) imports always stay
+in the original; a file with a dot import is not split.
+
+**Move check (Go)**, per step, pure:
+
+1. Each moved span appears byte-identical in exactly one new file.
+2. The original equals its old content minus the moved spans and minus removed import specs (whitespace between
+   declarations may collapse to one blank line).
+3. A new file contains only its header comment, package clause, import block and moved spans.
+4. Re-parsing the package's non-test files gives the same set of top-level names and method sets as before.
+5. No other tracked file changed.
+
+**Checks per step** (in the worktree): `go build ./...`, then `go vet` and `go test -json` for the changed package.
+Test results must equal the package's baseline (run twice; tests that differ between the two runs are flaky and
+excluded; tests that failed before must fail the same way). Packages whose tests need services that are not running
+simply keep their baseline failures. `gofmt -l` on new files is reported, not enforced.
+
+**No characterization tests before Go splits.** For a pure move inside one package, the move check plus the compiler
+prove the program is unchanged; generated "current behavior" tests would add cost without adding proof.
+
+**Add-tests fix (Go).** For a file flagged untested, the model writes a new `<name>_ai_test.go` in the same package.
+Only that new file may change. It must build, pass twice, and not touch the network (tests that fail are dropped with
+a note). Committed as `my_editor: add tests for <file>`.
+
+**Fix picker.** After the report, Pair offers **Fix on a local branch**. A multi-select list shows each fixable file
+with its line count and the fix (split or add tests), the biggest first, all pre-selected except add-tests. A run
+does at most 25 fixes; **Continue** picks up the rest.
+
+**Go components** (in `src/aiready/`):
+
+| Unit | Job | Interface |
+|---|---|---|
+| `resources/goast/main.go` | Parse one Go file to JSON | `goast <file>` → JSON on stdout |
+| `goAst.ts` | Build the helper once, run it, type its output | `goFileInfo(path): Promise<GoFileInfo>` |
+| `goSplit.ts` | Validate a split plan and build the new files (pure) | `planProblems(info, plan)`, `applyGoSplit(source, info, plan)` |
+| `moveCheck.ts` | The Go move rules 1–3 (pure) | `checkGoMove(before, after, info, plan): string[]` |
+| `worktree.ts` | Prerequisites, worktree, commit, restore, remove; no push or remote operation | `prepare`, `commit`, `restore`, `remove` |
+| `projectCommands.ts` | Run commands without a shell, with timeout and log; parse `go test -json` | `runCommand`, `parseGoTest` |
+| `fixPicker.ts` | Build the fix list from the report findings and show the picker | `fixChoices(...)`, `pickFixes(...)` |
+| `goSteps.ts` | One Go fix: plan, apply, check, commit or restore | `runGoSplit`, `runGoTests` |
+| `fixRun.ts` | Orchestrate a run in Pair, Stop and Continue, run state in global storage | `fixOnBranch(...)` |
+| `changeNote.ts` | Render the change note (pure) | `renderChangeNote(state)` |
 
 ## Records
 

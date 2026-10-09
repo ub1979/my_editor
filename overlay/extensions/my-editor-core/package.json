@@ -42,7 +42,7 @@
       },
       {
         "command": "myEditor.aiReady",
-        "title": "Make This Project AI-Ready",
+        "title": "Check AI-Readiness",
         "category": "my_editor"
       },
       {

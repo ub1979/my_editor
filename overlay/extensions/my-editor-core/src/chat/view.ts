@@ -127,7 +127,7 @@ export class ChatView implements vscode.WebviewViewProvider {
 		}
 		await this.context.workspaceState.update(ANALYSE_ANSWERED, true);
 		this.broadcast({ type: 'offer', offer: undefined });
-		this.messages.push({ id: newChatId(), role: 'user', markdown: aiReady ? 'Make this project AI-ready' : 'Analyse this project', proposals: [], actions: [], done: true });
+		this.messages.push({ id: newChatId(), role: 'user', markdown: aiReady ? 'Check AI-readiness' : 'Analyse this project', proposals: [], actions: [], done: true });
 		const reply: Message = { id: newChatId(), role: 'assistant', characterId: this.characterId, markdown: '', proposals: [], actions: [], done: false };
 		this.messages.push(reply);
 		this.postMessages();

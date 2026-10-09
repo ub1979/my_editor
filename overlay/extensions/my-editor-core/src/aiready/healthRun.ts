@@ -17,7 +17,7 @@ import { renderReport } from './report';
 const REPORT_DIR = ['.my_editor', 'ai-ready'];
 const REVIEW_TIMEOUT_MS = 180_000;
 
-/** "Make this project AI-ready", stage 1: get to know the project, then write its health report (partial if stopped). Code never changes. */
+/** "Check AI-readiness", stage 1: get to know the project, then write its health report (partial if stopped). Code never changes. */
 export async function makeAiReady(keys: ApiKeys, proposals: Proposals, sink: Sink, token: vscode.CancellationToken): Promise<void> {
 	await analyseProject(keys, proposals, sink, token);
 	await writeHealthReport(keys, sink, token);
