@@ -1,3 +1,4 @@
+import { MAX_SOURCE_LINES } from '../quality/sourcePolicy';
 import { type EarlyOutcome, unitOf } from './fixScreen';
 import { MAX_FIXES_PER_RUN } from './fixState';
 
@@ -71,6 +72,8 @@ export interface Closing {
 	readonly worktree: string;
 	/** Whether the health report in the user's folder was updated. */
 	readonly reportUpdated: boolean;
+	/** Files the committed splits left over the line limit. */
+	readonly stillOver?: number;
 }
 
 /** The closing message: what was committed, the one thing changed in the user's folder, and how to review. */
@@ -78,6 +81,8 @@ export function closingText(close: Closing): string {
 	const { committed, branch, base, note } = close;
 	return `\n**Done.** ${committed} fix${committed === 1 ? '' : 'es'} committed on \`${branch}\`, with the change note \`${note}\`. `
 		+ `${close.discarded ? `${close.discarded} fix${close.discarded === 1 ? '' : 'es'} discarded. ` : ''}`
+		+ `${close.stillOver ? `${close.stillOver} file${close.stillOver === 1 ? ' is' : 's are'} still over ${MAX_SOURCE_LINES} lines; `
+			+ 'the change note says why. ' : ''}`
 		+ `${close.reportUpdated ? 'In your folder, only the health report in `.my_editor/ai-ready/` was updated. ' : ''}Nothing was pushed.`
 		+ `${close.removed ? '' : ` Remove the working copy \`${close.worktree}\` when you are done with it.`}\n\n`
 		+ `Review with \`git diff ${base.slice(0, 12)}..${branch}\`, keep the changes with \`git merge ${branch}\`, or delete them with \`git branch -D ${branch}\`.`;

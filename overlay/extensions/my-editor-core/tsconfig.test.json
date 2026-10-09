@@ -57,6 +57,7 @@
     "src/aiready/goRules.ts",
     "src/aiready/goSplit.ts",
     "src/aiready/splitPlan.ts",
+    "src/aiready/stillOver.ts",
     "src/aiready/moveCheck.ts",
     "src/aiready/goTests.ts",
     "src/aiready/goPrompts.ts",

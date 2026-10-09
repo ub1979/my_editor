@@ -97,25 +97,6 @@ function lineLimitAllowed(text: Buffer, declarations: readonly Declaration[]): b
 	return big.length <= 1 && declarations.every(d => d === big[0] || !d.movable);
 }
 
-/** Files left over the limit by a single long declaration or by code that may not move, for the change note. */
-export function oversizeNotes(result: SplitResult, info: FileInfo, plan: SplitPlan): string[] {
-	const moved = new Set(plan.flatMap(group => group.declarations));
-	const notes: string[] = [];
-	const note = (name: string, text: Buffer, declarations: readonly Declaration[]) => {
-		const big = declarations.find(d => d.lines > MAX_SOURCE_LINES);
-		const stuck = declarations.find(d => !d.movable && d.reason);
-		if (lines(text) > MAX_SOURCE_LINES && big) {
-			notes.push(`${name} stays at ${lines(text)} lines: ${label(big)} alone is ${big.lines} lines and needs a real refactor.`);
-		} else if (lines(text) > MAX_SOURCE_LINES && stuck) {
-			notes.push(`${name} stays at ${lines(text)} lines: the rest may not move (${stuck.reason}).`);
-		}
-	};
-	const byId = new Map(info.declarations.map(d => [d.id, d]));
-	note(info.path, result.original, info.declarations.filter(d => !moved.has(d.id)));
-	result.files.forEach((file, index) => note(file.name, file.text, plan[index].declarations.map(id => byId.get(id)!)));
-	return notes;
-}
-
 export function label(declaration: Declaration): string {
 	const name = declaration.names.join(', ') || '(unnamed)';
 	return declaration.receiver ? `${declaration.kind} (${declaration.receiver}) ${name}` : `${declaration.kind} ${name}`;

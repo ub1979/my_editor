@@ -2,6 +2,7 @@ import { createHash } from 'crypto';
 import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'fs';
 import * as path from 'path';
 import type { CheckResult } from './baseline';
+import type { StillOver } from './stillOver';
 import type { Worktree } from './worktree';
 
 export type FixKind = 'split' | 'tests';
@@ -29,6 +30,8 @@ export interface StepRecord {
 	readonly dropped?: readonly string[];
 	readonly checks?: string;
 	readonly notes?: readonly string[];
+	/** For a split: files it left over the line limit, and why. */
+	readonly over?: readonly StillOver[];
 	/** For a split: model plan attempts and why each rejected one was rejected. */
 	readonly plan?: { readonly attempts: number; readonly rejected: readonly string[] };
 	/** Settled before any model call or edit, so it does not count toward the fixes per run. */

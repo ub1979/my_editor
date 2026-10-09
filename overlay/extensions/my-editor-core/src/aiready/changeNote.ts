@@ -3,6 +3,7 @@ import * as path from 'path';
 import { MAX_SOURCE_LINES } from '../quality/sourcePolicy';
 import { flakyTests } from './baseline';
 import type { RunState, StepRecord } from './fixState';
+import { STILL_OVER_HEADING, stillOverLines } from './stillOver';
 
 const RUN_SECTION = '## Fixes on a local branch';
 
@@ -69,6 +70,7 @@ export function renderChangeNote(state: RunState, at: Date, mayDiffer = MAY_DIFF
 	const flaky = runFlaky(state);
 	const failing = Object.entries(state.baseline).filter(([, [first]]) => first.code !== 0).map(([command]) => command);
 	const notes = state.steps.flatMap(step => step.notes ?? []);
+	const over = committed.flatMap(step => step.over ?? []);
 	const { branch, base } = state.worktree;
 	const narrowed = state.steps.some(step => step.status === 'committed' && step.kind === 'split' && state.fixes.some(fix => fix.file === step.file && fix.narrowed));
 	const lines = [
@@ -80,6 +82,7 @@ export function renderChangeNote(state: RunState, at: Date, mayDiffer = MAY_DIFF
 		+ '"not a check" on its commit: it proves nothing about that commit.', '',
 		'## Commits', '',
 		...(committed.length ? committed.flatMap(commitLines) : ['No fix was committed.']), '',
+		...(over.length ? [`## ${STILL_OVER_HEADING}`, '', ...stillOverLines(over), ''] : []),
 		...(notDone.length ? ['## Skipped or refused', '', ...notDone.map(notDoneLine), ''] : []),
 		...(pending.length ? ['## Not run yet', '', ...pending.map(fix => `- \`${fix.file}\` (${fix.kind === 'split' ? 'split' : 'tests'})`), ''] : []),
 		...(discarded.length ? ['## Discarded by you', '', ...discarded.map(step => `- \`${step.file}\` (${step.kind === 'split' ? 'split' : 'tests'})`), ''] : []),

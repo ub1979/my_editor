@@ -128,6 +128,9 @@ async function closeRun(env: CommandEnv, state: RunState, sink: Sink, mayDiffer:
 	clearState(env.storage, state.root);
 	const committed = state.steps.filter(step => step.status === 'committed').length;
 	const discarded = state.steps.filter(step => step.status === 'discarded').length;
-	sink.text(closingText({ committed, discarded, branch: state.worktree.branch, base: state.worktree.base, note, removed, worktree, reportUpdated }));
+	const stillOver = state.steps.filter(step => step.status === 'committed').flatMap(step => step.over ?? []).length;
+	sink.text(closingText({
+		committed, discarded, branch: state.worktree.branch, base: state.worktree.base, note, removed, worktree, reportUpdated, stillOver,
+	}));
 	sink.action('Refresh the brain after merging', 'myEditor.analyseProject', []);
 }

@@ -7,7 +7,8 @@ import { screenParsed } from './fixScreen';
 import type { FixChoice, StepRecord } from './fixState';
 import type { FileInfo, LanguageAdapter, SplitPlan } from './language';
 import { checkMove } from './moveCheck';
-import { oversizeNotes, parsePlan, planProblems, retryText } from './splitPlan';
+import { parsePlan, planProblems, retryText } from './splitPlan';
+import { STILL_OVER_HEADING, stillOver, stillOverLines } from './stillOver';
 import { changedFiles, commit, restore } from './worktree';
 
 /** What a step needs from the run; the model call and command runner are passed in. */
@@ -114,12 +115,16 @@ export async function runSplit(ctx: StepContext, fix: FixChoice): Promise<StepOu
 		const byId = new Map(info.declarations.map(d => [d.id, d]));
 		const moved = plan.map(group => ({ file: group.file, names: group.declarations.map(id => byId.get(id)!.names.join(', ')) }));
 		const summary = checkSummary(checks.results, ctx.flaky, ctx.baseline);
+		const over = stillOver(result, info, plan, newFiles);
 		const body = ['Moved whole declarations byte for byte; nothing else changed.', '',
-			...moved.map(m => `${m.file}: ${m.names.join('; ')}`), '', `Move check: passed. Checks: ${summary}`].join('\n');
+			...moved.map(m => `${m.file}: ${m.names.join('; ')}`), '', `Move check: passed. Checks: ${summary}`,
+			...(over.length ? ['', `${STILL_OVER_HEADING}:`, ...stillOverLines(over)] : [])].join('\n');
 		const sha = await commit(worktree, [fix.file, ...newFiles],
 			`my_editor: split into ${newFiles.length} file${newFiles.length === 1 ? '' : 's'} (${fix.file})`, body);
-		const notes = oversizeNotes(result, info, plan);
-		return { file: fix.file, kind: 'split', status: 'committed', commit: sha, moved, checks: summary, notes, plan: { attempts: asked, rejected } };
+		return {
+			file: fix.file, kind: 'split', status: 'committed', commit: sha, moved, checks: summary, plan: { attempts: asked, rejected },
+			...(over.length ? { over } : {}),
+		};
 	} catch (error) {
 		await restore(worktree, newFiles);
 		return done('skipped', error instanceof Error ? error.message : String(error));

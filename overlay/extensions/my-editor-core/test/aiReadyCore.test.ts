@@ -5,7 +5,8 @@ import { detectCommands } from '../src/aiready/commandDetect';
 import { approvalDetail } from '../src/aiready/fixText';
 import type { Declaration, FileInfo, LanguageAdapter, ParsedFile, Span } from '../src/aiready/language';
 import { checkMove } from '../src/aiready/moveCheck';
-import { oversizeNotes, planProblems } from '../src/aiready/splitPlan';
+import { planProblems } from '../src/aiready/splitPlan';
+import { stillOver } from '../src/aiready/stillOver';
 
 const HEADER = '// Split from x.ts by my_editor.\n\n';
 
@@ -113,7 +114,8 @@ test('a file may stay over 400 lines when nothing left in it may move (a types-o
 	const adapter = { fileNameProblems: () => [], buildSplit: () => ({ original, files }) } as unknown as LanguageAdapter;
 	const plan = [{ file: 't.ts', declarations: [0] }];
 	assert.deepEqual(planProblems(adapter, { source: original, info, existing: [] }, plan), []);
-	assert.deepEqual(oversizeNotes(adapter.buildSplit(original, info, plan), info, plan), [`src/big.ts stays at 450 lines: the rest may not move (${reason}).`]);
+	assert.deepEqual(stillOver(adapter.buildSplit(original, info, plan), info, plan, ['src/t.ts']),
+		[{ file: 'src/big.ts', lines: 450, reason: `the rest may not move (${reason})` }]);
 	const movable: FileInfo = { ...info, declarations: [...info.declarations, decl(451, 'g', { start: 0, end: 0 })] };
 	assert.match(planProblems(adapter, { source: original, info: movable, existing: [] }, plan).join(' '), /would still have 450 lines/);
 });
