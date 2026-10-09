@@ -1,13 +1,15 @@
 """my_editor's import check: the original module and the modules split from it import, and share every object.
 
-Usage: python -m my_editor_pycheck <module>, from the project folder, with this folder and the import roots on PYTHONPATH.
-It runs the original's leading imports alone in a scratch namespace (never registered in sys.modules), checks what
-the new modules copy from them, imports the original, and checks object identity. Stdlib only, Python 3.9 syntax.
+Usage: python <this folder>/my_editor_pycheck.py <module>, from the project folder, with the import roots on PYTHONPATH. Run
+by path, so this folder (not the project's) comes first while the helpers load. A meta-path hook runs the original's
+leading imports alone in a scratch namespace (never registered in sys.modules) at the moment the import system reaches
+the original, so a package that imports it from its __init__.py is checked in that state, not reported as a cycle. Then
+the real import runs and object identity is checked. Stdlib only, Python 3.9 syntax.
 """
 import ast
 import builtins
 import importlib
-import importlib.util
+import importlib.machinery
 import os
 import sys
 
@@ -28,10 +30,13 @@ def loaded_cleanly(name):
 
 
 def clean_failure(error, module):
-    """A fallback import failed without running half a module: it (or a parent) is missing, or it is loaded and lacks the name."""
+    """A fallback import failed without running half a module: it (or a parent) is missing while every package above it is
+    loaded (a package that failed half way is no longer in sys.modules), or it is loaded and lacks the name."""
     if isinstance(error, ModuleNotFoundError):
         parts = module.split('.')
-        return error.name in ['.'.join(parts[:i]) for i in range(1, len(parts) + 1)]
+        name = error.name or ''
+        above = ['.'.join(name.split('.')[:i]) for i in range(1, name.count('.') + 1)]
+        return name in ['.'.join(parts[:i]) for i in range(1, len(parts) + 1)] and all(p in sys.modules for p in above)
     return type(error) is ImportError and error.name == module and loaded_cleanly(module)
 
 
@@ -83,21 +88,47 @@ def split_modules(facts, origin):
     return found
 
 
-def check(name):
-    """Plain lines naming each failure; empty when the module passes."""
-    spec = importlib.util.find_spec(name)
+class Abort(Exception):
+    """Stops the real import when a check before it failed."""
+
+
+class Hook:
+    """A meta-path finder that runs the checks before the import when the import system first looks for the original."""
+
+    def __init__(self, name):
+        self.name = name
+        self.busy = False
+        self.problems = None
+        self.state = None
+
+    def find_spec(self, fullname, path=None, target=None):
+        if fullname != self.name or self.busy:
+            return None  # A leading import that comes back here imports the real module: a cycle, reported below.
+        if self.problems is None:
+            self.busy = True
+            try:
+                self.problems, self.state = before_import(fullname, importlib.machinery.PathFinder.find_spec(fullname, path))
+            finally:
+                self.busy = False
+        if self.problems:
+            raise Abort()
+        return None
+
+
+def before_import(name, spec):
+    """(problems, state): the leading block run alone, what new modules copy from it, and their reads when defined."""
     if spec is None or not spec.origin or not os.path.isfile(spec.origin):
-        return ['%s cannot be found from this folder.' % name]
+        return ['%s cannot be found from this folder.' % name], None
     origin = spec.origin
     root = os.path.realpath(os.getcwd())
     if not os.path.realpath(origin).startswith(root + os.sep):
-        return ['%s resolves to %s, outside this folder, so the check would test other code.' % (name, origin)]
+        return ['%s resolves to %s, outside this folder, so the check would test other code.' % (name, origin)], None
     package = name if os.path.basename(origin) == '__init__.py' else name.rpartition('.')[0]
     with open(origin, 'rb') as handle:
         raw = handle.read()
     facts = pa.analyze(raw, origin)
     if facts['error']:
-        return ['%s does not parse: %s' % (name, facts['error'])]
+        return ['%s does not parse: %s' % (name, facts['error'])], None
     news = split_modules(facts, origin)
     facade = [item for _, _, _, item in news]
     tree = ast.parse(raw, origin)
@@ -107,7 +138,7 @@ def check(name):
         if item['kind'] != 'doc' and item not in facade:
             scratch.statement(stmt, text)
     if name in sys.modules:
-        return ['A leading import of %s imports %s back (an import cycle), so its imports cannot be checked on their own.' % (name, name)]
+        return ['A leading import of %s imports %s back (an import cycle), so its imports cannot be checked on their own.' % (name, name)], None
     problems = []
     for stem, path, new, _ in news:
         where = os.path.basename(path)
@@ -137,9 +168,30 @@ def check(name):
                 mod = sys.modules.get(module)
                 if mod is None or attr not in vars(mod):
                     problems.append('%s reads %s.%s when defined, which is not set right after the imports.' % (where, module, attr))
-    if problems:
-        return problems
-    original = importlib.import_module(name)
+    return problems, (news, scratch, package)
+
+
+def check(name):
+    """Plain lines naming each failure; empty when the module passes."""
+    hook = Hook(name)
+    sys.meta_path.insert(0, hook)
+    try:
+        importlib.import_module(name)
+    except Abort:
+        pass
+    except ModuleNotFoundError as error:
+        if hook.problems is None and error.name and (name + '.').startswith(error.name + '.'):
+            return ['%s cannot be found from this folder.' % name]
+        raise
+    finally:
+        sys.meta_path.remove(hook)
+    if hook.problems:
+        return hook.problems
+    if hook.state is None:
+        return ['%s was imported before the check could look at it.' % name]
+    news, scratch, package = hook.state
+    original = sys.modules[name]
+    problems = []
     for stem, path, new, _ in news:
         module = sys.modules.get('%s.%s' % (package, stem))
         if module is None:
@@ -157,8 +209,10 @@ def check(name):
 
 def main(argv):
     if len(argv) != 2:
-        print('usage: python -m my_editor_pycheck <module>')
+        print('usage: python my_editor_pycheck.py <module>')
         return 2
+    if sys.path and os.path.realpath(sys.path[0]) == os.path.dirname(os.path.realpath(__file__)):
+        sys.path[0] = os.getcwd()  # As under `python -m pytest`: the project folder first, now that the helpers are loaded.
     try:
         problems = check(argv[1])
     except Exception as error:  # noqa: BLE001 - any failure of the project's import-time code is the answer

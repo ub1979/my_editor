@@ -82,7 +82,7 @@ export interface CheckCommand {
 	readonly command: string;
 	/** Compiles the file's unit on its own; a split needs at least one of these to pass before the run. */
 	readonly verifies?: boolean;
-	/** Set for this command only, over the adapter's `commandEnv` (Python: the import check's helper folder on PYTHONPATH). */
+	/** Set for this command only, over the adapter's `commandEnv` (an extra variable one check needs). */
 	readonly env?: Readonly<Record<string, string>>;
 }
 

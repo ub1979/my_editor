@@ -119,18 +119,24 @@ test('reviewer probe p4: a warnings filter naming the module is found in config 
 	assert.equal(warningFilter(load({}), 'pkg.report'), undefined);
 });
 
-test('check commands: the import check with the helper on PYTHONPATH, mypy, then pytest without plugins that reorder', () => {
+test('check commands: the import check by its path (a project file cannot shadow it), mypy, then pytest without plugins that reorder', () => {
 	const project = load({ 'tests/test_report.py': 'def test_x():\n    pass\n', 'mypy.ini': '[mypy]\nstrict = True\n' });
 	const checks = checkCommands(project, 'pkg.report');
-	assert.deepEqual(checks.map(c => c.command), ['python3.12 -m my_editor_pycheck pkg.report', 'python3.12 -m mypy --no-error-summary --no-color-output pkg',
+	const pycheck = `python3.12 ${path.join(HELPER, 'my_editor_pycheck.py')} pkg.report`;
+	assert.deepEqual(checks.map(c => c.command), [pycheck, 'python3.12 -m mypy --no-error-summary --no-color-output pkg',
 		'python3.12 -m pytest -q -rA -p no:cacheprovider -p no:randomly']);
 	assert.equal(checks[0].verifies, true);
-	assert.equal(checks[0].env?.PYTHONPATH, [HELPER, project.root].join(path.delimiter));
+	assert.equal(checks[0].env, undefined);
 	const plain = load({ 'tests/test_report.py': '', 'manage.py': '' }, { ...FAKE, tools: { ...FAKE.tools, pytest: false } });
-	assert.deepEqual(checkCommands(plain, 'pkg.report').map(c => c.command),
-		['python3.12 -m my_editor_pycheck pkg.report', 'python3.12 manage.py test --verbosity 2']);
+	assert.deepEqual(checkCommands(plain, 'pkg.report').map(c => c.command), [pycheck, 'python3.12 manage.py test --verbosity 2']);
 	const unit = load({ 'tests/test_report.py': '' }, { ...FAKE, tools: { ...FAKE.tools, pytest: false, mypy: false } });
 	assert.deepEqual(checkCommands(unit, 'pkg.report').map(c => c.command).slice(1), ['python3.12 -m unittest discover -v']);
+});
+
+test('a helper folder whose path the runner cannot pass stops Python splits with a plain reason', () => {
+	const project = load({ 'pkg/__init__.py': '' });
+	assert.match(importRootProblem({ ...project, helperDir: '/Applications/my editor/resources/pyast' }) ?? '',
+		/The import check's folder \/Applications\/my editor\/resources\/pyast has a space or a character/);
 });
 
 test('reviewer probe p7: PYTHONPATH makes an editable install resolve to the worktree; a .pth that puts the user folder first stops the run',

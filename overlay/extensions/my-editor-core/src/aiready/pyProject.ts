@@ -5,6 +5,7 @@ import type { CheckCommand } from './language';
 import { configNaming, PICKLING_LIBRARIES, pyToolConfig, PyToolConfig } from './pyConfig';
 import type { PyInterpreter } from './pyInterpreter';
 import { pythonEnv } from './pyInterpreter';
+import { splitCommand } from './projectCommands';
 import { folderScanned, patchFacts, PyPatches, pyScan, PyScan, replacedModule, resolveRelative } from './pyScan';
 import { globRegExp } from './tsScan';
 
@@ -159,12 +160,16 @@ export function pyCommandEnv(project: PyProject): Record<string, string> {
 	return pythonEnv(project.python, project.roots.map(r => path.join(project.root, r)), project.storageDir, project.root);
 }
 
+function pycheckPath(project: PyProject): string {
+	return path.join(project.helperDir, 'my_editor_pycheck.py');
+}
+
 /** Build (the import check), type checker and test commands for a module, in order. */
 export function checkCommands(project: PyProject, module: string): CheckCommand[] {
 	const { python, config } = project;
 	const exe = path.basename(python.path);
-	const helperPath = [project.helperDir, ...project.roots.map(r => path.join(project.root, r))].join(path.delimiter);
-	const checks: CheckCommand[] = [{ label: 'build', command: `${exe} -m my_editor_pycheck ${module}`, verifies: true, env: { PYTHONPATH: helperPath } }];
+	// By its path: `-m` would put the project folder first on sys.path, where a file of the same name could answer instead.
+	const checks: CheckCommand[] = [{ label: 'build', command: `${exe} ${pycheckPath(project)} ${module}`, verifies: true }];
 	if (config.mypy && python.tools.mypy) {
 		checks.push({ label: 'vet', command: `${exe} -m mypy --no-error-summary --no-color-output ${config.mypy.length ? '' : project.packages.join(' ')}`.trim() });
 	}
@@ -180,8 +185,14 @@ export function checkCommands(project: PyProject, module: string): CheckCommand[
 
 /** Why tests would not run the worktree's code: a top-level package that still resolves outside it (an editable install). */
 export function importRootProblem(project: PyProject): string | undefined {
+	if (splitCommand(`python ${pycheckPath(project)} pkg.mod`)?.args[0] !== pycheckPath(project)) {
+		return `The import check's folder ${project.helperDir} has a space or a character the command runner does not pass, so Python splits `
+			+ 'cannot be verified from this install. Install my_editor in a folder without spaces.';
+	}
 	if (!project.packages.length) { return undefined; }
-	const code = 'import importlib.util, json, sys\nprint(json.dumps({n: getattr(importlib.util.find_spec(n), "origin", None) for n in sys.argv[1:]}))';
+	// `-c` puts the current folder first on sys.path; drop it so a project file cannot shadow json or importlib here.
+	const code = 'import sys\ndel sys.path[0]\nimport importlib.util, json\n'
+		+ 'print(json.dumps({n: getattr(importlib.util.find_spec(n), "origin", None) for n in sys.argv[1:]}))';
 	const result = spawnSync(project.python.path, ['-c', code, ...project.packages], {
 		cwd: project.root, encoding: 'utf8', timeout: 60_000, env: { ...process.env, ...pyCommandEnv(project) },
 	});

@@ -1,5 +1,5 @@
 import { strict as assert } from 'node:assert';
-import { mkdirSync, mkdtempSync, readFileSync, symlinkSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { test } from 'node:test';
@@ -41,12 +41,16 @@ test('commands start with the interpreter file name; a path with spaces stays in
 		{ extensionPath: EXT, storageDir: store(), version: 't', appRoot: '', choosePython: async () => path.join(dir, 'python') });
 	assert.ok(typeof factory === 'function');
 	const adapter = factory(root, tracked);
-	assert.deepEqual(adapter.checks('pkg/report.py').map(c => c.command), ['python -m my_editor_pycheck pkg.report', 'python -m unittest discover -v']);
+	const pycheck = `python ${path.join(HELPER, 'my_editor_pycheck.py')} pkg.report`;
+	assert.equal(adapter.checks('pkg/report.py')[0].command, pycheck);
 	assert.ok(adapter.commandEnv!.PATH.startsWith(`${dir}${path.delimiter}`));
 	assert.match(adapter.approvalNote ?? '', /^Python: .*my editor-.*\/\.venv\/bin\/python \(3\./);
-	const out = await runCommand('python -m my_editor_pycheck pkg.report', { cwd: root, approved: ['python -m my_editor_pycheck pkg.report'], timeoutMs: 60_000,
+	writeFileSync(path.join(root, 'my_editor_pycheck.py'), 'print("shadowed")\n');
+	writeFileSync(path.join(root, 'my_editor_pyast.py'), 'raise SystemExit("shadowed")\n');
+	const out = await runCommand(pycheck, { cwd: root, approved: [pycheck], timeoutMs: 60_000,
 		logFile: path.join(store(), 'log'), env: { ...adapter.commandEnv, ...adapter.checks('pkg/report.py')[0].env } });
 	assert.equal(out.code, 0, out.output);
+	assert.match(out.output, /pkg\.report imports; its split modules share every object/);
 });
 
 /** A step context on a repository with the real interpreter, the baseline recorded, and the model replaced by fixed replies. */

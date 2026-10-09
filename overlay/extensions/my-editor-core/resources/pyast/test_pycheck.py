@@ -1,4 +1,8 @@
-"""Tests for my_editor's import check, on temporary packages run in a fresh interpreter. Run: python3 -m unittest -v."""
+"""Tests for my_editor's import check, on temporary packages run in a fresh interpreter. Run: python3 -m unittest -v.
+
+Every project also has top-level `my_editor_pycheck.py` and `my_editor_pyast.py` files that would answer instead of the
+shipped helpers if the check ran with the project folder first on sys.path.
+"""
 import os
 import subprocess
 import sys
@@ -8,18 +12,19 @@ import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 HEADER = '# Split from report.py by my_editor.\n\n'
+SHADOWS = {'my_editor_pycheck.py': 'print("my_editor_pycheck: shadowed")\n', 'my_editor_pyast.py': 'raise SystemExit("shadowed helper")\n'}
 
 
 def run(files, module='pkg.report'):
     """Writes the files into a temporary folder and runs the check there; returns (exit code, output)."""
     with tempfile.TemporaryDirectory() as root:
-        for name, text in files.items():
+        for name, text in dict(SHADOWS, **files).items():
             path = os.path.join(root, name)
             os.makedirs(os.path.dirname(path), exist_ok=True)
             with open(path, 'w') as handle:
                 handle.write(textwrap.dedent(text))
-        env = dict(os.environ, PYTHONPATH=os.pathsep.join([HERE, root]), PYTHONDONTWRITEBYTECODE='1')
-        result = subprocess.run([sys.executable, '-m', 'my_editor_pycheck', module], cwd=root, env=env, capture_output=True, text=True)
+        env = dict(os.environ, PYTHONPATH=root, PYTHONDONTWRITEBYTECODE='1')
+        result = subprocess.run([sys.executable, os.path.join(HERE, 'my_editor_pycheck.py'), module], cwd=root, env=env, capture_output=True, text=True)
         return result.returncode, result.stdout + result.stderr
 
 
@@ -76,6 +81,30 @@ class ImportCheck(unittest.TestCase):
         code, out = run(files)
         self.assertEqual(code, 1, out)
         self.assertIn('copies a fallback import of pkg._speed that failed with ImportError', out)
+
+    def test_a_fallback_whose_package_failed_half_way_fails(self):
+        """Reviewer fixture ic/p2: `pkg.fast` runs its top half, then fails importing `pkg.fast.impl`; the error names the module
+        the statement imports, but its parent is no longer loaded, so copying the fallback would run that half again."""
+        fallback = 'try:\n    import pkg.fast.impl as fi\nexcept ImportError:\n    fi = None\n'
+        files = {'pkg/__init__.py': '', 'pkg/fast/__init__.py': 'print("top half")\nimport pkg.fast.impl\n',
+                 'pkg/report.py': fallback + 'from .rows import X as X\n', 'pkg/rows.py': HEADER + fallback + '\n\nX = fi\n'}
+        code, out = run(files)
+        self.assertEqual(code, 1, out)
+        self.assertIn('copies a fallback import of pkg.fast.impl that failed with ModuleNotFoundError', out)
+
+    def test_a_package_that_re_exports_the_module_passes(self):
+        """The parent's __init__ imports the original: the leading block is checked when that import reaches it, not as a cycle."""
+        code, out = run(dict(SPLIT, **{'pkg/__init__.py': 'from .report import report as report\n'}))
+        self.assertEqual(code, 0, out)
+        self.assertIn('share every object', out)
+
+    def test_a_re_exporting_package_still_gets_the_checks_before_the_import(self):
+        files = {'lazy.py': 'def __getattr__(name):\n    return object()\n', 'pkg/__init__.py': 'from .report import parse\n',
+                 'pkg/report.py': 'import lazy\nfrom lazy import thing\nfrom .rows import parse as parse\n',
+                 'pkg/rows.py': HEADER + 'from lazy import thing\n\n\ndef parse():\n    return thing\n'}
+        code, out = run(files)
+        self.assertEqual(code, 1, out)
+        self.assertIn('imports thing from lazy, which only its __getattr__ provides', out)
 
     def test_clean_fallbacks_pass(self):
         """A missing module, and a loaded module that lacks the name (reviewer point 1: `from yaml import CSafeLoader`)."""
