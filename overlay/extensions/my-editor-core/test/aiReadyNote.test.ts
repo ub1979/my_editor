@@ -50,7 +50,7 @@ test('the change note shows plan attempts and lists only skipped files over 400 
 	const note = renderChangeNote(run, new Date('2026-10-09T12:34:00Z'));
 	assert.match(note, /Plan: 2 attempts; rejected: Declaration 9 does not exist\./);
 	assert.match(note, /`c\.go` \(split\): refused\. The move check failed: Rule 2\. Plan: 2 attempts; rejected: a \/ b/);
-	assert.match(note, /## Files never split\n\n- `gen\.go`: generated code\.\n- plus 2 files under 400 lines that need no split\. /);
+	assert.match(note, /## Files never split\n\n- 1 file \(`gen\.go`\): generated code\.\n- plus 2 files under 400 lines that need no split\. /);
 	assert.match(note, /under 400 lines that need no split\. They have no tests and cannot be given any, so the picker does not offer them/);
 	assert.doesNotMatch(note, /x\.go/);
 });
@@ -75,7 +75,7 @@ test('the change note lists commits, refusals, flaky tests, what is left and how
 	const note = renderChangeNote(state('/p/shop'), new Date('2026-10-09T12:34:00Z'), GO_LANGUAGE.mayDiffer);
 	for (const pattern of [/^# AI-ready changes: shop/, /`abcdef1` Split `a.go` into `a_query.go` \(Find, List\)/, /Checks: `go build/,
 		/`fedcba9` Added tests for `b.go` in `b_ai_test.go`; dropped failing tests TestAiSlow/, /`c.go` \(split\): refused. The move check failed/,
-		/## Not run yet\n\n- `d.go` \(split\)/, /`gen.go`: generated code/, /- m TestF/, /stays at 450 lines/, /glob\.\.funcN/,
+		/## Not run yet\n\n- `d.go` \(split\)/, /1 file \(`gen.go`\): generated code/, /- m TestF/, /stays at 450 lines/, /glob\.\.funcN/,
 		/already failed before the run[\s\S]*- `go test -count=1 -json \.\/a`/, /git diff 0123456789ab\.\.my_editor\/ai-ready/, /Nothing was pushed/]) {
 		assert.match(note, pattern);
 	}

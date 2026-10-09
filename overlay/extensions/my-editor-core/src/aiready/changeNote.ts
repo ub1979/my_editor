@@ -1,8 +1,8 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import * as path from 'path';
-import { MAX_SOURCE_LINES } from '../quality/sourcePolicy';
 import { flakyTests } from './baseline';
 import type { RunState, StepRecord } from './fixState';
+import { neverSplitLines } from './neverSplit';
 import { STILL_OVER_HEADING, stillOverLines } from './stillOver';
 
 const RUN_SECTION = '## Fixes on a local branch';
@@ -36,15 +36,6 @@ function stepLine(step: StepRecord): string {
 	}
 	const dropped = step.dropped?.length ? `; dropped failing tests ${step.dropped.join(', ')}` : '';
 	return `- \`${short}\` Added tests for \`${step.file}\` in \`${step.testFile}\`${dropped}.`;
-}
-
-/** Skipped files over the limit with their reasons, then one count for the rest (a file with no recorded size is listed). */
-function neverSplit(state: RunState): string[] {
-	const long = state.skippedFiles.filter(s => s.lines === undefined || s.lines > MAX_SOURCE_LINES);
-	const rest = state.skippedFiles.length - long.length;
-	const others = `- plus ${rest} file${rest === 1 ? '' : 's'} under ${MAX_SOURCE_LINES} lines that need no split. `
-		+ 'They have no tests and cannot be given any, so the picker does not offer them';
-	return [...long.map(s => `- \`${s.file}\`: ${s.reason}.`), ...(rest ? [others] : [])];
 }
 
 /** What may still differ for moved code when the adapter does not say. */
@@ -86,7 +77,7 @@ export function renderChangeNote(state: RunState, at: Date, mayDiffer = MAY_DIFF
 		...(notDone.length ? ['## Skipped or refused', '', ...notDone.map(notDoneLine), ''] : []),
 		...(pending.length ? ['## Not run yet', '', ...pending.map(fix => `- \`${fix.file}\` (${fix.kind === 'split' ? 'split' : 'tests'})`), ''] : []),
 		...(discarded.length ? ['## Discarded by you', '', ...discarded.map(step => `- \`${step.file}\` (${step.kind === 'split' ? 'split' : 'tests'})`), ''] : []),
-		...(state.skippedFiles.length ? ['## Files never split', '', ...neverSplit(state), ''] : []),
+		...(state.skippedFiles.length ? ['## Files never split', '', ...neverSplitLines(state.skippedFiles), ''] : []),
 		...(flaky.length ? ['## Flaky tests excluded from comparison', '', ...flaky.map(name => `- ${name}`), ''] : []),
 		...(failing.length ? ['## Checks that already failed before the run', '',
 			'They had to fail the same way after every fix, so they prove less for the files they cover:', '',

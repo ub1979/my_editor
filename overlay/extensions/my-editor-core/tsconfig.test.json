@@ -69,6 +69,7 @@
     "src/aiready/fixScreen.ts",
     "src/aiready/fixQueue.ts",
     "src/aiready/changeNote.ts",
+    "src/aiready/neverSplit.ts",
     "src/aiready/fixText.ts",
     "src/aiready/steps.ts",
     "src/aiready/tsLoad.ts",
