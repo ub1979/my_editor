@@ -242,7 +242,9 @@ written only when it can be used:
 An occurrence that is not a real use leaves an unused import, which the warning comparison catches and the step is
 undone; a real use the scan misses (an identifier built by `paste!`) fails to compile or, through a glob fallback,
 changes a MIR body, which rule 6 catches. A moved item with `#[cfg(…)]` attributes gets a byte copy of them on its
-re-export line, so the import disappears in configurations where the item does.
+re-export line, so the import disappears in configurations where the item does. A moved `#[deprecated]` item's
+re-export line gets `#[allow(deprecated)]`: importing a deprecated item is itself a use that warns, so without it every
+such step would fail the warning comparison.
 
 **In the child.** `use super::*;` (after the header) only when the moved items mention a name the original declares or
 imports, or the original has a glob import; otherwise it would be an unused import. The child never gets other `use`
@@ -432,14 +434,26 @@ lines sit: whitespace and comments, which change spans only.
    src/foo/part.rs:3:1: 3:7>::name`, where the original printed `foo::<impl at …>`). Only paths in function headers,
    types and call targets are mapped, **never string constants or allocation bytes**, so `module_path!()`, log and
    tracing targets and `type_name` evaluated at compile time still differ and refuse the step;
-5. **columns** inside the new files, on lines that got a visibility edit, are mapped back by the edit's length (the
-   edits are known exactly; `column!` is refused, so no column is a value).
+5. **columns** inside the new files, on lines that got visibility edits, are mapped back by the summed length of every
+   edit on that line to the left of the position (a struct written on one line can get several field edits; the edits
+   are known exactly; `column!` is refused, so no column is a value).
 
 Then the two must be equal. The first difference is reported with its body header (*`fn foo::K::k` differs: `const
 "inner"` became `const "outer"`*), and a log-target difference gets a plain reason (*`foo::exprs::parse` logs or
 traces, and its log target would change from `app::foo` to `app::foo::exprs`*). A dump the parser cannot read, or a
 path form the mapping does not know, means *cannot verify*, and the step is undone with that reason: the parser fails
 closed.
+
+**v1.1 widening (not in v1): log targets.** Rule 6 could map a string constant exactly equal to `<orig>::<part>` back to
+`<orig>`, so functions that log could move, only when:
+
+- every macro call in the function is from an allowlist (std macros, `log`, `tracing`, `#[instrument]`);
+- the project has no exact-target comparisons in tracked code (`.target() ==`, reads of `module_path()` from log or
+  tracing metadata);
+- the mapping also covers `tracing` callsite statics (their `target` and `module_path` fields live in allocations).
+
+Log targets would then move to *What may still differ*: `RUST_LOG` and `EnvFilter` match targets by prefix, so
+`app::foo=debug` still matches `app::foo::exprs`, but output and exact-match filters change.
 
 **The commands.** For each target that compiles the file (from dep-info) and each profile (`dev`, `test`):
 
@@ -509,7 +523,9 @@ metadata --offline --format-version 1` succeeds; `setupStamp` is the hash of `Ca
 - **Warnings** (probed): `--message-format=short` prints one line per diagnostic, `src/foo/part.rs:10:38: warning:
   unused variable: …`, so `baseline.ts`'s position pattern already strips the file and line. Cargo replays cached
   warnings for fresh crates (probed), so both baseline runs see them. Counted per message; a step fails when any count
-  grows (C#'s `warnings: 'no-more'` core change, with a Rust warning pattern). This is what catches an unused
+  grows (C#'s `warnings: 'no-more'` core change, with a Rust warning pattern). Before counting, moved definition paths
+  in warning text are mapped back the same way rule 6 maps them in MIR (`foo::part::old` → `foo::old`), so a warning
+  that names a moved item (a deprecation, a `dead_code` path) compares equal. This is what catches an unused
   re-export, an unused `use super::*;`, `clippy::wildcard_imports` (pedantic) on the glob, and a project with `-D
   warnings` in `.cargo/config.toml` either way.
 - **`--no-fail-fast`**: without it the first failing test binary stops the rest.
@@ -552,6 +568,7 @@ The first build compiles every dependency, which the approval text says.
 
 **What may still differ** (in the change note, `mayDiffer`):
 
+- the text of warnings about moved items (their paths gain the part module; compared after mapping back);
 - `std::any::type_name` and `type_name_of_val` of moved items (`app::foo::exprs::Expr` instead of `app::foo::Expr`);
   projects that mention them move functions only, which `type_name` does not name;
 - symbol names of moved items (backtraces, profilers, `nm`); not `#[no_mangle]` ones, which never move;
@@ -615,7 +632,8 @@ a note otherwise.
   rule 6 without it.
 - **Re-exports:** a `pub` item of a public module path always re-exported; a private item used by the remaining code,
   by an inline `mod tests` (`use super::*`), by a sibling module file (`super::Name`), and by another group re-imported;
-  an unused private item not; an unused `pub(crate)` item not (probed warning); a moved const used in a `match` pattern
+  an unused private item not; an unused `pub(crate)` item not (probed warning); a `#[deprecated]` item's re-export
+  carries `#[allow(deprecated)]` and the step adds no warning; a moved const used in a `match` pattern
   re-imported; a moved trait re-imported by name, or `as _`; `#[cfg(windows)]` copied onto the re-export; `use
   super::*` written only when needed; never a glob re-export.
 - **Names in the child** (toolchain): a parent private fn, a parent `use` import, a name from a parent glob import
@@ -645,7 +663,8 @@ a note otherwise.
   the table's (`pub(crate)` where `pub(super)` was due), an extra line in the original, a `mod` line out of plan order,
   a glob re-export, an extra `use` in a part file, a changed header, a wrong dedent, another tracked file changed.
 - **Rule 6:** pass after normalization for a moved impl with a closure and `line!()`, a `static` with `line!()`, a
-  generic function, a widened method on a line with a closure (column mapping), an outlined test module; a moved fn
+  generic function, a widened method on a line with a closure (column mapping), a one-line struct with several widened
+  fields and a closure after them (columns summed), an outlined test module; a moved fn
   calling `log::info!` fails with the log-target reason; `const N: &str = type_name::<X>()` fails; `foo::exprs::x` and
   `exprs::<impl at …>` map back; an unknown path form fails closed; shared versus separate allocations compare equal;
   an unknown dump line fails closed; a build script embedding the time fails reproducibility; one embedding `git
