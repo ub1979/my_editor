@@ -56,13 +56,14 @@ function notDoneLine(step: StepRecord): string {
 /** The change note committed on the branch at close (pure); `mayDiffer` comes from the language adapter. */
 export function renderChangeNote(state: RunState, at: Date, mayDiffer = MAY_DIFFER, hasReport = false): string {
 	const committed = state.steps.filter(step => step.status === 'committed');
-	const notDone = state.steps.filter(step => step.status === 'skipped' || step.status === 'refused');
+	// A split settled as needing a real refactor is listed once, under Still over.
+	const notDone = state.steps.filter(step => (step.status === 'skipped' || step.status === 'refused') && !step.over?.length);
 	const discarded = state.steps.filter(step => step.status === 'discarded');
 	const pending = state.fixes.slice(state.next);
 	const flaky = runFlaky(state);
 	const failing = Object.entries(state.baseline).filter(([, [first]]) => first.code !== 0).map(([command]) => command);
 	const notes = state.steps.flatMap(step => step.notes ?? []);
-	const over = committed.flatMap(step => step.over ?? []);
+	const over = state.steps.flatMap(step => step.over ?? []);
 	const { branch, base } = state.worktree;
 	const userRef = state.worktree.userRef ?? base.slice(0, 12);
 	const behind = behindText(state.worktree);

@@ -129,7 +129,7 @@ async function closeRun(env: CommandEnv, state: RunState, sink: Sink, mayDiffer:
 	clearState(env.storage, state.root);
 	const committed = state.steps.filter(step => step.status === 'committed').length;
 	const discarded = state.steps.filter(step => step.status === 'discarded').length;
-	const stillOver = state.steps.filter(step => step.status === 'committed').flatMap(step => step.over ?? []).length;
+	const stillOver = state.steps.flatMap(step => step.over ?? []).length;
 	let ahead: number | undefined;
 	try { ahead = await aheadOf(state.root, state.worktree.branch); } catch { ahead = undefined; }
 	const { branch, base, userRef } = state.worktree;

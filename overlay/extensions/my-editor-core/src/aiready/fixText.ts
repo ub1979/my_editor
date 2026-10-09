@@ -74,7 +74,7 @@ export interface Closing {
 	readonly worktree: string;
 	/** Whether the health report in the user's folder was updated. */
 	readonly reportUpdated: boolean;
-	/** Files the committed splits left over the line limit. */
+	/** Files still over the line limit: left so by committed splits, or needing a real refactor. */
 	readonly stillOver?: number;
 	/** Commits the branch has that the user's branch lacks, and that branch's name (or short HEAD). */
 	readonly ahead?: number;

@@ -4,6 +4,7 @@ import { MAX_SOURCE_LINES, sourceLines } from '../quality/sourcePolicy';
 import { type CheckResult, buildBlocker, noVerifyingCheck } from './baseline';
 import type { FixChoice, StepRecord } from './fixState';
 import type { FileInfo, LanguageAdapter } from './language';
+import { needsRefactor } from './stillOver';
 
 /** A fix settled before any model call or edit: its step, a few words for grouping, and whether it is unchecked. */
 export interface EarlyOutcome {
@@ -39,6 +40,11 @@ export function screenParsed(adapter: Screener, worktree: string, baseline: Base
 	}
 	if (info.skip) { return settle(`Never split: ${info.skip}.`, `never split: ${info.skip}`); }
 	if (!info.declarations.some(d => d.movable)) { return settle('Nothing in it may move.', 'nothing in it may move'); }
+	const refactor = needsRefactor(info, fix.lines);
+	if (refactor) {
+		const outcome = settle(`${refactor.reason[0].toUpperCase()}${refactor.reason.slice(1)}.`, refactor.reason);
+		return { ...outcome, step: { ...outcome.step, over: [refactor] } };
+	}
 	const checks = adapter.checks(fix.file);
 	const blocker = buildBlocker(checks, baseline);
 	return blocker ? settle(noVerifyingCheck(checks, baseline, unitOf(fix.file))!, blocker, true) : undefined;

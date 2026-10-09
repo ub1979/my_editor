@@ -75,6 +75,7 @@ function allPlanProblems(adapter: LanguageAdapter, input: PlanInput, plan: Split
 	catch (error) { return [error instanceof Error ? error.message : String(error)]; }
 	const moved = new Set(plan.flatMap(group => group.declarations));
 	const left = input.info.declarations.filter(d => !moved.has(d.id));
+	const originalOver = lines(result.original) > MAX_SOURCE_LINES;
 	if (!lineLimitAllowed(result.original, left)) {
 		problems.push(`${input.info.path} would still have ${lines(result.original)} lines; the limit is ${MAX_SOURCE_LINES}.`);
 	}
@@ -82,9 +83,32 @@ function allPlanProblems(adapter: LanguageAdapter, input: PlanInput, plan: Split
 		const group = plan[index].declarations.map(id => byId.get(id)!);
 		if (!lineLimitAllowed(file.text, group)) {
 			problems.push(`${shown(file.name)} would have ${lines(file.text)} lines; the limit is ${MAX_SOURCE_LINES}.`);
+		} else if (originalOver && lines(file.text) > MAX_SOURCE_LINES) {
+			const big = group.find(d => d.lines > MAX_SOURCE_LINES)!;
+			problems.push(`${shown(file.name)} would hold \`${big.names.join(', ') || big.kind}\` (${big.lines} lines) on its own `
+				+ `while ${input.info.path} stays over the limit.`);
 		}
 	}
-	return problems;
+	return [...problems, ...noBetter(input.source, result)];
+}
+
+/** Files over the limit and the lines over it, summed. */
+function overflow(texts: readonly Buffer[]): { files: number; lines: number } {
+	const over = texts.map(lines).filter(n => n > MAX_SOURCE_LINES);
+	return { files: over.length, lines: over.reduce((sum, n) => sum + n - MAX_SOURCE_LINES, 0) };
+}
+
+/**
+ * A split of a file over the limit must leave fewer files over it or fewer lines over it in all; moving a big
+ * declaration into a file of its own, as far over the limit as the original was, is churn.
+ */
+function noBetter(source: Buffer, result: SplitResult): string[] {
+	const before = overflow([source]);
+	const after = overflow([result.original, ...result.files.map(file => file.text)]);
+	if (!before.files || after.files < before.files || after.lines < before.lines) { return []; }
+	const files = (n: number) => `${n} file${n === 1 ? '' : 's'}`;
+	return [`The split would leave ${files(after.files)} over ${MAX_SOURCE_LINES} lines, ${after.lines} lines over in all; `
+		+ `before it was ${files(before.files)}, ${before.lines} lines over. A split must leave fewer files or fewer lines over the limit.`];
 }
 
 /**

@@ -113,9 +113,10 @@ test('a file may stay over 400 lines when nothing left in it may move (a types-o
 	const files = [{ name: 't.ts', text: Buffer.from('type T = 1;\n') }];
 	const adapter = { fileNameProblems: () => [], buildSplit: () => ({ original, files }) } as unknown as LanguageAdapter;
 	const plan = [{ file: 't.ts', declarations: [0] }];
-	assert.deepEqual(planProblems(adapter, { source: original, info, existing: [] }, plan), []);
+	const source = Buffer.concat([Buffer.from('type T = 1;\n'), original]);
+	assert.deepEqual(planProblems(adapter, { source, info, existing: [] }, plan), []);
 	assert.deepEqual(stillOver(adapter.buildSplit(original, info, plan), info, plan, ['src/t.ts']),
 		[{ file: 'src/big.ts', lines: 450, reason: `the rest may not move (${reason})` }]);
 	const movable: FileInfo = { ...info, declarations: [...info.declarations, decl(451, 'g', { start: 0, end: 0 })] };
-	assert.match(planProblems(adapter, { source: original, info: movable, existing: [] }, plan).join(' '), /would still have 450 lines/);
+	assert.match(planProblems(adapter, { source, info: movable, existing: [] }, plan).join(' '), /would still have 450 lines/);
 });
