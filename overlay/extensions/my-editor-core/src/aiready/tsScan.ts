@@ -109,7 +109,10 @@ export function pathFinders(project: TsProject): PathFinder[] {
 		for (const match of text.matchAll(KEY)) {
 			const end = match.index + match[0].length;
 			const { value } = expression(text, end, false);
-			const finder = value ? finderOf(file, value, false) : { file, patterns: yamlList(text, end) };
+			// YAML may leave a scalar unquoted (`spec: test/**/*.ts`); in code, an unquoted value is an expression.
+			const yaml = /\.ya?ml$/.test(file);
+			const finder = !value ? { file, patterns: yamlList(text, end) }
+				: yaml && !/^['"[]/.test(value) ? { file, patterns: [value.replace(/\s+#.*$/, '')] } : finderOf(file, value, false);
 			if (finder?.patterns?.length || finder?.below) { finders.push(finder); }
 		}
 	}

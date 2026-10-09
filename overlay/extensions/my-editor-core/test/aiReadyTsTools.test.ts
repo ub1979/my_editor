@@ -86,6 +86,8 @@ test('folder loaders: arrays of globs, member calls, a glob joined to __dirname,
 	assert.deepEqual(finders({ 'package.json': '{"name":"p","scripts":{"build":"esbuild \'src/plugins/*.ts\' --outdir=dist","x":"tsc"}}' }),
 		['package.json:src/plugins/*.ts']);
 	assert.deepEqual(finders({ '.mocharc.yml': "spec: 'src/plugins/**/*.ts'\n" }), ['.mocharc.yml:src/plugins/**/*.ts']);
+	assert.deepEqual(finders({ '.mocharc.yml': 'spec: src/plugins/**/*.ts\n' }), ['.mocharc.yml:src/plugins/**/*.ts']);
+	assert.deepEqual(finders({ 'src/m.ts': 'export const o = { spec: someVar };\n' }), []);
 	assert.deepEqual(finders({ '.mocharc.yaml': 'require: x\nspec:\n  - lib/*.ts\n  - src/plugins/**/*.ts\nui: bdd\n' }),
 		['.mocharc.yaml:lib/*.ts|src/plugins/**/*.ts']);
 	assert.deepEqual(finders({ '.mocharc.json': '{"spec":["src/plugins/*.ts"]}' }), ['.mocharc.json:src/plugins/*.ts']);
