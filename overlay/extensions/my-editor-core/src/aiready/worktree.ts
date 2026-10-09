@@ -96,7 +96,9 @@ export async function aheadOf(root: string, branch: string): Promise<number> {
 /** A free folder next to the project, so relative paths that leave the repository still resolve. */
 export function freeFolder(root: string): string {
 	const parent = path.dirname(path.resolve(root));
-	try { accessSync(parent, constants.W_OK); } catch { throw new Error(`The folder ${parent} is not writable, so the branch's working copy cannot go next to the project.`); }
+	try { accessSync(parent, constants.W_OK); } catch {
+		throw new Error(`The folder ${parent} is not writable, so the branch's working copy cannot go next to the project.`);
+	}
 	for (let n = 1; ; n++) {
 		const folder = path.join(parent, `${path.basename(root)}.ai-ready${n === 1 ? '' : `-${n}`}`);
 		if (!existsSync(folder)) { return folder; }

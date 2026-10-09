@@ -80,7 +80,8 @@ export function runCommand(text: string, options: RunOptions): Promise<CommandOu
 	if (!bin) { return Promise.resolve({ code: undefined, stdout: '', output: '', timedOut: false, error: `${parts.bin} was not found.` }); }
 	try { mkdirSync(path.dirname(options.logFile), { recursive: true }); }
 	catch (error) {
-		return Promise.resolve({ code: undefined, stdout: '', output: '', timedOut: false, error: `Could not create the log folder: ${error instanceof Error ? error.message : String(error)}` });
+		const message = error instanceof Error ? error.message : String(error);
+		return Promise.resolve({ code: undefined, stdout: '', output: '', timedOut: false, error: `Could not create the log folder: ${message}` });
 	}
 	const log = createWriteStream(options.logFile);
 	// A log that cannot be written must not crash the extension host; the run goes on without it.
@@ -116,7 +117,10 @@ export function runCommand(text: string, options: RunOptions): Promise<CommandOu
 			clearTimeout(timer);
 			cancelled?.dispose();
 			const stopped = timedOut || options.cancel?.isCancellationRequested || size > MAX_OUTPUT;
-			const result = { code: stopped ? undefined : code, stdout: Buffer.concat(stdout).toString('utf8'), output: Buffer.concat(output).toString('utf8'), timedOut, error };
+			const result = {
+				code: stopped ? undefined : code, stdout: Buffer.concat(stdout).toString('utf8'), output: Buffer.concat(output).toString('utf8'),
+				timedOut, error,
+			};
 			// Resolve once the log is on disk, so it is complete when the result is read.
 			let resolved = false;
 			settle = () => { if (!resolved) { resolved = true; resolve(result); } };
@@ -160,14 +164,17 @@ export function runTool(bin: string, args: readonly string[], cwd: string, env?:
 		child.stdout!.on('data', keep(stdout));
 		child.stderr!.on('data', keep(stderr));
 		const timeoutMs = limits.timeoutMs ?? 120_000;
-		const timer = setTimeout(() => { failure ||= `${path.basename(bin)} timed out after ${timeoutMs < 1000 ? `${timeoutMs} ms` : `${Math.round(timeoutMs / 1000)} s`}.`; stop(); }, timeoutMs);
+		const after = timeoutMs < 1000 ? `${timeoutMs} ms` : `${Math.round(timeoutMs / 1000)} s`;
+		const timer = setTimeout(() => { failure ||= `${path.basename(bin)} timed out after ${after}.`; stop(); }, timeoutMs);
 		let ended = false;
 		const finish = (code: number, error = '') => {
 			if (ended) { return; }
 			ended = true;
 			clearTimeout(timer);
 			const err = Buffer.concat(stderr).toString('utf8');
-			resolve({ code: failure && code === 0 ? 1 : code, stdout: Buffer.concat(stdout).toString('utf8'), stderr: [err, failure, error].filter(Boolean).join('\n') });
+			resolve({
+				code: failure && code === 0 ? 1 : code, stdout: Buffer.concat(stdout).toString('utf8'), stderr: [err, failure, error].filter(Boolean).join('\n'),
+			});
 		};
 		child.on('error', error => finish(1, error.message));
 		child.on('close', code => finish(code ?? 1));

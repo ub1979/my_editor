@@ -52,7 +52,8 @@ export function renderReport(input: ReportInput): string {
 	const { commands, review } = input;
 	const lines = [
 		`# AI-ready health report: ${input.project}`, '',
-		`${input.date} · ${input.stats.length} source files · reviewed with ${input.model}${review.partial ? ' · **stopped early: this report is partial**' : ''}`, '',
+		`${input.date} · ${input.stats.length} source files · reviewed with ${input.model}`
+		+ `${review.partial ? ' · **stopped early: this report is partial**' : ''}`, '',
 		'Nothing in the code was changed. This report shows what would make the project easier for people and AI models to work on.', '',
 		'## Summary', '',
 		'| Check | Findings |', '|---|---|',
@@ -66,19 +67,24 @@ export function renderReport(input: ReportInput): string {
 		'## Files that need attention', '',
 		...(files.length ? files.flatMap(file => {
 			const stat = stats.get(file);
-			return [`### ${link(file)}`, '', stat ? `${stat.lines} lines${stat.classes.length ? ` · ${stat.classes.length} class${stat.classes.length === 1 ? '' : 'es'}` : ''}` : '', '',
-				...byFile.get(file)!.map(f => `- **${LABELS[f.kind]}**${f.line ? ` (${link(file, f.line)})` : ''}: ${plain(f.text)}${f.grouping ? `\n  Grouping: ${plain(f.grouping)}` : ''}`), ''];
+			const classes = stat?.classes.length ? ` · ${stat.classes.length} class${stat.classes.length === 1 ? '' : 'es'}` : '';
+			return [`### ${link(file)}`, '', stat ? `${stat.lines} lines${classes}` : '', '',
+				...byFile.get(file)!.map(f => `- **${LABELS[f.kind]}**${f.line ? ` (${link(file, f.line)})` : ''}: ${plain(f.text)}`
+					+ `${f.grouping ? `\n  Grouping: ${plain(f.grouping)}` : ''}`), ''];
 		}) : ['Every file passed these checks.', '']),
 		'## Suggestions for you', '',
 		...(suggestions.length
-			? [...suggestions.map(f => `- **${LABELS[f.kind]}** ${link(f.file!, f.line)}: ${plain(f.text)}`), '', 'This check never changes behavior. To fix one, ask Pair about it.']
+			? [...suggestions.map(f => `- **${LABELS[f.kind]}** ${link(f.file!, f.line)}: ${plain(f.text)}`), '',
+				'This check never changes behavior. To fix one, ask Pair about it.']
 			: ['No likely bugs or fragile code were reported.']), '',
 		...(review.notReviewed.length || review.error ? ['## Not reviewed by the model', '',
 			...(review.error ? [`The model could not be reached: ${plain(review.error)}`, ''] : []),
-			...(review.notReviewed.length ? [`${review.notReviewed.map(plain).join(', ')}. They hit the call limit, had no room for an excerpt, or the model failed; run the check again to retry.`, ''] : [])] : []),
+			...(review.notReviewed.length ? [`${review.notReviewed.map(plain).join(', ')}. They hit the call limit, had no room for an excerpt, `
+				+ 'or the model failed; run the check again to retry.', ''] : [])] : []),
 		'## What the fixing step will offer', '',
 		...NEXT_STEP.map(item => `- ${item}`), '',
-		'Fixes run on a separate local branch, one per commit, each checked so the program behaves as before. For Go projects, choose **Fix on a local branch** in Pair; other languages follow.', '',
+		'Fixes run on a separate local branch, one per commit, each checked so the program behaves as before. '
+		+ 'For Go projects, choose **Fix on a local branch** in Pair; other languages follow.', '',
 	];
 	return lines.filter((line, i, all) => !(line === '' && all[i - 1] === '')).join('\n');
 }
