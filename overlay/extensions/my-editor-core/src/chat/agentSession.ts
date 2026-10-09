@@ -18,6 +18,17 @@ import { characterPrompt } from './characters';
 import { mayProposeFile } from './projectToolPolicy';
 import { pairWebAccess, WEB_ACCESS_NOTE } from '../models/webAccess';
 
+/** The locate-only turn: map where a change belongs, open the files, and propose nothing. */
+const CHANGE_MAP_NOTE = 'This turn is a change map. Search and read the current project, follow relevant callers and tests, and open '
+	+ 'the best matching files at verified lines with open_files. Report the file count, path:line, why each '
+	+ 'matters, and any search coverage limit. Discuss the approach with the developer. Do not propose or edit code '
+	+ 'in this turn.';
+/** A review reads current source behind its claims and never proposes edits. */
+const REVIEW_NOTE = 'This is a read-only review. Use project tools to inspect current source behind technical claims in the open '
+	+ 'file. Cite the paths and lines checked. Separate an observed design choice from a guessed motive; when '
+	+ 'evidence is missing, say exactly what could not be checked. Do not propose or edit files.';
+const READ_ONLY_TURN = 'This turn is read-only. Explain the findings and let the developer choose whether to request a fix.';
+
 export interface AgentSessionOptions {
 	readonly entry: ModelEntry;
 	readonly mode: Mode;
@@ -51,8 +62,8 @@ export async function runPairAgent(options: AgentSessionOptions): Promise<string
 		options.previousInvestigations ? `Recent investigations (prior reports are leads, not verified current facts):\n${options.previousInvestigations}` : '',
 		input.memory ? `Working brief from earlier turns (refresh facts against current source and Git):\n${input.memory}` : '',
 		input.proposalState ? `Recent Pair proposals (Git and current files remain authoritative for kept changes):\n${input.proposalState}` : '',
-		input.locateOnly ? 'This turn is a change map. Search and read the current project, follow relevant callers and tests, and open the best matching files at verified lines with open_files. Report the file count, path:line, why each matters, and any search coverage limit. Discuss the approach with the developer. Do not propose or edit code in this turn.' : '',
-		options.mode.id === 'review' ? 'This is a read-only review. Use project tools to inspect current source behind technical claims in the open file. Cite the paths and lines checked. Separate an observed design choice from a guessed motive; when evidence is missing, say exactly what could not be checked. Do not propose or edit files.' : '',
+		input.locateOnly ? CHANGE_MAP_NOTE : '',
+		options.mode.id === 'review' ? REVIEW_NOTE : '',
 		chatArchiveIndex(chatArchive),
 		web ? WEB_ACCESS_NOTE : '',
 		AGENT_INSTRUCTION,
@@ -77,7 +88,7 @@ export async function runPairAgent(options: AgentSessionOptions): Promise<string
 			return response;
 		},
 		execute: async call => {
-			if (call.name === 'propose_file' && !mayProposeFile(options.mode.id, !!input.locateOnly)) { return 'This turn is read-only. Explain the findings and let the developer choose whether to request a fix.'; }
+			if (call.name === 'propose_file' && !mayProposeFile(options.mode.id, !!input.locateOnly)) { return READ_ONLY_TURN; }
 			if (call.name === 'read_chat') { return readChatMessage(chatArchive, call.arguments); }
 			if (call.name === 'search_chat') { return searchChatMessages(chatArchive, call.arguments.query); }
 			const result = await tools.execute(call.name, call.arguments);

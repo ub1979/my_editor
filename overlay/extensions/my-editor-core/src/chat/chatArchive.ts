@@ -47,14 +47,17 @@ export function readChatMessage(messages: readonly ChatTurn[], args: Record<stri
 	const message = messages[messages.length - turnsAgo];
 	const from = Math.min(start, message.text.length);
 	const to = Math.min(message.text.length, from + Math.min(chars, MAX_CHAT_CHARS));
-	return `Stored chat message ${turnsAgo} turn${turnsAgo === 1 ? '' : 's'} ago (${message.role}, characters ${from}–${to} of ${message.text.length}):\n${message.text.slice(from, to)}${to < message.text.length ? `\n[More available: read_chat with turnsAgo=${turnsAgo}, start=${to}]` : ''}`;
+	const more = to < message.text.length ? `\n[More available: read_chat with turnsAgo=${turnsAgo}, start=${to}]` : '';
+	const turns = `${turnsAgo} turn${turnsAgo === 1 ? '' : 's'}`;
+	return `Stored chat message ${turns} ago (${message.role}, characters ${from}–${to} of ${message.text.length}):\n${message.text.slice(from, to)}${more}`;
 }
 
 /** Keep a short preview in the live prompt and identify the exact stored message for further reading. */
 export function previewChatTurn(turn: ChatTurn, turnsAgo: number, limit = turn.role === 'user' ? 2_500 : 1_500): ChatTurn {
 	return turn.text.length <= limit ? turn : {
 		role: turn.role,
-		text: `${turn.text.slice(0, limit)}\n[Earlier message shortened from ${turn.text.length} characters. Use read_chat with turnsAgo=${turnsAgo} to inspect the rest.]`,
+		text: `${turn.text.slice(0, limit)}\n[Earlier message shortened from ${turn.text.length} characters. `
+			+ `Use read_chat with turnsAgo=${turnsAgo} to inspect the rest.]`,
 	};
 }
 

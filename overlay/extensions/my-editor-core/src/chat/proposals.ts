@@ -103,7 +103,8 @@ export class Proposals implements vscode.Disposable {
 		if (proposal.isNewFile) {
 			try {
 				await vscode.workspace.fs.stat(proposal.target);
-				const choice = await vscode.window.showWarningMessage(`${proposal.relativePath} was created since this was proposed.`, { modal: true, detail: 'Keeping the proposal replaces it.' }, 'Replace it');
+				const choice = await vscode.window.showWarningMessage(`${proposal.relativePath} was created since this was proposed.`,
+					{ modal: true, detail: 'Keeping the proposal replaces it.' }, 'Replace it');
 				if (choice !== 'Replace it') {
 					return false;
 				}
@@ -114,7 +115,8 @@ export class Proposals implements vscode.Disposable {
 		} else {
 			const document = await vscode.workspace.openTextDocument(proposal.target);
 			if (document.getText() !== proposal.base) {
-				const choice = await vscode.window.showWarningMessage(`${proposal.relativePath} changed since this was proposed.`, { modal: true, detail: 'Keeping the proposal replaces those newer edits.' }, 'Keep anyway');
+				const choice = await vscode.window.showWarningMessage(`${proposal.relativePath} changed since this was proposed.`,
+					{ modal: true, detail: 'Keeping the proposal replaces those newer edits.' }, 'Keep anyway');
 				if (choice !== 'Keep anyway') {
 					return false;
 				}

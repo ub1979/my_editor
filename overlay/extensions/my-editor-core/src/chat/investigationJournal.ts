@@ -55,7 +55,9 @@ export async function recentInvestigationContext(question: string): Promise<stri
 	const ranked = records.map(record => ({ record,
 		score: terms.filter(term => `${record.question} ${record.answer}`.toLowerCase().includes(term)).length,
 	})).sort((a, b) => b.score - a.score || b.record.at.localeCompare(a.record.at));
-	return ranked.slice(0, 3).map(({ record }) =>
-		`Earlier investigation ${record.at} (assistant report; verify against current source):\nQuestion: ${record.question.slice(0, 350)}\nReport: ${record.answer.slice(0, 900)}\nHost checks: ${record.evidence.map(item => `${item.tool}(${item.subject})`).slice(0, 12).join(', ') || '(none)'}`,
-	).join('\n\n').slice(0, 4_500);
+	return ranked.slice(0, 3).map(({ record }) => {
+		const checks = record.evidence.map(item => `${item.tool}(${item.subject})`).slice(0, 12).join(', ') || '(none)';
+		return `Earlier investigation ${record.at} (assistant report; verify against current source):\n`
+			+ `Question: ${record.question.slice(0, 350)}\nReport: ${record.answer.slice(0, 900)}\nHost checks: ${checks}`;
+	}).join('\n\n').slice(0, 4_500);
 }

@@ -64,6 +64,7 @@ export function observationFingerprint(workspace: string, check: ObservationChec
 
 export function observationSummary(checks: readonly ObservationCheck[]): string {
 	return checks.length
-		? `Configured observations (request with observe; a project recipe needs approval before first use):\n${checks.map(check => `- ${check.id}: ${check.title}. ${check.description}`).join('\n')}`
+		? 'Configured observations (request with observe; a project recipe needs approval before first use):\n'
+			+ checks.map(check => `- ${check.id}: ${check.title}. ${check.description}`).join('\n')
 		: 'No live observations are configured for this project.';
 }

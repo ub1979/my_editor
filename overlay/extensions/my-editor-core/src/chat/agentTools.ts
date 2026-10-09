@@ -35,7 +35,10 @@ export class AgentTools {
 				case 'search': return { text: await this.search(args.query) };
 				case 'read_file': return { text: await this.readFile(args.path, args.start, args.lines) };
 				case 'open_files': return { text: await this.openFiles(args.locations) };
-				case 'git_history': return { text: (await changeContext(typeof args.question === 'string' ? args.question.slice(0, 300) : '', undefined, true)).slice(0, 10_000) };
+				case 'git_history': {
+					const question = typeof args.question === 'string' ? args.question.slice(0, 300) : '';
+					return { text: (await changeContext(question, undefined, true)).slice(0, 10_000) };
+				}
 				case 'search_records': return { text: await searchProjectRecords(args.query) };
 				case 'observe': return { text: await this.observations.run(args.id, this.token) };
 				case 'run_tests': return { text: await this.runTests(args.command) };
@@ -74,7 +77,9 @@ export class AgentTools {
 		const visible = files.filter(uri => uri.fsPath.startsWith(root + path.sep))
 			.map(uri => path.relative(root, uri.fsPath).split(path.sep).join('/'))
 			.filter(file => safeRelativePath(file) && !isSensitiveFile(file));
-		return visible.length ? `Matching files (${visible.length}${files.length === 300 ? '+' : ''}):\n${visible.join('\n').slice(0, 12_000)}` : 'No matching files found.';
+		return visible.length
+			? `Matching files (${visible.length}${files.length === 300 ? '+' : ''}):\n${visible.join('\n').slice(0, 12_000)}`
+			: 'No matching files found.';
 	}
 
 	private async search(query: unknown): Promise<string> {
@@ -108,7 +113,7 @@ export class AgentTools {
 			} catch { /* Binary, unreadable or moved file. */ }
 			if (matches.length >= 60) { break; }
 		}
-		return `Searched ${inspected} readable files${files.length === MAX_SEARCH_FILES ? ' (file limit reached)' : ''}.\n${matches.length ? matches.join('\n') : 'No matches.'}${matches.length >= 60 ? '\nMatch limit reached.' : ''}`;
+		return `Searched ${inspected} readable files${files.length === MAX_SEARCH_FILES ? ' (file limit reached)' : ''}.\n${matchList(matches)}`;
 	}
 
 	private async readFile(value: unknown, startValue: unknown, linesValue: unknown): Promise<string> {
@@ -153,7 +158,9 @@ export class AgentTools {
 			editor.revealRange(location.document.lineAt(location.line - 1).range, vscode.TextEditorRevealType.InCenter);
 			opened.unshift(`${location.relative}:${location.line}`);
 		}
-		return opened.length ? `Opened ${opened.length} verified file${opened.length === 1 ? '' : 's'} at ${opened.join(', ')}. The first is in focus.` : 'Stopped before opening files.';
+		return opened.length
+			? `Opened ${opened.length} verified file${opened.length === 1 ? '' : 's'} at ${opened.join(', ')}. The first is in focus.`
+			: 'Stopped before opening files.';
 	}
 
 	private async proposeFile(value: unknown, content: unknown): Promise<ToolResult> {
@@ -168,10 +175,16 @@ export class AgentTools {
 		if (exists) {
 			const document = await vscode.workspace.openTextDocument(uri);
 			if (document.getText().length > 80_000) { return { text: 'This file is too long for a whole-file proposal. Change a smaller file.' }; }
-			if (elidesCode(content)) { return { text: 'The proposal contains omitted-code placeholders that could delete existing lines. Send complete file content.' }; }
+			if (elidesCode(content)) {
+				return { text: 'The proposal contains omitted-code placeholders that could delete existing lines. Send complete file content.' };
+			}
 		}
 		const proposal = await this.proposals.propose(uri, content);
-		return { text: `Proposed ${relative} (${proposal.added} added, ${proposal.removed} removed). The user must review and Keep this proposal before it changes the project.`, proposalId: proposal.id };
+		return {
+			text: `Proposed ${relative} (${proposal.added} added, ${proposal.removed} removed). `
+				+ 'The user must review and Keep this proposal before it changes the project.',
+			proposalId: proposal.id,
+		};
 	}
 
 	private async runTests(value: unknown): Promise<string> {
@@ -179,11 +192,18 @@ export class AgentTools {
 		const command = typeof value === 'string' ? value.trim() : '';
 		const spec = testSpec(command);
 		if (!spec) { return 'Unsupported test command. Use npm test, npm run test, go test ./..., cargo test, or pytest -q.'; }
-		const choice = await vscode.window.showInformationMessage(`Pair wants to run: ${command}`, { modal: true, detail: `In ${this.workspace().uri.fsPath}. Tests may execute project code.` }, 'Run tests');
+		const detail = `In ${this.workspace().uri.fsPath}. Tests may execute project code.`;
+		const choice = await vscode.window.showInformationMessage(`Pair wants to run: ${command}`, { modal: true, detail }, 'Run tests');
 		if (choice !== 'Run tests') { this.testsRun = 2; return 'The user declined tests. Do not request another test command in this reply.'; }
 		this.testsRun++;
-		return `${await runTestProcess(spec.bin, spec.args, this.workspace().uri.fsPath, this.token)}\nThis ran against the current workspace; unkept proposals were not included.`;
+		const output = await runTestProcess(spec.bin, spec.args, this.workspace().uri.fsPath, this.token);
+		return `${output}\nThis ran against the current workspace; unkept proposals were not included.`;
 	}
+}
+
+/** Search hits, one per line, noting when the 60-match limit cut the list short. */
+function matchList(matches: readonly string[]): string {
+	return `${matches.length ? matches.join('\n') : 'No matches.'}${matches.length >= 60 ? '\nMatch limit reached.' : ''}`;
 }
 
 /** Search a large repository without loading its files into the extension host. */
@@ -207,7 +227,7 @@ function ripgrepSearch(query: string, cwd: string, token: vscode.CancellationTok
 			ended = true;
 			clearTimeout(timer);
 			cancelled.dispose();
-			resolve(unavailable ? undefined : token.isCancellationRequested ? 'Stopped.' : `Search results:\n${matches.length ? matches.join('\n') : 'No matches.'}${matches.length >= 60 ? '\nMatch limit reached.' : ''}`);
+			resolve(unavailable ? undefined : token.isCancellationRequested ? 'Stopped.' : `Search results:\n${matchList(matches)}`);
 		};
 		child.stdout.setEncoding('utf8').on('data', (chunk: string) => {
 			buffer += chunk;

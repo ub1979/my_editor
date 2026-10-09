@@ -1,6 +1,6 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
-import { cleanBrief, fallbackBrief, liveTurns, memoryBatch } from '../src/chat/memory';
+import { BRIEF_SYSTEM, briefRequest, cleanBrief, fallbackBrief, liveTurns, memoryBatch } from '../src/chat/memory';
 import { parseCommits } from '../src/project/commitParse';
 
 test('conversation compaction keeps every turn visible until summarized', () => {
@@ -10,6 +10,20 @@ test('conversation compaction keeps every turn visible until summarized', () => 
 	assert.equal(memoryBatch(turns, { brief: 'earlier', throughId: '7' }).length, 0);
 	assert.match(fallbackBrief('', turns.slice(0, 2)), /User requested: turn 0/);
 	assert.equal(cleanBrief('<think>private reasoning</think>Keep the live campaign safe.'), 'Keep the live campaign safe.');
+});
+
+test('the brief request labels older turns, cuts long ones and masks a leaked tool request', () => {
+	const leaked = '{"action":"read_file","path":"src/a.ts"}';
+	const request = briefRequest('', [
+		{ role: 'user', text: 'x'.repeat(2000) },
+		{ role: 'assistant', text: 'Added the index.' },
+		{ role: 'assistant', text: leaked },
+	]);
+	assert.match(request, /^Previous working brief:\n\(none\)\n\nOlder turns to incorporate:\nUser: x{1600}\n\nPair: Added the index\.\n\nPair: \[internal tool request/);
+	assert.doesNotMatch(request, /x{1601}/);
+	assert.match(briefRequest('Goal: ship', []), /^Previous working brief:\nGoal: ship\n/);
+	assert.match(BRIEF_SYSTEM, /at most 4,500 characters/);
+	assert.match(BRIEF_SYSTEM, /Return only the brief\.$/);
 });
 
 test('Git history parser associates changed paths with each commit', () => {

@@ -12,6 +12,17 @@ interface Observation {
 	readonly result: string;
 }
 
+/** Sent once the safety bound is reached: answer now, with what is confirmed and what is not. */
+const FINAL_ANSWER_REQUEST = 'You have used the available project checks for this request. Give a final answer now. Summarize confirmed '
+	+ 'findings, file proposals awaiting Keep, and unfinished work. Do not request another tool or claim unverified '
+	+ 'work is complete.';
+/** Sent once after an unreadable tool request. */
+const MALFORMED_REQUEST = 'Your last internal tool request was malformed. Reply with exactly one valid JSON action. If no more checks '
+	+ 'are available, use action=final and explain the findings in plain English. Never show tool JSON to the user.';
+/** Sent when a review tries to conclude before checking any current source. */
+const CHECK_SOURCE_REQUEST = 'Before concluding this review, use search or read_file on the current project source. If that check fails, '
+	+ 'report its exact limit instead of claiming the code was verified.';
+
 export interface AgentLoopOptions {
 	readonly initial: readonly ChatTurn[];
 	readonly ask: (turns: ChatTurn[], finalOnly: boolean, remaining: number) => Promise<string>;
@@ -30,7 +41,10 @@ export function agentTurns(initial: readonly ChatTurn[], observations: readonly 
 	const findings = older.slice(-12).map(item => `${item.label}: ${item.result.slice(0, 350)}`).join('\n').slice(-6_000);
 	return [
 		...initial,
-		...(older.length ? [{ role: 'user' as const, text: `Earlier project checks (request a file again for full detail):\n${labels}\n\nRecent older findings:\n${findings}` }] : []),
+		...(older.length ? [{
+			role: 'user' as const,
+			text: `Earlier project checks (request a file again for full detail):\n${labels}\n\nRecent older findings:\n${findings}`,
+		}] : []),
 		...recent.flatMap(item => [
 			{ role: 'assistant' as const, text: item.call },
 			{ role: 'user' as const, text: item.result },
@@ -74,7 +88,7 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<string> {
 			: used ? `Checking the project (${used}/${MAX_PROJECT_TOOL_CALLS})…` : 'Reading project context…');
 		const turns = agentTurns(options.initial, observations);
 		if (finalOnly) {
-			turns.push({ role: 'user', text: `You have used the available project checks for this request. Give a final answer now. Summarize confirmed findings, file proposals awaiting Keep, and unfinished work. Do not request another tool or claim unverified work is complete.` });
+			turns.push({ role: 'user', text: FINAL_ANSWER_REQUEST });
 		}
 		let response = await options.ask(turns, finalOnly, remaining);
 		if (options.cancelled()) { return ''; }
@@ -84,7 +98,7 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<string> {
 			response = await options.ask([
 				...turns,
 				{ role: 'assistant', text: response.slice(0, 4_000) },
-				{ role: 'user', text: 'Your last internal tool request was malformed. Reply with exactly one valid JSON action. If no more checks are available, use action=final and explain the findings in plain English. Never show tool JSON to the user.' },
+				{ role: 'user', text: MALFORMED_REQUEST },
 			], finalOnly, remaining);
 			if (options.cancelled()) { return ''; }
 			parsed = parseAgentStep(response);
@@ -97,7 +111,7 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<string> {
 			options.progress('Checking current source before reviewing…');
 			response = await options.ask([...turns,
 				{ role: 'assistant', text: response.slice(0, 4_000) },
-				{ role: 'user', text: 'Before concluding this review, use search or read_file on the current project source. If that check fails, report its exact limit instead of claiming the code was verified.' },
+				{ role: 'user', text: CHECK_SOURCE_REQUEST },
 			], finalOnly, remaining);
 			if (options.cancelled()) { return ''; }
 			parsed = parseAgentStep(response);

@@ -4,7 +4,7 @@ import { loadCatalog, pickDefault } from '../models/catalog';
 import { ApiKeys } from '../models/secrets';
 import { streamModel } from '../models/stream';
 import { ChatTurn } from '../models/types';
-import { cleanBrief } from './memory';
+import { BRIEF_SYSTEM, briefRequest, cleanBrief } from './memory';
 import { documentFromReply, elidesCode, fileFromReply } from '../pair/codeBlock';
 import { currentFile, describeFile, FileContext, readProjectNote } from '../pair/context';
 import { Mode, MODES, systemPrompt } from '../pair/prompts';
@@ -17,7 +17,6 @@ import { logExchange } from '../records/chatLog';
 import { recordsAbout } from '../records/history';
 import { loadSkills } from '../skills/loader';
 import { Proposal, Proposals } from './proposals';
-import { looksLikeAgentProtocol } from './agentProtocol';
 import { runPairAgent } from './agentSession';
 import { modelHistoryTurns } from './chatArchive';
 import { configuredReasoningEffort, mergeTurns } from './modelTurns';
@@ -74,6 +73,12 @@ export interface RunResult {
 	readonly model?: string;
 }
 
+/** The open file's most relevant source for the request, plus the selected text when there is one. */
+function openFileExcerpt(file: FileContext, prompt: string): string {
+	const selected = file.selection ? `\nSelected text:\n${file.selectedText.slice(0, 4000)}` : '';
+	return `Open file: ${file.relativePath}\n${sourceExcerpt(file.text, queryTerms(prompt), 4000)}${selected}`;
+}
+
 /** Interview-style skills keep going across turns; code-writing ones run once per request. */
 export const CONVERSATIONAL = new Set(['requirements', 'architecture', 'tree', 'brainstorm']);
 
@@ -96,8 +101,8 @@ export class PairEngine {
 		if (!entry) { throw new Error('No model is available to compact conversation history.'); }
 		let brief = '';
 		await streamModel(entry, this.keys, {
-			system: `Summarize an ongoing Pair conversation into a working brief of at most 4,500 characters. Preserve: the user's active goal, explicit constraints and preferences, accepted decisions, work completed, files changed, unresolved questions, and next steps. Separate confirmed facts from ideas or claims that still need checking. Treat assistant statements as claims unless supported by user acceptance or recorded changes. Do not invent facts. Return only the brief.`,
-			turns: [{ role: 'user', text: `Previous working brief:\n${previous || '(none)'}\n\nOlder turns to incorporate:\n${turns.map(turn => `${turn.role === 'user' ? 'User' : 'Pair'}: ${turn.role === 'assistant' && looksLikeAgentProtocol(turn.text) ? '[internal tool request shown by a prior display error]' : turn.text.slice(0, 1600)}`).join('\n\n')}` }],
+			system: BRIEF_SYSTEM,
+			turns: [{ role: 'user', text: briefRequest(previous, turns) }],
 			token, onText: chunk => { brief += chunk; },
 		});
 		if (!brief.trim()) { throw new Error('The summarizing model returned no working brief.'); }
@@ -173,10 +178,14 @@ export class PairEngine {
 			return { mode: mode.id, reply: '' };
 		}
 
-		const [conventions, brain, specs, neighbours, evidence, changes, plans, projectState, availableObservations, previousInvestigations] = await Promise.all([
+		const recentAsks = history.slice(-4).filter(turn => turn.role === 'user').map(turn => turn.text);
+		const evidenceQuery = [prompt, ...recentAsks, input.memory ?? ''].join('\n');
+		const [
+			conventions, brain, specs, neighbours, evidence, changes, plans, projectState, availableObservations, previousInvestigations,
+		] = await Promise.all([
 			readProjectNote('conventions.md'), readProjectNote('brain/index.md', 12_000), this.specs(mode),
 			file ? neighbourSummary(file.relativePath) : Promise.resolve(''),
-			mode.id === 'chat' ? projectEvidence([prompt, ...history.slice(-4).filter(turn => turn.role === 'user').map(turn => turn.text), input.memory ?? ''].join('\n'), Math.round(entry.maxInputTokens * 0.45)) : Promise.resolve(''),
+			mode.id === 'chat' ? projectEvidence(evidenceQuery, Math.round(entry.maxInputTokens * 0.45)) : Promise.resolve(''),
 			mode.id === 'chat' ? changeContext(prompt, file?.relativePath) : Promise.resolve(''),
 			mode.id === 'chat' ? planningContext(prompt) : Promise.resolve(''),
 			currentProjectStatus(),
@@ -186,11 +195,14 @@ export class PairEngine {
 		const subject = mode.id === 'qa'
 			? await this.qaSubject(prompt)
 			: mode.id === 'why' && file
-				? [describeFile(file), neighbours, records ? `Project records about this file:\n${records}` : 'No decisions or chats mention this file yet.'].filter(Boolean).join('\n\n')
+				? [
+					describeFile(file), neighbours,
+					records ? `Project records about this file:\n${records}` : 'No decisions or chats mention this file yet.',
+				].filter(Boolean).join('\n\n')
 				: mode.writes === 'doc'
 					? specs || 'No specs written yet.'
 					: mode.id === 'chat'
-						? [evidence, plans, changes ? `Change record:\n${changes}` : '', file ? `Open file: ${file.relativePath}\n${sourceExcerpt(file.text, queryTerms(prompt), 4000)}${file.selection ? `\nSelected text:\n${file.selectedText.slice(0, 4000)}` : ''}` : ''].filter(Boolean).join('\n\n')
+						? [evidence, plans, changes ? `Change record:\n${changes}` : '', file ? openFileExcerpt(file, prompt) : ''].filter(Boolean).join('\n\n')
 						: file ? [describeFile(file), neighbours].filter(Boolean).join('\n\n') : 'No file is selected.';
 		const request = input.kickoff
 			? 'Begin: say in one short sentence what you will help with, then ask your first question.'
@@ -217,7 +229,11 @@ export class PairEngine {
 		let writing = false;
 		const web = pairWebAccess(entry);
 		await streamModel(entry, this.keys, {
-			system: [systemPrompt(mode, conventions, brain, vscode.workspace.workspaceFolders?.[0]?.uri.fsPath), characterPrompt(input.characterId), web ? WEB_ACCESS_NOTE : '', describeProjectStatus(projectState), input.memory ? `Working brief from earlier turns (refresh facts against the current brain, source and Git):\n${input.memory}` : ''].filter(Boolean).join('\n\n'),
+			system: [
+				systemPrompt(mode, conventions, brain, vscode.workspace.workspaceFolders?.[0]?.uri.fsPath),
+				characterPrompt(input.characterId), web ? WEB_ACCESS_NOTE : '', describeProjectStatus(projectState),
+				input.memory ? `Working brief from earlier turns (refresh facts against the current brain, source and Git):\n${input.memory}` : '',
+			].filter(Boolean).join('\n\n'),
 			turns: mergeTurns(turns),
 			token,
 			reasoningEffort: entry.provider === 'codex-cli' ? configuredReasoningEffort() : undefined,
@@ -269,7 +285,8 @@ export class PairEngine {
 			return;
 		}
 		if (mode.writes === 'file' && elidesCode(code)) {
-			sink.text('\n\n_The reply left out parts of the file ("… existing code …"), which would delete them, so nothing was changed. Try again, or select the part to change and use `/change`._');
+			sink.text('\n\n_The reply left out parts of the file ("… existing code …"), which would delete them, so nothing was changed. '
+				+ 'Try again, or select the part to change and use `/change`._');
 			return;
 		}
 		const document = await vscode.workspace.openTextDocument(file.uri);

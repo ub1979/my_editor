@@ -40,7 +40,8 @@ export class ObservationRunner {
 		const fingerprint = observationFingerprint(root.uri.fsPath, check);
 		const approvalKey = `myEditor.observation.approved.${fingerprint}`;
 		if (!this.context.workspaceState.get<boolean>(approvalKey)) {
-			const detail = `${check.description}\n\nExecutable: ${check.command}\nArguments: ${JSON.stringify(check.args)}\n\nInput:\n${check.stdin || '(none)'}\n\nApproval applies only to this exact recipe in this project. If it changes, Pair will ask again.`;
+			const detail = `${check.description}\n\nExecutable: ${check.command}\nArguments: ${JSON.stringify(check.args)}\n\n`
+				+ `Input:\n${check.stdin || '(none)'}\n\nApproval applies only to this exact recipe in this project. If it changes, Pair will ask again.`;
 			if (detail.length > 8_000) {
 				await vscode.window.showTextDocument(vscode.Uri.joinPath(root.uri, PROFILE));
 				return 'The observation recipe is too long for the approval dialog. It was opened for review; shorten the recipe before requesting it again.';
