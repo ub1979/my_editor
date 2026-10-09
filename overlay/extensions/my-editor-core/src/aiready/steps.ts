@@ -109,14 +109,16 @@ export async function runSplit(ctx: StepContext, fix: FixChoice): Promise<StepOu
 		if (checks.stopped || checks.problems.length || changed.length) {
 			await restore(worktree, newFiles);
 			if (checks.stopped) { return 'stopped'; }
-			return done('skipped', checks.problems.length ? `Checks differ from before: ${checks.problems.join(' ')}` : `Other tracked files changed: ${changed.join(', ')}.`);
+			return done('skipped', checks.problems.length ? `Checks differ from before: ${checks.problems.join(' ')}`
+				: `Other tracked files changed: ${changed.join(', ')}.`);
 		}
 		const byId = new Map(info.declarations.map(d => [d.id, d]));
 		const moved = plan.map(group => ({ file: group.file, names: group.declarations.map(id => byId.get(id)!.names.join(', ')) }));
 		const summary = checkSummary(checks.results, ctx.flaky, ctx.baseline);
 		const body = ['Moved whole declarations byte for byte; nothing else changed.', '',
 			...moved.map(m => `${m.file}: ${m.names.join('; ')}`), '', `Move check: passed. Checks: ${summary}`].join('\n');
-		const sha = await commit(worktree, [fix.file, ...newFiles], `my_editor: split into ${newFiles.length} file${newFiles.length === 1 ? '' : 's'} (${fix.file})`, body);
+		const sha = await commit(worktree, [fix.file, ...newFiles],
+			`my_editor: split into ${newFiles.length} file${newFiles.length === 1 ? '' : 's'} (${fix.file})`, body);
 		const notes = oversizeNotes(result, info, plan);
 		return { file: fix.file, kind: 'split', status: 'committed', commit: sha, moved, checks: summary, notes, plan: { attempts: asked, rejected } };
 	} catch (error) {
@@ -177,10 +179,11 @@ export async function runAddTests(ctx: StepContext, fix: FixChoice): Promise<Ste
 	let feedback = '';
 	for (let attempt = 0; attempt < 2; attempt++) {
 		ctx.progress(`Writing tests for ${fix.file}…`);
-		const reply = await ctx.ask(prompt.system, feedback ? `${prompt.text}\n\nYour previous file failed:\n${feedback.slice(0, 6_000)}\n\nReply with a corrected file.` : prompt.text);
+		const reply = await ctx.ask(prompt.system,
+			feedback ? `${prompt.text}\n\nYour previous file failed:\n${feedback.slice(0, 6_000)}\n\nReply with a corrected file.` : prompt.text);
 		if (ctx.cancelled()) { return 'stopped'; }
 		const code = fileFromReply(reply);
-		if (!code) { feedback = 'The reply had no ```go code block.'; continue; }
+		if (!code) { feedback = `The reply had no ${adapter.codeFence ? `\`\`\`${adapter.codeFence} ` : ''}code block.`; continue; }
 		writeFileSync(abs(testFile), code.endsWith('\n') ? code : `${code}\n`);
 		// Until the commit lands, a throw anywhere (a check, git) must not leave the test file behind.
 		let committed = false;
@@ -193,7 +196,8 @@ export async function runAddTests(ctx: StepContext, fix: FixChoice): Promise<Ste
 				continue;
 			}
 			const summary = checkSummary(outcome.results, ctx.flaky, ctx.baseline);
-			const body = `Adds ${testFile}; no source file changed.\n\nChecks: ${summary}${outcome.dropped.length ? `\nDropped failing tests: ${outcome.dropped.join(', ')}` : ''}`;
+			const dropped = outcome.dropped.length ? `\nDropped failing tests: ${outcome.dropped.join(', ')}` : '';
+			const body = `Adds ${testFile}; no source file changed.\n\nChecks: ${summary}${dropped}`;
 			const sha = await commit(worktree, [testFile], `my_editor: add tests for ${path.posix.basename(fix.file)} (${fix.file})`, body);
 			committed = true;
 			return { file: fix.file, kind: 'tests', status: 'committed', commit: sha, testFile, dropped: outcome.dropped, checks: summary };
@@ -234,7 +238,7 @@ async function checkNewTests(ctx: StepContext, file: string, testFile: string, s
 		dropped.push(...failing);
 		const ids = testInfo.declarations.filter(d => failing.includes(d.names[0])).map(d => d.id);
 		const text = readFileSync(path.join(worktree, testFile));
-		const kept = adapter.buildSplit(text, testInfo, [{ file: 'dropped.go', declarations: ids }]).original;
+		const kept = adapter.buildSplit(text, testInfo, [{ file: `dropped${adapter.extensions[0]}`, declarations: ids }]).original;
 		writeFileSync(path.join(worktree, testFile), kept);
 		testInfo = await adapter.parse(testFile);
 	}

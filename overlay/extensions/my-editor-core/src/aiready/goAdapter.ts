@@ -94,6 +94,7 @@ export function createGoAdapter(root: string, tools: GoTools, tracked: readonly 
 	const testFileName = (file: string) => file.replace(/\.go$/, '_ai_test.go');
 	return {
 		id: 'go',
+		codeFence: 'go',
 		...GO_LANGUAGE,
 		commandEnv: GO_ENV,
 		async parse(file) {

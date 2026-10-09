@@ -78,7 +78,15 @@ test('fixable findings come from the adapters\' extensions and fixes; a mixed Go
 	writeFileSync(path.join(dir, 'go.mod'), 'module x\n');
 	assert.equal(languageNote(dir), undefined);
 	writeFileSync(path.join(dir, 'package.json'), '{}');
-	assert.match(languageNote(dir) ?? '', /both Go and TypeScript\/JavaScript.*Go is chosen first/);
+	assert.match(languageNote(dir) ?? '', /both Go and TypeScript\/JavaScript.*Go is chosen, so only Go files/);
+	const django = mkdtempSync(path.join(os.tmpdir(), 'my-editor-mixed-'));
+	writeFileSync(path.join(django, 'manage.py'), '');
+	assert.equal(languageNote(django), undefined);
+	writeFileSync(path.join(django, 'package.json'), '{}');
+	assert.equal(languageNote(django), 'This folder has both TypeScript/JavaScript and Python in its top folder; TypeScript/JavaScript is chosen, '
+		+ 'so only TypeScript/JavaScript files are offered.');
+	writeFileSync(path.join(django, 'go.mod'), 'module x\n');
+	assert.match(languageNote(django) ?? '', /^This folder has Go, TypeScript\/JavaScript and Python in its top folder; Go is chosen, so only Go files/);
 });
 
 test('the change note takes what may differ from the adapter and stays neutral without one', () => {
@@ -98,7 +106,8 @@ test('the change note names types-only moves and the health report only when the
 	const fix = { file: 'a.ts', kind: 'split' as const, lines: 500 };
 	const step = { file: 'a.ts', kind: 'split' as const, status: 'committed' as const, commit: 'abcdef1234', moved: [] };
 	const state: RunState = {
-		version: 1, root: '/p/shop', language: 'TypeScript/JavaScript', worktree: { branch: 'b', path: '/p/w', base: '0123456789abcdef' }, startedAt: '2026-10-09T10:00:00Z',
+		version: 1, root: '/p/shop', language: 'TypeScript/JavaScript', worktree: { branch: 'b', path: '/p/w', base: '0123456789abcdef' },
+		startedAt: '2026-10-09T10:00:00Z',
 		approved: [], fixes: [fix], next: 1, steps: [step], baseline: {}, skippedFiles: [],
 	};
 	const at = new Date('2026-10-09T12:34:00Z');

@@ -117,6 +117,8 @@ export interface LanguageAdapter {
 	readonly approvalNote?: string;
 	/** Which output `parseTests` reads: stdout (the default), or stdout and stderr together (Python: unittest reports on stderr). */
 	readonly testOutput?: 'stdout' | 'both';
+	/** The info string of the code block the test prompt asks for (`go`, `python`), named when a reply has none. */
+	readonly codeFence?: string;
 	/** Parse one file, with each declaration's movability and the file's skip reason. */
 	parse(file: string): Promise<FileInfo>;
 	/** The fix kinds it offers; both when absent. */

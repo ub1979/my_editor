@@ -73,6 +73,7 @@ export function createPyAdapter(root: string, python: PyInterpreter, dirs: { hel
 		...PY_LANGUAGE,
 		blankLines: 'longest',
 		testOutput: 'both',
+		codeFence: 'python',
 		get commandEnv() { return pyCommandEnv(facts()); },
 		get approvalNote() { return pythonApprovalNote(python, facts().config.requiresPython, pyCommandEnv(facts())); },
 		async parse(file) {

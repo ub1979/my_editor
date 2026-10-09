@@ -1,7 +1,7 @@
 import { existsSync, readdirSync } from 'fs';
 import * as path from 'path';
 import { createGoAdapter, GO_LANGUAGE, goTools, goVersionProblem } from './goAdapter';
-import type { LanguageAdapter } from './language';
+import type { LanguageAdapter, LanguageInfo } from './language';
 import { createPyAdapter, PY_LANGUAGE } from './pyAdapter';
 import { pyHelperDir } from './pyAst';
 import { ChoosePython, pythonFor } from './pyInterpreter';
@@ -41,10 +41,13 @@ export function fixableFinding(file: string, kind: string): boolean {
 	return !!fix && LANGUAGES.some(language => language.extensions.includes(path.extname(file)) && language.fixes.includes(fix));
 }
 
-/** In a folder with both a `go.mod` and a `package.json`/`tsconfig.json`: which language a run uses. */
+/** In a folder with markers of more than one language (`go.mod`, `package.json`, Django's `manage.py`…): which one a run uses. */
 export function languageNote(root: string): string | undefined {
-	if (!existsSync(path.join(root, 'go.mod')) || !TS_MARKERS.some(name => existsSync(path.join(root, name)))) { return undefined; }
-	return `This folder has both Go and ${TS_LANGUAGE.label} in its top folder; Go is chosen first, so only Go files are offered.`;
+	const found = [existsSync(path.join(root, 'go.mod')) && GO_LANGUAGE, TS_MARKERS.some(name => existsSync(path.join(root, name))) && TS_LANGUAGE,
+		pythonProject(root) && PY_LANGUAGE].filter((l): l is LanguageInfo => !!l).map(l => l.label);
+	if (found.length < 2) { return undefined; }
+	const all = found.length === 2 ? `both ${found.join(' and ')}` : `${found.slice(0, -1).join(', ')} and ${found[found.length - 1]}`;
+	return `This folder has ${all} in its top folder; ${found[0]} is chosen, so only ${found[0]} files are offered.`;
 }
 
 /**

@@ -56,7 +56,9 @@ test('commands start with the interpreter file name; a path with spaces stays in
 /** A step context on a repository with the real interpreter, the baseline recorded, and the model replaced by fixed replies. */
 async function context(files: Record<string, string>, replies: string[]): Promise<{ ctx: StepContext; root: string; adapter: LanguageAdapter }> {
 	const { root, tracked } = pyProjectFiles(files, true);
-	const adapter = createPyAdapter(root, python()!, { helperDir: HELPER, storageDir: store() }, tracked);
+	// The machine's tools must not decide the test command (pytest installed or not): unittest, as a bare interpreter would run.
+	const tools = { pytest: false, randomly: false, mypy: false, black: false, pytestDjango: false };
+	const adapter = createPyAdapter(root, { ...python()!, tools, installed: [] }, { helperDir: HELPER, storageDir: store() }, tracked);
 	const approved = adapter.checks('pkg/report.py').map(c => c.command);
 	const check = async (command: string, label: string, env?: Readonly<Record<string, string>>): Promise<CheckResult> => {
 		const out = await runCommand(command,
@@ -94,12 +96,23 @@ test('a plan using a staying helper is refused after its retry', { skip }, async
 	assert.match(step !== 'stopped' ? step.reason ?? '' : '', /declaration 2 \(clamp\) uses LIMIT \(0\), which stays/);
 });
 
+test('add tests: a reply without a code block names the fence Python uses', { skip }, async () => {
+	const { ctx } = await context(PROJECT, ['Here are the tests you asked for.']);
+	const step = await runAddTests(ctx, { file: 'pkg/report.py', kind: 'tests', lines: 0 });
+	assert.equal(step !== 'stopped' && step.reason, 'The tests did not work: The reply had no ```python code block.');
+});
+
 test('add tests: a failing generated test class is dropped by its span and the rest is committed', { skip }, async () => {
 	const reply = '```python\nimport unittest\n\nfrom pkg import report\n\n\nclass TestAiGood(unittest.TestCase):\n    def test_clamp(self):\n'
 		+ '        self.assertEqual(report.clamp(99), 10)\n\n\nclass TestAiBad(unittest.TestCase):\n    def test_parse(self):\n'
 		+ '        self.assertEqual(report.parse("1"), 2)\n```';
-	const { ctx, root } = await context(PROJECT, [reply]);
-	const step = await runAddTests(ctx, { file: 'pkg/report.py', kind: 'tests', lines: 0 });
+	const { ctx, root, adapter } = await context(PROJECT, [reply]);
+	const plans: string[] = [];
+	const step = await runAddTests({ ...ctx, adapter: { ...adapter, buildSplit: (source, info, plan) => {
+		plans.push(...plan.map(g => g.file));
+		return adapter.buildSplit(source, info, plan);
+	} } }, { file: 'pkg/report.py', kind: 'tests', lines: 0 });
+	assert.deepEqual(plans, ['dropped.py']);
 	assert.equal(step !== 'stopped' && step.status, 'committed', JSON.stringify(step));
 	assert.deepEqual(step !== 'stopped' && step.dropped, ['TestAiBad']);
 	const written = readFileSync(path.join(root, 'tests/test_report_ai.py'), 'utf8');

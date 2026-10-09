@@ -145,7 +145,7 @@ test('review item 11: a second split keeps the first facade and sorts the new na
 test('a file that is never split (a test file losing failing tests) only loses the spans, without a facade', { skip }, async () => {
 	const text = 'import pytest\n\n\ndef test_a():\n    assert 1\n\n\ndef test_b():\n    assert 0\n';
 	const info = await pyInfo('tests/test_report_ai.py', text);
-	const result = buildPySplit(Buffer.from(text), info, [{ file: 'dropped.go', declarations: [1] }], OPTIONS);
+	const result = buildPySplit(Buffer.from(text), info, [{ file: 'dropped.py', declarations: [1] }], OPTIONS);
 	assert.equal(result.original.toString('utf8'), 'import pytest\n\n\ndef test_a():\n    assert 1\n');
 	assert.deepEqual(result.files, []);
 });
