@@ -67,6 +67,11 @@ export function isortOrder(a: string, b: string): number {
 	return type(a) - type(b) || natural(a.toLowerCase(), b.toLowerCase()) || natural(a, b);
 }
 
+/** Ruff's isort order of two module names: case-insensitive and natural first. */
+export function moduleOrder(a: string, b: string): number {
+	return natural(a.toLowerCase(), b.toLowerCase()) || natural(a, b);
+}
+
 /** `from .stem import a, b` (no aliases, so isort keeps it one statement), names sorted, wrapped as black does when too long. */
 export function siblingImport(stem: string, names: readonly string[], lineLength: number): string {
 	const sorted = [...names].sort(isortOrder);
@@ -94,7 +99,7 @@ export interface FacadeEntry {
 export function facadeStatements(entries: readonly FacadeEntry[], fresh: readonly { module: string; names: readonly string[] }[], lineLength: number):
 	string[] {
 	const all = [...entries, ...fresh.flatMap(f => f.names.map(n => ({ module: f.module, names: [n], text: facadeLine(f.module, [n], lineLength) })))];
-	return all.sort((a, b) => natural(a.module.toLowerCase(), b.module.toLowerCase()) || natural(a.module, b.module) || isortOrder(a.names[0], b.names[0]))
+	return all.sort((a, b) => moduleOrder(a.module, b.module) || isortOrder(a.names[0], b.names[0]))
 		.map(e => e.text);
 }
 

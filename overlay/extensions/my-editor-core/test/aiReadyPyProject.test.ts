@@ -132,7 +132,7 @@ test('patches: strings, patch.object with and without a literal name, assignment
 test('review item 7: patch strings built by format, % or rf, import_module bindings, tuple targets and del lists', () => {
 	const found = (text: string) => modulePatches(load({ 'tests/test_a.py': text }), 'pkg.report');
 	for (const text of ['t = "{}.helper".format("pkg.report")\n', 't = "%s.helper" % "pkg.report"\n', 't = rf"pkg.report.{name}"\n',
-		't = Fr"pkg.report.{name}"\n']) {
+		't = Fr"pkg.report.{name}"\n', 't = "pkg.report.{}".format(n)\n', 't = "pkg.report.%s" % n\n']) {
 		assert.equal(found(text).prefix, 'tests/test_a.py:1', text);
 	}
 	const bound = found('import importlib\nr = importlib.import_module("pkg.report")\nr.A, r.B = 1, 2\ndel r.C, r.D\n');
@@ -153,6 +153,8 @@ test('review item 7: warnings filters across lines, and only package names reach
 	assert.match(warningFilter(load({ 'pyproject.toml': multi }), 'pkg.report') ?? '', /pyproject\.toml filters warnings by pkg\.report/);
 	const ini = '[pytest]\nfilterwarnings =\n    error\n    ignore::UserWarning:pkg.report\n';
 	assert.match(warningFilter(load({ 'pytest.ini': ini }), 'pkg.report') ?? '', /pytest\.ini filters warnings by pkg\.report/);
+	const code = 'import warnings\nwarnings.filterwarnings(\n    "ignore",\n    category=DeprecationWarning,\n    module="pkg.report",\n)\n';
+	assert.match(warningFilter(load({ 'conftest.py': code }), 'pkg.report') ?? '', /conftest\.py filters warnings by pkg\.report/);
 	const odd = load({ '--install-types/__init__.py': '', 'tests/test_report.py': '', 'mypy.ini': '[mypy]\n' });
 	assert.deepEqual(odd.packages, ['pkg']);
 });

@@ -136,6 +136,16 @@ test('review items 12 and 13: the layout ruff isort and black keep (blank lines 
 		['_ROWS', 'LIMIT', 'A_b', 'Report', 'X', '_cache', '_Private', 'a1b', 'describe2', 'describe10'], 'as ruff 0.12 sorts them');
 });
 
+test('a new name that would sort before the relative imports already there is refused with a name that sorts after', { skip }, async () => {
+	const text = 'import os\n\nfrom .zeta import B\n\n\ndef f():\n    return os, B\n\n\ndef g():\n    return 1\n';
+	assert.match(await rejected([{ file: 'funcs.py', declarations: [0] }], text),
+		/funcs\.py: the facade import \.funcs would sort before \.zeta in the same isort section; name it to sort after \.zeta, e\.g\. zeta_funcs\.py/);
+	const { original } = await split([{ file: 'zeta_funcs.py', declarations: [1] }], text);
+	assert.equal(original, 'import os\n\nfrom .zeta import B\nfrom .zeta_funcs import g as g\n\n\ndef f():\n    return os, B\n');
+	const fenced = 'from .zeta import B\n\ntry:\n    import yaml\nexcept ImportError:\n    yaml = None\n\nX = 1\n\n\ndef g():\n    return B, yaml\n';
+	assert.equal(await rejected([{ file: 'funcs.py', declarations: [0] }], fenced), '', 'a try block ends the import block isort sorts');
+});
+
 test('review item 11: a second split keeps the first facade and sorts the new names in with it', { skip }, async () => {
 	const text = 'import json\n\nfrom .old import a as a\n\n\ndef f():\n    return json\n\n\ndef g():\n    return 1\n';
 	const { original } = await split([{ file: 'more.py', declarations: [1] }], text, { splitSiblings: ['old'] });

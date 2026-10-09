@@ -103,6 +103,10 @@ export function pyScan(texts: ReadonlyMap<string, string>, packages: readonly st
 			if (module) { scriptModules.add(module); } else if (file) { scriptPaths.add(path.posix.normalize(file)); }
 		}
 		for (const line of text.split('\n').filter(l => /filterwarnings|simplefilter|-W\s*\S|PYTHONWARNINGS/.test(l))) { warningLines.push({ file, text: line }); }
+		// A call spread over lines names its module= on a later one: the whole call counts.
+		for (const m of code ? text.matchAll(/\b(?:filterwarnings|simplefilter)\s*\(/g) : []) {
+			warningLines.push({ file, text: callText(text, m.index!, m[0].length) });
+		}
 		if (!code) { continue; }
 		const pickle = PICKLE_IMPORT.exec(text) ?? PICKLE_USE.exec(text);
 		if (!pickles && pickle) { pickles = `${file}:${lineAt(text, pickle.index)} uses ${(pickle[1] ?? pickle[0]).trim()}`; }
@@ -188,7 +192,8 @@ export function patchFacts(texts: ReadonlyMap<string, string>, module: string, p
 		if (!/\.pyi?$/.test(file)) { continue; }
 		const at = (index: number) => `${file}:${lineAt(text, index)}`;
 		for (const s of text.matchAll(new RegExp(`["']${m}\\.(\\w+)`, 'g'))) { if (!strings.has(s[1])) { strings.set(s[1], at(s.index!)); } }
-		const built = new RegExp([`(?<![\\w])(?:[rRbB]?[fF]|[fF][rRbB])["']${m}\\.`, `["']${m}\\.["']\\s*\\+`, `["']${m}["']\\s*\\+\\s*["']\\.`,
+		const built = new RegExp([`(?<![\\w])(?:[rRbB]?[fF]|[fF][rRbB])["']${m}\\.`, `["']${m}\\.(?=[{%])`, `["']${m}\\.["']\\s*\\+`,
+			`["']${m}["']\\s*\\+\\s*["']\\.`,
 			`%\\s*\\(?\\s*["']${m}["']`, `\\.format\\s*\\([^)]*["']${m}["']`].join('|')).exec(text);
 		if (built && !prefix) { prefix = at(built.index); }
 		const chains = [...new Set([...moduleAliases(text, module, packageOf(file)), module])].map(esc);

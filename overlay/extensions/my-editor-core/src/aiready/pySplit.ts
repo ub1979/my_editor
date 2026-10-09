@@ -1,7 +1,7 @@
 import * as path from 'path';
 import type { NewFile, SplitPlan, SplitResult } from './language';
 import type { PyLead } from './pyAst';
-import { copiedLead, facadeStatements, rebuildOriginal, siblingImport } from './pyImports';
+import { copiedLead, facadeStatements, moduleOrder, rebuildOriginal, siblingImport } from './pyImports';
 import { hookOf, PyDeclaration, PyFileInfo } from './pyRules';
 
 /** The exact first lines of a module split from `file`. */
@@ -41,6 +41,18 @@ export function pyPlanProblems(info: PyFileInfo, plan: SplitPlan, deferred: bool
 		for (const base of d.py.baseNames) {
 			const hook = owner.get(base) && hookOf(owner.get(base)!.py);
 			if (hook) { problems.push(`${named(d)} subclasses ${base}, which defines ${hook}, so defining it runs project code.`); }
+		}
+	}
+	// isort sorts the facade with the relative imports of the same import block (blank lines do not end one; a compound
+	// statement does), and the leading block stays byte for byte, so a new module must sort after every one of them.
+	const kinds = info.facts.lead.map(item => item.kind);
+	const start = Math.max(kinds.lastIndexOf('compound'), kinds.lastIndexOf('typecheck')) + 1;
+	const last = info.facts.lead.slice(start).filter((item, i) => !info.facade.includes(start + i) && item.kind === 'import')
+		.map(item => item.imports[0]).filter(imp => imp?.kind === 'from' && imp.level === 1 && imp.module).map(imp => imp.module).sort(moduleOrder).pop();
+	for (const group of last ? plan : []) {
+		if (moduleOrder(stem(group.file), last!) < 0) {
+			problems.push(`${group.file}: the facade import .${stem(group.file)} would sort before .${last} in the same isort section; `
+				+ `name it to sort after .${last}, e.g. ${last}_${group.file}.`);
 		}
 	}
 	if (cyclic(edges)) { problems.push('Two new files would import each other; group the declarations that use each other in one file.'); }

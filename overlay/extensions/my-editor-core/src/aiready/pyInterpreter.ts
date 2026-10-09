@@ -158,9 +158,11 @@ export async function pythonFor(root: string, storageDir: string, choose: Choose
 
 /** Probes a chosen file and checks it: the version gate, a launcher that runs another file, a pick tracked by git. */
 export function checkedPython(root: string, file: string): PyInterpreter | string {
+	const tracked = trackedInterpreter(root, file);
+	if (tracked) { return tracked; }  // Before the probe: a file that came with the repository never runs.
 	const python = probePython(file);
 	if (typeof python === 'string') { return python; }
-	const problem = interpreterProblem(python) ?? trackedInterpreter(root, file);
+	const problem = interpreterProblem(python);
 	if (problem) { return problem; }
 	if (python.executable && real(python.executable) !== real(file)) {
 		return `${file} runs ${python.executable}; choose that interpreter instead (a launcher or shim can pick another one at each run).`;

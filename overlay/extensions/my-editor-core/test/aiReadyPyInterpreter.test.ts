@@ -1,6 +1,6 @@
 import { strict as assert } from 'node:assert';
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { test } from 'node:test';
@@ -102,6 +102,11 @@ test('review items 8 and 9: a script or a tracked venv is no candidate; a launch
 	execFileSync('git', ['add', '-f', '.venv'], { cwd: repo });
 	assert.deepEqual(pythonCandidates(repo), []);
 	assert.match(await pythonFor(repo, temp(), async () => tracked) as string, /\.venv is tracked by git/);
+	const ran = path.join(repo, 'ran');
+	writeFileSync(path.join(repo, 'tool.sh'), `#!/bin/sh\ntouch ${ran}\n`, { mode: 0o755 });
+	execFileSync('git', ['add', 'tool.sh'], { cwd: repo });
+	assert.match(await pythonFor(repo, temp(), async () => path.join(repo, 'tool.sh')) as string, /tracked by git/);
+	assert.ok(!existsSync(ran), 'a tracked pick is refused before it runs');
 	const launcher = fakePython(temp(), [3, 12, 0], 'cpython', '/somewhere/else/python3.12');
 	assert.match(await pythonFor(temp(), temp(), async () => launcher) as string, /runs \/somewhere\/else\/python3\.12; choose that interpreter instead/);
 });
