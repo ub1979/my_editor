@@ -21,6 +21,8 @@
 	"src/project/relevance.ts",
 	"src/project/contextStatusText.ts",
 	"src/project/commitParse.ts",
+	"src/project/changeText.ts",
+	"src/brain/brainIndex.ts",
 	"src/chat/memory.ts",
 	"src/chat/agentProtocol.ts",
 	"src/chat/agentLoop.ts",
