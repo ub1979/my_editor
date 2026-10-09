@@ -86,6 +86,8 @@ export interface LanguageAdapter {
 	readonly id: string;
 	readonly label: string;
 	readonly extensions: readonly string[];
+	/** Set for every approved command (Go: `GOTOOLCHAIN=local`, no GOFLAGS). */
+	readonly commandEnv?: Readonly<Record<string, string>>;
 	/** Parse one file, with each declaration's movability and the file's skip reason. */
 	parse(file: string): Promise<FileInfo>;
 	/** Why a new file may not have this name. */

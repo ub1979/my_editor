@@ -1,6 +1,7 @@
-import { existsSync, readFileSync } from 'fs';
+import { existsSync, readdirSync, readFileSync } from 'fs';
+import * as os from 'os';
 import * as path from 'path';
-import { buildGoHelper, goFileInfo } from './goAst';
+import { buildGoHelper, GO_ENV, GO_READ_ENV, goFileInfo } from './goAst';
 import { goSplitPrompt, goTestPrompt } from './goPrompts';
 import { directiveLines, goFileInfoView, GoFileInfo, goFileNameProblems, GoModuleFacts, goSkipReason, Platforms, platforms } from './goRules';
 import { buildGoSplit, goSplitHeader } from './goSplit';
@@ -17,18 +18,35 @@ export interface GoTools {
 	readonly platforms: Platforms;
 }
 
+/** Where Go is usually installed besides PATH: the official installer, `go install`, and `golang.org/dl` SDKs. */
+export function goInstallDirs(): string[] {
+	const home = os.homedir();
+	let sdks: string[] = [];
+	try { sdks = readdirSync(path.join(home, 'sdk')).filter(dir => dir.startsWith('go')).map(dir => path.join(home, 'sdk', dir, 'bin')); } catch { sdks = []; }
+	return ['/usr/local/go/bin', path.join(home, 'go', 'bin'), ...sdks];
+}
+
+/** A plain message when the project's go.mod needs a newer Go than the installed one (no toolchain is downloaded). */
+export async function goVersionProblem(go: string, root: string): Promise<string | undefined> {
+	const result = await runTool(go, ['list', '-m'], root, GO_READ_ENV);
+	const needed = /requires go >= ([\w.-]+)/.exec(result.stderr)?.[1];
+	if (result.code === 0 || !needed) { return undefined; }
+	const running = /running go ([\w.-]+)/.exec(result.stderr)?.[1];
+	return `This project's go.mod needs Go ${needed} or newer, but the installed Go is go${running ?? ' (unknown)'}. `
+		+ 'my_editor does not download Go toolchains. Install a newer Go, then try again.';
+}
+
 /** Finds Go and gofmt, builds the parser helper, and reads Go's platform list. Returns a plain message on failure. */
 export async function goTools(mainGo: string, storageDir: string, version: string): Promise<GoTools | string> {
-	const go = findTool('go');
+	const go = findTool('go', goInstallDirs());
 	if (!go) { return 'Go was not found. Install Go or add it to your PATH, then try again.'; }
 	let helper: string;
 	try { helper = await buildGoHelper(mainGo, storageDir, version, go); }
 	catch (error) { return error instanceof Error ? error.message : String(error); }
-	const local = { GOTOOLCHAIN: 'local' };
-	const dist = await runTool(go, ['tool', 'dist', 'list'], storageDir, local);
-	const goroot = (await runTool(go, ['env', 'GOROOT'], storageDir, local)).stdout.trim();
+	const dist = await runTool(go, ['tool', 'dist', 'list'], storageDir, GO_READ_ENV);
+	const goroot = (await runTool(go, ['env', 'GOROOT'], storageDir, GO_READ_ENV)).stdout.trim();
 	const bundled = goroot && path.join(goroot, 'bin', 'gofmt');
-	return { go, helper, platforms: platforms(dist.stdout), gofmt: bundled && existsSync(bundled) ? bundled : findTool('gofmt') };
+	return { go, helper, platforms: platforms(dist.stdout), gofmt: bundled && existsSync(bundled) ? bundled : findTool('gofmt', goInstallDirs()) };
 }
 
 /** The `./dir` form `go` wants for a file's package. */
@@ -58,7 +76,7 @@ export function createGoAdapter(root: string, tools: GoTools, tracked: readonly 
 	const packageNames = (file: string) => {
 		const pkg = goPackage(file);
 		if (!names.has(pkg)) {
-			names.set(pkg, runTool(tools.go, ['list', '-deps', '-e', '-f', '{{.ImportPath}} {{.Name}}', pkg], root).then(result =>
+			names.set(pkg, runTool(tools.go, ['list', '-deps', '-e', '-f', '{{.ImportPath}} {{.Name}}', pkg], root, GO_READ_ENV).then(result =>
 				new Map(result.stdout.split('\n').map(line => line.trim().split(' ')).filter(parts => parts.length === 2 && parts[1]) as [string, string][])));
 		}
 		return names.get(pkg)!;
@@ -67,6 +85,7 @@ export function createGoAdapter(root: string, tools: GoTools, tracked: readonly 
 	return {
 		id: 'go',
 		label: 'Go',
+		commandEnv: GO_ENV,
 		extensions: ['.go'],
 		async parse(file) {
 			const ast = await goFileInfo(tools.helper, path.join(root, file));
@@ -77,7 +96,7 @@ export function createGoAdapter(root: string, tools: GoTools, tracked: readonly 
 		buildSplit: (source, info, plan) => buildGoSplit(source, info as GoFileInfo, plan),
 		sameDeclarations: declarationProblems,
 		async unitFiles(file) {
-			const listed = await runTool(tools.go, ['list', '-e', '-f', '{{join .GoFiles "\\n"}}', goPackage(file)], root);
+			const listed = await runTool(tools.go, ['list', '-e', '-f', '{{join .GoFiles "\\n"}}', goPackage(file)], root, GO_READ_ENV);
 			const dir = path.posix.dirname(file);
 			return listed.stdout.split('\n').map(name => name.trim()).filter(Boolean).map(name => (dir === '.' ? name : `${dir}/${name}`));
 		},

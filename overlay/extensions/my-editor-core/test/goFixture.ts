@@ -1,6 +1,7 @@
 import { mkdtempSync, writeFileSync } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { goInstallDirs } from '../src/aiready/goAdapter';
 import { buildGoHelper, goFileInfo } from '../src/aiready/goAst';
 import { GoFileInfo, goFileInfoView, platforms } from '../src/aiready/goRules';
 import { findTool } from '../src/aiready/projectCommands';
@@ -10,7 +11,7 @@ let helper: Promise<string | undefined> | undefined;
 const work = mkdtempSync(path.join(os.tmpdir(), 'my-editor-goast-test-'));
 
 function helperPath(): Promise<string | undefined> {
-	const go = findTool('go');
+	const go = findTool('go', goInstallDirs());
 	helper ??= go
 		? buildGoHelper(path.resolve(__dirname, '../../resources/goast/main.go'), path.join(os.tmpdir(), 'my-editor-goast-cache'), 'test', go)
 		: Promise.resolve(undefined);

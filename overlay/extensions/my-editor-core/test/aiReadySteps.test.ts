@@ -5,7 +5,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { test } from 'node:test';
 import { CheckResult, failureLines } from '../src/aiready/baseline';
-import { createGoAdapter, goTools } from '../src/aiready/goAdapter';
+import { createGoAdapter, goInstallDirs, goTools } from '../src/aiready/goAdapter';
 import type { LanguageAdapter } from '../src/aiready/language';
 import { findTool, runCommand, tail } from '../src/aiready/projectCommands';
 import { runAddTests, runSplit, StepContext } from '../src/aiready/steps';
@@ -30,7 +30,7 @@ const NEW_TESTS = 'package shop\n\nimport "testing"\n\nfunc TestAiDescribe(t *te
 
 /** A Go module in a fresh Git repository, with a worktree, a Go adapter on it and its baseline. */
 async function setup(): Promise<{ root: string; worktree: string; adapter: LanguageAdapter; ctx: Omit<StepContext, 'ask'> } | undefined> {
-	if (!findTool('go')) { return undefined; }
+	if (!findTool('go', goInstallDirs())) { return undefined; }
 	const parent = mkdtempSync(path.join(os.tmpdir(), 'my-editor-steps-'));
 	const root = path.join(parent, 'shop');
 	mkdirSync(root);

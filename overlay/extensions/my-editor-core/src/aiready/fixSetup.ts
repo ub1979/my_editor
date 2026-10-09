@@ -28,7 +28,7 @@ function timeoutMs(): number {
 export async function runCheck(env: CommandEnv, adapter: LanguageAdapter, worktree: string, approved: readonly string[],
 	command: string, label: string): Promise<CheckResult> {
 	const log = path.join(logDir(env.storage, env.root), `${Date.now()}-${label}.log`);
-	const output = await runCommand(command, { cwd: worktree, approved, timeoutMs: timeoutMs(), logFile: log, cancel: env.token });
+	const output = await runCommand(command, { cwd: worktree, approved, timeoutMs: timeoutMs(), logFile: log, cancel: env.token, env: adapter.commandEnv });
 	return {
 		command, code: output.code, timedOut: output.timedOut, log,
 		failures: label === 'test' ? [] : failureLines(output.error ?? output.output).slice(0, MAX_FAILURE_LINES),

@@ -1,6 +1,5 @@
-import { execFile, spawn } from 'child_process';
-import { accessSync, constants, createWriteStream, mkdirSync, readdirSync } from 'fs';
-import * as os from 'os';
+import { ChildProcess, spawn } from 'child_process';
+import { accessSync, constants, createWriteStream, mkdirSync } from 'fs';
 import * as path from 'path';
 
 /** A cancellation token; `vscode.CancellationToken` fits. */
@@ -21,17 +20,15 @@ export interface CommandOutput {
 
 const SHELL_CHARACTERS = /[;&|<>`$(){}[\]*?!~"'\\\n]/;
 const MAX_OUTPUT = 64 * 1024 * 1024;
+/** How long a stopped process group gets between SIGTERM and SIGKILL. */
+const GRACE_MS = 5_000;
 
 /**
  * Finds a tool without a shell: PATH first, then the usual install folders, because apps started from the Dock get a
- * shorter PATH than the user's terminal.
+ * shorter PATH than the user's terminal. Language adapters pass their own install folders.
  */
-export function findTool(name: string): string | undefined {
-	const home = os.homedir();
-	let sdks: string[] = [];
-	try { sdks = readdirSync(path.join(home, 'sdk')).filter(dir => dir.startsWith('go')).map(dir => path.join(home, 'sdk', dir, 'bin')); } catch { sdks = []; }
-	const dirs = [...(process.env.PATH ?? '').split(path.delimiter).filter(Boolean),
-		'/opt/homebrew/bin', '/usr/local/go/bin', '/usr/local/bin', '/usr/bin', path.join(home, 'go', 'bin'), ...sdks];
+export function findTool(name: string, extraDirs: readonly string[] = []): string | undefined {
+	const dirs = [...(process.env.PATH ?? '').split(path.delimiter).filter(Boolean), '/opt/homebrew/bin', '/usr/local/bin', '/usr/bin', ...extraDirs];
 	return dirs.map(dir => path.join(dir, name)).find(file => {
 		try { accessSync(file, constants.X_OK); return true; } catch { return false; }
 	});
@@ -53,6 +50,22 @@ export interface RunOptions {
 	readonly logFile: string;
 	readonly env?: NodeJS.ProcessEnv;
 	readonly cancel?: Cancel;
+	/** Between SIGTERM and SIGKILL when stopped; about 5 s by default. */
+	readonly graceMs?: number;
+}
+
+/** Stops a detached child and everything it started: SIGTERM to its process group, then SIGKILL after the grace period. */
+function stopper(child: ChildProcess, graceMs: number): () => void {
+	let stopping = false;
+	const signal = (name: NodeJS.Signals) => {
+		try { process.kill(-child.pid!, name); } catch { try { child.kill(name); } catch { /* Already gone. */ } }
+	};
+	return () => {
+		if (stopping || child.pid === undefined) { return; }
+		stopping = true;
+		signal('SIGTERM');
+		setTimeout(() => signal('SIGKILL'), graceMs).unref();
+	};
 }
 
 /** Runs one approved command without a shell, in its own process group so Stop and the timeout end its children too. */
@@ -65,20 +78,24 @@ export function runCommand(text: string, options: RunOptions): Promise<CommandOu
 	if (!bin) { return Promise.resolve({ code: undefined, stdout: '', output: '', timedOut: false, error: `${parts.bin} was not found.` }); }
 	mkdirSync(path.dirname(options.logFile), { recursive: true });
 	const log = createWriteStream(options.logFile);
+	// A log that cannot be written must not crash the extension host; the run goes on without it.
+	let logFailed = false;
+	let settle: (() => void) | undefined;
+	log.on('error', () => { logFailed = true; settle?.(); });
 	log.write(`$ ${text}\n# in ${options.cwd}\n`);
 	return new Promise(resolve => {
 		const child = spawn(bin, parts.args, {
 			cwd: options.cwd, detached: true, stdio: ['ignore', 'pipe', 'pipe'],
-			env: { ...process.env, ...options.env, PATH: `${path.dirname(bin)}${path.delimiter}${process.env.PATH ?? ''}` },
+			env: { ...process.env, ...options.env, PATH: options.env?.PATH ?? `${path.dirname(bin)}${path.delimiter}${process.env.PATH ?? ''}` },
 		});
 		const stdout: Buffer[] = [];
 		const output: Buffer[] = [];
 		let size = 0;
 		let timedOut = false;
 		let ended = false;
-		const kill = () => { try { process.kill(-child.pid!, 'SIGTERM'); } catch { child.kill('SIGTERM'); } };
+		const kill = stopper(child, options.graceMs ?? GRACE_MS);
 		const keep = (into: Buffer[]) => (chunk: Buffer) => {
-			log.write(chunk);
+			if (!logFailed) { log.write(chunk); }
 			size += chunk.length;
 			if (size > MAX_OUTPUT) { kill(); return; }
 			into.push(chunk);
@@ -96,7 +113,10 @@ export function runCommand(text: string, options: RunOptions): Promise<CommandOu
 			const stopped = timedOut || options.cancel?.isCancellationRequested || size > MAX_OUTPUT;
 			const result = { code: stopped ? undefined : code, stdout: Buffer.concat(stdout).toString('utf8'), output: Buffer.concat(output).toString('utf8'), timedOut, error };
 			// Resolve once the log is on disk, so it is complete when the result is read.
-			log.end(`\n# exit ${code ?? (timedOut ? 'timeout' : 'stopped')}\n`, () => resolve(result));
+			let resolved = false;
+			settle = () => { if (!resolved) { resolved = true; resolve(result); } };
+			if (logFailed) { settle(); return; }
+			log.end(`\n# exit ${code ?? (timedOut ? 'timeout' : 'stopped')}\n`, settle);
 		};
 		child.on('error', error => finish(undefined, `Could not start ${parts.bin}: ${error.message}`));
 		child.on('close', code => finish(code ?? undefined));
@@ -108,12 +128,43 @@ export function tail(output: string, lines = 20): string {
 	return output.trimEnd().split(/\r?\n/).slice(-lines).join('\n');
 }
 
-/** Runs a read-only tool (git, go list, gofmt -l, the parser helper) and returns its output. */
-export function runTool(bin: string, args: readonly string[], cwd: string, env?: NodeJS.ProcessEnv): Promise<{ code: number; stdout: string; stderr: string }> {
+export interface ToolLimits {
+	/** Default 2 minutes. */
+	readonly timeoutMs?: number;
+	readonly graceMs?: number;
+}
+
+/**
+ * Runs a read-only tool (git, go list, gofmt -l, the parser helper) and returns its output. Like `runCommand`, it runs
+ * in its own process group, so a timeout ends its children too.
+ */
+export function runTool(bin: string, args: readonly string[], cwd: string, env?: NodeJS.ProcessEnv, limits: ToolLimits = {}):
+	Promise<{ code: number; stdout: string; stderr: string }> {
 	return new Promise(resolve => {
-		execFile(bin, [...args], { cwd, env: { ...process.env, ...env }, maxBuffer: 64 * 1024 * 1024, timeout: 120_000 }, (error, stdout, stderr) => {
-			const code = error ? (typeof error.code === 'number' ? error.code : 1) : 0;
-			resolve({ code, stdout, stderr: stderr || (error && !stderr ? error.message : '') });
-		});
+		const child = spawn(bin, [...args], { cwd, env: { ...process.env, ...env }, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
+		const stop = stopper(child, limits.graceMs ?? GRACE_MS);
+		const stdout: Buffer[] = [];
+		const stderr: Buffer[] = [];
+		let size = 0;
+		let failure = '';
+		const keep = (into: Buffer[]) => (chunk: Buffer) => {
+			size += chunk.length;
+			if (size > MAX_OUTPUT) { failure ||= `${path.basename(bin)} printed too much output.`; stop(); return; }
+			into.push(chunk);
+		};
+		child.stdout!.on('data', keep(stdout));
+		child.stderr!.on('data', keep(stderr));
+		const timeoutMs = limits.timeoutMs ?? 120_000;
+		const timer = setTimeout(() => { failure ||= `${path.basename(bin)} timed out after ${Math.round(timeoutMs / 1000)} s.`; stop(); }, timeoutMs);
+		let ended = false;
+		const finish = (code: number, error = '') => {
+			if (ended) { return; }
+			ended = true;
+			clearTimeout(timer);
+			const err = Buffer.concat(stderr).toString('utf8');
+			resolve({ code: failure && code === 0 ? 1 : code, stdout: Buffer.concat(stdout).toString('utf8'), stderr: [err, failure, error].filter(Boolean).join('\n') });
+		};
+		child.on('error', error => finish(1, error.message));
+		child.on('close', code => finish(code ?? 1));
 	});
 }
