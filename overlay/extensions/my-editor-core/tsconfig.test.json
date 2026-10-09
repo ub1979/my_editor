@@ -90,6 +90,8 @@
     "src/aiready/pyMoveCheck.ts",
     "src/aiready/pyTests.ts",
     "src/aiready/pyPrompts.ts",
-    "src/aiready/pyAdapter.ts"
+    "src/aiready/pyAdapter.ts",
+    "src/aiready/pyNoqa.ts",
+    "src/aiready/pyPickPlan.ts"
   ]
 }
