@@ -201,34 +201,58 @@ time. Using `go/parser` and `go/ast`, it prints JSON for a file:
 - package name; whether the file has a build constraint (`//go:build`, `// +build`), uses cgo (`import "C"`), or is
   generated (`// Code generated … DO NOT EDIT.`);
 - each import: name, path, byte span, blank (`_`) or dot (`.`);
-- each top-level declaration: kind (`func`, `method`, `type`, `const`, `var`), names, receiver type for methods,
-  byte span including its doc comment and attached `//go:` directives, line count, the import names it uses, whether
-  it is `init`, whether a `var` initializer contains a call, whether a `var` has `//go:embed`.
+- each top-level declaration, with a stable **ID** (its index in the file): kind (`func`, `method`, `type`,
+  `const`, `var`, grouped or not), names (a multiset: `_` may repeat), receiver type for methods, byte span, line
+  count, the import names it uses, whether it is `init`, whether any `var` in it has an initializer or `//go:embed`;
+- every `//go:` and `//line` directive line in the file, and whether the file has a BOM or CRLF line endings.
 
-Byte spans are UTF-8 offsets; the host slices with `Buffer`, never JS string indices.
+A declaration's span starts at its doc comment (or the declaration if none) and ends at the end of the line where
+the declaration ends, so a trailing `// nolint` comment moves with it. Byte spans are UTF-8 offsets; the host slices
+with `Buffer`, never JS string indices. The helper is built with `GOTOOLCHAIN=local` in an empty folder outside any
+module.
+
+**Import names.** The parser cannot know the package name behind an unnamed import (`gopkg.in/yaml.v3` is `yaml`,
+`/v2` paths, `go-foo`). The host asks once per package: `go list -deps -f '{{.ImportPath}} {{.Name}}' ./<pkg>`.
+A declaration uses an import when it contains a selector `X.Sel` whose `X` the parser left unresolved and whose name
+matches that import's package name (a local variable with the same name resolves and does not count).
 
 **What may move.** `func` and `method` declarations (except `init`), `type` declarations, `const` declarations, and
-`var` declarations with no initializer or with initializers that contain no call and no `//go:embed`. Everything
-else stays in the original file. The import block is rebuilt, never moved.
+`var` declarations **without any initializer and without `//go:embed`** (an embed var needs the blank `embed` import, which stays in the original). A declaration whose span contains a `//go:generate` line is not movable (it would change `$GOFILE` and generation order). Go initializes package variables in declaration order across files
+sorted by name, adjusted for dependencies, so moving even a call-free initialized variable can reorder another
+variable's side effects. A parenthesized group (`const (…)`, `var (…)`, `type (…)`) moves only whole: moving part of
+a `const` block would change `iota`. Plans refer to declarations by helper ID, never by name. The import block is
+rebuilt, never moved.
 
 **Skipped files** (listed in the report, never split): `_test.go` files in this version; generated files; files with
-build constraints or cgo; files under `vendor/`; files inside a nested module (a directory below the project root
-that has its own `go.mod`, such as vendored forks or a separate service).
+build constraints, a GOOS/GOARCH file-name suffix, or cgo; files with any `//go:` directive other than `//go:embed`
+and `//go:generate`, or a `//line` directive (a directive separated from its declaration by a blank line is not part
+of the AST's doc comment but still applies to it); files with a BOM or CRLF line endings; files that a `//go:generate`
+or `//go:embed` line anywhere in the module names; files under `vendor/`; files inside a nested module (a directory
+below the project root that has its own `go.mod`, such as vendored forks or a separate service).
 
-**Split plan.** The model gets the declaration list (kind, names, receiver, line count, first doc line, imports used)
-and proposes groups: `[{ "file": "placements_query.go", "declarations": ["ListPlacements", "(*Store).queryPlacements"] }]`.
-Methods are named `(Receiver).Name`. The host rejects a plan, with the reasons sent back once, when:
+**What "unchanged" means.** The program's behavior, not source positions: file names and line numbers in panics,
+`runtime.Caller`, `log.Lshortfile`, `slog` source attributes and package-level closure names (`glob..funcN`) may
+change. The change note says so.
 
-- a name is unknown, listed twice, or not movable;
-- a file name is not lower-case `[a-z0-9_]+.go`, already exists, ends in `_test.go`, or ends in a GOOS or GOARCH
-  suffix (`_linux.go`, `_amd64.go`, `_windows_arm64.go`…), which Go treats as a build constraint;
+**Split plan.** The model gets the declaration list (`{id, kind, names, receiver, lines, firstDocLine, imports}`, with
+unmovable ones marked) and proposes groups by ID: `[{ "file": "placements_query.go", "declarations": [3, 7] }]`.
+The host rejects a plan, with the reasons sent back once, when:
+
+- an ID is unknown, listed twice, or not movable;
+- a file name does not match `^[a-z0-9][a-z0-9_]*\.go$` (Go silently ignores files starting with `_` or `.`),
+  already exists in the folder (ignoring case), repeats within the plan, ends in `_test.go`, or ends in a GOOS or
+  GOARCH suffix from `go tool dist list` (`_linux.go`, `_amd64.go`, `_windows_arm64.go`…), which Go treats as a
+  build constraint;
 - any new file, or the original after the moves, would exceed 400 lines (unless the only thing left over 400 is a
   single declaration, which is reported).
 
-**Applying a split (host, no AI).** Each new file is: a one-line comment naming the original file, `package <name>`,
+**Applying a split (host, no AI).** Each new file is: a one-line comment naming the original file, a blank line (so
+the comment does not become package documentation), `package <name>`,
 an import block with exactly the imports its declarations use (same names and paths as the original), then the moved
 spans byte for byte in their original order, separated by one blank line. The original keeps its other content byte
-for byte, minus the moved spans and minus import specs no remaining declaration uses. Blank (`_`) imports always stay
+for byte, minus the moved spans and minus import specs no remaining declaration uses. Where a span is removed, the
+blank lines around it collapse to one, so a detached comment above a moved declaration stays where it was and never
+becomes the doc comment of the next declaration (rule 4 checks this). Blank (`_`) imports always stay
 in the original; a file with a dot import is not split.
 
 **Move check (Go)**, per step, pure:
@@ -237,16 +261,19 @@ in the original; a file with a dot import is not split.
 2. The original equals its old content minus the moved spans and minus removed import specs (whitespace between
    declarations may collapse to one blank line).
 3. A new file contains only its header comment, package clause, import block and moved spans.
-4. Re-parsing the package's non-test files gives the same set of top-level names and method sets as before.
+4. Re-parsing the package's files (`go list -f '{{.GoFiles}}'`) gives the same multiset of top-level names, the same
+   methods per receiver, and the same doc comment for every declaration as before.
 5. No other tracked file changed.
 
-**Checks per step** (in the worktree): `go build ./...`, then `go vet` and `go test -json` for the changed package.
-Test results must equal the package's baseline (run twice; tests that differ between the two runs are flaky and
-excluded; tests that failed before must fail the same way). Packages whose tests need services that are not running
-simply keep their baseline failures. `gofmt -l` on new files is reported, not enforced.
+**Checks per step** (in the worktree): `go build ./...`, then `go vet` and `go test -count=1 -json` for the changed
+package (`-count=1` defeats the test cache, which would otherwise replay the first result). Build, vet and test
+results must each equal the baseline: a build or vet failure that existed before the run is recorded and must not
+change; tests run twice for the baseline, tests that differ between the two runs are flaky and excluded, and tests
+that failed before must fail the same way. Packages whose tests need services that are not running
+simply keep their baseline failures. When the original file was `gofmt`-clean, every new file and the original after the move must be too.
 
-**No characterization tests before Go splits.** For a pure move inside one package, the move check plus the compiler
-prove the program is unchanged; generated "current behavior" tests would add cost without adding proof.
+**No characterization tests before Go splits.** For a pure move inside one package, with the variable, directive and
+group rules above, the move check plus the compiler prove the program is unchanged; generated "current behavior" tests would add cost without adding proof.
 
 **Add-tests fix (Go).** For a file flagged untested, the model writes a new `<name>_ai_test.go` in the same package.
 Only that new file may change. It must build, pass twice, and not touch the network (tests that fail are dropped with
@@ -263,7 +290,7 @@ does at most 25 fixes; **Continue** picks up the rest.
 | `resources/goast/main.go` | Parse one Go file to JSON | `goast <file>` → JSON on stdout |
 | `goAst.ts` | Build the helper once, run it, type its output | `goFileInfo(path): Promise<GoFileInfo>` |
 | `goSplit.ts` | Validate a split plan and build the new files (pure) | `planProblems(info, plan)`, `applyGoSplit(source, info, plan)` |
-| `moveCheck.ts` | The Go move rules 1–3 (pure) | `checkGoMove(before, after, info, plan): string[]` |
+| `goMoveCheck.ts` | Go move rules 1–4 (pure, given parsed info before and after) | `checkGoMove(before, after): string[]` |
 | `worktree.ts` | Prerequisites, worktree, commit, restore, remove; no push or remote operation | `prepare`, `commit`, `restore`, `remove` |
 | `projectCommands.ts` | Run commands without a shell, with timeout and log; parse `go test -json` | `runCommand`, `parseGoTest` |
 | `fixPicker.ts` | Build the fix list from the report findings and show the picker | `fixChoices(...)`, `pickFixes(...)` |
@@ -330,13 +357,21 @@ Each file stays under 400 lines with one job, following the rule the feature enf
   - no remote change.
 - The user's live check on a real foreign project in the installed app.
 
+**Go tests to include:** var init order (moving an initialized var is refused), a directive separated by a blank
+line (file skipped), a partial `const`/`iota` group (refused), repeated `_` names, a GOOS/GOARCH file name (refused),
+the header blank line, a `yaml.v3`-style import name, CRLF (file skipped), a trailing `// nolint` comment moving with
+its declaration, a detached comment staying put, a pre-existing vet failure, an ID-based plan with two `_`
+declarations, an embed var refused, a `//go:generate` line in a doc comment refused, an uninitialized `var x T` moved
+cleanly, and a guard that no `push`/`fetch`/
+`remote` git command is ever built.
+
 ## Out of scope for this version
 
 - Fixing bugs or changing behavior.
 - Renaming public names.
 - Updating callers to the new paths.
 - Comment-only fixes (file summaries live in the brain instead).
-- Splits in Go, Rust and other languages.
+- Splits in Rust and other languages; splitting Go `_test.go` files.
 - Rust test generation.
 - Mutation testing or coverage tools.
 - Running the app to compare outputs.
