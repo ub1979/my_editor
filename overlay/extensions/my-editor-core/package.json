@@ -51,6 +51,11 @@
         "category": "my_editor"
       },
       {
+        "command": "myEditor.aiReadyPython",
+        "title": "AI-Ready: Choose Python Interpreter",
+        "category": "my_editor"
+      },
+      {
         "command": "myEditor.buildBrain",
         "title": "Build Project Brain",
         "category": "my_editor"

@@ -11,6 +11,7 @@ import { clearState, discardRest, loadState, MAX_FIXES_PER_RUN, RunState, saveSt
 import { closingText } from './fixText';
 import type { LanguageAdapter } from './language';
 import { adapterFor, languageNote } from './languages';
+import { choosePython } from './pyPick';
 import { runAddTests, runSplit, StepContext } from './steps';
 import { commit, reattach, remove, trackedFiles } from './worktree';
 
@@ -34,6 +35,7 @@ export async function fixOnBranch(context: vscode.ExtensionContext, keys: ApiKey
 	if (!model) { sink.text('No model is available. Choose one with **my_editor: Choose Default Model** first.'); return; }
 	const language = await adapterFor(root, {
 		extensionPath: context.extensionUri.fsPath, storageDir: storage, version: String(context.extension.packageJSON.version ?? 'dev'), appRoot: vscode.env.appRoot,
+		choosePython,
 	});
 	if (typeof language === 'string') { sink.text(language); return; }
 	if (state && !options.continue) {

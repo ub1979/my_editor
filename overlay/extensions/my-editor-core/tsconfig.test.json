@@ -78,6 +78,18 @@
     "src/aiready/tsMoveCheck.ts",
     "src/aiready/tsTests.ts",
     "src/aiready/tsPrompts.ts",
-    "src/aiready/tsAdapter.ts"
+    "src/aiready/tsAdapter.ts",
+    "src/aiready/pyInterpreter.ts",
+    "src/aiready/pyAst.ts",
+    "src/aiready/pyConfig.ts",
+    "src/aiready/pyScan.ts",
+    "src/aiready/pyProject.ts",
+    "src/aiready/pyRules.ts",
+    "src/aiready/pyImports.ts",
+    "src/aiready/pySplit.ts",
+    "src/aiready/pyMoveCheck.ts",
+    "src/aiready/pyTests.ts",
+    "src/aiready/pyPrompts.ts",
+    "src/aiready/pyAdapter.ts"
   ]
 }

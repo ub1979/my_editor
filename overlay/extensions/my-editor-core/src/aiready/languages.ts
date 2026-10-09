@@ -1,7 +1,10 @@
-import { existsSync } from 'fs';
+import { existsSync, readdirSync } from 'fs';
 import * as path from 'path';
 import { createGoAdapter, GO_LANGUAGE, goTools, goVersionProblem } from './goAdapter';
 import type { LanguageAdapter } from './language';
+import { createPyAdapter, PY_LANGUAGE } from './pyAdapter';
+import { pyHelperDir } from './pyAst';
+import { ChoosePython, pythonFor } from './pyInterpreter';
 import { createTsAdapter, TS_LANGUAGE } from './tsAdapter';
 import { bundledTypeScript, loadTypeScript } from './tsLoad';
 import { lockfileProblem } from './tsProject';
@@ -16,11 +19,21 @@ export interface AdapterHost {
 	readonly version: string;
 	/** The editor's install folder (`vscode.env.appRoot`); its bundled TypeScript is used for TS/JS. */
 	readonly appRoot: string;
+	/** Asks the user for the project's Python when none is remembered (a quick pick in the editor). */
+	readonly choosePython?: ChoosePython;
 }
 
 /** Every language with an adapter, in the order a folder's language is chosen. */
-const LANGUAGES = [GO_LANGUAGE, TS_LANGUAGE];
+const LANGUAGES = [GO_LANGUAGE, TS_LANGUAGE, PY_LANGUAGE];
 const TS_MARKERS = ['package.json', 'tsconfig.json', 'jsconfig.json'];
+const PY_MARKERS = ['pyproject.toml', 'setup.py', 'setup.cfg', 'Pipfile', 'manage.py'];
+
+/** Whether the top folder looks like a Python project. */
+export function pythonProject(root: string): boolean {
+	let names: string[] = [];
+	try { names = readdirSync(root); } catch { return false; }
+	return names.some(name => PY_MARKERS.includes(name) || /^requirements[^/]*\.txt$/.test(name));
+}
 
 /** Whether a health finding has a fix on a branch, from the adapters' extensions and fix kinds. */
 export function fixableFinding(file: string, kind: string): boolean {
@@ -35,8 +48,8 @@ export function languageNote(root: string): string | undefined {
 }
 
 /**
- * The adapter for the project's language, or a plain message. Go and TS/JS so far (a mixed repository stays Go-first);
- * Python, C#, Rust and C/C++ follow, each in its own `<language>Adapter.ts` registered here.
+ * The adapter for the project's language, or a plain message. Go, TS/JS and Python so far (a mixed repository keeps that
+ * order); C#, Rust and C/C++ follow, each in its own `<language>Adapter.ts` registered here.
  */
 export async function adapterFor(root: string, host: AdapterHost): Promise<AdapterFactory | string> {
 	if (existsSync(path.join(root, 'go.mod'))) {
@@ -50,6 +63,12 @@ export async function adapterFor(root: string, host: AdapterHost): Promise<Adapt
 		if (typeof ts === 'string') { return ts; }
 		return lockfileProblem(root) ?? ((dir, tracked) => createTsAdapter(dir, ts, tracked));
 	}
-	return 'Fixing on a branch works for Go, TypeScript and JavaScript projects (a `go.mod`, `package.json` or `tsconfig.json` in the top folder). '
-		+ 'Python, C#, Rust and C/C++ come next.';
+	if (pythonProject(root)) {
+		const python = await pythonFor(root, host.storageDir, host.choosePython ?? (async () => undefined));
+		if (typeof python === 'string') { return python; }
+		const dirs = { helperDir: pyHelperDir(host.extensionPath), storageDir: host.storageDir };
+		return (dir, tracked) => createPyAdapter(dir, python, dirs, tracked);
+	}
+	return 'Fixing on a branch works for Go, TypeScript, JavaScript and Python projects (a `go.mod`, `package.json`, `tsconfig.json`, '
+		+ '`pyproject.toml`, `setup.py`, `setup.cfg`, `requirements.txt`, `Pipfile` or `manage.py` in the top folder). C#, Rust and C/C++ come next.';
 }

@@ -73,7 +73,7 @@ test('setup is skipped when its result is still in place (Continue after an inst
 
 test('fixable findings come from the adapters\' extensions and fixes; a mixed Go and TS folder says Go is chosen first', () => {
 	assert.ok(fixableFinding('src/a.ts', 'too-long') && fixableFinding('src/a.mjs', 'too-long') && fixableFinding('a.go', 'untested'));
-	assert.ok(!fixableFinding('src/a.ts', 'untested') && !fixableFinding('a.py', 'too-long') && !fixableFinding('a.go', 'design'));
+	assert.ok(!fixableFinding('src/a.ts', 'untested') && !fixableFinding('a.rs', 'too-long') && !fixableFinding('a.go', 'design'));
 	const dir = mkdtempSync(path.join(os.tmpdir(), 'my-editor-mixed-'));
 	writeFileSync(path.join(dir, 'go.mod'), 'module x\n');
 	assert.equal(languageNote(dir), undefined);

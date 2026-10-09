@@ -99,5 +99,5 @@ test('a TS project needs the editor\'s TypeScript and a lockfile; mixed reposito
 	assert.match(lockfileProblem(project({ 'package-lock.json': '{}', 'yarn.lock': '' }).root) ?? '', /lockfiles of npm and yarn disagree/);
 	assert.match(String(await adapterFor(locked.root, { ...host, appRoot: '/nowhere' })), /needs the editor's TypeScript 5 or 6/);
 	assert.ok(!existsSync(path.join(locked.root, 'node_modules')));
-	assert.ok(fixableFinding('src/a.ts', 'too-long') && fixableFinding('a.go', 'untested') && !fixableFinding('src/a.ts', 'untested') && !fixableFinding('a.py', 'too-long'));
+	assert.ok(fixableFinding('src/a.ts', 'too-long') && fixableFinding('a.go', 'untested') && !fixableFinding('src/a.ts', 'untested') && !fixableFinding('a.rs', 'too-long'));
 });
