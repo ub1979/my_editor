@@ -13,11 +13,13 @@ export function approvalDetail(folder: string, approved: readonly string[], lang
 	return `In a new working copy at ${folder}, on a new branch:\n\n${approved.join('\n')}\n\n`
 		+ 'They build the project and run its tests, which runs project code and tests written by the AI model. '
 		+ `my_editor also runs read-only ${language} tools (to list packages and check formatting) and local git commands there. `
-		+ 'Your files and your branch stay as they are until the end, when the health report in `.my_editor/ai-ready/` is updated. Nothing is pushed.';
+		+ 'Your files and your branch stay as they are until the end, when the health report in .my_editor/ai-ready/ is updated. Nothing is pushed.';
 }
 
 export interface Closing {
 	readonly committed: number;
+	/** Fixes the user discarded instead of running. */
+	readonly discarded?: number;
 	readonly branch: string;
 	readonly base: string;
 	readonly note: string;
@@ -32,6 +34,7 @@ export interface Closing {
 export function closingText(close: Closing): string {
 	const { committed, branch, base, note } = close;
 	return `\n**Done.** ${committed} fix${committed === 1 ? '' : 'es'} committed on \`${branch}\`, with the change note \`${note}\`. `
+		+ `${close.discarded ? `${close.discarded} fix${close.discarded === 1 ? '' : 'es'} discarded. ` : ''}`
 		+ `${close.reportUpdated ? 'In your folder, only the health report in `.my_editor/ai-ready/` was updated. ' : ''}Nothing was pushed.`
 		+ `${close.removed ? '' : ` Remove the working copy \`${close.worktree}\` when you are done with it.`}\n\n`
 		+ `Review with \`git diff ${base.slice(0, 12)}..${branch}\`, keep the changes with \`git merge ${branch}\`, or delete them with \`git branch -D ${branch}\`.`;

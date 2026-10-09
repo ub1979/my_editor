@@ -30,7 +30,8 @@ function stepLine(step: StepRecord): string {
 /** The change note committed on the branch at close (pure). */
 export function renderChangeNote(state: RunState, at: Date): string {
 	const committed = state.steps.filter(step => step.status === 'committed');
-	const notDone = state.steps.filter(step => step.status !== 'committed');
+	const notDone = state.steps.filter(step => step.status === 'skipped' || step.status === 'refused');
+	const discarded = state.steps.filter(step => step.status === 'discarded');
 	const pending = state.fixes.slice(state.next);
 	const flaky = runFlaky(state);
 	const failing = Object.entries(state.baseline).filter(([, [first]]) => first.code !== 0).map(([command]) => command);
@@ -46,6 +47,7 @@ export function renderChangeNote(state: RunState, at: Date): string {
 		...(committed.length ? committed.flatMap(step => [stepLine(step), ...(step.checks ? [`  Checks: ${step.checks}`] : [])]) : ['No fix was committed.']), '',
 		...(notDone.length ? ['## Skipped or refused', '', ...notDone.map(step => `- \`${step.file}\` (${step.kind === 'split' ? 'split' : 'tests'}): ${step.status}. ${step.reason ?? ''}`.trimEnd()), ''] : []),
 		...(pending.length ? ['## Not run yet', '', ...pending.map(fix => `- \`${fix.file}\` (${fix.kind === 'split' ? 'split' : 'tests'})`), ''] : []),
+		...(discarded.length ? ['## Discarded by you', '', ...discarded.map(step => `- \`${step.file}\` (${step.kind === 'split' ? 'split' : 'tests'})`), ''] : []),
 		...(state.skippedFiles.length ? ['## Files never split', '', ...state.skippedFiles.map(s => `- \`${s.file}\`: ${s.reason}.`), ''] : []),
 		...(flaky.length ? ['## Flaky tests excluded from comparison', '', ...flaky.map(name => `- ${name}`), ''] : []),
 		...(failing.length ? ['## Checks that already failed before the run', '',
@@ -72,8 +74,9 @@ export function renderChangeNote(state: RunState, at: Date): string {
 /** The health report with this run's summary as its last section, replacing an earlier run's. */
 export function reportWithRun(report: string, state: RunState, notePath: string): string {
 	const committed = state.steps.filter(step => step.status === 'committed').length;
-	const others = state.steps.length - committed;
+	const discarded = state.steps.filter(step => step.status === 'discarded').length;
+	const others = state.steps.length - committed - discarded;
 	const kept = report.split(`\n${RUN_SECTION}`)[0].trimEnd();
 	return `${kept}\n\n${RUN_SECTION}\n\n${committed} fix${committed === 1 ? '' : 'es'} committed on \`${state.worktree.branch}\``
-		+ `${others ? `, ${others} skipped or refused` : ''}. Details: \`${notePath}\` on that branch.\n`;
+		+ `${others ? `, ${others} skipped or refused` : ''}${discarded ? `, ${discarded} discarded by you` : ''}. Details: \`${notePath}\` on that branch.\n`;
 }

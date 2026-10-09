@@ -17,7 +17,7 @@ export interface FixChoice {
 export interface StepRecord {
 	readonly file: string;
 	readonly kind: FixKind;
-	readonly status: 'committed' | 'skipped' | 'refused';
+	readonly status: 'committed' | 'skipped' | 'refused' | 'discarded';
 	readonly reason?: string;
 	readonly commit?: string;
 	/** For a split: each new file and the declarations moved into it. */
@@ -47,6 +47,12 @@ export interface RunState {
 	readonly baseline: Record<string, readonly [CheckResult, CheckResult]>;
 	/** Files that are never split, with the reason, for the change note. */
 	readonly skippedFiles: readonly { readonly file: string; readonly reason: string }[];
+}
+
+/** "Discard the rest": records every fix not yet run as discarded by the user and ends the run's queue. */
+export function discardRest(state: RunState): void {
+	for (const fix of state.fixes.slice(state.next)) { state.steps.push({ file: fix.file, kind: fix.kind, status: 'discarded' }); }
+	state.next = state.fixes.length;
 }
 
 /** At most this many fixes per run; Continue picks up the rest. */

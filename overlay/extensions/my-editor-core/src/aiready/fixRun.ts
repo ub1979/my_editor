@@ -7,7 +7,7 @@ import { loadCatalog, pickDefault } from '../models/catalog';
 import { ApiKeys } from '../models/secrets';
 import { noteFileName, renderChangeNote, reportWithRun, runFlaky } from './changeNote';
 import { CommandEnv, runCheck, startRun } from './fixSetup';
-import { clearState, loadState, MAX_FIXES_PER_RUN, RunState, saveState, StepRecord } from './fixState';
+import { clearState, discardRest, loadState, MAX_FIXES_PER_RUN, RunState, saveState, StepRecord } from './fixState';
 import { closingText } from './fixText';
 import { AdapterFactory, adapterFor } from './languages';
 import { runAddTests, runSplit, StepContext } from './steps';
@@ -27,18 +27,19 @@ export async function fixOnBranch(context: vscode.ExtensionContext, keys: ApiKey
 	if (!root) { sink.text('Open a project folder first.'); return; }
 	const storage = context.globalStorageUri.fsPath;
 	const env: CommandEnv = { storage, root, token };
+	let state = loadState(storage, root);
+	if (!state && options.continue) { sink.text('That fix run has already finished.'); return; }
 	const model = pickDefault(await loadCatalog(keys));
 	if (!model) { sink.text('No model is available. Choose one with **my_editor: Choose Default Model** first.'); return; }
 	const language = await adapterFor(root, {
 		extensionPath: context.extensionUri.fsPath, storageDir: storage, version: String(context.extension.packageJSON.version ?? 'dev'),
 	});
 	if (typeof language === 'string') { sink.text(language); return; }
-	let state = loadState(storage, root);
 	if (state && !options.continue) {
 		const answer = await vscode.window.showInformationMessage(`A fix run on ${state.worktree.branch} is not finished.`, {
 			modal: true, detail: `${state.next} of ${state.fixes.length} fixes done. Continue it, or discard the rest (the branch and its commits stay)?`,
 		}, 'Continue', 'Discard the rest');
-		if (answer === 'Discard the rest') { state.next = state.fixes.length; }
+		if (answer === 'Discard the rest') { discardRest(state); }
 		else if (answer !== 'Continue') { return; }
 	}
 	if (!state) {
@@ -128,6 +129,7 @@ async function closeRun(env: CommandEnv, state: RunState, sink: Sink): Promise<v
 	catch { reportUpdated = false; /* The note on the branch is the record. */ }
 	clearState(env.storage, state.root);
 	const committed = state.steps.filter(step => step.status === 'committed').length;
-	sink.text(closingText({ committed, branch: state.worktree.branch, base: state.worktree.base, note, removed, worktree, reportUpdated }));
+	const discarded = state.steps.filter(step => step.status === 'discarded').length;
+	sink.text(closingText({ committed, discarded, branch: state.worktree.branch, base: state.worktree.base, note, removed, worktree, reportUpdated }));
 	sink.action('Refresh the brain after merging', 'myEditor.analyseProject', []);
 }

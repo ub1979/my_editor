@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import type { CheckResult } from '../src/aiready/baseline';
 import { noteFileName, renderChangeNote, reportWithRun } from '../src/aiready/changeNote';
 import { fixChoices, pickFixes } from '../src/aiready/fixPicker';
-import type { RunState } from '../src/aiready/fixState';
+import { discardRest, type RunState } from '../src/aiready/fixState';
 import { fileStats } from '../src/aiready/health';
 
 const fix = (file: string, kind: 'split' | 'tests', lines: number) => ({ file, kind, lines });
@@ -54,4 +54,16 @@ test('the change note lists commits, refusals, flaky tests, what is left and how
 	assert.match(noteFileName(new Date(2026, 9, 9, 7, 5)), /^\.my_editor\/changes\/ai-ready-2026-10-09-0705\.md$/);
 	const report = reportWithRun('# Report\n\nBody\n\n## Fixes on a local branch\n\nOld run.\n', state('/p/shop'), 'x.md');
 	assert.equal(report, '# Report\n\nBody\n\n## Fixes on a local branch\n\n2 fixes committed on `my_editor/ai-ready`, 1 skipped or refused. Details: `x.md` on that branch.\n');
+});
+
+test('discarding the rest records each fix as discarded by the user, in the note and the report', () => {
+	const run = state('/p/shop');
+	discardRest(run);
+	assert.equal(run.next, run.fixes.length);
+	assert.deepEqual(run.steps.slice(3), [{ file: 'd.go', kind: 'split', status: 'discarded' }]);
+	const note = renderChangeNote(run, new Date('2026-10-09T12:34:00Z'));
+	assert.match(note, /## Discarded by you\n\n- `d\.go` \(split\)/);
+	assert.doesNotMatch(note, /## Not run yet/);
+	assert.doesNotMatch(note, /d\.go` \(split\): discarded/);
+	assert.match(reportWithRun('# R\n', run, 'x.md'), /1 skipped or refused, 1 discarded by you/);
 });

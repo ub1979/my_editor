@@ -36,3 +36,13 @@ test('the command timeout is clamped to 1–240 minutes and is a machine setting
 	assert.equal(setting.minimum, 1);
 	assert.equal(setting.maximum, 240);
 });
+
+test('the approval modal is plain text without backticks', () => {
+	assert.doesNotMatch(approvalDetail('/p/w', ['go build ./...'], 'Go'), /`/);
+});
+
+test('the closing message names discarded fixes', () => {
+	const text = closingText({ committed: 1, discarded: 3, branch: 'b', base: 'c', note: 'n', removed: true, worktree: '/p/w', reportUpdated: false });
+	assert.match(text, /3 fixes discarded/);
+	assert.doesNotMatch(closingText({ committed: 1, branch: 'b', base: 'c', note: 'n', removed: true, worktree: '/p/w', reportUpdated: false }), /discarded/);
+});
