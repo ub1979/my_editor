@@ -5,7 +5,7 @@ import * as path from 'node:path';
 import { test } from 'node:test';
 import { buildGoHelper, goFileInfo } from '../src/aiready/goAst';
 import { createGoAdapter, goInstallDirs, goTools, goVersionProblem } from '../src/aiready/goAdapter';
-import { findTool, runCommand, runTool } from '../src/aiready/projectCommands';
+import { findTool, runCommand, runTool, splitCommand } from '../src/aiready/projectCommands';
 
 const MAIN_GO = path.resolve(__dirname, '../../resources/goast/main.go');
 const go = findTool('go', goInstallDirs());
@@ -135,11 +135,13 @@ test('a go.mod that needs a newer Go than installed stops with a plain message',
 test('the Go checks also build the changed package on its own, writing no binary', () => {
 	const tools = { go: 'go', helper: '', platforms: { os: new Set<string>(), arch: new Set<string>() } };
 	const adapter = createGoAdapter('/nowhere', tools, []);
+	const nul = process.platform === 'win32' ? 'NUL' : '/dev/null';
+	for (const check of adapter.checks('a.go')) { assert.ok(splitCommand(check.command), check.command); }
 	assert.deepEqual(adapter.checks('internal/store/a.go'), [
 		{ label: 'build', command: 'go build ./...' },
-		{ label: 'build', command: `go build -o ${os.devNull} ./internal/store` },
+		{ label: 'build', command: `go build -o ${nul} ./internal/store` },
 		{ label: 'vet', command: 'go vet ./internal/store' },
 		{ label: 'test', command: 'go test -count=1 -json ./internal/store' },
 	]);
-	assert.equal(adapter.checks('a.go')[1].command, `go build -o ${os.devNull} .`);
+	assert.equal(adapter.checks('a.go')[1].command, `go build -o ${nul} .`);
 });

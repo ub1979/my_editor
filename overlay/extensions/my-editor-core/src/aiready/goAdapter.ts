@@ -18,6 +18,9 @@ export interface GoTools {
 	readonly platforms: Platforms;
 }
 
+/** Where `go build -o` writes nothing; not `os.devNull`, whose Windows form has backslashes that `splitCommand` refuses. */
+const NULL_FILE = process.platform === 'win32' ? 'NUL' : '/dev/null';
+
 /** Where Go is usually installed besides PATH: the official installer, `go install`, and `golang.org/dl` SDKs. */
 export function goInstallDirs(): string[] {
 	const home = os.homedir();
@@ -108,7 +111,7 @@ export function createGoAdapter(root: string, tools: GoTools, tracked: readonly 
 		// The package on its own too: `./...` may already fail for an unrelated reason (a missing cgo header) and hide a new break.
 		checks: file => [
 			{ label: 'build', command: 'go build ./...' },
-			{ label: 'build', command: `go build -o ${os.devNull} ${goPackage(file)}` },
+			{ label: 'build', command: `go build -o ${NULL_FILE} ${goPackage(file)}` },
 			{ label: 'vet', command: `go vet ${goPackage(file)}` },
 			{ label: 'test', command: `go test -count=1 -json ${goPackage(file)}` },
 		],
