@@ -55,6 +55,8 @@
     "src/aiready/goTests.ts",
     "src/aiready/goPrompts.ts",
     "src/aiready/goAdapter.ts",
-    "src/aiready/languages.ts"
+    "src/aiready/languages.ts",
+    "src/aiready/worktree.ts",
+    "src/aiready/fixState.ts"
   ]
 }
