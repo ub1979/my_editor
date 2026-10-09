@@ -242,7 +242,7 @@ the only change is where blocks close and reopen.
 | A code item, a `macro` item, a whole `conditional` item | It is part of a group that forms one contiguous run of consecutive items with the same frame, at frame level, and none of the refusals below applies | — |
 | `#include`, `#import` | Never | They are the file's frame; a moved include would resolve the same but makes the run's frame unclear |
 | `#pragma` | Only inside a run where every `push` has its `pop` in the same run (`pack`, `clang diagnostic`, `GCC diagnostic`, `warning`, `clang attribute`, `push_macro`/`pop_macro`). Pragmas inside function bodies move freely | An unbalanced push in an included file changes state at its end, which clang warns about; `#pragma once` and `system_header` are file-level |
-| Items inside an `assume_nonnull` region (pragma or `NS_`/`CF_` macro form) | Never | The region is per file: an included header does not inherit it, so moved pointer types would lose their `_Nonnull` default (an `-E` comparison cannot see this: the pragma lines stay in the original) |
+| Items inside an `assume_nonnull` region (pragma or `NS_`/`CF_` macro form) | Never | clang rejects an `#include` inside the region (*cannot #include files inside '#pragma clang assume_nonnull'*), so the split would not compile; the `NS_`/`CF_` macro forms may expand to nothing in the configuration that was built, so the error would only show in another configuration |
 | Items inside an `#if` group | Only with the whole group | The group must balance within one file |
 | Items in a frame with a macro or attributed head | Never | The scanner cannot copy or close that frame safely |
 | A run containing `#include_next`, `__has_include_next`, `#line`, `__INCLUDE_LEVEL__`, `__TIMESTAMP__`, or `__FILE__`, `__FILE_NAME__`, `__LINE__` inside an `#if`/`#elif` condition | Never | `#include_next` and `__has_include_next` search from the current file's include-path entry, which a sibling header found by quotes does not have; the others change value with the file and are not pinned, or are pinned only in code |
@@ -551,8 +551,9 @@ Reported, never split (*Version 1 scope* has the full list):
 - **Generated sources:** anything in the build folder or written by `configure_file`, `add_custom_command` outputs,
   protobuf, Qt `moc`/`uic`, bison and flex outputs, files with a generated-code marker in their first comment.
 - **File-list consumers:** a header whose basename occurs in any tracked file that is not C or C++ source (build and
-  install files, SWIG, bindgen, Doxygen, packaging, docs). The match is by basename, which also catches a `file(GLOB)`
-  of headers whose result is handed to an install or packaging step written elsewhere.
+  install files, SWIG, bindgen, Doxygen, packaging, docs). The match is by basename. It does not catch a `file(GLOB)` of
+  headers (a `*.h` pattern does not contain the name); the install comparison protects that case, and a stale glob there
+  fails closed, so projects that install headers through a glob may have splits refused.
 - **Unity builds** (`CMAKE_UNITY_BUILD`, `UNITY_BUILD`): allowed for headers, since a unity TU is a TU like any other and
   is checked as one. They matter for *Version 2*.
 - **Coverage presets:** skipped with a reason; the user can pick another preset.
