@@ -20,7 +20,9 @@ export function topStatement(ts: Ts, node: TS.Node): TS.Node {
 /** Whether a declaration node is module scope: an import binding or a top-level declaration (variables included). */
 function moduleScope(ts: Ts, decl: TS.Declaration): boolean {
 	if (IMPORT_KINDS.has(ts.SyntaxKind[decl.kind])) { return true; }
-	if (ts.isVariableDeclaration(decl)) { return !!decl.parent?.parent && ts.isVariableStatement(decl.parent.parent) && ts.isSourceFile(decl.parent.parent.parent); }
+	if (ts.isVariableDeclaration(decl)) {
+		return !!decl.parent?.parent && ts.isVariableStatement(decl.parent.parent) && ts.isSourceFile(decl.parent.parent.parent);
+	}
 	if (ts.isBindingElement(decl)) {
 		let at: TS.Node = decl;
 		while (at && !ts.isVariableDeclaration(at)) { at = at.parent; }
@@ -46,7 +48,8 @@ export function isDeclarationName(ts: Ts, id: TS.Identifier): boolean {
 	return ts.isFunctionDeclaration(parent) || ts.isClassDeclaration(parent) || ts.isInterfaceDeclaration(parent) || ts.isTypeAliasDeclaration(parent)
 		|| ts.isEnumDeclaration(parent) || ts.isModuleDeclaration(parent) || ts.isVariableDeclaration(parent) || ts.isBindingElement(parent)
 		|| ts.isImportSpecifier(parent) || ts.isImportClause(parent) || ts.isNamespaceImport(parent) || ts.isImportEqualsDeclaration(parent)
-		|| ts.isParameter(parent) || ts.isEnumMember(parent) || ts.isTypeParameterDeclaration(parent) || ts.isClassExpression(parent) || ts.isFunctionExpression(parent);
+		|| ts.isParameter(parent) || ts.isEnumMember(parent) || ts.isTypeParameterDeclaration(parent) || ts.isClassExpression(parent)
+		|| ts.isFunctionExpression(parent);
 }
 
 /** Whether an identifier is used only as a type here: in a type, `implements`, an interface's `extends`, `typeof` in a type, or JSDoc. */
@@ -61,8 +64,9 @@ export function isTypeUse(ts: Ts, id: TS.Node): boolean {
 	return false;
 }
 
-/** Every identifier in a node, JSDoc included (for `@type {T}` in JS). */
+/** Every identifier in a node, JSDoc included (for `@type {T}` in JS), except names in `{@link …}` and `@see`, which are not uses. */
 export function identifiers(ts: Ts, node: TS.Node, into: TS.Identifier[] = []): TS.Identifier[] {
+	if (ts.isJSDocLink(node) || ts.isJSDocLinkCode(node) || ts.isJSDocLinkPlain(node) || ts.isJSDocNameReference(node)) { return into; }
 	if (ts.isIdentifier(node)) { into.push(node); }
 	for (const doc of (node as { jsDoc?: TS.Node[] }).jsDoc ?? []) { identifiers(ts, doc, into); }
 	ts.forEachChild(node, child => { identifiers(ts, child, into); });
@@ -130,15 +134,17 @@ export function isPure(scope: Scope, node: TS.Node): boolean {
 			return true;
 	}
 	if (ts.isPrefixUnaryExpression(node)) { return node.operator === ts.SyntaxKind.MinusToken && ts.isNumericLiteral(node.operand); }
-	if (ts.isIdentifier(node)) { return !!moduleName(scope, node) || (GLOBAL_CONSTANTS.has(node.text) && !scope.checker.getSymbolAtLocation(node)?.declarations?.length); }
+	if (ts.isIdentifier(node)) {
+		return !!moduleName(scope, node) || (GLOBAL_CONSTANTS.has(node.text) && !scope.checker.getSymbolAtLocation(node)?.declarations?.length);
+	}
 	if (ts.isClassExpression(node)) { return classPure(scope, node); }
 	if (ts.isArrayLiteralExpression(node)) { return node.elements.every(e => ts.isOmittedExpression(e) || (!ts.isSpreadElement(e) && isPure(scope, e))); }
 	if (ts.isObjectLiteralExpression(node)) {
 		return node.properties.every(p => {
-			const plain = p.name && (ts.isIdentifier(p.name) || ts.isStringLiteral(p.name) || ts.isNumericLiteral(p.name));
-			if (ts.isPropertyAssignment(p)) { return !!plain && isPure(scope, p.initializer); }
+			const plain = plainKey(ts, p.name);
+			if (ts.isPropertyAssignment(p)) { return plain && isPure(scope, p.initializer); }
 			if (ts.isShorthandPropertyAssignment(p)) { return !p.objectAssignmentInitializer && !!moduleName(scope, p.name); }
-			return ts.isMethodDeclaration(p) && !!plain;
+			return ts.isMethodDeclaration(p) && plain;
 		});
 	}
 	if (ts.isNewExpression(node)) {
@@ -148,11 +154,28 @@ export function isPure(scope: Scope, node: TS.Node): boolean {
 	return false;
 }
 
-/** A class whose definition runs no code: no decorators, and a pure `extends`, computed names and static initializers, no static block with code. */
+/** A literal property key: converting it to a key runs no code (a name read could be an object with a `toString`). */
+function literalKey(ts: Ts, node: TS.Expression): boolean {
+	return ts.isStringLiteral(node) || ts.isNumericLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node);
+}
+
+/** A plain or literal computed property name: an identifier, a string or number, or `['a']`/`[1]`. */
+function plainKey(ts: Ts, name: TS.PropertyName | undefined): boolean {
+	if (!name) { return false; }
+	return ts.isIdentifier(name) || ts.isStringLiteral(name) || ts.isNumericLiteral(name) || (ts.isComputedPropertyName(name) && literalKey(ts, name.expression));
+}
+
+/**
+ * A class whose definition runs no code: no decorators, literal computed names, and a pure `extends` and static
+ * initializers, no static block with code.
+ */
 export function classPure(scope: Scope, node: TS.ClassLikeDeclaration): boolean {
 	const { ts } = scope;
 	if (hasDecorators(ts, node)) { return false; }
-	return definitionTime(ts, node).every(part => (ts.isBlock(part) ? part.statements.length === 0 : isPure(scope, part)));
+	const computed = node.members.flatMap(member => (member.name && ts.isComputedPropertyName(member.name) ? [member.name.expression] : []));
+	if (!computed.every(key => literalKey(ts, key))) { return false; }
+	return definitionTime(ts, node).every(part => computed.includes(part as TS.Expression)
+		|| (ts.isBlock(part) ? part.statements.length === 0 : isPure(scope, part)));
 }
 
 /** Whether a class (or anything in it) has a decorator. */
@@ -186,7 +209,8 @@ export function isWrite(ts: Ts, id: TS.Identifier): boolean {
 		&& (parent.operator === ts.SyntaxKind.PlusPlusToken || parent.operator === ts.SyntaxKind.MinusMinusToken)) { return true; }
 	if ((ts.isForInStatement(parent) || ts.isForOfStatement(parent)) && parent.initializer === node) { return true; }
 	while (parent && (ts.isArrayLiteralExpression(parent) || ts.isObjectLiteralExpression(parent) || ts.isShorthandPropertyAssignment(parent)
-		|| (ts.isPropertyAssignment(parent) && parent.initializer === node) || ts.isSpreadElement(parent) || ts.isSpreadAssignment(parent) || ts.isParenthesizedExpression(parent))) {
+		|| (ts.isPropertyAssignment(parent) && parent.initializer === node) || ts.isSpreadElement(parent) || ts.isSpreadAssignment(parent)
+		|| ts.isParenthesizedExpression(parent))) {
 		node = parent;
 		parent = node.parent;
 	}
@@ -206,8 +230,12 @@ export function spanProblems(scope: Scope, node: TS.Node): string[] {
 	const unresolved = (id: TS.Identifier) => !(ts.isShorthandPropertyAssignment(id.parent) && id.parent.name === id
 		? checker.getShorthandAssignmentValueSymbol(id.parent) : checker.getSymbolAtLocation(id))?.declarations?.length;
 	const moduleLevel = (at: TS.Node) => {
-		for (let up = at.parent; up; up = up.parent) {
+		// A computed member name or a decorator runs in the scope around its member (or its parameter's member), not in it.
+		let outside: TS.Node | undefined;
+		for (let child = at, up = at.parent; up; child = up, up = up.parent) {
+			if (ts.isComputedPropertyName(child) || ts.isDecorator(child)) { outside = ts.isParameter(up) ? up.parent : up; }
 			if (ts.isSourceFile(up)) { return true; }
+			if (up === outside) { continue; }
 			if (ts.isFunctionLike(up) && !ts.isArrowFunction(up)) { return false; }
 			if (ts.isPropertyDeclaration(up) || ts.isClassStaticBlockDeclaration(up)) { return false; }
 		}
