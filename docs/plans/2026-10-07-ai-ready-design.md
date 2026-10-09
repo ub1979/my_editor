@@ -246,8 +246,10 @@ rebuilt, never moved.
 **Skipped files** (listed in the report, never split): `_test.go` files in this version; generated files; files with
 build constraints, a GOOS/GOARCH file-name suffix, or cgo; files with any `//go:` directive other than `//go:embed`
 and `//go:generate`, or a `//line` directive (a directive separated from its declaration by a blank line is not part
-of the AST's doc comment but still applies to it); files with a BOM or CRLF line endings; files that a `//go:generate`
-or `//go:embed` line anywhere in the module names; files under `vendor/`; files inside a nested module (a directory
+of the AST's doc comment but still applies to it); files with a `//go:generate` line that uses `$GOFILE` (moving a
+declaration out of the file would change what the generator reads); files with a BOM or CRLF line endings; files that
+a `//go:generate` or `//go:embed` line anywhere in the module names (an `all:` prefix on an embed pattern is ignored);
+files under `vendor/`; files inside a nested module (a directory
 below the project root that has its own `go.mod`, such as vendored forks or a separate service).
 
 **What "unchanged" means.** The program's behavior, not source positions: file names and line numbers in panics,
@@ -280,7 +282,9 @@ in the original; a file with a dot import is not split.
 1. Each moved span appears byte-identical in exactly one new file.
 2. The original equals its old content minus the moved spans and minus removed import specs (whitespace between
    declarations may collapse to one blank line).
-3. A new file contains only its header comment, package clause, import block and moved spans.
+3. A new file contains only its header comment, package clause, import block and moved spans. The bytes before its
+   package clause are exactly the header comment line and a blank line (so no `//go:build` or `//go:debug` line can
+   slip in), and its imports (`name path`) are a subset of the original's, with no blank (`_`) import.
 4. Re-parsing the package's files (`go list -f '{{.GoFiles}}'`) gives the same multiset of top-level names, the same
    methods per receiver, and the same doc comment for every declaration as before.
 5. No other tracked file changed.

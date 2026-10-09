@@ -3,7 +3,7 @@ import * as path from 'path';
 import { buildGoHelper, goFileInfo } from './goAst';
 import { goSplitPrompt, goTestPrompt } from './goPrompts';
 import { directiveLines, goFileInfoView, GoFileInfo, goFileNameProblems, GoModuleFacts, goSkipReason, Platforms, platforms } from './goRules';
-import { buildGoSplit } from './goSplit';
+import { buildGoSplit, goSplitHeader } from './goSplit';
 import { goTestNames, goTestProblems, parseGoTest } from './goTests';
 import type { LanguageAdapter } from './language';
 import { declarationProblems } from './moveCheck';
@@ -73,6 +73,7 @@ export function createGoAdapter(root: string, tools: GoTools, tracked: readonly 
 			return goFileInfoView(file, ast, await packageNames(file), goSkipReason(file, ast, moduleFacts(), tools.platforms));
 		},
 		fileNameProblems: name => goFileNameProblems(name, tools.platforms),
+		splitHeader: goSplitHeader,
 		buildSplit: (source, info, plan) => buildGoSplit(source, info as GoFileInfo, plan),
 		sameDeclarations: declarationProblems,
 		async unitFiles(file) {

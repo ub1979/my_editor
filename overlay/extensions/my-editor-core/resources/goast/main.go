@@ -120,7 +120,8 @@ func Inspect(name string, src []byte) (*File, error) {
 				out.BuildConstraint = true
 			}
 			if strings.HasPrefix(c.Text, "//go:") || strings.HasPrefix(c.Text, "//line ") || strings.HasPrefix(c.Text, "/*line ") {
-				out.Directives = append(out.Directives, Directive{Line: line(c.Pos()), Offset: off(c.Pos()), Text: firstLine(c.Text)})
+				// Directive text is not truncated: the host looks for $GOFILE anywhere in a //go:generate line.
+				out.Directives = append(out.Directives, Directive{Line: line(c.Pos()), Offset: off(c.Pos()), Text: wholeFirstLine(c.Text)})
 			}
 		}
 	}
@@ -331,10 +332,16 @@ func hasBlankLine(src []byte, from, to int) bool {
 	return false
 }
 
-func firstLine(s string) string {
+func wholeFirstLine(s string) string {
 	if i := strings.IndexByte(s, '\n'); i >= 0 {
 		s = s[:i]
 	}
+	return s
+}
+
+// firstLine is the first line, at most 160 bytes, for the model.
+func firstLine(s string) string {
+	s = wholeFirstLine(s)
 	if len(s) > 160 {
 		s = s[:160]
 	}

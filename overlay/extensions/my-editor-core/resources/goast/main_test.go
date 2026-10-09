@@ -151,3 +151,11 @@ func TestFileFlags(t *testing.T) {
 		t.Fatalf("bom: %+v %v", bom, err)
 	}
 }
+
+func TestLongDirectiveIsNotTruncated(t *testing.T) {
+	long := "//go:generate tool " + strings.Repeat("-x ", 80) + "-in $GOFILE"
+	f, err := Inspect("gen.go", []byte("package shop\n\n"+long+"\n\nfunc g() {}\n"))
+	if err != nil || len(f.Directives) != 1 || f.Directives[0].Text != long {
+		t.Fatalf("directives: %+v %v", f.Directives, err)
+	}
+}

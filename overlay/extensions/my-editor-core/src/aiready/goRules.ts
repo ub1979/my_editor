@@ -71,9 +71,11 @@ export function namedByDirective(file: string, lines: GoModuleFacts['directiveLi
 	const base = path.posix.basename(file);
 	return lines.some(line => {
 		const tokens = line.text.split(/\s+/).slice(1).map(token => token.replace(/^["`]|["`]$/g, ''));
+		// `all:` only changes which dot and underscore files a pattern includes.
+		const patterns = tokens.map(token => token.replace(/^all:/, ''));
 		if (line.text.startsWith('//go:generate')) { return tokens.some(token => token.includes(base)); }
 		const relative = path.posix.relative(line.dir === '.' ? '' : line.dir, file);
-		return tokens.some(token => token.includes(base) || globToRegExp(token).test(relative));
+		return patterns.some(token => token.includes(base) || globToRegExp(token).test(relative));
 	});
 }
 
@@ -92,6 +94,9 @@ export function goSkipReason(file: string, ast: GoAst, module: GoModuleFacts, kn
 	if (ast.crlf) { return 'it has CRLF line endings'; }
 	const directive = ast.directives.find(d => !d.text.startsWith('//go:embed') && !d.text.startsWith('//go:generate'));
 	if (directive) { return `it has the directive \`${directive.text}\` on line ${directive.line}`; }
+	if (ast.directives.some(d => d.text.startsWith('//go:generate') && /\$\{?GOFILE\b/.test(d.text))) {
+		return 'a //go:generate line in it uses $GOFILE, which would change if its declarations moved';
+	}
 	if (ast.imports.some(i => i.dot)) { return 'it has a dot import'; }
 	if (namedByDirective(file, module.directiveLines)) { return 'a //go:generate or //go:embed line names it'; }
 	return undefined;
@@ -100,7 +105,13 @@ export function goSkipReason(file: string, ast: GoAst, module: GoModuleFacts, kn
 /** The name a file uses for an import: its explicit name, else the package name from `go list`, else a guess. */
 export function importName(spec: GoImport, packageNames: ReadonlyMap<string, string>): string {
 	if (spec.name) { return spec.name; }
-	return packageNames.get(spec.path) ?? spec.path.split('/').filter(part => !/^v\d+$/.test(part)).pop() ?? spec.path;
+	const last = spec.path.split('/').filter(part => !/^v\d+$/.test(part)).pop() ?? spec.path;
+	return packageNames.get(spec.path) ?? last.replace(/\.v\d+$/, '');
+}
+
+/** An import's comparable key, `name path` (just `path` when unnamed), as in `FileInfo.imports` and `Declaration.uses`. */
+export function importKey(spec: GoImport): string {
+	return `${spec.name} ${spec.path}`.trim();
 }
 
 function unmovable(decl: GoDecl): string | undefined {
@@ -125,7 +136,7 @@ export function goFileInfoView(file: string, ast: GoAst, packageNames: ReadonlyM
 		return {
 			id: decl.id, kind: decl.grouped ? `${decl.kind} (…)` : decl.kind, names: decl.names, receiver: decl.receiver || undefined,
 			span: { start: decl.start, end: decl.end }, lines: decl.lines, doc: decl.doc, docText: decl.docText,
-			uses: usable.filter(i => decl.qualifiers.includes(importName(i, packageNames))).map(i => i.path),
+			uses: usable.filter(i => decl.qualifiers.includes(importName(i, packageNames))).map(importKey),
 			movable: !reason, reason,
 		};
 	});
@@ -134,7 +145,8 @@ export function goFileInfoView(file: string, ast: GoAst, packageNames: ReadonlyM
 		path: file, declarations,
 		importRegion: decls.length ? { start: decls[0][0], end: decls[decls.length - 1][1] } : undefined,
 		frame: [{ start: 0, end: ast.packageSpan[1] }, ...decls.map(([start, end]) => ({ start, end }))],
-		imports: ast.imports.map(i => `${i.name} ${i.path}`.trim()),
+		prelude: { start: 0, end: ast.packageSpan[0] },
+		imports: ast.imports.map(importKey),
 		skip, go: ast,
 	};
 }

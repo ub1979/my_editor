@@ -1,6 +1,6 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
-import { goFileNameProblems, goSkipReason, namedByDirective, platformSuffix } from '../src/aiready/goRules';
+import { goFileNameProblems, goSkipReason, importName, namedByDirective, platformSuffix } from '../src/aiready/goRules';
 import { goInfo, KNOWN, SHOP, YAML } from './goFixture';
 
 const NO_MODULE = { nestedModules: [], directiveLines: [] };
@@ -57,4 +57,25 @@ test('embed vars, //go:generate in a doc comment, and an iota group move only as
 	assert.match(colour.reason ?? '', /go:generate/);
 	assert.deepEqual(group.names, ['Red', 'Green']);
 	assert.ok(group.movable && plain.movable);
+});
+
+test('a //go:generate line that uses $GOFILE skips the file, even past 160 characters', async t => {
+	const long = `//go:generate tool ${'-x '.repeat(80)}-in $GOFILE\n`;
+	const parsed = await goInfo('shop/gen.go', `package shop\n\n${long}\nfunc g() {}\n`);
+	if (!parsed) { t.skip('Go is not installed'); return; }
+	assert.match(goSkipReason('shop/gen.go', parsed.info.go, NO_MODULE, KNOWN) ?? '', /\$GOFILE/);
+	const plain = (await goInfo('shop/gen2.go', 'package shop\n\n//go:generate stringer -type=K\n\ntype K int\n'))!;
+	assert.equal(goSkipReason('shop/gen2.go', plain.info.go, NO_MODULE, KNOWN), undefined);
+});
+
+test('embed patterns with the all: prefix still name the file', () => {
+	assert.ok(namedByDirective('shop/static/d.go', [{ dir: 'shop', text: '//go:embed all:static' }]));
+	assert.ok(namedByDirective('shop/d.go', [{ dir: 'shop', text: '//go:embed all:*.go' }]));
+});
+
+test('the fallback import name drops a .vN ending and a /vN element', () => {
+	const spec = (path: string) => ({ name: '', path, start: 0, end: 0, own: true, decl: 0, run: 0, blank: false, dot: false });
+	assert.equal(importName(spec('gopkg.in/yaml.v3'), new Map()), 'yaml');
+	assert.equal(importName(spec('github.com/x/mod/v2'), new Map()), 'mod');
+	assert.equal(importName(spec('gopkg.in/yaml.v3'), new Map([['gopkg.in/yaml.v3', 'yamlv3']])), 'yamlv3');
 });

@@ -129,7 +129,7 @@ async function checkSplit(ctx: StepContext, file: string, newFiles: readonly str
 	const files = await Promise.all(newFiles.map(read));
 	const unitAfter = await Promise.all((await adapter.unitFiles(file)).map(name => adapter.parse(name)));
 	const problems = [
-		...checkMove({ before: { text: facts.source, info: facts.info }, after, files, plan: facts.plan }),
+		...checkMove({ before: { text: facts.source, info: facts.info }, after, files, plan: facts.plan, header: adapter.splitHeader(file) }),
 		...adapter.sameDeclarations(facts.unitBefore, unitAfter),
 	];
 	const other = (await changedFiles(worktree)).filter(name => name !== file);

@@ -23,7 +23,7 @@ export interface Declaration {
 	readonly doc: string;
 	/** The whole doc comment, compared by move rule 4. */
 	readonly docText: string;
-	/** Imports it uses, as the adapter names them (Go: import paths). */
+	/** Imports it uses, as keys from `FileInfo.imports` (Go: `name path`, so `"fmt"` and `f "fmt"` differ). */
 	readonly uses: readonly string[];
 	readonly movable: boolean;
 	/** Why it may not move. */
@@ -39,8 +39,13 @@ export interface FileInfo {
 	readonly importRegion?: Span;
 	/** Spans a new file may hold besides moved declarations: header comment, package clause, imports. */
 	readonly frame: readonly Span[];
-	/** Imports as comparable keys; after a split the original may only lose some. */
+	/**
+	 * Imports as comparable keys; after a split the original may only lose some, and a new file may only use some of
+	 * the original's. A key starting with `_ ` is a blank (side-effect) import, which a new file may not have.
+	 */
 	readonly imports: readonly string[];
+	/** The bytes before the package clause (Go); in a new file they must equal the adapter's split header exactly. */
+	readonly prelude?: Span;
 	/** Why this file is never split or given tests, if it is not. */
 	readonly skip?: string;
 }
@@ -85,6 +90,8 @@ export interface LanguageAdapter {
 	parse(file: string): Promise<FileInfo>;
 	/** Why a new file may not have this name. */
 	fileNameProblems(name: string): string[];
+	/** The exact text a new file split from `file` starts with (Go: a comment naming the original and a blank line). */
+	splitHeader(file: string): string;
 	/** New files and the new original, imports rebuilt. Throws when the plan cannot be applied. */
 	buildSplit(source: Buffer, info: FileInfo, plan: SplitPlan): SplitResult;
 	/** Move rule 4: the unit's declarations, before and after, are the same apart from their file. */

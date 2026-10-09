@@ -13,6 +13,8 @@ export interface MoveCheckInput {
 	/** The new files, re-parsed from disk, in plan order. */
 	readonly files: readonly ParsedFile[];
 	readonly plan: SplitPlan;
+	/** The exact text each new file has before its package clause (the adapter's `splitHeader`). */
+	readonly header: string;
 }
 
 const IMPORTS = '\u0000imports';
@@ -21,7 +23,8 @@ const IMPORTS = '\u0000imports';
  * Move rules 1–3, on byte spans and without AI. 1: each moved span is byte-identical to a declaration in exactly the
  * new file the plan names. 2: the original equals its old bytes minus the moved spans, with only import specs removed
  * and blank lines around removed spans collapsed to one. 3: a new file holds only its frame (header comment, package
- * clause, imports) and its moved spans. Empty means pass.
+ * clause, imports) and its moved spans; the bytes before its package clause are exactly the header (no build or
+ * `//go:debug` line), and its imports are some of the original's, none blank. Empty means pass.
  */
 export function checkMove(input: MoveCheckInput): string[] {
 	const problems: string[] = [];
@@ -37,6 +40,14 @@ export function checkMove(input: MoveCheckInput): string[] {
 		}
 		const rest = remove(file.text, [...file.info.declarations.map(d => d.span), ...file.info.frame]);
 		if (rest.trim()) { problems.push(`Rule 3: ${group.file} has extra content: ${JSON.stringify(rest.trim().slice(0, 80))}.`); }
+		const prelude = file.info.prelude;
+		if (prelude && slice(file.text, prelude) !== input.header) {
+			problems.push(`Rule 3: ${group.file} must start with exactly ${JSON.stringify(input.header)} before its package clause.`);
+		}
+		for (const key of file.info.imports) {
+			if (key.startsWith('_ ')) { problems.push(`Rule 3: ${group.file} has the blank import ${key}.`); }
+			else if (!before.info.imports.includes(key)) { problems.push(`Rule 3: ${group.file} imports ${key}, which the original did not.`); }
+		}
 	});
 	const moved = plan.flatMap(group => group.declarations.map(id => byId.get(id)!.span));
 	const expected = collapse(marked(before, moved, !!after.info.importRegion));
