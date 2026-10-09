@@ -687,7 +687,9 @@ warning filters, tool config naming the file, and annotations read from `require
    import x` during package import is the weak spot.
 3. **The import check runs the leading block twice in one process** (once in a scratch module, once for real). The
    second run finds every module loaded, but a leading-block import with side effects on the importer (rare) behaves
-   differently in the scratch run.
+   differently in the scratch run. The scratch run happens inside a meta-path finder, while the import system holds its
+   global lock: a leading import that starts a thread and waits for it to import something would hang until the
+   check's timeout.
 4. **`__module__` as "may differ"** for projects that neither read it nor pickle. Tracebacks, error-tracker grouping and
    logging's `%(module)s` still change. The narrowing patterns (pickle, pools, queues) may miss a library that pickles
    behind the project's back.
