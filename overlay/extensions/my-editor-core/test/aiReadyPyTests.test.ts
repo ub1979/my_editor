@@ -40,7 +40,51 @@ test('unittest -v: both the 3.11+ and the older form, with a docstring line betw
 });
 
 /** Reviewer fixture pt: captured output that looks like summary lines, ids with ' - ', '::' and spaces in brackets, a teardown error. */
-const PYTEST_TRICKY = "......EFsF                                                               [100%]\n==================================== ERRORS ====================================\n___________________ ERROR at teardown of test_teardown_error ___________________\n\n    @pytest.fixture\n    def bad():\n        yield\n>       raise RuntimeError(\"teardown\")\nE       RuntimeError: teardown\n\ntests/test_a.py:14: RuntimeError\n=================================== FAILURES ===================================\n______________________________ test_xpass_strict _______________________________\n[XPASS(strict)] \n________________________________ TestK.test_sub ________________________________\n\nself = <test_a.TestK testMethod=test_sub>\n\n    def test_sub(self):\n        for i in range(2):\n            with self.subTest(i=i):\n>               self.assertEqual(i, 0)\nE               AssertionError: 1 != 0\n\ntests/test_a.py:31: AssertionError\n==================================== PASSES ====================================\n_________________________________ test_prints __________________________________\n----------------------------- Captured stdout call -----------------------------\nFAILED tests/test_a.py::test_ghost - boom\nPASSED tests/test_ghost.py::test_never\n=========================== short test summary info ============================\nPASSED tests/test_a.py::test_param[a - b]\nPASSED tests/test_a.py::test_param[a - c]\nPASSED tests/test_a.py::test_param[p::q]\nPASSED tests/test_a.py::test_param[sp ace]\nPASSED tests/test_a.py::test_prints\nPASSED tests/test_a.py::test_teardown_error\nSKIPPED [1] tests/test_a.py:23: no\nERROR tests/test_a.py::test_teardown_error - RuntimeError: teardown\nFAILED tests/test_a.py::test_xpass_strict\nFAILED tests/test_a.py::TestK::test_sub - AssertionError: 1 != 0\n2 failed, 6 passed, 1 skipped, 1 error in 0.02s\n";
+const PYTEST_TRICKY = [
+	'......EFsF                                                               [100%]',
+	'==================================== ERRORS ====================================',
+	'___________________ ERROR at teardown of test_teardown_error ___________________',
+	'',
+	'    @pytest.fixture',
+	'    def bad():',
+	'        yield',
+	'>       raise RuntimeError("teardown")',
+	'E       RuntimeError: teardown',
+	'',
+	'tests/test_a.py:14: RuntimeError',
+	'=================================== FAILURES ===================================',
+	'______________________________ test_xpass_strict _______________________________',
+	'[XPASS(strict)] ',
+	'________________________________ TestK.test_sub ________________________________',
+	'',
+	'self = <test_a.TestK testMethod=test_sub>',
+	'',
+	'    def test_sub(self):',
+	'        for i in range(2):',
+	'            with self.subTest(i=i):',
+	'>               self.assertEqual(i, 0)',
+	'E               AssertionError: 1 != 0',
+	'',
+	'tests/test_a.py:31: AssertionError',
+	'==================================== PASSES ====================================',
+	'_________________________________ test_prints __________________________________',
+	'----------------------------- Captured stdout call -----------------------------',
+	'FAILED tests/test_a.py::test_ghost - boom',
+	'PASSED tests/test_ghost.py::test_never',
+	'=========================== short test summary info ============================',
+	'PASSED tests/test_a.py::test_param[a - b]',
+	'PASSED tests/test_a.py::test_param[a - c]',
+	'PASSED tests/test_a.py::test_param[p::q]',
+	'PASSED tests/test_a.py::test_param[sp ace]',
+	'PASSED tests/test_a.py::test_prints',
+	'PASSED tests/test_a.py::test_teardown_error',
+	'SKIPPED [1] tests/test_a.py:23: no',
+	'ERROR tests/test_a.py::test_teardown_error - RuntimeError: teardown',
+	'FAILED tests/test_a.py::test_xpass_strict',
+	'FAILED tests/test_a.py::TestK::test_sub - AssertionError: 1 != 0',
+	'2 failed, 6 passed, 1 skipped, 1 error in 0.02s',
+	'',
+].join('\n');
 
 test('review item 15: only the summary is read, and a reason is cut only after the closing bracket', () => {
 	assert.deepEqual(parsePyTests(PYTEST_TRICKY)?.tests, {
@@ -52,7 +96,39 @@ test('review item 15: only the summary is read, and a reason is cut only after t
 });
 
 /** Reviewer fixture ut: a subtest line indented with its parameters, and a printed look-alike after the summary. */
-const UNITTEST_TRICKY = "test_doc (tests.test_u.TestA.test_doc)\nFirst doc line. ... ok\ntest_print (tests.test_u.TestA.test_print) ... ok\ntest_skip (tests.test_u.TestA.test_skip) ... skipped 'why'\ntest_sub (tests.test_u.TestA.test_sub) ... \n  test_sub (tests.test_u.TestA.test_sub) (i=1) ... FAIL\ntest_xf (tests.test_u.TestA.test_xf) ... expected failure\nERROR\n\n======================================================================\nERROR: setUpClass (tests.test_u.TestB)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/w/tests/test_u.py\", line 24, in setUpClass\n    raise RuntimeError(\"x\")\nRuntimeError: x\n\n======================================================================\nFAIL: test_sub (tests.test_u.TestA.test_sub) (i=1)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/w/tests/test_u.py\", line 11, in test_sub\n    self.assertEqual(i, 0)\nAssertionError: 1 != 0\n\n----------------------------------------------------------------------\nRan 5 tests in 0.000s\n\nFAILED (failures=1, errors=1, skipped=1, expected failures=1)\ntest_ghost (tests.test_u.TestA.test_ghost) ... ok\n";
+const UNITTEST_TRICKY = [
+	'test_doc (tests.test_u.TestA.test_doc)',
+	'First doc line. ... ok',
+	'test_print (tests.test_u.TestA.test_print) ... ok',
+	"test_skip (tests.test_u.TestA.test_skip) ... skipped 'why'",
+	'test_sub (tests.test_u.TestA.test_sub) ... ',
+	'  test_sub (tests.test_u.TestA.test_sub) (i=1) ... FAIL',
+	'test_xf (tests.test_u.TestA.test_xf) ... expected failure',
+	'ERROR',
+	'',
+	'======================================================================',
+	'ERROR: setUpClass (tests.test_u.TestB)',
+	'----------------------------------------------------------------------',
+	'Traceback (most recent call last):',
+	'  File "/w/tests/test_u.py", line 24, in setUpClass',
+	'    raise RuntimeError("x")',
+	'RuntimeError: x',
+	'',
+	'======================================================================',
+	'FAIL: test_sub (tests.test_u.TestA.test_sub) (i=1)',
+	'----------------------------------------------------------------------',
+	'Traceback (most recent call last):',
+	'  File "/w/tests/test_u.py", line 11, in test_sub',
+	'    self.assertEqual(i, 0)',
+	'AssertionError: 1 != 0',
+	'',
+	'----------------------------------------------------------------------',
+	'Ran 5 tests in 0.000s',
+	'',
+	'FAILED (failures=1, errors=1, skipped=1, expected failures=1)',
+	'test_ghost (tests.test_u.TestA.test_ghost) ... ok',
+	'',
+].join('\n');
 
 test('review item 16: an indented subtest with parameters fails its method and class; nothing after Ran is read', () => {
 	assert.deepEqual(parsePyTests(UNITTEST_TRICKY)?.tests, {
