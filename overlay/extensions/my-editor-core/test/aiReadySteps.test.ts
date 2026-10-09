@@ -105,3 +105,26 @@ test('add-tests removes its file when the commit fails', async t => {
 	assert.ok(!existsSync(path.join(worktree, 'shop_ai_test.go')));
 	assert.equal(execFileSync('git', ['status', '--porcelain'], { cwd: worktree, encoding: 'utf8' }), '');
 });
+
+test('add-tests leaves nothing staged when the commit itself fails', async t => {
+	const run = await setup();
+	if (!run) { t.skip('Go is not installed'); return; }
+	const { root, worktree, ctx } = run;
+	// No identity anywhere, so `git commit` fails after `git add` has staged the file.
+	execFileSync('git', ['config', '--unset', 'user.email'], { cwd: root });
+	execFileSync('git', ['config', '--unset', 'user.name'], { cwd: root });
+	execFileSync('git', ['config', 'user.useConfigOnly', 'true'], { cwd: root });
+	const saved = { global: process.env.GIT_CONFIG_GLOBAL, system: process.env.GIT_CONFIG_SYSTEM };
+	process.env.GIT_CONFIG_GLOBAL = '/dev/null';
+	process.env.GIT_CONFIG_SYSTEM = '/dev/null';
+	const good = 'package shop\n\nimport "testing"\n\nfunc TestAiDescribe(t *testing.T) {\n\tif Describe(2) != "2" {\n\t\tt.Fatal()\n\t}\n}\n';
+	try {
+		await assert.rejects(runAddTests({ ...ctx, ask: async () => `\`\`\`go\n${good}\`\`\`` }, { file: 'shop.go', kind: 'tests', lines: 13 }), /git commit failed/);
+	} finally {
+		for (const [key, value] of [['GIT_CONFIG_GLOBAL', saved.global], ['GIT_CONFIG_SYSTEM', saved.system]] as const) {
+			if (value === undefined) { delete process.env[key]; } else { process.env[key] = value; }
+		}
+	}
+	assert.ok(!existsSync(path.join(worktree, 'shop_ai_test.go')));
+	assert.equal(execFileSync('git', ['status', '--porcelain'], { cwd: worktree, encoding: 'utf8' }), '');
+});

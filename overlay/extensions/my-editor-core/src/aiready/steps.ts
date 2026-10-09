@@ -183,7 +183,10 @@ export async function runAddTests(ctx: StepContext, fix: FixChoice): Promise<Ste
 			committed = true;
 			return { file: fix.file, kind: 'tests', status: 'committed', commit: sha, testFile, dropped: outcome.dropped, checks: summary };
 		} finally {
-			if (!committed) { rmSync(abs(testFile), { force: true }); }
+			if (!committed) {
+				// Unstages a file a failed commit left staged, then deletes it.
+				try { await restore(worktree, [testFile]); } catch { rmSync(abs(testFile), { force: true }); }
+			}
 		}
 	}
 	return done('skipped', `The tests did not work: ${feedback.split('\n')[0]}`);

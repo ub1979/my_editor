@@ -126,7 +126,8 @@ async function cleanWorktree(root: string, folder: string, branch: string): Prom
  * checked out again in a free folder. Either way, it is reset to its last commit.
  */
 export async function reattach(root: string, worktree: Worktree): Promise<Worktree> {
-	await git(root, ['worktree', 'prune']);
+	// Only the run's own folder: pruning would also drop the user's worktrees on drives that are not mounted.
+	if (!existsSync(worktree.path)) { await git(root, ['worktree', 'prune']); }
 	const listed = await worktrees(root);
 	const on = listed.find(entry => entry.branch === `refs/heads/${worktree.branch}`);
 	let folder = worktree.path;

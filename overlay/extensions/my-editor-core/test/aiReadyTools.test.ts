@@ -145,3 +145,15 @@ test('the Go checks also build the changed package on its own, writing no binary
 	]);
 	assert.equal(adapter.checks('a.go')[1].command, `go build -o ${nul} .`);
 });
+
+test('a log folder that cannot be created is a failed result, and a short timeout is not rounded to 0 s', async () => {
+	const dir = mkdtempSync(path.join(os.tmpdir(), 'my-editor-nolog-'));
+	writeFileSync(path.join(dir, 'file'), '');
+	const command = `${process.execPath} -v`;
+	const failed = await runCommand(command, { cwd: dir, approved: [command], timeoutMs: 5_000, logFile: path.join(dir, 'file', 'logs', 'a.log') });
+	assert.equal(failed.code, undefined);
+	assert.match(failed.error ?? '', /log/i);
+	const slow = await runTool(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], dir, undefined, { timeoutMs: 300, graceMs: 100 });
+	assert.match(slow.stderr, /timed out after 300 ms\./);
+	assert.doesNotMatch(slow.stderr, /after 0 s/);
+});

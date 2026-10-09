@@ -76,7 +76,10 @@ export function runCommand(text: string, options: RunOptions): Promise<CommandOu
 	}
 	const bin = path.isAbsolute(parts.bin) ? parts.bin : findTool(parts.bin);
 	if (!bin) { return Promise.resolve({ code: undefined, stdout: '', output: '', timedOut: false, error: `${parts.bin} was not found.` }); }
-	mkdirSync(path.dirname(options.logFile), { recursive: true });
+	try { mkdirSync(path.dirname(options.logFile), { recursive: true }); }
+	catch (error) {
+		return Promise.resolve({ code: undefined, stdout: '', output: '', timedOut: false, error: `Could not create the log folder: ${error instanceof Error ? error.message : String(error)}` });
+	}
 	const log = createWriteStream(options.logFile);
 	// A log that cannot be written must not crash the extension host; the run goes on without it.
 	let logFailed = false;
@@ -155,7 +158,7 @@ export function runTool(bin: string, args: readonly string[], cwd: string, env?:
 		child.stdout!.on('data', keep(stdout));
 		child.stderr!.on('data', keep(stderr));
 		const timeoutMs = limits.timeoutMs ?? 120_000;
-		const timer = setTimeout(() => { failure ||= `${path.basename(bin)} timed out after ${Math.round(timeoutMs / 1000)} s.`; stop(); }, timeoutMs);
+		const timer = setTimeout(() => { failure ||= `${path.basename(bin)} timed out after ${timeoutMs < 1000 ? `${timeoutMs} ms` : `${Math.round(timeoutMs / 1000)} s`}.`; stop(); }, timeoutMs);
 		let ended = false;
 		const finish = (code: number, error = '') => {
 			if (ended) { return; }
