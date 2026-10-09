@@ -91,10 +91,16 @@ def class_functions(cls):
             yield from class_functions(stmt)
 
 
+def type_params(node):
+    """Names of PEP 695 type parameters (3.12+): local to the definition, never module names."""
+    return {p.name for p in getattr(node, 'type_params', None) or []}
+
+
 def definition_reads(stmt):
     """(definition-time reads, annotation reads): module-scope names, with annotations apart because they may be deferred."""
     reads = Reads()
     ann = []
+    local = type_params(stmt)
     if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)):
         reads.visit(stmt)
         for a in annotation_nodes(stmt):
@@ -103,14 +109,14 @@ def definition_reads(stmt):
         reads.visit(stmt)
         for node in class_functions(stmt):
             for a in annotation_nodes(node):
-                ann.extend(n.id for n in ast.walk(a) if isinstance(n, ast.Name))
+                ann.extend(n.id for n in ast.walk(a) if isinstance(n, ast.Name) and n.id not in type_params(node))
     elif isinstance(stmt, ast.AnnAssign):
         ann.extend(n.id for n in ast.walk(stmt.annotation) if isinstance(n, ast.Name))
         if stmt.value is not None:
             reads.visit(stmt.value)
     elif type(stmt).__name__ != 'TypeAlias':
         reads.visit(stmt)
-    return reads.names, ann
+    return [n for n in reads.names if n not in local], [n for n in ann if n not in local]
 
 
 def table_reads(top):
@@ -185,24 +191,15 @@ def binds(stmt):
     return binder.names
 
 
-def global_assignments(tree):
-    """Names a function or class body declares `global` and assigns or deletes."""
+def global_assignments(top):
+    """Names a nested scope declares `global` and binds there: assignment, `del`, `def`, `class`, `import`, `except … as`."""
     found = []
-    for node in ast.walk(tree):
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-            declared = set()
-            stored = set()
-            stack = list(node.body)
-            while stack:
-                sub = stack.pop()
-                if isinstance(sub, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)):
-                    continue
-                if isinstance(sub, ast.Global):
-                    declared.update(sub.names)
-                if isinstance(sub, ast.Name) and not isinstance(sub.ctx, ast.Load):
-                    stored.add(sub.id)
-                stack.extend(ast.iter_child_nodes(sub))
-            found.extend(sorted(declared & stored))
+
+    def walk(table):
+        for child in table.get_children():
+            found.extend(sorted(s.get_name() for s in child.get_symbols() if s.is_declared_global() and (s.is_assigned() or s.is_imported())))
+            walk(child)
+    walk(top)
     return found
 
 

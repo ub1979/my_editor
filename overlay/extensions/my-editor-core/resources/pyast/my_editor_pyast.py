@@ -9,6 +9,7 @@ import os
 import re
 import sys
 import tokenize
+import unicodedata
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import my_editor_pyfacts as pf  # noqa: E402
@@ -124,29 +125,33 @@ def first_line(stmt):
 
 
 def alias_spans(src, stmt):
-    """Each alias of an import statement as (name, asname, start, end) bytes, found by tokenizing the statement."""
-    text = src.raw[src.at(stmt.lineno):src.line_end(stmt.end_lineno)].decode('utf-8')
-    tokens = [t for t in tokenize.generate_tokens(io.StringIO(text + '\n').readline)
+    """Each alias of an import statement as (name, asname, start, end) bytes, found by tokenizing the statement alone.
+
+    Names are NFKC-normalized as Python binds them (`import sys as ſ` binds `s`); the spans stay the source bytes.
+    """
+    begin = src.at(stmt.lineno, stmt.col_offset)
+    raw = src.raw[begin:src.at(stmt.end_lineno, stmt.end_col_offset)]
+    starts, lines = line_starts(raw), raw.decode('utf-8').split('\n')
+    offset = lambda pos: begin + starts[pos[0] - 1] + len(lines[pos[0] - 1][:pos[1]].encode('utf-8'))
+    norm = lambda text: unicodedata.normalize('NFKC', text)
+    tokens = [t for t in tokenize.generate_tokens(io.StringIO('\n'.join(lines) + '\n').readline)
               if t.type in (tokenize.NAME, tokenize.OP) and t.string not in '()']
     at = next(i for i, t in enumerate(tokens) if t.string == 'import') + 1
     found = []
     while at < len(tokens):
-        begin = tokens[at]
-        name = begin.string
+        first = tokens[at]
+        name = norm(first.string)
         at += 1
         while at < len(tokens) and tokens[at].string == '.':
-            name += '.' + tokens[at + 1].string
+            name += '.' + norm(tokens[at + 1].string)
             at += 2
         end = tokens[at - 1]
         asname = None
         if at < len(tokens) and tokens[at].string == 'as':
-            asname = tokens[at + 1].string
+            asname = norm(tokens[at + 1].string)
             end = tokens[at + 1]
             at += 2
-        line = stmt.lineno + begin.start[0] - 1
-        last = stmt.lineno + end.end[0] - 1
-        found.append({'name': name, 'asname': asname, 'start': src.at(line, src.char_col(line, begin.start[1])),
-                      'end': src.at(last, src.char_col(last, end.end[1]))})
+        found.append({'name': name, 'asname': asname, 'start': offset(first.start), 'end': offset(end.end)})
         at += 1
     return found
 
@@ -290,8 +295,6 @@ def declaration(src, stmts, index, names, tables, comments, floor, future):
         'globalStmt': any(isinstance(n, (ast.Global, ast.Nonlocal)) for n in walk),
         'dunders': sorted({n.id for n in walk if isinstance(n, ast.Name) and n.id in pr.MODULE_DUNDERS}),
         'fileUse': pr.file_use(stmts), 'doctest': any('>>>' in d for d in docs),
-        'warns': any(isinstance(n, ast.Call) and (names.canon(n.func) in ('warnings.warn', 'warnings.warn_explicit') or isinstance(n.func, ast.Attribute)
-                     and n.func.attr == 'warn' and isinstance(n.func.value, ast.Name) and n.func.value.id == 'warnings') for n in walk),
         'defines': [s.name for s in stmt.body if isinstance(s, (ast.FunctionDef, ast.AsyncFunctionDef))] if isinstance(stmt, ast.ClassDef) else [],
         'baseNames': [b.id for b in stmt.bases if isinstance(b, ast.Name) and b.id in p.same_file] if isinstance(stmt, ast.ClassDef) else [],
     }
@@ -299,26 +302,31 @@ def declaration(src, stmts, index, names, tables, comments, floor, future):
 
 def byte_facts(raw, text):
     cookie = next((m.group(1).decode() for m in (COOKIE.match(line) for line in raw.split(b'\n')[:2]) if m), None)
-    return {'bom': raw.startswith(b'\xef\xbb\xbf'), 'crlf': b'\r\n' in raw, 'cookie': cookie, 'shebang': raw.startswith(b'#!'),
+    return {'bom': raw.startswith(b'\xef\xbb\xbf'), 'crlf': b'\r\n' in raw, 'cr': b'\r' in raw.replace(b'\r\n', b''), 'cookie': cookie,
+            'shebang': raw.startswith(b'#!'),
             'size': len(raw), 'longLine': any(len(line) > 1000 for line in text.split('\n')), 'cells': bool(CELLS.search(text))}
 
 
 def analyze(raw, filename='<file>'):
-    """Everything the host needs about one file, as a JSON-ready dict."""
+    """Everything the host needs about one file, as a JSON-ready dict; only the byte facts and `error` when it does not parse."""
     text = raw.decode('utf-8', 'replace')
     out = dict(byte_facts(raw, text), python=list(sys.version_info[:3]), error=None)
     try:
-        tree = ast.parse(raw, filename)
-        table = pr.module_table(text, filename)
-    except (SyntaxError, ValueError) as error:
-        out['error'] = '%s: %s' % (type(error).__name__, error)
-        return out
+        out.update(file_facts(raw, text, filename))
+    except (SyntaxError, ValueError, RecursionError, MemoryError) as error:
+        out['error'] = '%s: %s' % (type(error).__name__, error)  # newer syntax, or nesting deeper than the helper can walk
+    return out
+
+
+def file_facts(raw, text, filename):
+    tree = ast.parse(raw, filename)
+    table = pr.module_table(text, filename)
     src = Source(raw)
     comments = comment_lines(text)
     first = tree.body[0].lineno if tree.body else len(src.starts)
     lead = leading_block(src, tree.body)
     groups = group(tree.body[len(lead):], pf.Names({}, set(), {}, {}))
-    names = pf.names_of(tree.body[:len(lead)], groups, tree)
+    names = pf.names_of(tree.body[:len(lead)], groups, table)
     groups = group(tree.body[len(lead):], names)
     tables = pr.table_reads(table)
     decls = []
@@ -328,15 +336,14 @@ def analyze(raw, filename='<file>'):
         decls.append(declaration(src, stmts, index, names, tables, comments, groups[index - 1][-1].end_lineno if index else floor, future))
     has_getattr, getattr_reads = pr.module_getattr(tree, table, names.counts)
     tool = [c for line, c in comments.items() if TOOL.match(c) and (line < first or not c.startswith('# type:'))]
-    out.update({
+    return {
         'future': future, 'firstComment': next(iter(sorted(comments.items())), (0, ''))[1], 'toolComment': tool[0] if tool else None,
         'namespace': pr.namespace_use(tree, names) or ('a module __getattr__ or __dir__ that reads module names' if getattr_reads else None),
         'mainGuard': pr.main_guard(tree), 'starImport': any(is_import(n) and any(a.name == '*' for a in n.names) for n in ast.walk(tree)),
         'lateImport': pr.late_import(tree.body[len(lead):]), 'moduleGetattr': has_getattr, 'lead': lead,
         'facadeAt': src.line_end(lead[-1]['endLine']) + 1 if lead else decls[0]['start'] if decls else len(raw),
-        'decls': decls, 'bindings': names.counts, 'globalAssigned': pr.global_assignments(tree),
-    })
-    return out
+        'decls': decls, 'bindings': names.counts, 'globalAssigned': pr.global_assignments(table),
+    }
 
 
 if __name__ == '__main__':

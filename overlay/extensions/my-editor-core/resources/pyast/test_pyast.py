@@ -73,6 +73,13 @@ class LeadingBlock(unittest.TestCase):
         found = facts('import os\ntry:\n    import yaml\nexcept ImportError:\n    import warnings\n    warnings.warn("no yaml")\nimport json\n')
         self.assertEqual(([i['kind'] for i in found['lead']], found['lateImport']), (['import'], 3))
 
+    def test_alias_spans_per_statement_with_normalized_names(self):
+        """Reviewer fixture b1: two imports on one line, and NFKC: `import sys as ſ` binds `s`."""
+        src = 'import a; import b as c\nimport os, \\\n    sys as \u017f\n'
+        found = facts(src)['lead']
+        spans = [[(x['name'], x['asname'], src.encode()[x['start']:x['end']].decode()) for x in imp['aliases']] for item in found for imp in item['imports']]
+        self.assertEqual(spans, [[('a', None, 'a')], [('b', 'c', 'b as c')], [('os', None, 'os'), ('sys', 's', 'sys as \u017f')]])
+
     def test_alias_spans(self):
         src = 'from m import (\n    a,\n    b as c,  # why\n)\n'
         imp = facts(src)['lead'][0]['imports'][0]
@@ -86,9 +93,8 @@ class Declarations(unittest.TestCase):
         self.assertEqual(decl('def f():\n    return __name__, __doc__\n', 'f')['dunders'], ['__doc__', '__name__'])
         self.assertEqual(decl('import os\ndef f():\n    return os.path.dirname(__file__)\n', 'f')['fileUse'], 'folder')
 
-    def test_doctest_warnings_and_class_hooks(self):
+    def test_doctest_and_class_hooks(self):
         self.assertTrue(decl('def f():\n    """\n    >>> f()\n    """\n', 'f')['doctest'])
-        self.assertTrue(decl('import warnings\ndef f():\n    warnings.warn("old", DeprecationWarning)\n', 'f')['warns'])
         src = 'class B:\n    def __init_subclass__(cls):\n        pass\nclass C(B):\n    pass\n'
         self.assertEqual((decl(src, 'C')['baseNames'], decl(src, 'B')['defines']), (['B'], ['__init_subclass__']))
 
@@ -109,15 +115,16 @@ class Quiet(unittest.TestCase):
         return facts('import atexit\nimport importlib\nimport logging\nimport threading\nimport warnings\n' + src)['decls'][0]['quiet']
 
     def test_not_quiet(self):
-        for src in ['register()\n', 'app = Flask(__name__)\n', 'threading.Thread(target=print).start()\n', 'atexit.register(print)\n',
+        """Warning filters are not quiet (reviewer fixture a1: re.compile can warn, and moving it above simplefilter('error') changes that)."""
+        for src in ["warnings.filterwarnings('ignore')\n", "warnings.simplefilter('default')\n", 'register()\n', 'app = Flask(__name__)\n',
+                    'threading.Thread(target=print).start()\n', 'atexit.register(print)\n',
                     "importlib.import_module('pkg.plug')\n", 'logging.raiseExceptions = False\n', "logging.getLogger('x').error('%s', 1)\n",
                     "warnings.filterwarnings('ignore', category=DeprecationWarning)\n", 'logging.getLogger(name)\n',
                     "warnings.filterwarnings(__name__)\n", 'try:\n    CONFIG = 1\nexcept Exception:\n    CONFIG = 2\n']:
             self.assertFalse(self.quiet(src), src)
 
     def test_quiet(self):
-        for src in ['logger = logging.getLogger(__name__)\n', "warnings.filterwarnings('ignore')\n", '"""Doc."""\n', 'pass\n',
-                    "warnings.simplefilter('default')\n"]:
+        for src in ['logger = logging.getLogger(__name__)\n', '"""Doc."""\n', 'pass\n']:
             self.assertTrue(self.quiet(src), src)
 
 
@@ -133,6 +140,7 @@ class FileFacts(unittest.TestCase):
     def test_bytes_and_tool_comments(self):
         self.assertTrue(pa.analyze(b'\xef\xbb\xbfX = 1\n')['bom'])
         self.assertTrue(pa.analyze(b'X = 1\r\n')['crlf'])
+        self.assertEqual([pa.analyze(raw)['cr'] for raw in [b'X = 1\rY = 2\n', b'X = 1\r\n', b'X = 1\n']], [True, False, False])
         self.assertEqual(pa.analyze(b'# -*- coding: latin-1 -*-\nX = 1\n')['cookie'], 'latin-1')
         self.assertEqual(facts('# type: ignore\nX = 1\n')['toolComment'], '# type: ignore')
         self.assertEqual(facts('X = 1\n# mypy: strict\n')['toolComment'], '# mypy: strict')
@@ -141,6 +149,11 @@ class FileFacts(unittest.TestCase):
 
     def test_a_parse_error_is_reported(self):
         self.assertTrue(facts('def (:\n')['error'].startswith('SyntaxError'))
+
+    def test_deep_nesting_is_a_parse_error(self):
+        """Reviewer fixture e1: an expression deep enough to exhaust the recursion limit skips the file instead of crashing."""
+        error = facts('import os\nX = (' + ' + '.join(['1'] * 5000) + ')\n')['error']
+        self.assertTrue(error.startswith(('RecursionError', 'MemoryError')), error)
 
     def test_the_command_line_prints_json_isolated(self):
         with tempfile.TemporaryDirectory() as folder:

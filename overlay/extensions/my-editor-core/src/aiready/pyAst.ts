@@ -69,7 +69,6 @@ export interface PyDecl {
 	readonly dunders: readonly string[];
 	readonly fileUse: null | 'folder' | 'other';
 	readonly doctest: boolean;
-	readonly warns: boolean;
 	readonly defines: readonly string[];
 	readonly baseNames: readonly string[];
 }
@@ -80,6 +79,8 @@ export interface PyFacts {
 	readonly error: string | null;
 	readonly bom: boolean;
 	readonly crlf: boolean;
+	/** A carriage return outside CRLF: Python ends a line there, the host's byte spans would not. */
+	readonly cr: boolean;
 	readonly cookie: string | null;
 	readonly shebang: boolean;
 	readonly size: number;

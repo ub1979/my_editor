@@ -58,6 +58,7 @@ export function pySkipReason(file: string, facts: PyFacts, context: PyFileContex
 	if (GENERATED_NAME.test(file) || GENERATED_TEXT.test(facts.firstComment ?? '')) { return 'generated code'; }
 	if (facts.bom) { return 'it starts with a byte-order mark'; }
 	if (facts.crlf) { return 'it has CRLF line endings'; }
+	if (facts.cr) { return 'it has a carriage return outside CRLF line endings'; }
 	if (facts.cookie && !/^utf[-_]?8$/i.test(facts.cookie)) { return `its encoding is ${facts.cookie}`; }
 	if (facts.size > 512 * 1024 || facts.longLine) { return 'it is over 512 KB or has a line over 1,000 characters'; }
 	if (facts.error) { return `the project's Python does not parse it (${facts.error.split('\n')[0]})`; }
@@ -93,8 +94,9 @@ export function pyUnmovable(decl: PyDecl, facts: PyFacts, context: PyFileContext
 	const migrated = decl.names.find(n => context.migrationWords.has(n));
 	if (migrated) { return `a Django migration names ${migrated}`; }
 	if (decl.doctest) { return 'its docstring has a doctest (>>>), which is collected from the defining module'; }
-	if (decl.warns && context.warningFilter) { return `it calls warnings.warn, and ${context.warningFilter}`; }
 	if (context.constantsOnly && decl.kind !== 'assign' && decl.kind !== 'annassign') { return `only constants may move: ${context.constantsOnly}`; }
+	// A filter by module matches warnings attributed to a moved function's new module, whoever raises them (stacklevel).
+	if (context.warningFilter && decl.kind !== 'assign' && decl.kind !== 'annassign') { return `${context.warningFilter}, so functions and classes stay`; }
 	if (!decl.pure) { return decl.impure ?? 'its definition runs code'; }
 	if (decl.annImpure && !context.deferred && !facts.future) { return `its annotations run code when defined (${decl.annImpure})`; }
 	const shadowed = decl.relies.find(m => context.shadowed.has(m));

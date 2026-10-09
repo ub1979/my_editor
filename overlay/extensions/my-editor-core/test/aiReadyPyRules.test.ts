@@ -20,6 +20,7 @@ test('skipped files: paths, bytes, entry scripts, tool comments, namespace acces
 		['pkg/models.py', 'X = 1\n', /Django module/, { django: true }],
 		['pkg/management/commands/x.py', 'X = 1\n', /framework file/],
 		['pkg/report.py', 'X = 1\r\n', /CRLF/],
+		['pkg/report.py', 'import os\n\nX = 1\rY = 2\n', /carriage return/],
 		['pkg/report.py', '﻿X = 1\n', /byte-order mark/],
 		['pkg/report.py', '# -*- coding: latin-1 -*-\nX = 1\n', /encoding is latin-1/],
 		['pkg/report.py', '# type: ignore\nX = 1\n', /file-level comment `# type: ignore`/],
@@ -80,24 +81,39 @@ test('reviewer probe p2 and the quiet window: a thread or registry call blocks w
 	const after = async (statement: string) => (await reasons(`import atexit\nimport importlib\nimport logging\nimport threading\nimport warnings\n`
 		+ `def early():\n    return 1\n${statement}\ndef late():\n    return 2\n`));
 	for (const statement of ['register()', 'app = Flask(__name__)', 't = threading.Thread(target=print)\nt.start()', 'atexit.register(print)',
-		'importlib.import_module("x")']) {
+		'importlib.import_module("x")', 'warnings.filterwarnings("ignore")', 'warnings.simplefilter("error")']) {
 		const found = await after(statement);
 		assert.equal(found.early, '', statement);
 		assert.match(found.late, /code runs before it/, statement);
 	}
-	for (const statement of ['logger = logging.getLogger(__name__)', 'warnings.filterwarnings("ignore")']) {
+	for (const statement of ['logger = logging.getLogger(__name__)']) {
 		assert.equal((await after(statement)).late, '', statement);
 	}
 });
 
 test('reviewer probes p4 and p5: warnings.warn with a module filter, and a pickling project, narrow what moves', { skip }, async () => {
-	const warns = await reasons('import warnings\ndef old():\n    warnings.warn("old", DeprecationWarning)\n',
+	const warns = await reasons('import warnings\nLIMIT = 1\ndef old():\n    warnings.warn("old", DeprecationWarning)\n'
+		+ 'def plain():\n    return 1\nclass K:\n    pass\n',
 		{ warningFilter: 'pyproject.toml filters warnings by pkg.report' });
-	assert.equal(warns.old, 'it calls warnings.warn, and pyproject.toml filters warnings by pkg.report');
+	const stay = 'pyproject.toml filters warnings by pkg.report, so functions and classes stay';
+	assert.deepEqual(warns, { LIMIT: '', old: stay, plain: stay, K: stay });
 	const info = await pyInfo('pkg/report.py', 'X = 1\ndef work(x):\n    return x\n',
 		{ constantsOnly: 'the project may pickle by reference: run.py:1 uses multiprocessing' });
 	assert.deepEqual(info.declarations.map(d => d.movable), [true, false]);
 	assert.equal(info.narrowed, 'only constants may move (the project may pickle by reference: run.py:1 uses multiprocessing)');
+});
+
+test('review fixtures: a global rebinding by def, a hooked base and a warnings filter call keep later names in place', { skip }, async () => {
+	const rebound = await reasons('import re\n\n\ndef helper():\n    return 1\n\n\ndef caller():\n    return helper()\n\n\n'
+		+ 'def reset():\n    global helper\n    def helper():\n        return 2\n\n\nPAT = re.compile("x")\n');
+	assert.deepEqual([rebound.helper, rebound.PAT], ['helper is bound more than once in the file', '']);
+	const hooked = await reasons('import os\n\n\nclass Base:\n    def __init_subclass__(cls, **kw):\n        try:\n            LATER\n'
+		+ '        except NameError:\n            pass\n\n\nclass C(Base):\n    pass\n\n\nLATER = 1\n');
+	assert.equal(hooked.Base, '');
+	assert.match(hooked.C, /its base Base defines __init_subclass__/);
+	assert.match(hooked.LATER, /code runs before it in the file \(line 12\)/);
+	const filtered = await reasons('import re\nimport warnings\n\nwarnings.simplefilter("error")\n\nPAT = re.compile("[[a]")\n');
+	assert.match(filtered.PAT, /code runs before it in the file \(line 4\)/);
 });
 
 test('reviewer probe p7: a default reading a module attribute moves statically and is left to the import check', { skip }, async () => {

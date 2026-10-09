@@ -2,7 +2,7 @@
 import ast
 import builtins
 
-from my_editor_pyreads import annotation_nodes, binds, defaults, global_assignments
+from my_editor_pyreads import annotation_nodes, binds, defaults, global_assignments, type_params
 
 BUILTIN_NAMES = frozenset(dir(builtins))
 BUILTIN_CLASSES = frozenset(n for n in BUILTIN_NAMES if isinstance(getattr(builtins, n), type))
@@ -11,8 +11,8 @@ GENERICS = frozenset(['list', 'dict', 'tuple', 'set', 'frozenset', 'type'])
 PURE_CALLS = frozenset(['builtins.object', 'builtins.frozenset', 're.compile', 'collections.namedtuple', 'typing.TypeVar',
                         'typing.ParamSpec', 'typing.TypeVarTuple', 'typing.NewType'])
 CLASS_CALLS = frozenset(['dataclasses.field', 'enum.auto'])
-QUIET_CALLS = frozenset(['logging.getLogger', 'warnings.filterwarnings', 'warnings.simplefilter', 're.compile', 'os.environ.get',
-                         'os.getenv', 'collections.namedtuple', 'typing.TypeVar', 'typing.NewType', 'typing.ParamSpec', 'builtins.object'])
+QUIET_CALLS = frozenset(['logging.getLogger', 're.compile', 'os.environ.get', 'os.getenv', 'collections.namedtuple', 'typing.TypeVar',
+                         'typing.NewType', 'typing.ParamSpec', 'builtins.object'])
 TOP_FUNC = frozenset(['functools.cache', 'functools.lru_cache', 'contextlib.contextmanager', 'contextlib.asynccontextmanager',
                       'typing.overload', 'typing.final'])
 TOP_CLASS = frozenset(['dataclasses.dataclass', 'functools.total_ordering', 'enum.unique', 'typing.final', 'typing.runtime_checkable'])
@@ -23,6 +23,8 @@ STD_BASES = frozenset(['abc.ABC', 'enum.Enum', 'enum.IntEnum', 'enum.StrEnum', '
                        'typing.TypedDict', 'typing.Protocol'])
 SUBSCRIPT_BASES = frozenset(['typing.Generic', 'typing.Protocol'])
 CLASS_HOOKS = ('__init_subclass__', '__class_getitem__', '__set_name__')
+ENUM_HOOKS = ('__init__', '__new__', '_generate_next_value_')
+ITERATED = frozenset(['builtins.frozenset', 'collections.namedtuple'])
 
 
 def normal(name):
@@ -33,11 +35,12 @@ def normal(name):
 class Names:
     """What the file binds: the leading block's imports and every top-level binding, for resolving names by binding."""
 
-    def __init__(self, lead_canon, lead_modules, counts, defined):
+    def __init__(self, lead_canon, lead_modules, counts, defined, nodes=None):
         self.lead_canon = lead_canon      # name -> dotted target, None when the binding is conditional or relative
         self.lead_modules = lead_modules  # names bound by `import m` (module objects)
         self.counts = counts              # name -> number of statements that bind it
         self.defined = defined            # non-lead name -> id of the declaration that binds it first
+        self.nodes = nodes or {}          # name -> the top-level def or class that binds it
 
     def canon(self, node):
         """The dotted target of a name or attribute chain resolved by binding, else None."""
@@ -64,6 +67,7 @@ class Purity:
         self.same_file = set()
         self.attr_reads = set()
         self.relies = set()
+        self.params = set()  # PEP 695 type parameters in scope
 
     def fail(self, why):
         if self.reason is None:
@@ -75,6 +79,8 @@ class Purity:
 
     def read(self, name):
         names = self.names
+        if name in self.params:
+            return True
         if name in names.lead_canon or name in names.lead_modules:
             return True if names.counts.get(name, 0) == 1 else self.fail('it reads %s, which the file binds more than once' % name)
         if name not in names.counts:
@@ -132,7 +138,7 @@ class Purity:
         if isinstance(node, ast.BinOp):
             if not isinstance(node.op, ast.BitOr):
                 return self.fail('an operator runs code')
-            return self.type_part(node.left) and self.type_part(node.right)
+            return all(self.union_part(side) for side in (node.left, node.right))
         value = node.value
         target = self.names.canon(value)
         generic = isinstance(value, ast.Name) and value.id in GENERICS and target == 'builtins.' + value.id
@@ -144,6 +150,19 @@ class Purity:
             return False
         args = node.slice.elts if isinstance(node.slice, ast.Tuple) else [node.slice]
         return all(self.type_part(a) for a in args)
+
+    def union_part(self, node):
+        """A side of `|`: None, a builtin class, a typing name, a type subscript or a class from this file, never an imported object."""
+        if isinstance(node, ast.Constant) and node.value is None or isinstance(node, (ast.Subscript, ast.BinOp)):
+            return self.expr(node)
+        target = self.names.canon(node) or ''
+        own = isinstance(node, ast.Name) and isinstance(self.names.nodes.get(node.id), ast.ClassDef) or isinstance(node, ast.Name) and node.id in self.params
+        typing = target.startswith(TYPING + ('collections.abc.',)) or target.startswith('builtins.') and target[9:] in BUILTIN_CLASSES
+        if not (own or typing):
+            return self.fail('%s | … may call __or__ of %s' % (ast.unparse(node), ast.unparse(node)))
+        if typing and not own and not target.startswith('builtins.'):
+            self.rely(target)
+        return self.attribute(node) if isinstance(node, ast.Attribute) else self.expr(node)
 
     def type_part(self, node):
         if isinstance(node, ast.Constant):
@@ -166,6 +185,8 @@ class Purity:
             return self.fail('re.compile needs a literal pattern')
         if any(isinstance(a, ast.Starred) for a in node.args) or any(k.arg is None for k in node.keywords):
             return self.fail('a call with * or ** runs code')
+        if target in ITERATED and not all(display(a) for a in node.args[1 if target == 'collections.namedtuple' else 0:] + [k.value for k in node.keywords]):
+            return self.fail('%s iterates an argument that is not a literal' % ast.unparse(node.func))
         flags = node.args[1:] if target == 're.compile' else []
         if any(not self.flags(f) for f in flags):
             return False
@@ -189,6 +210,25 @@ class Purity:
         return True
 
 
+def display(node):
+    """A literal, or a tuple, list or set display of literals: iterating or hashing it runs no project code."""
+    if isinstance(node, (ast.Tuple, ast.List, ast.Set)):
+        return all(display(e) for e in node.elts)
+    return isinstance(node, ast.Constant) or isinstance(node, ast.UnaryOp) and isinstance(node.operand, ast.Constant)
+
+
+def scoped(purities, names, check):
+    """Runs `check` with PEP 695 type parameters in scope of each Purity."""
+    added = [n for n in names if all(n not in p.params for p in purities)]
+    for p in purities:
+        p.params.update(added)
+    try:
+        return check()
+    finally:
+        for p in purities:
+            p.params.difference_update(added)
+
+
 def function_pure(p, ann, fn, allowed, decorators=None):
     """A def is pure when its decorators are allowed and its defaults pure; its annotations decide `ann` (deferrable)."""
     for d in fn.decorator_list if decorators is None else decorators:
@@ -196,13 +236,53 @@ def function_pure(p, ann, fn, allowed, decorators=None):
             return False
     if not all(p.expr(d) for d in defaults(fn)):
         return False
-    for node in annotation_nodes(fn):
-        ann.type_part(node)
-    return True
+
+    def annotations():
+        for node in annotation_nodes(fn):
+            ann.type_part(node)
+        return True
+    return scoped([ann], type_params(fn), annotations)
+
+
+def ancestors(names, cls, seen=()):
+    """The class and its bases defined earlier in this file, nearest first."""
+    found = [cls]
+    for base in cls.bases:
+        node = names.nodes.get(base.id) if isinstance(base, ast.Name) else None
+        if isinstance(node, ast.ClassDef) and node not in seen and node is not cls:
+            found += ancestors(names, node, tuple(seen) + (cls,))
+    return found
+
+
+def creation_hook(p, cls):
+    """Why creating the class runs project code beyond its body: a base's __init_subclass__, or Enum member hooks."""
+    chain = ancestors(p.names, cls)
+    defines = [(c, {s.name for s in c.body if isinstance(s, (ast.FunctionDef, ast.AsyncFunctionDef))}) for c in chain]
+    hook = next(('%s defines __init_subclass__' % c.name for c, d in defines[1:] if '__init_subclass__' in d), None)
+    enum = any((p.names.canon(b) or '').startswith('enum.') for c in chain for b in c.bases)
+    found = next(('%s defines %s' % (c.name, h) for c, d in defines for h in ENUM_HOOKS if h in d), None) if enum else None
+    return hook and 'its base %s, which runs when the class is defined' % hook or found and 'it is an Enum and %s, which runs for each member' % found
+
+
+def assigned(stmt):
+    return stmt.targets if isinstance(stmt, ast.Assign) else [stmt.target]
+
+
+def settable(p, node):
+    """A class-body value whose type may define __set_name__ (run at class creation): an imported object or a module attribute."""
+    if isinstance(node, ast.Call):
+        return next((s for s in map(lambda a: settable(p, a), node.args + [k.value for k in node.keywords]) if s), None)
+    if isinstance(node, ast.Attribute) or isinstance(node, ast.Name) and (node.id in p.names.lead_canon or node.id in p.names.lead_modules):
+        return ast.unparse(node)
+    return None
 
 
 def class_pure(p, ann, cls, nested=False):
     """Bases, keywords, decorators and body under the design's class rules."""
+    return scoped([p, ann], type_params(cls), lambda: class_rules(p, ann, cls))
+
+
+def class_rules(p, ann, cls):
     for d in cls.decorator_list:
         if not p.decorator(d, TOP_CLASS):
             return False
@@ -223,6 +303,9 @@ def class_pure(p, ann, cls, nested=False):
     for k in cls.keywords:
         if not (k.arg == 'metaclass' and p.names.canon(k.value) == 'abc.ABCMeta'):
             return p.fail('its keyword %s runs code' % ast.unparse(k))
+    hook = creation_hook(p, cls)
+    if hook:
+        return p.fail(hook)
     local = set()
     props = set()
     for stmt in cls.body:
@@ -245,22 +328,21 @@ def class_pure(p, ann, cls, nested=False):
             if not class_pure(p, ann, stmt, True):
                 return False
             local.add(stmt.name)
-        elif isinstance(stmt, ast.Assign) and all(isinstance(t, ast.Name) for t in stmt.targets):
-            if not p.expr(stmt.value, True):
+        elif isinstance(stmt, (ast.Assign, ast.AnnAssign)) and all(isinstance(t, ast.Name) for t in assigned(stmt)):
+            value = stmt.value
+            if isinstance(stmt, ast.AnnAssign) and not p.type_part(stmt.annotation) or value is not None and not p.expr(value, True):
                 return False
-            local.update(t.id for t in stmt.targets)
-        elif isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name):
-            if not p.type_part(stmt.annotation) or stmt.value is not None and not p.expr(stmt.value, True):
-                return False
-            local.add(stmt.target.id)
+            if value is not None and settable(p, value):
+                return p.fail('its class body holds %s, whose __set_name__ may run code' % settable(p, value))
+            local.update(t.id for t in assigned(stmt))
         else:
             return p.fail('its class body runs code (%s)' % type(stmt).__name__)
     return True
 
 
-def names_of(lead, groups, tree):
+def names_of(lead, groups, table):
     """The file's bindings: leading-block targets, statement counts (a compound statement counts once), first definitions."""
-    canon, modules, counts, defined = {}, set(), {}, {}
+    canon, modules, counts, defined, nodes = {}, set(), {}, {}, {}
     for stmt in lead:
         for name in binds(stmt):
             counts[name] = counts.get(name, 0) + 1
@@ -277,6 +359,8 @@ def names_of(lead, groups, tree):
         for name in set().union(*[binds(s) for s in stmts]):
             counts[name] = counts.get(name, 0) + 1
             defined.setdefault(name, index)
-    for name in global_assignments(tree):
+        if isinstance(stmts[0], (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            nodes.setdefault(stmts[0].name, stmts[0])
+    for name in global_assignments(table):
         counts[name] = counts.get(name, 0) + 1
-    return Names(canon, modules, counts, defined)
+    return Names(canon, modules, counts, defined, nodes)
