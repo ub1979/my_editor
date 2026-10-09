@@ -1,6 +1,8 @@
 # Make a project AI-ready: C/C++ (Stage 2f)
 
-- **Date:** 10 October 2026
+- **Date:** 10 October 2026 (narrowed the same day after an adversarial review with Apple clang 16 probes: no copied
+  includes in new headers, a `#line` variant for units that cannot be pinned, a guard check and IWYU pragmas in new
+  headers, comment lines on both sides of generated includes, an install comparison, CMake and Meson only)
 - **Status:** Design, not built. Needs review before a plan.
 - **Builds on:** [AI-ready design](2026-10-07-ai-ready-design.md), *Stage 2a: Go*,
   [TS/JS design](2026-10-09-ai-ready-ts-design.md), [Python design](2026-10-10-ai-ready-python-design.md),
@@ -12,10 +14,10 @@
   scanner, not the clang AST, and proves the split with the compiler's own preprocessor output and object files. Where
   this file and the general rules differ, this file wins, and the difference is named.
 
-Probes for this design ran on Apple clang 16.0.0 (clang-1600.0.26.6, arm64-apple-darwin24), CMake 4.3.2, Ninja, GNU Make
-3.81 and Apple clang-format 16, offline. Bear, Meson, Bazel, clang-tidy and a real GCC are **not** installed on the probe
-machine (`gcc` is Apple clang), so nothing about them is probed. Claims marked *probed* were run; everything else is
-from documentation and must be confirmed while building.
+Probes for this design ran on Apple clang 16.0.0 (clang-1600.0.26.6, arm64-apple-darwin24), CMake 4.3.2, Ninja and
+Apple clang-format 16, offline, by the author and the reviewer. Meson, Bear, Bazel, clang-tidy and a real GCC are **not**
+installed on the probe machine (`gcc` is Apple clang), so nothing about them is probed. Claims marked *probed* were run;
+everything else is from documentation and must be confirmed while building.
 
 ## Version 1 scope
 
@@ -23,24 +25,28 @@ Where the safe choice is unclear, version 1 refuses or skips.
 
 | Project or file | What may move in version 1 |
 |---|---|
-| A header (`.h`, `.hh`, `.hpp`, `.hxx`, `.h++`) inside the repository, guarded by `#pragma once` or a classic include guard, UTF-8 with LF line endings, included by 1 to 200 translation units (TUs) of the compilation database the run builds (CMake, Meson, or Make recorded by Bear), each of which compiles reproducibly at baseline with clang or GCC | Contiguous runs of whole top-level items (declarations, `#define`/`#undef` lines, balanced `#if` groups) that share one namespace level, each run into a new sibling header that the original `#include`s **at the run's place** (*Applying a split*) |
-| As above, with items inside a namespace or linkage block whose head is written with a macro (`BEGIN_NAMESPACE_X`, `NLOHMANN_JSON_NAMESPACE_BEGIN`) or inside an `#if` group | Only the items outside those blocks; an `#if` group moves whole or not at all |
-| A header named by a build, install or module file (`install(FILES …)`, `PUBLIC_HEADER`, a CMake or Meson source list, `install_headers`, Bazel `hdrs`, a `module.modulemap`) | Nothing; skipped: the new header would have to be listed beside it, and version 1 never edits build files |
-| A header included by a TU that uses a precompiled header, clang or C++20 modules, CUDA or Objective-C; by a TU that does not compile at baseline; or by more than 200 TUs (a setting, for cost) | Nothing; skipped |
+| A header (`.h`, `.hh`, `.hpp`, `.hxx`, `.h++`) inside the repository of a **CMake or Meson** project, guarded by `#pragma once` or a classic include guard, UTF-8 with LF line endings, included by 1 to 200 translation units (TUs) of the compilation database the run builds, each of which compiles reproducibly at baseline with clang or GCC | Contiguous runs of whole top-level items (declarations, `#define`/`#undef` lines, balanced `#if` groups) that share one namespace level, each run into a new sibling header named `<stem>…` that the original `#include`s **at the run's place** (*Applying a split*) |
+| As above, with items inside a namespace or linkage block whose head is written with a macro (`BEGIN_NAMESPACE_X`), inside an `#if` group, or inside a `#pragma clang assume_nonnull begin`/`end` region (also `NS_ASSUME_NONNULL_BEGIN`, `CF_ASSUME_NONNULL_BEGIN`) | Only the items outside those regions; an `#if` group moves whole or not at all |
+| As above, with a TU that cannot compile with `__LINE__` pinned (`CONCAT(x, __LINE__)` twice in a scope) or that is built with `-fsanitize=` | The same moves; that TU is checked through the `#line` variant, and position-derived values in it are disclosed instead of refused (*Rule 6: the `#line` variant*) |
+| A header whose basename occurs in **any tracked file that is not C or C++ source**: build, install and module files (`install(FILES …)`, `PUBLIC_HEADER`, source lists, `install_headers`, Bazel `hdrs`, `module.modulemap`), SWIG `.i`, bindgen or cbindgen configs, `Doxyfile`, Conan, vcpkg, pkg-config `.pc.in`, `debian/*.install`, docs | Nothing; skipped: some tool consumes the file list, and version 1 edits nothing but C/C++ headers |
+| A project with install rules where the install comparison fails (*Install comparison*): a new header would not be installed next to the original | Nothing for that header; the step is undone |
+| A header included by a TU that uses a precompiled header (`-include-pch`, or `-include X` where `X.gch` or `X.pch` exists), clang or C++20 modules, CUDA or Objective-C, coverage instrumentation (`--coverage`, `-fprofile-arcs`, `-ftest-coverage`, `-fprofile-instr-generate`, `-fcoverage-mapping`); by a TU that does not compile at baseline; or by more than 200 TUs (a setting, for cost) | Nothing; skipped. A coverage preset is skipped with *coverage builds embed source positions in every function*; choose another preset |
 | A header with no guard (X-macro lists, `.def`, `.inc`, `.inl`, `.ipp`, `.tcc` fragments), with `#pragma GCC system_header`, `#line`, or a namespace head inside an `#if` (other than the `extern "C"` idiom); a BOM, CRLF, invalid UTF-8, a symlink, over 512 KB; found through `-isystem` or a framework | Nothing; skipped |
 | Vendored or generated: under `third_party/`, `3rdparty/`, `external/`, `extern/`, `vendor/`, `deps/`, `_deps/`, the build folder; a first comment with `@generated`, `DO NOT EDIT`, `Generated by`; `*.pb.h`, `moc_*`, `ui_*.h`, `*.tab.h`, a `configure_file` output or its `.in` template | Nothing; skipped |
 | Source files (`.c`, `.cc`, `.cpp`, `.cxx`, `.m`, `.mm`, `.cu`) | Nothing in version 1; reported as suggestions with the reason (*Version 2: new translation units*) |
-| A project with no compilation database the run can produce: Bazel, Buck, SCons, MSBuild or `.vcxproj`, Xcode projects, autotools, qmake, premake, xmake; plain Make when Bear is not installed; a committed `compile_commands.json` alone | Nothing; the run stops with a plain message |
+| Make, Bazel, Buck, SCons, MSBuild or `.vcxproj`, Xcode projects, autotools, qmake, premake, xmake; a committed `compile_commands.json` alone | Nothing; the run stops with a plain message |
 | Configure or the baseline build fails on this machine (Windows-only code, a missing cross toolchain, a missing dependency) | Nothing; the run stops with the build's message |
 
 Every narrowed or skipped file names the reason in the report. **When a skip is known:** the guard, bytes, frames,
-generated and vendored paths and build-file mentions are decided by `parse()` on the user's folder, so the report and
-the picker show them. Everything that needs the build (membership and the 200-TU cap, PCH, modules, CUDA and
-Objective-C units, the compiler's identity, compiling in rule 6's form, reproducibility) is decided at baseline in the
-worktree, as Rust decides membership and reproducibility; the picker marks those files *checked when the run starts*, and
-a file skipped then is recorded as skipped with its reason. In practice version 1 helps C++ codebases with large
-headers (header-only libraries, template code, `-inl.h` patterns, many classes per header) and does little for C
-codebases, whose large files are `.c` files; the report says so.
+generated and vendored paths and file-name mentions are decided by `parse()` on the user's folder, so the report and the
+picker show them. Everything that needs the build (membership and the 200-TU cap, PCH, modules, CUDA, Objective-C and
+coverage units, the compiler's identity, compiling in rule 6's form, reproducibility, install rules) is decided at
+baseline in the worktree, as Rust decides membership and reproducibility; the picker marks those files *checked when the
+run starts*, and a file skipped then is recorded as skipped with its reason.
+
+**Version 1 has little value for C codebases.** Their large files are `.c` files, and C headers are mostly short lists of
+declarations. Version 1 helps C++ codebases with large headers (header-only libraries, template code, `-inl.h`
+patterns, many classes per header). C gets its value in *Version 2*. The report says so.
 
 ## Goal
 
@@ -64,27 +70,34 @@ order. The program must behave as before, and the host must be able to show it w
 3. **Static initialization order across TUs.** Probed: `int a = seed(); int b = a + 1;` printed `b=8`; after moving
    `int b = a + 1;` to a new `aa.cpp` (built before `big.cpp` by a `file(GLOB)`) it printed `b=1`, silently. **Closed by**
    not creating TUs in version 1.
-4. **Build files list sources.** A new TU usually needs a CMake, Make or Bazel edit. Even a glob is not enough: probed,
-   after adding `aa.cpp` under `file(GLOB …)` without `CONFIGURE_DEPENDS`, `ninja` did not compile it and the link failed
-   until `cmake` was re-run. **Closed by** not creating TUs; a header named in a build or install file is skipped.
-5. **The preprocessor.** Macros apply by text order, conditionals must balance per file, `#pragma` push/pop state
-   crosses includes, quoted includes resolve against the current file's folder, `#include_next` against its search-path
-   entry, and `__FILE__`, `__LINE__`, `__INCLUDE_LEVEL__` and `__TIMESTAMP__` depend on the current file. **Closed by** the
-   in-place include (same order, same folder) and the rules in *The preprocessor*, with rule 6a as the check.
-6. **Source positions compiled into values.** `__builtin_FILE()`, `__builtin_LINE()`, `std::source_location`, and the
-   names clang gives lambdas and unnamed types in `__PRETTY_FUNCTION__`. Probed: `pretty<decltype(lambda)>()` returned
-   `… [T = (lambda at …/big.h:24:37)]`, and after a split it returned `…:16:37`, **in code that stayed in the original**,
-   because every line below the first moved run moves up. **Closed by** rule 6b, which refuses the step.
+4. **Build files list sources, and other tools list headers.** A new TU usually needs a CMake, Make or Bazel edit. Even
+   a glob is not enough: probed, after adding `aa.cpp` under `file(GLOB …)` without `CONFIGURE_DEPENDS`, `ninja` did not
+   compile it and the link failed until `cmake` was re-run. Headers are listed too: by install rules, SWIG, bindgen,
+   Doxygen and packaging. **Closed by** not creating TUs, skipping a header whose name occurs in any tracked non-C/C++
+   file, and comparing the installed files before and after.
+5. **The preprocessor.** Macros apply by text order, conditionals must balance per file, `#pragma` push/pop and
+   `assume_nonnull` state crosses or stops at file boundaries, quoted includes resolve against the current file's
+   folder, `#include_next` and `__has_include_next` against its search-path entry, and `__FILE__`, `__LINE__`,
+   `__INCLUDE_LEVEL__` and `__TIMESTAMP__` depend on the current file. **Closed by** the in-place include (same order,
+   same folder) and the rules in *The preprocessor*, with rule 6a as the check.
+6. **Source positions compiled into values.** `__builtin_FILE()`, `__builtin_LINE()`, `std::source_location`, the names
+   clang gives lambdas and unnamed types in `__PRETTY_FUNCTION__`, and sanitizer check data. Probed:
+   `pretty<decltype(lambda)>()` returned `… [T = (lambda at …/big.h:24:37)]`, and after a split it returned `…:16:37`,
+   **in code that stayed in the original**, because every line below the first moved run moves up. **Closed by** rule
+   6b on the pinned split, which refuses the step; for the few units that cannot be pinned, the `#line` variant shows the
+   rest is unchanged and these values are disclosed.
 7. **Configurations.** The same header compiles differently in each TU, under each set of flags and on each platform; a
    check sees only the configured build. **Closed by** the in-place argument (the preprocessor reads the same characters in
    the same order in every configuration) for what the build does not compile, and rule 6 for what it does.
 8. **A new header name can capture an include.** A new `shapes.h` in a folder on the include path can change what another
-   file's `#include "shapes.h"` resolves to. **Closed by** the file-name rules.
-9. **Tools reorder and remove includes.** clang-format sorts includes within a block, `IWYU` moves them, and clangd's
+   file's `#include "shapes.h"` resolves to. **Closed by** the stem prefix and the shadowing rules (*File names*).
+9. **Tools reorder and remove includes.** clang-format sorts includes within a block, IWYU moves them, and clangd's
    include cleaner offers to remove an include the file does not use itself, which an umbrella's includes are. After an
-   in-place split, include positions carry meaning. **Closed by** a marker comment line before each generated include,
-   which ends clang-format's include block (probed), and `// IWYU pragma: export` on it. The change note says the
-   positions matter.
+   in-place split, include positions carry meaning, and a new header included directly would be compiled out of its
+   context. **Closed by** a comment line before **and** after each generated include, which end clang-format's include
+   block on both sides (probed for a comment before), checked under the `Preserve`, `Merge` and `Regroup` include-block
+   styles; `// IWYU pragma: export` on the include; `// IWYU pragma: private, include "big.h"` and, with a classic guard,
+   an `#error` check in each new header. The change note says the positions matter.
 
 **Considered for version 1 and left for version 2:** moving non-`static` function definitions from a `.cpp` into a new
 `.cpp` of the same target (*Version 2*). It is the change most C and C++ users want, but it needs build-file edits
@@ -97,14 +110,14 @@ way, needs no build edit, and is unidiomatic (a `.cpp` including fragments mid-f
 | Question | Decision | Why |
 |---|---|---|
 | What may move | Runs of top-level items of **headers** only, into new sibling headers | No TU, linkage, initialization-order or build-file change (risks 2 to 4) |
-| Where the new header is included | At the run's place in the original, with the run's namespace and linkage blocks closed before and reopened after (*Frames*) | Keeps text order (risk 1, probed) and lets each new header open its own namespaces, as a normal header does |
-| What a new header holds | A header comment, a guard in the original's style, byte copies of the original's include lines above the run, byte copies of the run's namespace heads, the run, byte copies of the closing lines | Readable on its own; the copied includes add no tokens because they were already included (rule 6a checks it) |
+| Where the new header is included | At the run's place in the original, with the run's namespace and linkage blocks closed before and reopened after (*Frames*), between two marker comment lines | Keeps text order (risk 1, probed) and lets each new header open its own namespaces, as a normal header does |
+| What a new header holds | A header comment, a guard in the original's style (both styles when the original has both), a check that the original's guard is defined (classic guards), `// IWYU pragma: private, include "<original>"`, byte copies of the run's namespace heads, the run, byte copies of the closing lines. **No copied includes** | A new header is not self-contained anyway (it relies on what the original declares above it); copied includes would add a proof obligation (idempotence in every configuration) for no safety gain. The `#error` check and the IWYU pragma tell people and tools to include the original |
 | Parser | A small scanner of the raw header text (lexer, braces, directives, frames), written in TypeScript | The clang AST is far too large and shows one configuration only; nothing else is shipped (*The parser*). Soundness rests on rule 6, not on the scanner |
-| Compilation database | Produced by the run in the extension's storage: CMake with `CMAKE_EXPORT_COMPILE_COMMANDS`, Meson's own, or Bear for Make; never a committed one | Rule 6 needs every TU that includes the header, with its exact flags; a committed database may be stale or incomplete |
+| Compilation database | Produced by the run in the extension's storage: CMake with `CMAKE_EXPORT_COMPILE_COMMANDS`, or Meson's own; never a committed one. Make with Bear is left out | Rule 6 needs every TU that includes the header, with its exact flags; a committed database may be stale or incomplete, and Bear is unprobed (especially on macOS) |
 | Who plans | The model, by item ID, as in Go and Rust; each group must be one contiguous run | Grouping is a judgement call; everything the host writes is copied or generated by fixed rules and checked |
-| The proof | Move rules 1–5, rule 6a (same preprocessed tokens and pragmas per TU, namespace blocks flattened), rule 6b (byte-identical `-g0` objects per TU), with `__FILE__`, `__FILE_NAME__` and `__LINE__` pinned in both | The compiler's input and output are compared, not source text |
+| The proof | Move rules 1–5; rule 6a (same preprocessed tokens, pragmas and macro definitions per TU, from `-E -dD`, namespace blocks flattened); rule 6b (byte-identical `-g0` objects per TU) with `__FILE__`, `__FILE_NAME__` and `__LINE__` pinned; for a TU that cannot be pinned, a `#line` variant compiled unpinned, with a bridge check to the real split | The compiler's input and output are compared, not source text |
 | File names and line numbers | Pinned in the comparison and **disclosed**, as Go and Rust disclose them in panics | `assert` and logging macros are everywhere in C/C++; refusing every function that asserts would leave little to move |
-| Position builtins | Refused by rule 6b when they change (lambda names in `__PRETTY_FUNCTION__`, `source_location`, `__builtin_LINE`) | They cannot be pinned; type-name libraries (`magic_enum`, `nameof`) read them, as Rust's `type_name` |
+| Position builtins | Refused by rule 6b when they change in a pinned TU (lambda names in `__PRETTY_FUNCTION__`, `source_location`, `__builtin_LINE`); disclosed for TUs checked through the `#line` variant | They cannot be pinned; type-name libraries (`magic_enum`, `nameof`) read them, as Rust's `type_name` |
 | Characterization tests | Not required, as in Go, C# and Rust | Rule 6 compares every TU's input and output |
 | Fixes | `['split']` only | The general design leaves C/C++ test generation out |
 
@@ -141,8 +154,13 @@ all other braces):
   `using`, `static_assert`, class, enum and union definitions with their trailing `;` and declarators are code items;
 - a `#define` or `#undef` line (with continuations) is a `macro` item;
 - a balanced `#if`/`#ifdef`/`#ifndef` … `#endif` group is one `conditional` item when every branch leaves the brace depth
-  unchanged and contains no namespace head and no `#include`; otherwise everything inside it is unmovable;
+  unchanged and contains no namespace head, no `#include` and no `assume_nonnull` boundary; otherwise everything inside
+  it is unmovable;
 - a `#pragma` line is a `pragma` item; an `#include` or `#import` line is an `include` item (never movable).
+
+**Regions the scanner tracks** besides frames: `#pragma clang assume_nonnull begin` … `end`, and the macro lines
+`NS_ASSUME_NONNULL_BEGIN` … `NS_ASSUME_NONNULL_END` and `CF_ASSUME_NONNULL_BEGIN` … `CF_ASSUME_NONNULL_END`. Every item
+inside such a region is unmovable (*What may move*).
 
 **Names and kinds** for the model are best effort: the identifier after `class`/`struct`/`union`/`enum`, before the first
 `(` of a function, before `=` or `;` of a variable, after `using`/`typedef`, and the macro name. Kinds are `function`,
@@ -162,23 +180,33 @@ storage (`<storage>/runs/<id>/build`), so the worktree gets no build folder:
 |---|---|---|
 | CMake (`CMakeLists.txt`) | `cmake -S <worktree> -B <build> -DCMAKE_EXPORT_COMPILE_COMMANDS=ON [-G Ninja]`, or `cmake --preset <name> -B <build> -DCMAKE_EXPORT_COMPILE_COMMANDS=ON` when `CMakePresets.json` has exactly one visible configure preset (the user picks when there are several) | `<build>/compile_commands.json` (probed) |
 | Meson (`meson.build`) | `meson setup <build>` | `<build>/compile_commands.json` (Meson writes it; not probed) |
-| Make (`Makefile`, `GNUmakefile`), when `bear` is installed | none; the baseline build is `bear --output <build>/compile_commands.json -- make -j<n>` | Recorded by Bear (not probed; Bear's macOS support for SIP-protected compilers in `/usr/bin` must be confirmed) |
 
 The Ninja generator is used when `ninja` is found, else CMake's default; a project whose `CMakeLists.txt` requires a
 generator gets it from its preset. `CMAKE_EXPORT_COMPILE_COMMANDS` works only with the Makefile and Ninja generators,
 which is why Visual Studio and Xcode generators are not used. Configure may download dependencies (`FetchContent`,
 CPM, vcpkg manifests, Conan); the approval text says so, as for `cargo fetch`.
 
+**Make is not in version 1.** Its only database source would be Bear, which is not probed here and whose interception of
+SIP-protected compilers in `/usr/bin` on macOS is doubtful; parsing `make -n` is guesswork. Make projects stop with a
+plain message; Bear is a candidate for a later version.
+
 **Reading it.** Each entry's `arguments` (or `command`, split by the core's `splitCommand`, which refuses shell syntax).
 A compiler launcher first word (`ccache`, `sccache`, `distcc`, `icecc`) is dropped for rule 6, because a cache could
 answer instead of the compiler. The compiler must identify as clang, Apple clang or GCC (`--version`); a TU built by
-anything else (MSVC `cl`, `nvcc`, ICC) is not a TU rule 6 can check, so headers it includes are skipped. A TU with
-`-include-pch`, `.gch`, `-fmodules`, `-fmodule-map-file`, `-fmodules-ts`, a `.cppm`/`.ixx` file, `-x cuda`, `-x
-objective-c*` or a `.m`/`.mm`/`.cu` file marks every header it includes as skipped.
+anything else (MSVC `cl`, `nvcc`, ICC) is not a TU rule 6 can check, so headers it includes are skipped. These TUs mark
+every header they include as skipped:
+
+- a precompiled header: `-include-pch`, `-Xclang -include-pch`, `/Yu`, or `-include X` where `X.gch` or `X.pch` exists
+  (GCC uses `X.gch` silently for `-include X`, and so do CMake's `target_precompile_headers` with GCC);
+- modules (`-fmodules`, `-fmodule-map-file`, `-fmodules-ts`, a `.cppm`/`.ixx` file), CUDA (`-x cuda`, `.cu`),
+  Objective-C (`-x objective-c*`, `.m`, `.mm`);
+- coverage instrumentation (`--coverage`, `-fprofile-arcs`, `-ftest-coverage`, `-fprofile-instr-generate`,
+  `-fcoverage-mapping`): it records file and line for every function and counter, so no pinned object can match.
 
 **Membership,** once per run at baseline: every TU's command with output and dependency flags removed, plus `-M -MF
 <state>/<tu>.d` (probed with `-MM`: lists the TU, its header and the new headers after a split). A header's **unit** is the
-set of TUs whose list names it. A header no TU includes is skipped (*not compiled by this build; cannot verify*).
+set of TUs whose list names it. A header no TU includes is skipped (*not compiled by this build; cannot verify*). The
+dependency lists are kept: the file-name rules search them.
 
 **Membership is complete only for the configured build.** A header included only by TUs that the configuration leaves out
 (an option that is off, another platform) is skipped as above; one included by both kinds is checked on the TUs that
@@ -214,9 +242,10 @@ the only change is where blocks close and reopen.
 | A code item, a `macro` item, a whole `conditional` item | It is part of a group that forms one contiguous run of consecutive items with the same frame, at frame level, and none of the refusals below applies | — |
 | `#include`, `#import` | Never | They are the file's frame; a moved include would resolve the same but makes the run's frame unclear |
 | `#pragma` | Only inside a run where every `push` has its `pop` in the same run (`pack`, `clang diagnostic`, `GCC diagnostic`, `warning`, `clang attribute`, `push_macro`/`pop_macro`). Pragmas inside function bodies move freely | An unbalanced push in an included file changes state at its end, which clang warns about; `#pragma once` and `system_header` are file-level |
+| Items inside an `assume_nonnull` region (pragma or `NS_`/`CF_` macro form) | Never | The region is per file: an included header does not inherit it, so moved pointer types would lose their `_Nonnull` default (an `-E` comparison cannot see this: the pragma lines stay in the original) |
 | Items inside an `#if` group | Only with the whole group | The group must balance within one file |
 | Items in a frame with a macro or attributed head | Never | The scanner cannot copy or close that frame safely |
-| A run containing `#include_next`, `#line`, `__INCLUDE_LEVEL__`, `__TIMESTAMP__`, or `__FILE__`, `__FILE_NAME__`, `__LINE__` inside an `#if`/`#elif` condition | Never | `#include_next` searches from the current file's include-path entry, which a sibling header found by quotes does not have; the others change value with the file and are not pinned, or are pinned only in code |
+| A run containing `#include_next`, `__has_include_next`, `#line`, `__INCLUDE_LEVEL__`, `__TIMESTAMP__`, or `__FILE__`, `__FILE_NAME__`, `__LINE__` inside an `#if`/`#elif` condition | Never | `#include_next` and `__has_include_next` search from the current file's include-path entry, which a sibling header found by quotes does not have; the others change value with the file and are not pinned, or are pinned only in code |
 | Any item, in a header where it alone is over 400 lines | Stays a suggestion | A real refactor changes code (*Out of scope*) |
 
 **Pragma pack.** A run sitting under an active `#pragma pack(push, n)` from earlier in the original inherits it in the new
@@ -232,25 +261,26 @@ declarations in the same order.
 
 - **Macros defined mid-file** keep applying to everything after them, because the text order is unchanged. A `#define`
   may move with a run; code after the run still sees it (probed: `#define TWICE` moved with `twice()` into
-  `big_shapes.h`, and the build and comparison passed).
+  `big_shapes.h`, and the build and comparison passed). Rule 6a reads `-E -dD`, which prints every `#define` and `#undef`
+  in place, so macro definitions are compared as well as their expansions.
 - **`#if` groups** move whole or not at all (*What may move*). The guard (`#ifndef X` / `#define X` … `#endif`, or
   `#if !defined(X)`) is the file's frame and never moves.
 - **`#pragma`s** appear in `clang -E` output as lines (probed: `pack`, `clang diagnostic`, `omp` and `GCC visibility`
   lines are printed, `#pragma once` is consumed; the probe TU had 188 pragma lines from libc++ and the SDK), so rule 6a
-  compares them in place. That is why rule 6a reads `-E` and not `-dump-tokens`, which drops them.
+  compares them in place. That is why rule 6a reads `-E` and not `-dump-tokens`, which drops them. File-scoped pragma
+  state (`assume_nonnull`) is invisible to that comparison, hence the static refusal above.
 - **`__FILE__`, `__FILE_NAME__`, `__LINE__`, `assert`.** In a new header they expand to the new file name and line. Rule 6
   pins them on both sides with `-Wno-builtin-macro-redefined -D__FILE__="F" -D__FILE_NAME__="F" -D__LINE__=0` (probed:
   `-D__LINE__=0` turned `return __LINE__;` into `return 0;` with no diagnostic), so asserts and logging macros compare
   equal, and the change note discloses that file names and lines in their messages change. `__INCLUDE_LEVEL__` is not
   pinned (probed: it expands to `1` in a header, so `2` in a new header shows as a difference), and neither are
   `__TIMESTAMP__` (the current file's modification time) or `__COUNTER__`, whose order is unchanged.
-- **Include order.** The original's own includes stay where they are. A new header's copied includes come first in it,
-  but every copied header was already included above the run, so its guard makes it expand to nothing; rule 6a proves
-  that for each TU, and refuses a header that is not idempotent in that build.
+- **Include order.** The original's own includes stay where they are, and new headers include nothing. A new header
+  therefore sees exactly what the run saw in place.
 - **Quoted includes** in moved code resolve from the new header's folder, which is the original's folder, so they resolve
   the same (moved code holds no `#include` lines anyway).
 - **Precompiled headers.** A TU with a PCH is not checked; headers it includes are skipped (*The compilation database*).
-  A forced include (`-include prefix.h`) is ordinary text and is compared like any other.
+  A forced include (`-include prefix.h`) with no `.gch`/`.pch` beside it is ordinary text and is compared like any other.
 
 ## Applying a split (host, no AI)
 
@@ -268,11 +298,12 @@ the reasons sent back once:
 
 ```cpp
 // Split from big.h by my_editor.
-#ifndef APP_BIG_SHAPES_H_          // or #pragma once, when the original uses it
+#ifndef APP_BIG_SHAPES_H_          // the original's guard style: this pair, #pragma once, or both
 #define APP_BIG_SHAPES_H_
-
-#include <string>                  // byte copies of the original's include lines above the run,
-#include <vector>                  // outside any #if and any frame, in order
+#ifndef APP_BIG_H_                 // only with a classic guard: the original's guard must already be defined
+#error "big_shapes.h is part of big.h; include big.h instead."
+#endif
+// IWYU pragma: private, include "big.h"
 
 namespace app {                    // byte copies of the frame's head lines, outermost first
 
@@ -283,10 +314,13 @@ namespace app {                    // byte copies of the frame's head lines, out
 #endif  // APP_BIG_SHAPES_H_
 ```
 
-The guard follows the original's: `#pragma once` if it uses that; otherwise the original's guard macro with the
-original's stem (upper-cased, non-alphanumerics as `_`) replaced by the new stem, or `<GUARD>_<PART>` when the stem
-does not occur in it exactly once; the `#endif` copies the original's trailing comment style. The new guard name must
-not occur in any tracked file nor be defined in any TU of the unit (`-dM -E`).
+The guard follows the original's: `#pragma once` if it uses that; its guard macro pair if it uses one, with the
+original's stem (upper-cased, non-alphanumerics as `_`) replaced by the new stem, or `<GUARD>_<PART>` when the stem does
+not occur in it exactly once; both, in the original's order, when it has both. The `#endif` copies the original's
+trailing comment style. The new guard name must not occur in any tracked file nor be defined in any TU of the unit
+(`-dM -E`). The `#error` check is written only with a classic guard (there is no macro to test with `#pragma once`
+alone); included from the original, the guard is defined and the check produces nothing. The new header has **no
+`#include` lines**.
 
 **The original** keeps everything else byte for byte, minus the run, with this block where the run was:
 
@@ -294,27 +328,51 @@ not occur in any tracked file nor be defined in any TU of the unit (`-dM -E`).
 }  // namespace app                        // the frame's closing lines, innermost first
 // Split into big_shapes.h by my_editor; keep this include here.
 #include "big_shapes.h"  // IWYU pragma: export
+// End of split include.
 namespace app {                            // the frame's head lines, outermost first
 ```
 
 Then **cancellation**: a head line followed only by blank lines and then the closing line of the same block is removed
 together with it, whether each line was generated or the original's own. So a run at the start of a block puts the
 include before the block's head, a run at its end puts it after the block's close, and two adjacent runs share one
-close and one reopen. Blank lines around removed spans collapse to one, as in Go. Each generated include keeps its marker
-line above it, and the line after it must not be an `#include` (`planProblems` refuses such a group), so no generated
-include ever shares an include block with another include line (*Formatter*).
+close and one reopen, each include keeping its own pair of marker lines. Blank lines around removed spans collapse to
+one, as in Go. Because a comment line sits directly above and below each generated include, it is an include block of
+its own.
+
+**Include-position check.** When `clang-format` is found (on `PATH`, or `xcrun --find clang-format` on macOS), whether
+or not the project tracks a `.clang-format`, the host formats the split original in memory three times, with
+`{BasedOnStyle: LLVM, SortIncludes: CaseSensitive, IncludeBlocks: Preserve|Merge|Regroup}`, and requires every generated
+include to keep its neighbors (the line before and after it). Probed with clang-format 16: it sorts includes within a
+block (`"zz_b.h"` after `"aa_a.h"`, both above `<vector>`, in LLVM style), `Regroup` merges blocks separated only by
+blank lines, and a comment line ends a block. A step that fails the check is undone with *a formatter could move the
+include of `big_shapes.h`*. Without clang-format the structural rule (a comment line on each side) stands alone.
 
 ## File names
 
 `fileNameProblems(name, original)`:
 
-- `^[A-Za-z0-9][A-Za-z0-9_-]{0,63}` followed by the original's own extension (`.h` stays `.h`); the prompt asks for the
-  original's naming style and its stem as a prefix (`big_shapes.h`, `BigShapes.hpp`); not a Windows device name;
+- **the stem prefix:** the name starts with the original's stem, case-sensitively, followed by `_`, `-`, or an
+  upper-case letter or digit (`big_shapes.h`, `big-shapes.h`, `BigShapes.hpp` for `Big.hpp`), then `[A-Za-z0-9_-]*`, at
+  most 64 characters, and the original's own extension (`.h` stays `.h`); not a Windows device name;
 - does not exist in the original's folder (ignoring case, for macOS and Windows file systems), nor repeat in the plan;
 - **no shadowing:** the name (ignoring case) is not the basename of any file in any include folder (`-I`, `-iquote`,
-  `-isystem`, `-idirafter`, `-F`) of any TU in the database, nor of any header in any TU's dependency list, and does not
-  occur as text in any tracked file (`#include "shapes.h"`, `__has_include`, a build file). A new header can therefore
-  never be found by an existing include.
+  `-isystem`, `-idirafter`, `-F`) of any TU in the database, nor of **any file in any TU's `-M` dependency list**, and
+  does not occur as text in any tracked file (`#include "big_shapes.h"`, `__has_include`, a build file). A new header can
+  therefore never be found by an existing include.
+
+## Install comparison
+
+When the project has install rules (`install(` in a tracked CMake file; `install_headers`, `install_subdir` or
+`install: true` in a Meson file), the host installs into a temporary prefix at baseline and after each step's build:
+
+- CMake: `cmake --install <build> --prefix <tmp>/<side>`;
+- Meson: `meson install -C <build> --no-rebuild --destdir <tmp>/<side>` (not probed).
+
+The installed file lists must be equal apart from the new headers, and each new header must be installed in the folder
+where the original is installed (an installed original whose new headers are missing would not compile for consumers).
+If the original is not installed, no new header may be. If installing fails at baseline, header splits are skipped for
+the run with the install's message. Install rules that copy a folder or a glob pass; those that name the original are
+already skipped by the file-name mention rule.
 
 ## Move check (C/C++)
 
@@ -323,18 +381,19 @@ Rules 3 and 5 are the language-neutral ones; rules 1, 2 and 4 get C/C++ parts, a
 1. Each run appears byte-identical, as one contiguous block, in exactly the new header the plan names.
 2. The original equals its old bytes minus the runs (blank lines may collapse), with each run replaced by its generated
    block after cancellation (`cppMovedProblems`, the optional `movedProblems` hook from the Rust design): the only lines
-   added are marker lines, include lines for the plan's new headers, and byte copies of the run's frame heads and closing
-   lines; the only original lines removed besides the runs are head and closing lines that cancelled.
-3. A new header holds only its header line, its guard lines, byte copies of the original's include lines above its run,
-   byte copies of the frame lines, and the run.
+   added are the marker lines, include lines for the plan's new headers, and byte copies of the run's frame heads and
+   closing lines; the only original lines removed besides the runs are head and closing lines that cancelled.
+3. A new header holds only its header line, its guard lines, the guard check, the IWYU line, byte copies of the frame
+   lines, and the run.
 4. Same items: the scanner's items of the original and its new headers (kind, names, frame, doc text) are the same
    multiset before and after; `-M` after the split, run on the unit's TUs only, lists each new header in every TU that
    lists the original. That no TU outside the unit can reach a new header is shown statically by the file-name rules
-   (no shadowing), not by running `-M` on every TU.
+   (no shadowing), not by running `-M` on every TU. The include-position check and the install comparison pass.
 5. No other tracked file changed.
 6. **Same compiler input and output** (below), after build and tests pass.
 
-Rules 1 to 5 (except rule 4's membership part) run on the files as written and re-scanned from disk, before any build.
+Rules 1 to 5 (except rule 4's membership, formatter and install parts) run on the files as written and re-scanned from
+disk, before any build.
 
 ### Rule 6: same compiler input and output
 
@@ -342,53 +401,40 @@ For each TU in the header's unit, the host runs the TU's own command (launcher d
 `-MT`, `-MQ`, `-MJ`, `--serialize-diagnostics` and their arguments removed; everything else kept in order) with the
 **pins** added (*The preprocessor*), twice:
 
-- `-E -o <state>/<step>/<tu>.<side>.i` for **rule 6a**;
-- `-c -g0 -o <state>/<step>/<tu>.<side>.o`, plus `-fno-color-diagnostics` for clang or `-fdiagnostics-color=never`
-  for GCC, for **rule 6b**; its diagnostics are kept for the warning comparison. A trailing `-g0` overrides any earlier
-  `-g` in clang and GCC.
+- `-E -dD` for **rule 6a**;
+- `-c -g0`, plus `-fno-color-diagnostics` for clang or `-fdiagnostics-color=never` for GCC, for **rule 6b**; its
+  diagnostics are kept for the warning comparison. A trailing `-g0` overrides any earlier `-g` in clang and GCC.
 
-Each runs in its database entry's `directory` (relative `-I` flags and the source path depend on it), writes only to
-the extension's own output paths, and runs in parallel (one job per core), with `LC_ALL=C` so GCC's messages are not
-translated.
+Each runs in its database entry's `directory` (relative `-I` flags and the source path depend on it), with `LC_ALL=C` so
+GCC's messages are not translated and `SOURCE_DATE_EPOCH` set to the run's base commit time, so compilers that honor it
+give `__DATE__` and `__TIME__` fixed values. Both sides of a comparison write to the **same output path**
+(`<state>/work/<tu>.o` and `.i`), and the result is moved to `<state>/<step>/<tu>.<side>.*` afterwards: with
+`-frecord-command-line` or GCC's `-frecord-gcc-switches`, the command line, output path included, is stored in the
+object. Jobs run in parallel, one per core.
 
-**What the `__LINE__` pin costs.** Pinning `__LINE__` to one value makes every line the same line. Code that builds
-unique names from it, `CONCAT(reg_, __LINE__)` twice in one scope (static registration macros, gtest's `SCOPED_TRACE`
-used twice in a block, hand-written `SCOPE_EXIT`), no longer compiles in 6b form. Probed: two `static int CAT(r_,
-__LINE__)` lines compile normally and fail with the pins (*redefinition of 'r_0'*). The `-E` run of rule 6a is not
-affected (the preprocessor does not see redefinitions). Such a TU fails the baseline's 6b compile, so every header in its
-unit is skipped with the reason *`src/x.cpp` builds names from `__LINE__`, which the comparison must pin*. This fails
-closed, but it can skip the most-included headers of codebases that use such macros (`__COUNTER__`-based macros, as in
-Catch2, doctest and folly, are not affected). **Considered and left for version 1.1:** compiling a line-preserving
-variant for rule 6b, as Rust does (moved lines blanked in the original, the include on the run's first line, the run on
-its old line numbers in the new header, `-fmacro-prefix-map` for the file name), which needs no `__LINE__` pin. It was
-not chosen for version 1 because it keeps positions equal by construction: lambda and unnamed-type names and
-`source_location` values would then be disclosed instead of refused, and whether `-fmacro-prefix-map` also maps
-`__FILE_NAME__` and those type names is not probed. A pin of `__LINE__` to `__COUNTER__` was rejected too: it breaks the
-same-line reuse that these macros also rely on (`for (bool CAT(once_, __LINE__) = true; CAT(once_, __LINE__); …)`).
+**Rule 6a: same preprocessed tokens.** Both `.i` files are lexed: line markers (`# 12 "file"`) dropped, `#pragma`,
+`#define` and `#undef` lines kept as whole lines, string, character and raw-string literals kept intact, other whitespace
+ignored. Then frames are **flattened**: a namespace or linkage head (`[inline] namespace [name(::name)*] {`, `extern "C"
+{`, `extern "C++" {`) counts only when every enclosing brace is itself a frame; its tokens and its matching `}` are
+dropped, and every other token is tagged with the stack of enclosing heads. The two tagged sequences must be equal,
+except that the split may add exactly the new headers' guard `#define` lines. Probed with a prototype of this comparison
+(without `-dD`): after a real split of `big.h` into three new headers with namespace closes and reopens, the flattened
+streams of both TUs were equal (424,676 and 424,626 tokens, including libc++'s headers), while the raw streams differed.
+The first difference is reported with its file and line from the line markers.
 
-**Rule 6a: same preprocessed tokens.** Both `.i` files are lexed: line markers (`# 12 "file"`) dropped, `#pragma`
-lines kept as whole lines, string, character and raw-string literals kept intact, other whitespace ignored. Then frames
-are **flattened**: a namespace or linkage head (`[inline] namespace [name(::name)*] {`, `extern "C" {`, `extern "C++"
-{`) counts only when every enclosing brace is itself a frame; its tokens and its matching `}` are dropped, and every
-other token is tagged with the stack of enclosing heads. The two tagged sequences must be equal. Probed with a prototype
-of this comparison: after a real split of `big.h` into three new headers with namespace closes and reopens, the
-flattened streams of both TUs were equal (424,676 and 424,626 tokens, including libc++'s headers), while the raw streams
-differed. The first difference is reported with its file and line from the line markers.
-
-What a difference means: a copied include that is not idempotent, a frame the scanner got wrong, a moved `#include_next`
-or `__INCLUDE_LEVEL__`, a cut inside a construct, or anything else that changed what the compiler reads. A head the
-lexer does not recognize (an attributed namespace) is not flattened, so a copied one makes the streams differ: the rule
-fails closed.
+What a difference means: a frame the scanner got wrong, a moved `#include_next` or `__INCLUDE_LEVEL__`, a cut inside a
+construct, a macro defined differently, or anything else that changed what the compiler reads. A head the lexer does not
+recognize (an attributed namespace) is not flattened, so a copied one makes the streams differ: the rule fails closed.
 
 **Rule 6b: same object code.** The two `.o` files must be **byte-identical**. Probed: compiling the same TU twice gave
 identical objects; with the pins and `-g0`, an object holds no source path except strings the code itself makes (probed
 with `strings`: only the `__FILE__` value and the lambda's `__PRETTY_FUNCTION__`); after the split, `b.o` was identical
 and `a.o` differed only in that string, `(lambda at …/big.h:24:37)` becoming `…:16:37`. Without the pins `a.o` also
 differed in `big.h` becoming `big_shapes.h` (Apple's `assert` uses `__FILE_NAME__`, hence that pin) and in the full path
-from `__FILE__`. A difference is reported with the first differing printable string when there is one (*the
-compiled code of `src/a.cpp` differs: a string recording a source position changed, `(lambda at big.h:24:37)` became
-`(lambda at big.h:16:37)`; this comes from `__PRETTY_FUNCTION__`, `std::source_location` or a `__builtin_` position
-function*), else with the TU's name.
+from `__FILE__`. A difference is reported with the first differing printable string when there is one (*the compiled
+code of `src/a.cpp` differs: a string recording a source position changed, `(lambda at big.h:24:37)` became `(lambda at
+big.h:16:37)`; this comes from `__PRETTY_FUNCTION__`, `std::source_location` or a `__builtin_` position function*), else
+with the TU's name.
 
 Comparing objects whole, rather than symbol tables, disassembly or LLVM IR, is enough here because each TU before and
 after is the same compilation of the same tokens: any difference is real. The alternatives were considered:
@@ -397,61 +443,104 @@ a disassembly diff normalized for addresses (more parsing and nothing an identic
 linked-binary comparison (link order, UUIDs and archive layout add noise and no information); per-function LLVM IR
 (clang only, and needed only when code changes TU, which is *Version 2*'s check).
 
+### Rule 6: the `#line` variant
+
+Pinning `__LINE__` to one value makes every line the same line. Code that builds unique names from it, `CONCAT(reg_,
+__LINE__)` twice in one scope (static registration macros, gtest's `SCOPED_TRACE` used twice in a block, hand-written
+`SCOPE_EXIT`), no longer compiles in 6b form. Probed: two `static int CAT(r_, __LINE__)` lines compile normally and fail
+with the pins (*redefinition of 'r_0'*). Sanitizer builds (`-fsanitize=`) store file, line and column for every check,
+so their pinned objects never match. Neither affects rule 6a: the preprocessor does not see redefinitions.
+
+The pinned real split runs first, for every TU that compiles pinned at baseline, so position builtins are still refused
+wherever pinning works. A TU that fails the pinned baseline compile, or is built with `-fsanitize=`, is instead checked
+through a **variant** that keeps every source position of the reference and needs no pins:
+
+- **the presumed name:** each TU's reference `-E` line markers give the name the compiler uses for the original header
+  in that TU (`/abs/include/big.h`, or a relative spelling); TUs are grouped by it, and the variant is written and
+  compiled once per group;
+- **the variant original:** the old original with each run's lines replaced by two lines, `#include "<new header>"` and
+  `#line <first line after the run> "<presumed name>"`, and no frames or marker lines; the line count changes, and the
+  `#line` restores the original numbering for the code after the run;
+- **the variant new header:** `#line <run's first line> "<presumed name>"` followed by the run's bytes, with no guard,
+  frames or comments;
+- **rule 6b′:** the reference and the variant, both compiled **without** pins, must give byte-identical objects. Probed:
+  for `big.h` with a run holding `assert`, `__FILE__`, `__LINE__` and a lambda named by `__PRETTY_FUNCTION__` below it,
+  the unpinned variant object was byte-identical to the unpinned reference; the reviewer's probe also found identical
+  objects under `-g0` with UBSan;
+- **the bridge check:** the variant's `-E -dD` output (pinned) equals the real split's under rule 6a's comparison, apart
+  from the `#line` lines (dropped with the line markers) and the real split's guard `#define`s. With rule 6a against
+  the reference, this ties the compiled variant to the committed files: they differ only in frames, guard and comment
+  lines and source positions.
+
+The variant is written over the real files, compiled, and the real files written back and checked against the split, as
+in Rust. For a TU checked this way, position-derived values (`__builtin_LINE`, `std::source_location`, lambda and
+unnamed-type names, sanitizer reports) are **disclosed** in the change note instead of refused, naming the TU and the
+reason it could not be pinned.
+
+### Rule 6: warnings, timing and what it proves
+
 **Warnings.** The 6b compiles' warning lines (`file:line:col: warning: … [-Wflag]`) are compared per TU as a multiset
 of messages, with locations removed and new header names mapped back to the original's; any count that grows fails the
-step. This replaces the build command's warning count for C/C++, because an incremental build prints warnings only for
-the TUs it recompiles.
+step. Variant TUs use their 6b′ compiles. This replaces the build command's warning count for C/C++, because an
+incremental build prints warnings only for the TUs it recompiles.
 
 **When it runs** (the `assemblyCheck` hook from the C# design: `baseline`, `snapshot`, `compare`):
 
-- **baseline**, once per header chosen for a split: membership; every TU of its unit compiles in 6b form; each is
-  compiled twice and once more after touching the header's modification time, and all three objects must be identical
-  (**reproducibility**: `__DATE__`, `__TIME__`, `__TIMESTAMP__`, random seeds). A header that fails any of these is
-  skipped for the run with the first difference;
-- **snapshot**, per step, before the split is written: 6a and 6b of each TU in the unit (the reference);
-- **compare**, per step, after build and tests pass: 6a and 6b of each TU on the split, then the comparisons.
+- **baseline**, once per header chosen for a split: membership; each TU of its unit compiles in pinned 6b form (else
+  it is marked a variant TU); each is compiled twice and once more after touching the header's modification time, and
+  all three objects must be identical (**reproducibility**: `__DATE__`, `__TIME__`, `__TIMESTAMP__`, random seeds). A
+  header that fails any of these is skipped for the run with the first difference;
+- **snapshot**, per step, before the split is written: 6a and 6b of each TU in the unit, and the unpinned reference
+  object of each variant TU. **Reuse:** when the previous step committed, its compare outputs of the real split (pinned
+  `.i` and `.o`) are the current `HEAD`'s and are reused for TUs in both units; when it was undone, its snapshot outputs
+  are reused. Variant outputs are never reused, since the variant is not the committed text;
+- **compare**, per step, after build and tests pass: 6a and 6b of each TU on the split, then 6b′ and the bridge for
+  variant TUs.
 
 **What rule 6 proves:** for every TU of the configured build that includes the header, the compiler reads the same
-tokens and pragmas in the same namespaces, apart from where namespace and linkage blocks close and reopen and the values
-of `__FILE__`, `__FILE_NAME__` and `__LINE__`; and, with those three pinned, produces the same object code. With the
-static rules, the same holds for every other configuration and for consumers outside the build, because the
-preprocessor reads the same characters in the same order, apart from file boundaries at the run's edges, whose only
-effects (the position macros, `__INCLUDE_LEVEL__`, `__TIMESTAMP__`, `#include_next`, conditional and pragma balance)
-are pinned, refused or balanced by construction.
+tokens, pragmas and macro definitions in the same namespaces, apart from where namespace and linkage blocks close and
+reopen, the new guard macros, and the values of `__FILE__`, `__FILE_NAME__` and `__LINE__`; and, with those three
+pinned, produces the same object code (for variant TUs: with every position kept, the same object code). With the static
+rules, the same holds for every other configuration and for consumers outside the build, because the preprocessor reads
+the same characters in the same order, apart from file boundaries at the run's edges, whose only effects (the position
+macros, `__INCLUDE_LEVEL__`, `__TIMESTAMP__`, `#include_next`, `__has_include_next`, conditional, pragma and
+`assume_nonnull` balance) are pinned, refused or balanced by construction.
 
-**What it does not prove:** the values of file names and line numbers in the real build (disclosed); debug information;
-configurations and consumers other than through the in-place argument; a copied include that is idempotent in the built
-configuration but not in another.
+**What it does not prove:** the values of file names and line numbers in the real build (disclosed); position-derived
+values in variant TUs (disclosed); debug information; configurations and consumers other than through the in-place
+argument.
 
-**Cost:** per step, two preprocess runs and two compiles per TU of the unit, on top of an incremental build and the tests.
-A header included by 100 TUs costs about 400 compiler runs per step, in parallel. Headers in more than 200 TUs are
-skipped (`myEditor.aiReady.cppMaxUnits`). As in C# and Rust, version 1 keeps one header per step.
+**Cost:** per step, two preprocess runs and two compiles per TU of the unit (fewer with reuse; more for variant TUs), on
+top of an incremental build, the install comparison and the tests. A header included by 100 TUs costs up to about 400
+compiler runs per step, in parallel. Headers in more than 200 TUs are skipped (`myEditor.aiReady.cppMaxUnits`). As in C#
+and Rust, version 1 keeps one header per step.
 
 ## Checks per step
 
-| Label | CMake | Meson | Make (with Bear) | Verifies | Compared by |
-|---|---|---|---|---|---|
-| `install` | the configure command above | `meson setup <build>` | — | — | Must succeed |
-| `build` | `cmake --build <build> --parallel` | `meson compile -C <build>` | `bear --append --output <db> -- make -j<n>` | Yes | Exit code and error lines; warnings per TU through rule 6 |
-| `vet` | `clang-tidy -p <build> --quiet <TU>` per TU of the unit, only when `.clang-tidy` is tracked and `clang-tidy` is found | same | same | No | Warnings per message, only increases fail |
-| `test` | `ctest --test-dir <build> --output-junit <results>/ctest.xml --no-tests=ignore`, when the CMake files call `enable_testing()`, `include(CTest)` or `add_test` | `meson test -C <build> --no-rebuild`, reading `meson-logs/testlog.json` | `make check` or `make test` when the target exists (`make -n <target>` succeeds) | No | Per-test results where parsed, else exit code |
+| Label | CMake | Meson | Verifies | Compared by |
+|---|---|---|---|---|
+| `install` | the configure command above | `meson setup <build>` | — | Must succeed |
+| `build` | `cmake --build <build> --parallel` | `meson compile -C <build>` | Yes | Exit code and error lines; warnings per TU through rule 6 |
+| `vet` | `clang-tidy -p <build> --quiet <TU>` per TU of the unit, only when `.clang-tidy` is tracked and `clang-tidy` is found | same | No | Warnings per message, only increases fail |
+| `test` | `ctest --test-dir <build> --output-junit <results>/ctest.xml --no-tests=ignore`, when the CMake files call `enable_testing()`, `include(CTest)` or `add_test` | `meson test -C <build> --no-rebuild`, reading `meson-logs/testlog.json` | No | Per-test results where parsed, else exit code |
+
+Then the install comparison and rule 6.
 
 - **Test output.** ctest's JUnit file (CMake 3.21+; probed: `<testcase name="runs" … status="run">`, `status="fail"`),
   through the C# design's `CheckCommand.results` folder. With `gtest_discover_tests` or `catch_discover_tests` each
   test case is a ctest test, so keys are per case; a gtest binary registered with one `add_test` is one key. Meson's
-  `testlog.json` has one JSON object per test (not probed). Make's `check` is compared by exit code. ctest runs serially,
-  as the project's own `ctest` would by default.
+  `testlog.json` has one JSON object per test (not probed). ctest runs serially, as the project's own `ctest` would by
+  default.
 - **Formatter.** When `.clang-format` or `_clang-format` is tracked and `clang-format` is found, `unformatted` runs
   `clang-format --dry-run --Werror` on the original before; if it was clean, the original and new headers must be clean
-  after. Frame lines are byte copies of the original's, so they are formatted as it is. Probed with clang-format 16:
-  it sorts includes within a block (`"zz_b.h"` after `"aa_a.h"`, both above `<vector>`, in LLVM style), `IncludeBlocks:
-  Regroup` merges blocks separated only by blank lines, and a comment line ends a block. That is why each generated
-  include has its marker line above it and is never followed by another include.
+  after. Frame lines are byte copies of the original's, so they are formatted as it is. The include-position check
+  (*Applying a split*) runs whether or not the project tracks a style.
 - **Cross-compiles.** A preset with a toolchain file that configures and builds here is allowed; ctest may report no
   runnable tests, which the baseline records. Rule 6 uses the cross compiler, which must be clang or GCC.
-- **Environment** (`commandEnv`): `CMAKE_COLOR_DIAGNOSTICS=OFF` and `CLICOLOR_FORCE` removed; `LC_ALL=C` only for rule
-  6's compiles. Not `CC`, `CXX`, `CFLAGS`, `CXXFLAGS`, `CPPFLAGS` or `LDFLAGS`; the approval dialog shows those and any
-  `CMAKE_*` variables the editor's environment passes through, since they change configure.
+- **Environment** (`commandEnv`): `CMAKE_COLOR_DIAGNOSTICS=OFF` and `CLICOLOR_FORCE` removed; `LC_ALL=C` and
+  `SOURCE_DATE_EPOCH` only for rule 6's compiles. Not `CC`, `CXX`, `CFLAGS`, `CXXFLAGS`, `CPPFLAGS` or `LDFLAGS`; the
+  approval dialog shows those and any `CMAKE_*` variables the editor's environment passes through, since they change
+  configure.
 - **Finding tools:** `PATH`, then `/opt/homebrew/bin`, `/usr/local/bin`, and on macOS `xcrun --find` (Xcode's
   command-line tools ship `clang-format`, `clangd`, `llvm-nm` and `llvm-objdump`; probed).
 
@@ -461,46 +550,52 @@ Reported, never split (*Version 1 scope* has the full list):
 
 - **Generated sources:** anything in the build folder or written by `configure_file`, `add_custom_command` outputs,
   protobuf, Qt `moc`/`uic`, bison and flex outputs, files with a generated-code marker in their first comment.
+- **File-list consumers:** a header whose basename occurs in any tracked file that is not C or C++ source (build and
+  install files, SWIG, bindgen, Doxygen, packaging, docs). The match is by basename, which also catches a `file(GLOB)`
+  of headers whose result is handed to an install or packaging step written elsewhere.
 - **Unity builds** (`CMAKE_UNITY_BUILD`, `UNITY_BUILD`): allowed for headers, since a unity TU is a TU like any other and
   is checked as one. They matter for *Version 2*.
+- **Coverage presets:** skipped with a reason; the user can pick another preset.
 - **Windows-only projects on macOS:** configure or the baseline build fails, and the run stops with the build's message.
   A header whose `_WIN32` branches never compile here is still split: those branches are in the moved bytes, and the
   in-place argument covers them; rule 6 checks only the branches this machine compiles. The change note says which
   platform the checks ran on.
-- **No detectable build:** the run stops with *Splitting C and C++ headers needs a build my_editor can read: CMake, Meson,
-  or Make with Bear installed.*
+- **No detectable build:** the run stops with *Splitting C and C++ headers needs a CMake or Meson build in the top
+  folder.*
 
 ## What "unchanged" means
 
 **Shown by** the move check, rule 6 and the checks:
 
 - every moved run is byte-identical and sits at the same place in every TU's text, inside the same namespaces;
-- every TU of the configured build reads the same tokens and pragmas and compiles to byte-identical object code, with
-  file names and line numbers pinned;
-- the build has the same errors, no new warnings per TU, and the tests have the same results as the baseline.
+- every TU of the configured build reads the same tokens, pragmas and macro definitions and compiles to byte-identical
+  object code, with file names and line numbers pinned (or, for variant TUs, with every position kept);
+- the build has the same errors, no new warnings per TU, the same installed files plus the new headers beside the
+  original, and the tests have the same results as the baseline.
 
 **What may still differ** (in the change note, `mayDiffer`):
 
 - file names and line numbers from `__FILE__`, `__LINE__` and `__FILE_NAME__` in moved code and in the original below
   the first moved run: `assert` messages, logging macros, debug information, crash reports;
-- the umbrella's include **positions now carry meaning**: moving one of the generated includes elsewhere, or letting a
-  tool sort it into another include block, can change behavior. The marker line and `// IWYU pragma: export` say so;
-- the new headers are not fully self-contained: they rely on what the original declares above them, so opening one on
-  its own in an editor or clangd may show errors that do not occur in the build;
-- a hand-written Makefile that lists header dependencies by name will not rebuild when a new header changes later;
-  builds that use compiler dependency files (CMake, Meson, `-MD`) will;
-- installed headers: when the header folder is installed as a folder or a glob, the new headers are installed with it;
-  a header listed by name is skipped instead.
+- in TUs checked through the `#line` variant (named in the note): also `std::source_location` and `__builtin_` position
+  values, lambda and unnamed-type names, and sanitizer report locations;
+- the umbrella's include **positions now carry meaning**: moving one of the generated includes elsewhere can change
+  behavior. The marker lines and `// IWYU pragma: export` say so, and the formatter check shows clang-format will not
+  move them;
+- the new headers are not self-contained: they include nothing and rely on what the original declares above them.
+  Including one directly is an `#error` (classic guards) and IWYU maps it to the original; an editor or clangd opening one
+  on its own may show errors that do not occur in the build;
+- installed headers gain the new headers beside the original (checked).
 
 ## Version 2: new translation units (not built in version 1)
 
-Moving function definitions out of an oversized `.c`/`.cpp` into a new source file of the same target. Recorded here so
-version 1's choices are reviewed against it.
+Moving function definitions out of an oversized `.c`/`.cpp` into a new source file of the same target. This is where C
+codebases get their value. Recorded here so version 1's choices are reviewed against it.
 
 - **Build files:** refuse whenever an edit would be needed. Allowed only when the new file is picked up by a glob the
   build already uses: CMake `file(GLOB … CONFIGURE_DEPENDS …)` (a plain `GLOB` needs a re-configure per step, probed);
-  a Makefile `$(wildcard …)`; Bazel `glob()`. Meson forbids globs, so Meson projects are refused. A unity build is
-  refused (it changes batch composition and `static` names collide).
+  a Makefile `$(wildcard …)` (Make would also need a database source); Bazel `glob()`. Meson forbids globs, so Meson
+  projects are refused. A unity build is refused (it changes batch composition and `static` names collide).
 - **What may move:** non-`static`, non-`inline`, non-template function definitions with external linkage, including
   out-of-line member function definitions, that reference no internal-linkage entity of the original TU (`static`
   functions and variables, anonymous-namespace members, namespace-scope `const`/`constexpr` variables in C++, types and
@@ -523,22 +618,23 @@ In `src/aiready/`, each under 400 lines:
 
 | Unit | Job | Interface |
 |---|---|---|
-| `cppTools.ts` | Find cmake, ninja, make, meson, bear, ctest, clang-format, clang-tidy; identify a compiler (clang, Apple clang, GCC) | `cppTools(): Promise<CppTools \| string>` |
-| `cppProject.ts` | Build system detection; configure, build and test commands; the compilation database (launchers, output and dependency flags); membership; PCH, modules, CUDA and Objective-C TUs; include folders; build, install and module-map mentions of a header; vendored and generated paths | `cppProject(root, tools, tracked, buildDir): Promise<CppProject>` |
-| `cppScan.ts` | Lexer and top-level scanner of one header's raw bytes: items, spans, frames, guard, directives (pure) | `scanHeader(text: Buffer): CppFacts` |
-| `cppRules.ts` | Skip reasons, movability, the guard name, plan and file-name problems (pure) | `cppSkipReason(…)`, `cppFileInfo(…)`, `cppPlanProblems(…)`, `cppFileNameProblems(…)` |
-| `cppSplit.ts` | New headers and the original with generated blocks and cancellation (pure) | `buildCppSplit(source, facts, plan): SplitResult` |
-| `cppMoveCheck.ts` | Rules 1 to 4's C/C++ parts | `cppMovedProblems(…)`, `cppSameItems(…)` |
-| `cppTokens.ts` | Lex `-E` output, flatten frames, compare with a readable first difference (pure, fails closed) | `flatTokens(text): FlatToken[]`, `compareFlat(a, b): string[]` |
-| `cppUnitCheck.ts` | Rule 6's hook: baseline membership, compile and reproducibility; reference snapshot; 6a, 6b and per-TU warnings on the split; parallelism and the unit cap | `baseline(header, run)`, `snapshot(header, run)`, `compare(header, plan, run)` |
+| `cppTools.ts` | Find cmake, ninja, meson, ctest, clang-format, clang-tidy; identify a compiler (clang, Apple clang, GCC) | `cppTools(): Promise<CppTools \| string>` |
+| `cppProject.ts` | Build system detection; configure, build, install and test commands; the compilation database (launchers, output and dependency flags); membership and dependency lists; PCH (with `.gch`/`.pch` beside a `-include`), modules, CUDA, Objective-C, coverage and sanitizer TUs; include folders; basename mentions in tracked non-C/C++ files; vendored and generated paths | `cppProject(root, tools, tracked, buildDir): Promise<CppProject>` |
+| `cppScan.ts` | Lexer and top-level scanner of one header's raw bytes: items, spans, frames, guard, directives, `assume_nonnull` regions (pure) | `scanHeader(text: Buffer): CppFacts` |
+| `cppRules.ts` | Skip reasons, movability, the guard names, plan and file-name problems (stem prefix, shadowing) (pure) | `cppSkipReason(…)`, `cppFileInfo(…)`, `cppPlanProblems(…)`, `cppFileNameProblems(…)` |
+| `cppSplit.ts` | New headers and the original with generated blocks and cancellation; the `#line` variant per presumed name (pure) | `buildCppSplit(source, facts, plan): SplitResult`, `buildCppVariant(source, facts, plan, presumedName)` |
+| `cppMoveCheck.ts` | Rules 1 to 4's C/C++ parts; the include-position check under three include-block styles | `cppMovedProblems(…)`, `cppSameItems(…)`, `includePositionProblems(original, format)` |
+| `cppInstall.ts` | The install comparison at baseline and per step | `installTree(build, prefix)`, `installProblems(before, after, original, newHeaders)` |
+| `cppTokens.ts` | Lex `-E -dD` output, flatten frames, compare with a readable first difference and the allowed guard defines (pure, fails closed) | `flatTokens(text)`, `compareFlat(a, b, allowedDefines): string[]` |
+| `cppUnitCheck.ts` | Rule 6's hook: baseline membership, pinned compile (or variant marking) and reproducibility; snapshots with reuse; 6a, 6b, 6b′ and the bridge; per-TU warnings; same output path, `SOURCE_DATE_EPOCH`, parallelism and the unit cap | `baseline(header, run)`, `snapshot(header, run)`, `compare(header, plan, run)` |
 | `cppTests.ts` | ctest JUnit and Meson `testlog.json` into `TestRun` | `parseCtestJunit(files)`, `parseMesonLog(text)` |
 | `cppPrompts.ts` | The split prompt | `cppSplitPrompt(info, lines)` |
 | `cppAdapter.ts` | Wire it into `LanguageAdapter` | `createCppAdapter(root, tools, project, tracked)` |
 
 `languages.ts` keeps its order: Go, TS/JS, Python, C#, Rust, then C/C++. C/C++ is picked when the root has a
-`CMakeLists.txt`, a `meson.build`, or a `Makefile`/`GNUmakefile` with tracked C or C++ sources, and no earlier
-language's marker. A Python package with C extensions, a Rust crate with a `cc` build, or a Node addon (`binding.gyp`)
-keeps its earlier language and gets a `languageNote`.
+`CMakeLists.txt` or a `meson.build` and no earlier language's marker; a root with only a `Makefile` and C/C++ sources
+gets the plain stop message. A Python package with C extensions, a Rust crate with a `cc` build, or a Node addon
+(`binding.gyp`) keeps its earlier language and gets a `languageNote`.
 
 **Changes to the shared core** (small; other adapters unaffected):
 
@@ -550,8 +646,8 @@ keeps its earlier language and gets a `languageNote`.
 | `CheckCommand.warnings: 'no-more'` is **not** used for C/C++ build commands; rule 6 compares warnings per TU | Incremental builds print warnings only for recompiled TUs |
 | `LanguageInfo` for C/C++: `fixes: ['split']`, `extensions: ['.h', '.hh', '.hpp', '.hxx', '.h++']` | `fixableFinding` then offers splits for long headers only; long `.c`/`.cpp` files stay findings with the version 1 note |
 
-`importRegion` is unused. `frame` spans in `FileInfo` are the guard, include, marker and frame lines. `unitFiles(file)`
-returns the original and the new headers of the step. The add-tests members are never called.
+`importRegion` is unused. `frame` spans in `FileInfo` are the guard, guard-check, IWYU, marker and frame lines.
+`unitFiles(file)` returns the original and the new headers of the step. The add-tests members are never called.
 
 ## Tests
 
@@ -562,49 +658,72 @@ Pure unit tests, plus toolchain tests that run when clang and cmake are present 
   with a default argument containing `>`, `extern template`, a `typedef` of a function pointer, `using` alias, a macro with
   continuations, a balanced `#if` group, an `#if` group that opens a brace (contents unmovable); doc comment attached,
   detached comment stays, trailing comment moves, two items on one line unmovable; UTF-8 offsets with non-ASCII before a
-  span; `??/` skips.
+  span; `??/` skips; `assume_nonnull` regions in pragma, `NS_` and `CF_` forms make their items unmovable.
 - **Frames:** `namespace a {`, `namespace a::b {`, `inline namespace v1 {`, `namespace {`, `extern "C" {`, the
   `__cplusplus` idiom; a macro head, an attributed head, `} }` on one line, a head inside `#if` (file skipped); the
   closing line copied with its comment.
-- **Guard and names:** `#pragma once` copied; `APP_BIG_H_` → `APP_BIG_SHAPES_H_`; a guard without the stem →
-  `<GUARD>_SHAPES`; a guard name already defined in a TU refused; an existing file, a case-only clash, a basename in
-  another include folder, a name that occurs in a tracked file, `con.h` all refused.
-- **Plan:** a non-contiguous group, a group crossing a frame, an unbalanced `#pragma pack(push)`, a group followed by an
-  `#include` line, a new header over 400 lines refused; a group with `#define` between items accepted.
-- **Applying:** a run in the middle of a namespace (close, marker, include, reopen); at the block start (include before
-  the head) and end (after the close); two adjacent runs share one close and reopen, each with its own marker; a C
-  header with the `extern "C"` idiom; nested namespaces close innermost first; copied includes are exactly the
-  top-level ones above the run.
+- **New header:** no `#include` lines; `#pragma once` copied; `APP_BIG_H_` → `APP_BIG_SHAPES_H_`; a guard without the
+  stem → `<GUARD>_SHAPES`; both styles when the original has both; the `#error` check present with a classic guard and
+  absent with `#pragma once` alone, and silent when included from the original (toolchain); the `IWYU pragma: private`
+  line names the original; a guard name already defined in a TU refused.
+- **Names:** `big_shapes.h`, `big-shapes.h`, `BigShapes.hpp` for `Big.hpp` pass; `shapes.h`, `bigshapes.h`, `.hpp` for a
+  `.h` original refuse; an existing file, a case-only clash, a basename in another include folder, a basename in any
+  TU's dependency list, a name that occurs in a tracked file, `big_con.h`-style device names all refused.
+- **Plan:** a non-contiguous group, a group crossing a frame, an unbalanced `#pragma pack(push)`, a run with
+  `#include_next` or `__has_include_next`, a new header over 400 lines refused; a group with `#define` between items
+  accepted.
+- **Applying:** a run in the middle of a namespace (close, marker, include, marker, reopen); at the block start (include
+  before the head) and end (after the close); two adjacent runs share one close and reopen, each with both markers; a C
+  header with the `extern "C"` idiom; nested namespaces close innermost first.
+- **Include positions:** the generated includes keep their neighbors under `Preserve`, `Merge` and `Regroup`; a layout
+  without the comment after the include fails under `Regroup` (toolchain, needs clang-format).
 - **Move check:** pass on a clean split; fail on an edited byte in a run, an added line in the original, a frame line
-  that is not a copy, a missing marker, an include in a new header that the original does not have above the run, a
-  reordered run, another tracked file changed, a new header listed by a TU that does not list the original.
+  that is not a copy, a missing marker, an `#include` in a new header, a reordered run, another tracked file changed, a
+  new header listed by a TU that does not list the original.
 - **Rule 6a:** flattened equality for the probed split (namespace closes and reopens); a hoisted include (the probed
   `g`/`h` overload case) fails; `__INCLUDE_LEVEL__` in a run fails; an attributed namespace copied as a frame fails
-  closed; `#pragma` lines compared in place; a non-idempotent copied include fails; pins make `assert` and `__LINE__`
-  compare equal; a `"…"` literal with two spaces differs from one with one.
-- **Rule 6b:** a TU with two `CAT(r_, __LINE__)` definitions in one scope fails the baseline's pinned compile and skips
-  its unit with the `__LINE__` reason; the probed split's `b.o` identical; the lambda `__PRETTY_FUNCTION__` case fails with the position reason,
-  also when the lambda stayed in the original; `std::source_location::current()` in moved code fails; a TU with
-  `__DATE__` fails reproducibility; `__TIMESTAMP__` fails the touch check; warnings per TU: a new warning fails, a lost
-  one passes, a warning naming the new header compares equal after mapping.
+  closed; `#pragma` lines compared in place; `-dD`: a macro defined differently fails, the new guard `#define` alone
+  passes, any other extra `#define` fails; pins make `assert` and `__LINE__` compare equal; a `"…"` literal with two
+  spaces differs from one with one.
+- **Rule 6b:** the probed split's `b.o` identical; the lambda `__PRETTY_FUNCTION__` case fails with the position reason,
+  also when the lambda stayed in the original; `std::source_location::current()` in moved code fails in a pinned TU;
+  `-frecord-command-line` objects compare equal because both sides use one output path; a TU with `__DATE__` passes
+  with `SOURCE_DATE_EPOCH` where the compiler honors it and otherwise fails reproducibility; `__TIMESTAMP__` fails the
+  touch check; warnings per TU: a new warning fails, a lost one passes, a warning naming the new header compares equal
+  after mapping.
+- **The `#line` variant:** a TU with two `CAT(r_, __LINE__)` definitions in one scope fails the pinned baseline, is
+  marked a variant TU, and passes 6b′ with an identical unpinned object; a `-fsanitize=undefined` TU goes the same way;
+  two TUs that spell the header differently get two variant groups; the bridge fails when the variant has a token the
+  split lacks; the change note names variant TUs and discloses positions; variant outputs are never reused as a
+  snapshot.
+- **Snapshot reuse:** after a committed step its compare outputs serve as the next step's snapshot for shared TUs; after
+  an undone step its snapshot outputs do.
 - **Project:** CMake configure into storage with Ninja and with Makefiles (`compile_commands.json` present); a preset
-  chosen; `ccache` launcher dropped; `-MD -MF` removed; a PCH TU skips its headers; a header named in `install(FILES …)`
-  skipped; a header in `third_party/` skipped; a header in no TU skipped; a header in 201 TUs skipped; Bazel, autotools
-  and Make without Bear stop with their messages; ctest JUnit parsed, a missing file counts as failure of the run.
+  chosen; `ccache` launcher dropped; `-MD -MF` removed; a `-include-pch` TU and a `-include pch.h` TU with `pch.h.gch`
+  beside it skip their headers, a `-include prefix.h` without one does not; a `--coverage` TU skips with the coverage
+  reason; a header named in `install(FILES …)`, a SWIG `.i`, a `Doxyfile` or `debian/x.install` skipped; a header in
+  `third_party/` skipped; a header in no TU skipped; a header in 201 TUs skipped; a Make-only project, Bazel and
+  autotools stop with their messages; ctest JUnit parsed, a missing file counts as failure of the run.
+- **Install comparison:** a folder install gains the new header beside the original (pass); an `install(FILES)` list
+  is skipped earlier by the mention rule; an install that puts the new header elsewhere, or a project whose install
+  fails at baseline, refuses; a project without install rules runs no comparison.
 - **Languages:** a root with `CMakeLists.txt` only gets C/C++; with `pyproject.toml` too, Python and the note; with
   `Cargo.toml`, Rust and the note.
 - **End to end** in a dev host: a CMake project with a 900-line header-only library header (several classes in one
-  namespace, inline functions with `assert`, a `#define` helper mid-file, a `#pragma pack` block) used by two
-  executables and a gtest suite; and a C library with a 600-line header using the `extern "C"` idiom. Expect build and
+  namespace, inline functions with `assert`, a `#define` helper mid-file, a `#pragma pack` block, an install rule for
+  its include folder) used by two executables and a gtest suite whose tests use `SCOPED_TRACE` twice in a block (a
+  variant TU); and a CMake C library with a 600-line header using the `extern "C"` idiom. Expect build, install and
   tests equal to the baseline, rule 6 equal, one commit per split, the user's folder untouched.
 
 ## Out of scope for this version
 
 - **Source files** (`.c`, `.cpp`): new translation units (*Version 2*) and the strict in-place `.inc` mode.
+- Make projects (Bear), Bazel and other build systems.
 - Moving members out of a big class definition (it would change the class); splitting a single item over 400 lines.
-- Frames with macro or attributed heads, items inside `#if` groups that are not moved whole, headers without guards.
-- Projects without a producible compilation database; PCH, modules, CUDA and Objective-C units.
-- Editing build, install or module-map files.
+- Frames with macro or attributed heads, items inside `#if` groups that are not moved whole, items inside
+  `assume_nonnull` regions, headers without guards.
+- Projects without a producible compilation database; PCH, modules, CUDA, Objective-C and coverage units.
+- Editing build, install, module-map or any other non-C/C++ file.
 - Configurations other than the one configured (only the in-place argument covers them); release-mode objects.
 - Add-tests for C/C++.
 
@@ -613,31 +732,30 @@ Pure unit tests, plus toolchain tests that run when clang and cmake are present 
 1. **The in-place argument** is the whole safety case for configurations and consumers that rule 6 does not compile:
    "the preprocessor reads the same characters in the same order, apart from file boundaries". It depends on the list
    of file-boundary effects being complete (position macros, `__INCLUDE_LEVEL__`, `__TIMESTAMP__`, `#include_next`,
-   conditional and pragma balance, quoted-include folder). A missing entry would be caught only in the built
-   configuration.
+   `__has_include_next`, conditional, pragma and `assume_nonnull` balance, quoted-include folder). The review added
+   `assume_nonnull`; another missing entry would be caught only in the built configuration.
 2. **Frame flattening.** Closing and reopening namespace and linkage blocks is claimed to be meaning-preserving. Probed
    for `using namespace` inside the block; argued from the standard for unnamed and inline namespaces and `extern "C"`.
    Attributed and macro heads are excluded, not proven.
-3. **Pinning `__FILE__` and `__LINE__`** hides exactly the differences the change note discloses, and would also hide an
-   `#if` on `__LINE__` reached through a macro, which the static rule catches only when written in the run itself. The
-   `__LINE__` pin also breaks `CONCAT(x, __LINE__)` unique names (probed), which skips whole header units at baseline;
-   how often that happens on real codebases decides whether the line-preserving variant must come in version 1.
-4. **Include positions now carry meaning** in every split header. A later include sort, IWYU run or a person "tidying"
-   includes to the top can change behavior silently (probed: hoisting changed `h=int` to `h=long`). The marker line
-   and `IWYU pragma: export` reduce this; nothing prevents it. clangd's handling of `IWYU pragma: export` for the
-   include cleaner is not probed.
-5. **Copied includes** in new headers are proven to add no tokens only in the built configuration. A non-idempotent
-   header (`<assert.h>` with a different `NDEBUG` in between) behaves the same only if nothing between changes its
-   macros.
-6. **Cost.** Four compiler runs per TU of the unit per step; widely included headers are the ones most worth splitting
-   and the most expensive to check, and those in more than 200 TUs are skipped.
+3. **Pins and the `#line` variant.** Pinning `__FILE__` and `__LINE__` hides exactly the differences the change note
+   discloses, and would also hide an `#if` on `__LINE__` reached through a macro. Variant TUs are proven only up to
+   source positions, which are disclosed; the bridge check is what ties the variant to the committed files.
+4. **Include positions now carry meaning** in every split header. The marker lines, the formatter check and the IWYU
+   pragmas reduce the risk that a tool moves them; a person can still move one by hand (probed: hoisting changed `h=int`
+   to `h=long`). clangd's handling of `IWYU pragma: export`/`private` is not probed.
+5. **File-list consumers** are found by basename text search in tracked non-C/C++ files, plus the install comparison.
+   A consumer that builds the list outside the repository (a packaging script elsewhere) is not seen.
+6. **Cost.** Up to four compiler runs per TU of the unit per step (fewer with reuse, more for variant TUs);
+   widely included headers are the ones most worth splitting and the most expensive to check, and those in more than
+   200 TUs are skipped.
 7. **The scanner** is hand-written. A wrong item boundary cannot pass rule 6, but frequent wrong boundaries would make
    splits fail or look odd; the frame recognizer is the part whose mistakes show up as refusals.
-8. **Value.** Version 1 does not split `.c`/`.cpp` files, which are most of the large files in C projects. Users may
-   find it does little until version 2.
-9. **Not probed:** GCC (the pins, `-E` format, object reproducibility), ELF objects on Linux, Meson, Bear (especially on
-   macOS), clang-tidy, the `extern "C"` idiom in C TUs, Windows, `-flto` objects (bitcode) under rule 6b, and
-   `CMakePresets.json` handling.
+8. **Value.** Version 1 does not split `.c`/`.cpp` files and offers little for C codebases; Version 2 is where they
+   gain. Users of C projects should be told before they start a run.
+9. **Not probed:** GCC (the pins, `-E -dD` format, `.gch` behaviour, `-frecord-gcc-switches`, object reproducibility),
+   ELF objects on Linux, Meson (database, install, `testlog.json`), clang-tidy, the `extern "C"` idiom in C TUs,
+   Windows, `-flto` objects (bitcode) under rule 6b, `SOURCE_DATE_EPOCH` in Apple clang 16, the include-position check
+   under `Merge`, and `CMakePresets.json` handling.
 
 Related: [AI-ready design](2026-10-07-ai-ready-design.md), [TS/JS design](2026-10-09-ai-ready-ts-design.md),
 [Python design](2026-10-10-ai-ready-python-design.md), [C# design](2026-10-10-ai-ready-csharp-design.md),
