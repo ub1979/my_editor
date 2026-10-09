@@ -2,8 +2,9 @@
 
 my_editor uses the version in `overlay/extensions/my-editor-core/package.json` as its own release number. The Home page displays that version. The underlying editor shell keeps its upstream version independently.
 
-## Unreleased
+## 0.0.8 alpha — 2026-10-09 (installed; live check by the user pending)
 
+- The first-open offer and command now say **Check AI-readiness**: that step only reports. Fixing is its own step, **Fix on a local branch**.
 - Go projects can be fixed on a local branch after the AI-ready report: long files are split by moving whole declarations byte for byte, and untested files get tests. Each fix is checked (move check, `go build`, `go vet`, `go test` against a baseline run twice) and committed on its own in a worktree next to the project; at most 25 per run, with Stop and Continue. Nothing is pushed.
 
 ## 0.0.7 alpha — 2026-10-07 (installed; live check by the user pending)

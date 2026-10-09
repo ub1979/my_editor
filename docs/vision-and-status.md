@@ -1,7 +1,7 @@
 # my_editor: vision, mission, and current status
 
 - **As of:** 5 October 2026
-- **Current version:** 0.0.7 alpha (web research in Pair, AI-ready health report), installed on 7 October; live checks pending
+- **Current version:** 0.0.8 alpha (AI-ready health report, Go fixes on a local branch, web research in Pair), installed on 9 October; live checks pending
 - **Stage:** Working macOS alpha; still being validated on real projects
 
 ## Vision
