@@ -48,7 +48,11 @@ const CONFIG = /(^|\/)([^/]+\.(config|setup)\.[^/]+|setupTests\.[^/]+|gulpfile\.
 const BUILD = /(^|\/)(node_modules|dist|build|out|coverage|vendor)\/|\.min\.js$/;
 const GENERATED_NAME = /\.gen\.[cm]?[jt]sx?$|_pb\.[cm]?[jt]s$|(^|\/)__generated__\//;
 const GENERATED_TEXT = /@generated|DO NOT EDIT|auto-generated|Code generated/i;
-const TOOL_COMMENT = /@ts-nocheck|@ts-check|^\/\*\s*eslint-disable(?![\w-])|istanbul ignore file|c8 ignore file|@jsx\b|@jsxFrag\b|@jsxImportSource\b|@jsxRuntime\b|@flow\b|^\/\/\/\s*<amd-module/;
+/** Comments a tool reads: type-check, lint and coverage switches, then JSX and Flow pragmas and AMD module names. */
+const TOOL_COMMENTS = [
+	/@ts-nocheck|@ts-check|^\/\*\s*eslint-disable(?![\w-])|istanbul ignore file|c8 ignore file/,
+	/@jsx\b|@jsxFrag\b|@jsxImportSource\b|@jsxRuntime\b|@flow\b|^\/\/\/\s*<amd-module/,
+];
 
 /** Why a TS/JS file is never split, or undefined. */
 export function tsSkipReason(file: string, text: string, facts: TsFacts, context: TsFileContext): string | undefined {
@@ -57,7 +61,9 @@ export function tsSkipReason(file: string, text: string, facts: TsFacts, context
 	if (CONFIG.test(file)) { return 'a config or entry script'; }
 	if (BUILD.test(file)) { return 'build output or vendored code'; }
 	if (GENERATED_NAME.test(file) || context.generatedAttribute || GENERATED_TEXT.test(facts.firstComment)) { return 'generated code'; }
-	if (text.length > 512 * 1024 || text.split('\n').some(line => line.length > 1000)) { return 'it looks minified (a line over 1,000 characters or over 512 KB)'; }
+	if (text.length > 512 * 1024 || text.split('\n').some(line => line.length > 1000)) {
+		return 'it looks minified (a line over 1,000 characters or over 512 KB)';
+	}
 	if (text.charCodeAt(0) === 0xfeff) { return 'it starts with a byte-order mark'; }
 	if (text.includes('\r\n')) { return 'it has CRLF line endings'; }
 	if (facts.parseErrors) { return 'the parser reports errors in it (Flow or broken code)'; }
@@ -67,7 +73,7 @@ export function tsSkipReason(file: string, text: string, facts: TsFacts, context
 	if (!facts.module) { return 'a script file: its top-level names are globals and a new file would never load'; }
 	const directive = facts.directives.find(d => d !== 'use strict');
 	if (directive) { return `it has the directive '${directive}', which a new file would lack`; }
-	const tool = facts.comments.find(comment => TOOL_COMMENT.test(comment));
+	const tool = facts.comments.find(comment => TOOL_COMMENTS.some(pattern => pattern.test(comment)));
 	if (tool) { return `it has the file-level comment \`${tool.split('\n')[0].slice(0, 60)}\`, which new files would need`; }
 	if (facts.decorators && context.emitDecoratorMetadata) { return 'it has decorators and emitDecoratorMetadata is on'; }
 	if (!facts.importsAtTop) { return 'its imports are not one block at the top'; }
@@ -88,8 +94,9 @@ const RUNTIME_KINDS = new Set(['function', 'interface', 'type', 'class', 'enum',
 function unmovable(decl: TsDecl, index: number, facts: TsFacts, context: TsFileContext, merged: ReadonlySet<string>): string | undefined {
 	const scope = context.scope as Scope;
 	if (!RUNTIME_KINDS.has(decl.kind) || decl.declare) {
-		return decl.kind === 'const enum' ? 'a const enum is inlined across files differently by each tool'
-			: decl.kind === 'namespace' ? 'a namespace body runs code and merges' : decl.declare ? 'it is ambient (declare)' : 'it is not a declaration, or it runs code';
+		if (decl.kind === 'const enum') { return 'a const enum is inlined across files differently by each tool'; }
+		if (decl.kind === 'namespace') { return 'a namespace body runs code and merges'; }
+		return decl.declare ? 'it is ambient (declare)' : 'it is not a declaration, or it runs code';
 	}
 	if (!decl.own) { return 'it shares a line with other code'; }
 	if (decl.names.some(name => merged.has(name))) { return 'its name has more than one declaration (declaration merging)'; }
@@ -104,7 +111,9 @@ function unmovable(decl: TsDecl, index: number, facts: TsFacts, context: TsFileC
 	if (decl.kind === 'class' && decl.decorators) { return 'it has decorators, which run when the class is defined'; }
 	if (decl.kind === 'enum' && !decl.literalEnum) { return 'a member is computed, which runs code'; }
 	if (['const', 'let', 'var'].includes(decl.kind) && !decl.plainNames) { return 'it destructures, which runs code'; }
-	if (['class', 'const', 'let', 'var'].includes(decl.kind) && !decl.pure) { return 'its definition runs code (a call, a property read, an operator or a global read)'; }
+	if (['class', 'const', 'let', 'var'].includes(decl.kind) && !decl.pure) {
+		return 'its definition runs code (a call, a property read, an operator or a global read)';
+	}
 	if (['class', 'enum', 'const', 'let', 'var'].includes(decl.kind) && facts.decls.slice(0, index).some(d => !d.quiet)) {
 		return 'code runs before it in the file, so it would be defined earlier than now';
 	}
@@ -116,16 +125,20 @@ function firstDocLine(doc: string): string {
 }
 
 /** The language-neutral view of a parsed TS/JS file. */
-export function tsFileInfoView(file: string, facts: TsFacts, context: TsFileContext, skip: string | undefined, style: TsFileInfo['style'], jsxRoots: readonly string[]): TsFileInfo {
+export function tsFileInfoView(file: string, facts: TsFacts, context: TsFileContext, skip: string | undefined,
+	style: TsFileInfo['style'], jsxRoots: readonly string[]): TsFileInfo {
 	const counts = new Map<string, number>();
-	for (const name of facts.decls.filter(d => d.kind !== 'export list' && d.kind !== 'statement').flatMap(d => d.names)) { counts.set(name, (counts.get(name) ?? 0) + 1); }
+	for (const name of facts.decls.filter(d => d.kind !== 'export list' && d.kind !== 'statement').flatMap(d => d.names)) {
+		counts.set(name, (counts.get(name) ?? 0) + 1);
+	}
 	const merged = new Set([...counts].filter(([, n]) => n > 1).map(([name]) => name));
 	const locals = new Map(facts.imports.flatMap(imp => imp.bindings.map(b => [b.local, `${b.local} ${imp.specifier}`] as const)));
 	const { bytes, text } = facts;
 	const declarations: TsDeclaration[] = facts.decls.map((decl, id) => {
 		const reason = skip ? skip : unmovable(decl, id, facts, context, merged);
 		return {
-			id, kind: `${decl.exported ? 'export ' : ''}${decl.isDefault ? 'default ' : ''}${decl.kind}`, names: decl.names, span: { start: bytes(decl.start), end: bytes(decl.end) },
+			id, kind: `${decl.exported ? 'export ' : ''}${decl.isDefault ? 'default ' : ''}${decl.kind}`, names: decl.names,
+			span: { start: bytes(decl.start), end: bytes(decl.end) },
 			lines: text.slice(decl.start, decl.end).split('\n').length, doc: firstDocLine(decl.docText), docText: decl.docText,
 			uses: [...new Set([...decl.valueUses, ...decl.typeUses].flatMap(name => (locals.has(name) ? [locals.get(name)!] : [])))],
 			movable: !reason, reason, ts: decl,
@@ -136,10 +149,14 @@ export function tsFileInfoView(file: string, facts: TsFacts, context: TsFileCont
 	return {
 		path: file, declarations, facts, context, style, jsxRoots, skip,
 		narrowed: !skip && context.scope === 'types' ? `only types may move${context.scopeReason ? ` (${context.scopeReason})` : ''}` : undefined,
-		importRegion: imports.length ? { start: imports[0].span.start, end: imports[imports.length - 1].span.end } : { start: bytes(facts.facadeAt), end: bytes(facts.facadeAt) },
+		importRegion: imports.length
+			? { start: imports[0].span.start, end: imports[imports.length - 1].span.end }
+			: { start: bytes(facts.facadeAt), end: bytes(facts.facadeAt) },
 		frame: [{ start: 0, end: first }, ...imports.map(imp => imp.span)],
 		prelude: { start: 0, end: first },
-		imports: imports.flatMap(imp => (imp.sideEffect ? [`_ ${imp.specifier}`] : imp.kind === 'export' ? [`export ${imp.specifier}`] : imp.bindings.map(b => `${b.local} ${imp.specifier}`))),
+		imports: imports.flatMap(imp => (imp.sideEffect ? [`_ ${imp.specifier}`]
+			: imp.kind === 'export' ? [`export ${imp.specifier}`]
+				: imp.bindings.map(b => `${b.local} ${imp.specifier}`))),
 	};
 }
 
@@ -152,7 +169,10 @@ export function specifierStyle(facts: TsFacts): 'js' | 'ts' | 'none' | 'mixed' |
 	return styles.size > 1 ? 'mixed' : ([...styles][0] as 'js' | 'ts' | 'none' | undefined);
 }
 
-const FRAMEWORK_FILES = new Set(['page', 'layout', 'route', 'template', 'loading', 'error', 'not-found', 'default', 'head', 'middleware', 'instrumentation', '_app', '_document', '_layout']);
+const FRAMEWORK_FILES = new Set([
+	'page', 'layout', 'route', 'template', 'loading', 'error', 'not-found', 'default', 'head', 'middleware', 'instrumentation',
+	'_app', '_document', '_layout',
+]);
 
 /** Why a new file split from `original` may not have this name; `entries` are the names already in its folder. */
 export function tsFileNameProblems(name: string, original: string, entries: readonly string[], testGlobs: readonly string[]): string[] {

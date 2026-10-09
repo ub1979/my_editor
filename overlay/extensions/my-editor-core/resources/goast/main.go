@@ -159,8 +159,9 @@ func Inspect(name string, src []byte) (*File, error) {
 				run++
 			}
 			prevEnd = sEnd
+			own := gen.Lparen.IsValid() && ownLines(src, sStart, sEnd, firstPos(off, spec.Doc, spec.Pos()), off(spec.End()))
 			out.Imports = append(out.Imports, Import{
-				Name: name, Path: path, Start: sStart, End: sEnd, Own: gen.Lparen.IsValid() && ownLines(src, sStart, sEnd, firstPos(off, spec.Doc, spec.Pos()), off(spec.End())),
+				Name: name, Path: path, Start: sStart, End: sEnd, Own: own,
 				Decl: len(out.ImportDecls) - 1, Run: run, Blank: name == "_", Dot: name == ".",
 			})
 		}

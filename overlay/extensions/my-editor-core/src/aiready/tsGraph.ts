@@ -15,9 +15,14 @@ export function graphFiles(tracked: readonly string[]): string[] {
 /** A workspace package's source entry: `src/index.*`, `index.*`, or its `main`/`module` with a source extension. */
 function workspaceEntry(project: TsProject, dir: string, files: ReadonlySet<string>): string | undefined {
 	const pkg = project.packages.get(dir) as { main?: string; module?: string; source?: string; exports?: unknown } | undefined;
-	const dot = (value: unknown): string | undefined => typeof value === 'string' ? value
-		: value && typeof value === 'object' ? dot((value as Record<string, unknown>)['.'] ?? (value as Record<string, unknown>).import ?? (value as Record<string, unknown>).default) : undefined;
-	const stems = ['src/index', 'index', ...[dot(pkg?.exports), pkg?.source, pkg?.module, pkg?.main].filter((v): v is string => !!v).map(v => v.replace(/^\.\//, '').replace(/\.[cm]?[jt]sx?$/, ''))];
+	const dot = (value: unknown): string | undefined => {
+		if (typeof value === 'string') { return value; }
+		if (!value || typeof value !== 'object') { return undefined; }
+		const conditions = value as Record<string, unknown>;
+		return dot(conditions['.'] ?? conditions.import ?? conditions.default);
+	};
+	const entries = [dot(pkg?.exports), pkg?.source, pkg?.module, pkg?.main].filter((v): v is string => !!v);
+	const stems = ['src/index', 'index', ...entries.map(v => v.replace(/^\.\//, '').replace(/\.[cm]?[jt]sx?$/, ''))];
 	for (const stem of stems) {
 		for (const ext of ['.ts', '.tsx', '.mts', '.js', '.jsx', '.mjs']) {
 			const file = `${dir}/${stem}${ext}`;

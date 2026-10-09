@@ -114,12 +114,14 @@ export function unitFacts(ts: Ts, root: string, file: string, unit: readonly str
 	const surface = (moduleSymbol ? checker.getExportsOfModule(moduleSymbol) : []).map(symbol => {
 		const { target, typeOnly, symbol: final } = follow(symbol);
 		const flags = final?.flags ?? 0;
-		const meanings = `${flags & ts.SymbolFlags.Value && !typeOnly ? 'v' : ''}${flags & ts.SymbolFlags.Type ? 't' : ''}${flags & ts.SymbolFlags.Namespace ? 'n' : ''}`;
+		const meanings = (flags & ts.SymbolFlags.Value && !typeOnly ? 'v' : '')
+			+ (flags & ts.SymbolFlags.Type ? 't' : '') + (flags & ts.SymbolFlags.Namespace ? 'n' : '');
 		return `${symbol.name}|${meanings}|${target}`;
 	}).sort();
 	const bindings: string[] = [];
 	for (const statement of source.statements) {
-		if (ts.isImportDeclaration(statement) || ts.isImportEqualsDeclaration(statement) || (ts.isExportDeclaration(statement) && statement.moduleSpecifier)) { continue; }
+		const reexport = ts.isExportDeclaration(statement) && statement.moduleSpecifier;
+		if (ts.isImportDeclaration(statement) || ts.isImportEqualsDeclaration(statement) || reexport) { continue; }
 		for (const id of identifiers(ts, statement)) {
 			const parent = id.parent;
 			const symbol = parent && ts.isShorthandPropertyAssignment(parent) && parent.name === id
