@@ -50,7 +50,7 @@ export function planProblems(adapter: LanguageAdapter, input: PlanInput, plan: S
 			else if (!declaration.movable) { problems.push(`Declaration ${id} (${label(declaration)}) may not move: ${declaration.reason ?? 'not movable'}.`); }
 			seen.add(id);
 		}
-		problems.push(...adapter.fileNameProblems(group.file).map(problem => `${group.file}: ${problem}`));
+		problems.push(...adapter.fileNameProblems(group.file, input.info.path).map(problem => `${group.file}: ${problem}`));
 		if (existing.has(group.file.toLowerCase())) { problems.push(`${group.file} already exists in the folder.`); }
 		if (names.has(group.file.toLowerCase())) { problems.push(`${group.file} appears twice in the plan.`); }
 		names.add(group.file.toLowerCase());
@@ -74,23 +74,26 @@ export function planProblems(adapter: LanguageAdapter, input: PlanInput, plan: S
 }
 
 /**
- * A file may exceed the limit only when one declaration in it is itself over the limit and nothing else in it could
- * move out: it holds that declaration plus unmovable ones only.
+ * A file may exceed the limit only when nothing else in it could move out: everything in it is unmovable, apart from
+ * at most one declaration that is itself over the limit (TS: a types-only project leaves its run-time code in place).
  */
 function lineLimitAllowed(text: Buffer, declarations: readonly Declaration[]): boolean {
 	if (lines(text) <= MAX_SOURCE_LINES) { return true; }
 	const big = declarations.filter(d => d.lines > MAX_SOURCE_LINES);
-	return big.length === 1 && declarations.every(d => d === big[0] || !d.movable);
+	return big.length <= 1 && declarations.every(d => d === big[0] || !d.movable);
 }
 
-/** Files left over the limit by a single long declaration, for the change note. */
+/** Files left over the limit by a single long declaration or by code that may not move, for the change note. */
 export function oversizeNotes(result: SplitResult, info: FileInfo, plan: SplitPlan): string[] {
 	const moved = new Set(plan.flatMap(group => group.declarations));
 	const notes: string[] = [];
 	const note = (name: string, text: Buffer, declarations: readonly Declaration[]) => {
 		const big = declarations.find(d => d.lines > MAX_SOURCE_LINES);
+		const stuck = declarations.find(d => !d.movable && d.reason);
 		if (lines(text) > MAX_SOURCE_LINES && big) {
 			notes.push(`${name} stays at ${lines(text)} lines: ${label(big)} alone is ${big.lines} lines and needs a real refactor.`);
+		} else if (lines(text) > MAX_SOURCE_LINES && stuck) {
+			notes.push(`${name} stays at ${lines(text)} lines: the rest may not move (${stuck.reason}).`);
 		}
 	};
 	const byId = new Map(info.declarations.map(d => [d.id, d]));

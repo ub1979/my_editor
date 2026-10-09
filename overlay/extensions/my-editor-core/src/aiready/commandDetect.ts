@@ -23,7 +23,7 @@ export function detectCommands(root: RootFiles): DetectedCommands {
 	const tests: string[] = [];
 	if (has('package.json')) {
 		languages.push('JavaScript/TypeScript');
-		if (has('tsconfig.json')) { checks.push('npx tsc --noEmit'); }
+		if (has('tsconfig.json')) { checks.push('npx --no tsc --noEmit'); }
 		if (npmTestScript(root.packageJson)) { tests.push('npm test'); }
 	}
 	if (['pyproject.toml', 'setup.py', 'requirements.txt', 'pytest.ini', 'conftest.py'].some(has)) {

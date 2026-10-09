@@ -21,9 +21,9 @@ export interface CheckResult {
 	readonly timedOut?: boolean;
 }
 
-const POSITION = /^(?:\.{0,2}\/)?[^\s:]+\.\w+:\d+(?::\d+)?:\s*/;
+const POSITION = /^(?:\.{0,2}\/)?[^\s:(]+\.\w+(?::\d+(?::\d+)?:|\(\d+,\d+\):)\s*/;
 
-/** Non-empty output lines with leading `file:line:col:` positions removed, sorted and unique. */
+/** Non-empty output lines with leading `file:line:col:` (Go) or `file(line,col):` (tsc) positions removed, sorted and unique. */
 export function failureLines(output: string): string[] {
 	return [...new Set(output.split(/\r?\n/).map(line => line.trim().replace(POSITION, '')).filter(Boolean))].sort();
 }
@@ -148,6 +148,27 @@ export interface BaselineRunner {
 	readonly check: (command: string, label: string) => Promise<CheckResult>;
 	readonly cancelled: () => boolean;
 	readonly progress: (text: string) => void;
+}
+
+/**
+ * Runs the adapter's setup commands (an install) once in the new worktree. Undefined when it is ready; else a plain
+ * message (a command failed, tracked files changed, or `ready` names a problem), or 'stopped'.
+ */
+export async function runSetup(commands: readonly CheckCommand[], runner: BaselineRunner, changed: () => Promise<string[]>,
+	ready: () => string | undefined): Promise<string | 'stopped' | undefined> {
+	if (!commands.length) { return undefined; }
+	for (const { command, label } of commands) {
+		runner.progress(`Preparing the working copy: \`${command}\`…`);
+		const result = await runner.check(command, label);
+		if (runner.cancelled()) { return 'stopped'; }
+		if (result.code !== 0) {
+			return `\`${command}\` ${result.code === undefined ? (result.timedOut ? 'timed out' : 'did not start') : `failed (exit ${result.code})`}: `
+				+ `${result.tail.split('\n').filter(Boolean).slice(-1)[0] ?? 'no output'}. Fix it in your folder, then try again.`;
+		}
+	}
+	const files = await changed();
+	if (files.length) { return `Installing the dependencies changed tracked files: ${files.join(', ')}. This project cannot be fixed on a branch.`; }
+	return ready();
 }
 
 export type BaselineOutcome =

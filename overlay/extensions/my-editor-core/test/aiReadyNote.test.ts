@@ -98,3 +98,10 @@ test('skipped files carry their line counts from the file stats, and the note sa
 		[{ file: 'big.go', reason: 'generated', lines: 900 }, { file: 'small.go', reason: 'cgo', lines: 30 }]);
 	assert.match(renderChangeNote(state('/p/shop'), new Date('2026-10-09T12:34:00Z')), /already failed before the run is marked "not a check" on its commit: it proves nothing about that commit/);
 });
+
+test('the change note names what may differ in the run\'s language', () => {
+	const ts = renderChangeNote({ ...state('/p/shop'), language: 'TypeScript/JavaScript' }, new Date('2026-10-09T12:34:00Z'));
+	assert.match(ts, /stack traces, `console\.trace` and logger caller fields/);
+	assert.doesNotMatch(ts, /runtime\.Caller/);
+	assert.match(renderChangeNote(state('/p/shop'), new Date('2026-10-09T12:34:00Z')), /runtime\.Caller/);
+});

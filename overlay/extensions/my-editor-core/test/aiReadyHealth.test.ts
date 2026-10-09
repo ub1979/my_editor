@@ -21,7 +21,7 @@ test('a folder my_editor did not create gets the AI-ready offer; a brain means n
 
 test('detectCommands reads build files and ignores the npm placeholder test script', () => {
 	assert.deepEqual(detectCommands({ names: ['package.json', 'tsconfig.json'], packageJson: '{"scripts":{"test":"node --test"}}' }),
-		{ languages: ['JavaScript/TypeScript'], checks: ['npx tsc --noEmit'], tests: ['npm test'] });
+		{ languages: ['JavaScript/TypeScript'], checks: ['npx --no tsc --noEmit'], tests: ['npm test'] });
 	assert.deepEqual(detectCommands({ names: ['package.json'], packageJson: '{"scripts":{"test":"echo \\"Error: no test specified\\" && exit 1"}}' }).tests, []);
 	assert.deepEqual(detectCommands({ names: ['package.json'], packageJson: 'not json' }).tests, []);
 	assert.deepEqual(detectCommands({ names: ['pyproject.toml'], pyproject: '[tool.pytest.ini_options]' }).tests, ['pytest -q -rA']);

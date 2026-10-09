@@ -57,6 +57,12 @@ export interface SplitGroup {
 }
 export type SplitPlan = readonly SplitGroup[];
 
+/** A file's bytes with the adapter's parse of them. */
+export interface ParsedFile {
+	readonly text: Buffer;
+	readonly info: FileInfo;
+}
+
 export interface NewFile {
 	readonly name: string;
 	readonly text: Buffer;
@@ -69,7 +75,8 @@ export interface SplitResult {
 
 /** One exact check command for a file's unit (Go: its package). */
 export interface CheckCommand {
-	readonly label: 'build' | 'vet' | 'test';
+	/** `install` runs once before the baseline (the adapter's `setup`); the others run for every step. */
+	readonly label: 'install' | 'build' | 'vet' | 'test';
 	readonly command: string;
 	/** Compiles the file's unit on its own; a split needs at least one of these to pass before the run. */
 	readonly verifies?: boolean;
@@ -92,8 +99,19 @@ export interface LanguageAdapter {
 	readonly commandEnv?: Readonly<Record<string, string>>;
 	/** Parse one file, with each declaration's movability and the file's skip reason. */
 	parse(file: string): Promise<FileInfo>;
-	/** Why a new file may not have this name. */
-	fileNameProblems(name: string): string[];
+	/** The fix kinds it offers; both when absent. */
+	readonly fixes?: readonly ('split' | 'tests')[];
+	/** Why a new file split from `original` (relative) may not have this name. */
+	fileNameProblems(name: string, original: string): string[];
+	/** Commands run once in a new worktree, before the baseline and approved with the rest (TS: the lockfile's install). */
+	setup?(): CheckCommand[];
+	/** Why the worktree is not ready after `setup` (TS: a workspace package resolves outside it). */
+	ready?(): string | undefined;
+	/**
+	 * Move rule 2's import part, for adapters that add imports by design (TS: the facade). When present it replaces the
+	 * generic checks that the original gains no import and that new files only use the original's imports.
+	 */
+	importProblems?(before: ParsedFile, after: ParsedFile, files: readonly ParsedFile[]): string[];
 	/** The exact text a new file split from `file` starts with (Go: a comment naming the original and a blank line). */
 	splitHeader(file: string): string;
 	/** New files and the new original, imports rebuilt. Throws when the plan cannot be applied. */

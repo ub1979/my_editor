@@ -1,10 +1,4 @@
-import type { Declaration, FileInfo, Span, SplitPlan } from './language';
-
-/** A file's bytes with the adapter's parse of them. */
-export interface ParsedFile {
-	readonly text: Buffer;
-	readonly info: FileInfo;
-}
+import type { Declaration, FileInfo, ParsedFile, Span, SplitPlan } from './language';
 
 export interface MoveCheckInput {
 	/** The original file before and after the split. */
@@ -15,6 +9,8 @@ export interface MoveCheckInput {
 	readonly plan: SplitPlan;
 	/** The exact text each new file has before its package clause (the adapter's `splitHeader`). */
 	readonly header: string;
+	/** The adapter's own import check (`LanguageAdapter.importProblems`); replaces the generic import-key checks. */
+	readonly importProblems?: (before: ParsedFile, after: ParsedFile, files: readonly ParsedFile[]) => string[];
 }
 
 const IMPORTS = '\u0000imports';
@@ -44,19 +40,20 @@ export function checkMove(input: MoveCheckInput): string[] {
 		if (prelude && slice(file.text, prelude) !== input.header) {
 			problems.push(`Rule 3: ${group.file} must start with exactly ${JSON.stringify(input.header)} before its package clause.`);
 		}
-		for (const key of file.info.imports) {
+		for (const key of input.importProblems ? [] : file.info.imports) {
 			if (key.startsWith('_ ')) { problems.push(`Rule 3: ${group.file} has the blank import ${key}.`); }
 			else if (!before.info.imports.includes(key)) { problems.push(`Rule 3: ${group.file} imports ${key}, which the original did not.`); }
 		}
 	});
 	const moved = plan.flatMap(group => group.declarations.map(id => byId.get(id)!.span));
-	const expected = collapse(marked(before, moved, !!after.info.importRegion));
-	const actual = marked(after, [], true).map(item => item ?? '');
+	const expected = afterImports(collapse(marked(before, moved, !!after.info.importRegion)));
+	const actual = afterImports(marked(after, [], true).map(item => item ?? ''));
 	if (expected.length !== actual.length || expected.some((line, i) => line !== actual[i])) {
 		const at = expected.findIndex((line, i) => line !== actual[i]);
 		problems.push(`Rule 2: ${before.info.path} changed beyond the moved spans near line ${at + 1}: `
 			+ `expected ${JSON.stringify(expected[at] ?? '(end)')}, found ${JSON.stringify(actual[at] ?? '(end)')}.`);
 	}
+	if (input.importProblems) { problems.push(...input.importProblems(before, after, files)); return [...new Set(problems)]; }
 	const count = (keys: readonly string[], key: string) => keys.filter(k => k === key).length;
 	for (const key of new Set(after.info.imports)) {
 		if (count(after.info.imports, key) > count(before.info.imports, key)) { problems.push(`Rule 2: ${before.info.path} gained the import ${key}.`); }
@@ -86,7 +83,10 @@ export function declarationProblems(before: readonly FileInfo[], after: readonly
 	return problems;
 }
 
-/** The file's lines, with the import region as one marker line and removed spans as gaps (undefined). */
+/**
+ * The file's lines, with the import region as one marker line and removed spans as gaps (undefined). An empty region
+ * marks where imports would go (TS: the facade of a file without imports), before the line it starts.
+ */
 function marked(file: ParsedFile, removed: readonly Span[], keepImports: boolean): (string | undefined)[] {
 	const out: (string | undefined)[] = [];
 	const region = file.info.importRegion;
@@ -95,11 +95,22 @@ function marked(file: ParsedFile, removed: readonly Span[], keepImports: boolean
 		const start = offset;
 		const end = offset + line.length;
 		offset = end + 1;
-		if (region && start >= region.start && end <= region.end) {
+		if (region && region.start === region.end && start === region.start) { out.push(keepImports ? IMPORTS : undefined); }
+		else if (region && start >= region.start && end <= region.end) {
 			if (start === region.start) { out.push(keepImports ? IMPORTS : undefined); }
 			continue;
 		}
 		out.push(removed.some(span => start >= span.start && end <= span.end) ? undefined : line.toString('utf8'));
+	}
+	return out;
+}
+
+/** Blank lines right after the import marker are not compared: an added facade may bring or take one. */
+function afterImports(items: readonly string[]): string[] {
+	const out: string[] = [];
+	for (const line of items) {
+		if (line.trim() === '' && out[out.length - 1] === IMPORTS) { continue; }
+		out.push(line);
 	}
 	return out;
 }

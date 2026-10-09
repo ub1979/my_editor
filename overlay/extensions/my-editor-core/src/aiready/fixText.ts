@@ -16,9 +16,10 @@ export function alreadyFailingText(commands: readonly string[]): string {
 }
 
 /** The approval modal's detail: where the commands run, the exact commands, and what they run. */
-export function approvalDetail(folder: string, approved: readonly string[], language: string, fixCount = 0): string {
+export function approvalDetail(folder: string, approved: readonly string[], language: string, fixCount = 0, installs = false): string {
 	const over = fixCount > MAX_FIXES_PER_RUN ? `${fixCount} fixes chosen: ${MAX_FIXES_PER_RUN} now; Continue does the rest.\n\n` : '';
 	return `${over}In a new working copy at ${folder}, on a new branch:\n\n${approved.join('\n')}\n\n`
+		+ (installs ? `${approved[0]} installs the dependencies from the lockfile, which runs their install scripts. ` : '')
 		+ 'They build the project and run its tests, which runs project code and tests written by the AI model. '
 		+ `my_editor also runs read-only ${language} tools (to list packages and check formatting) and local git commands there. `
 		+ 'Your files and your branch stay as they are until the end, when the health report in .my_editor/ai-ready/ is updated. Nothing is pushed.';
