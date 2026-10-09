@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import type { Sink } from '../chat/engine';
 import { CheckResult, failureLines, runBaseline } from './baseline';
-import { fixChoices, pickFixes } from './fixPicker';
+import { fixChoices, pickFixes, skippedWithLines } from './fixPicker';
 import { logDir, RunState, saveState } from './fixState';
 import { alreadyFailingText, approvalDetail, timeoutMinutes } from './fixText';
 import { fileStats, scanHealth } from './health';
@@ -102,7 +102,7 @@ export async function startRun(env: CommandEnv, adapter: (root: string, tracked:
 		if (failing.length) { sink.text(alreadyFailingText(failing)); }
 		const state: RunState = {
 			version: 1, root, language: local.label, worktree, startedAt: new Date().toISOString(), approved, fixes: picked, next: 0, steps: [],
-			baseline: outcome.baseline, skippedFiles: [...skipped].map(([file, reason]) => ({ file, reason, lines: stats.find(s => s.path === file)?.lines })),
+			baseline: outcome.baseline, skippedFiles: skippedWithLines(skipped, stats),
 		};
 		saveState(env.storage, state);
 		sink.progress('');

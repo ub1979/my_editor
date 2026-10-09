@@ -2,7 +2,7 @@ import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
 import type { CheckResult } from '../src/aiready/baseline';
 import { noteFileName, renderChangeNote, reportWithRun } from '../src/aiready/changeNote';
-import { fixChoices, pickFixes } from '../src/aiready/fixPicker';
+import { fixChoices, pickFixes, skippedWithLines } from '../src/aiready/fixPicker';
 import { discardRest, type RunState } from '../src/aiready/fixState';
 import { fileStats } from '../src/aiready/health';
 
@@ -47,7 +47,7 @@ test('the change note shows plan attempts and lists only skipped files over 400 
 	const note = renderChangeNote(run, new Date('2026-10-09T12:34:00Z'));
 	assert.match(note, /Plan: 2 attempts; rejected: Declaration 9 does not exist\./);
 	assert.match(note, /`c\.go` \(split\): refused\. The move check failed: Rule 2\. Plan: 2 attempts; rejected: a \/ b/);
-	assert.match(note, /## Files never split\n\n- `gen\.go`: generated code\.\n- plus 2 files that need no split/);
+	assert.match(note, /## Files never split\n\n- `gen\.go`: generated code\.\n- plus 2 files under 400 lines that need no split\. They have no tests and cannot be given any, so the picker does not offer them/);
 	assert.doesNotMatch(note, /x\.go/);
 });
 
@@ -90,4 +90,11 @@ test('discarding the rest records each fix as discarded by the user, in the note
 	assert.doesNotMatch(note, /## Not run yet/);
 	assert.doesNotMatch(note, /d\.go` \(split\): discarded/);
 	assert.match(reportWithRun('# R\n', run, 'x.md'), /1 skipped or refused, 1 discarded by you/);
+});
+
+test('skipped files carry their line counts from the file stats, and the note says a failed check proves nothing', () => {
+	const stats = [fileStats('big.go', 'x\n'.repeat(900)), fileStats('small.go', 'x\n'.repeat(30))];
+	assert.deepEqual(skippedWithLines(new Map([['big.go', 'generated'], ['small.go', 'cgo']]), stats),
+		[{ file: 'big.go', reason: 'generated', lines: 900 }, { file: 'small.go', reason: 'cgo', lines: 30 }]);
+	assert.match(renderChangeNote(state('/p/shop'), new Date('2026-10-09T12:34:00Z')), /already failed before the run is marked "not a check" on its commit: it proves nothing about that commit/);
 });

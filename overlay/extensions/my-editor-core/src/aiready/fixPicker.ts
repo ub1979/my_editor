@@ -45,3 +45,8 @@ export async function pickFixes(choices: readonly FixChoice[], show: ShowPicker)
 	});
 	return picked?.map(item => item.choice);
 }
+
+/** The never-split files for the run state, each with its size so the change note can list only the long ones. */
+export function skippedWithLines(skipped: ReadonlyMap<string, string>, stats: readonly FileStats[]): { file: string; reason: string; lines?: number }[] {
+	return [...skipped].map(([file, reason]) => ({ file, reason, lines: stats.find(s => s.path === file)?.lines }));
+}

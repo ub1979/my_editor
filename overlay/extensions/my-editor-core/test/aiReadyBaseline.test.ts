@@ -57,12 +57,13 @@ test('checkSummary names each command once, says which already failed, and count
 	const vet = checkRun(0, '');
 	const run = testRun(0, { 'm A': 'pass', 'm B': 'pass' });
 	const baseline = { [vet.command]: [vet, vet] as const, [run.command]: [{ ...run, code: 1 }, { ...run, code: 1 }] as const };
+	assert.match(checkSummary([run], [], baseline), /`go test[^`]*`: already failing; tests compared one by one/);
 	const summary = checkSummary([vet, testRun(0, { 'm A': 'pass', 'm B': 'skip' }), run], ['m C'], baseline);
-	assert.equal(summary, '`go vet ./internal/store`: passed; `go test -count=1 -json ./a`: already failing before this run (not a check) (2 of 2 tests passing); 1 flaky excluded.');
+	assert.equal(summary, '`go vet ./internal/store`: passed; `go test -count=1 -json ./a`: already failing; tests compared one by one (2 of 2 tests passing); 1 flaky excluded.');
 });
 
 test('a split needs at least one verifying check that passed at baseline', () => {
-	const build = (code: number, failures: string[] = []): CheckResult => ({ command: 'go build ./pkg', code, failures, tail: 'tail line', log: '' });
+	const build = (code: number, failures: string[] = []): CheckResult => ({ command: 'go build ./pkg', code, failures, tail: failures.join('\n'), log: '' });
 	const vet = (code: number): CheckResult => ({ command: 'go vet ./pkg', code, failures: [], tail: '', log: '' });
 	const checks = [{ label: 'build' as const, command: 'go build ./...' }, { label: 'build' as const, command: 'go build ./pkg', verifies: true },
 		{ label: 'vet' as const, command: 'go vet ./pkg', verifies: true }, { label: 'test' as const, command: 'go test ./pkg' }];
@@ -71,7 +72,13 @@ test('a split needs at least one verifying check that passed at baseline', () =>
 	assert.equal(noVerifyingCheck(checks, failing, './pkg'),
 		'Nothing here can compile ./pkg to check this split: its build already fails (fatal error: x.h: No such file). Fix the build, then run this again.');
 	assert.equal(noVerifyingCheck(checks, { ...failing, 'go vet ./pkg': pair(vet(0)) }, './pkg'), undefined);
-	assert.match(noVerifyingCheck(checks.slice(0, 1), {}, './pkg') ?? '', /^Nothing here can compile \.\/pkg/);
+	assert.equal(noVerifyingCheck(checks.slice(0, 1), {}, './pkg'), 'No compile check of ./pkg was recorded for this run.');
+	assert.equal(noVerifyingCheck(checks, {}, './pkg'), 'No compile check of ./pkg was recorded for this run.');
+	const cgo = { ...build(1, ['# pkg', 'In file included from x.go:4:']), tail: '# pkg\nIn file included from x.go:4:\n./x.h:1:10: fatal error: \'x.h\' file not found\n' + 'z'.repeat(300) };
+	const message = noVerifyingCheck(checks, { 'go build ./pkg': pair(cgo), 'go vet ./pkg': pair(vet(1)) }, './pkg') ?? '';
+	assert.match(message, /its build already fails \(\.\/x\.h:1:10: fatal error: 'x\.h' file not found\)/);
+	const long = { ...cgo, tail: `error: ${'z'.repeat(300)}` };
+	assert.ok((noVerifyingCheck(checks, { 'go build ./pkg': pair(long) }, './pkg') ?? '').includes(`${'z'.repeat(150)}…)`));
 });
 
 test('a baseline run that timed out or did not start stops the run with what to do', async () => {

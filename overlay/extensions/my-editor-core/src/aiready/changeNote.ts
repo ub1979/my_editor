@@ -39,7 +39,7 @@ function stepLine(step: StepRecord): string {
 function neverSplit(state: RunState): string[] {
 	const long = state.skippedFiles.filter(s => s.lines === undefined || s.lines > MAX_SOURCE_LINES);
 	const rest = state.skippedFiles.length - long.length;
-	return [...long.map(s => `- \`${s.file}\`: ${s.reason}.`), ...(rest ? [`- plus ${rest} file${rest === 1 ? '' : 's'} that need no split`] : [])];
+	return [...long.map(s => `- \`${s.file}\`: ${s.reason}.`), ...(rest ? [`- plus ${rest} file${rest === 1 ? '' : 's'} under ${MAX_SOURCE_LINES} lines that need no split. They have no tests and cannot be given any, so the picker does not offer them`] : [])];
 }
 
 /** The change note committed on the branch at close (pure). */
