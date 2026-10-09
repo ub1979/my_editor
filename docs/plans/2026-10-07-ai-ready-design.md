@@ -98,9 +98,12 @@ links; then suggestions; then the fix kinds stage 2 offers. Stage 2 adds per-fil
 **Worktree.** `git worktree add <parent folder>/<project name>.ai-ready -b <branch> HEAD`, next to the project, so
 relative paths that leave the repository (Go `replace ../x`, npm `file:../x`, `tsconfig` `extends: ../`) still
 resolve. If that folder exists, add `-2`, `-3`…; if the parent folder is not writable, stop with a plain message. All commands, edits and
-commits happen there. The user's folder, its branch and its open editors are not touched. At close,
-`git worktree remove`. After a crash, Continue finds the worktree from saved state, or `git worktree prune` and
-re-adds it from the branch.
+commits happen there. The user's folder, its branch and its open editors are not touched until the close, which
+updates only the health report in `.my_editor/ai-ready/`. At close, `git worktree remove`. After a crash, Continue
+checks with `git worktree list --porcelain` that the saved folder is a worktree on the run's branch (never the user's
+folder), or `git worktree prune` and re-adds it from the branch, then resets it with `git checkout HEAD -- .` and
+`git clean -fd` inside it only. If it cannot be reopened, the user may forget the run (the branch stays). A baseline
+command that times out or does not start, or any error before the run is saved, removes the worktree and branch.
 
 **Run state** lives in the extension's global storage, keyed by project path: branch, worktree path, approved
 commands, baseline, chosen fixes, step index and results. Nothing is written to the project during the run. Only the
@@ -228,8 +231,10 @@ time. Using `go/parser` and `go/ast`, it prints JSON for a file:
 
 A declaration's span starts at its doc comment (or the declaration if none) and ends at the end of the line where
 the declaration ends, so a trailing `// nolint` comment moves with it. Byte spans are UTF-8 offsets; the host slices
-with `Buffer`, never JS string indices. The helper is built with `GOTOOLCHAIN=local` in an empty folder outside any
-module.
+with `Buffer`, never JS string indices. The helper is built with `GOTOOLCHAIN=local`, `GOFLAGS`, `GOOS`, `GOARCH`
+cleared and `GOENV=off` in an empty folder outside any module, keyed by `go version`, and run once on a probe file
+before it is cached. Every go command runs with `GOTOOLCHAIN=local` and empty `GOFLAGS` (read-only ones also with
+`GOPROXY=off`); a `go.mod` that needs a newer Go than the installed one stops the run with a plain message.
 
 **Import names.** The parser cannot know the package name behind an unnamed import (`gopkg.in/yaml.v3` is `yaml`,
 `/v2` paths, `go-foo`). The host asks once per package: `go list -deps -f '{{.ImportPath}} {{.Name}}' ./<pkg>`.
@@ -289,8 +294,10 @@ in the original; a file with a dot import is not split.
    methods per receiver, and the same doc comment for every declaration as before.
 5. No other tracked file changed.
 
-**Checks per step** (in the worktree): `go build ./...`, then `go vet` and `go test -count=1 -json` for the changed
-package (`-count=1` defeats the test cache, which would otherwise replay the first result). Build, vet and test
+**Checks per step** (in the worktree): `go build ./...`, then `go build -o /dev/null`, `go vet` and
+`go test -count=1 -json` for the changed package (`-count=1` defeats the test cache, which would otherwise replay the
+first result; the package build catches a new break that an unrelated `./...` failure, such as a missing cgo header,
+would hide). Build, vet and test
 results must each equal the baseline: a build or vet failure that existed before the run is recorded and must not
 change; tests run twice for the baseline, tests that differ between the two runs are flaky and excluded, and tests
 that failed before must fail the same way. Packages whose tests need services that are not running
