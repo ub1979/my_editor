@@ -79,3 +79,57 @@ export async function pyInfo(file: string, text: string, over: Partial<PyFileCon
 	const ctx = context(over);
 	return pyFileInfoView(file, Buffer.from(text), found, ctx, pySkipReason(file, found, ctx));
 }
+
+/** A module with every kind of leading import a split copies. IDs: 0 RowError, 1 parse_row, 2 _row_cache, 3 helper, 4 caller, 5 dump, 6 check, 7 report. */
+export const REPORT = `"""Rows."""
+from __future__ import annotations
+
+import json
+import numpy as np
+import os.path
+from typing import (
+    TYPE_CHECKING,
+    Optional,
+)
+
+if TYPE_CHECKING:
+    from collections import OrderedDict
+    from decimal import Decimal
+
+try:
+    import yaml
+except ImportError:
+    yaml = None
+
+
+class RowError(Exception):
+    """A bad row."""
+
+
+def parse_row(line: str) -> Optional[dict]:
+    return json.loads(line)
+
+
+def _row_cache():
+    return np
+
+
+def helper():
+    return os.path.sep
+
+
+def caller():
+    return helper()
+
+
+def dump(x: "Decimal"):
+    return yaml
+
+
+def check(row: RowError) -> bool:
+    return True
+
+
+def report(lines):
+    return [parse_row(line) for line in lines]
+`;
