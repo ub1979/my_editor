@@ -1,5 +1,6 @@
 import { accessSync, constants, existsSync, realpathSync, rmSync } from 'fs';
 import * as path from 'path';
+import { blockingEdits, dirtyMessage } from './dirtyFiles';
 import { findTool, runTool } from './projectCommands';
 
 /** Git subcommands that reach a remote. This module never builds them; `gitArgs` refuses them as a second guard. */
@@ -36,8 +37,9 @@ export async function prerequisites(root: string): Promise<{ problem?: string; n
 	if (realpathSync((await git(root, ['rev-parse', '--show-toplevel'])).trim()) !== realpathSync(root)) {
 		return { problem: 'Open the repository’s top folder to fix it on a branch.' };
 	}
-	if ((await git(root, ['status', '--porcelain', '--untracked-files=no'])).trim()) {
-		return { problem: 'Some tracked files have uncommitted changes. Commit or stash them first, so the branch starts from a known state.' };
+	const dirty = dirtyMessage(blockingEdits(await git(root, ['status', '--porcelain', '--untracked-files=no'])));
+	if (dirty) {
+		return { problem: dirty };
 	}
 	return {};
 }

@@ -117,6 +117,15 @@ function projectNote(projectPath: string): string {
 		+ 'Do not claim the project is empty because your model process cannot access its files directly.';
 }
 
+/** What Pair should know about my_editor's own fixer, so it points there instead of splitting many files by hand. */
+const FIXER_NOTE = `my_editor has a fixer for long files: Fix on a local branch (in Project → Health, or the command
+my_editor: Fix on a Local Branch). For Go, TypeScript/JavaScript and Python it splits long files by moving whole
+declarations, adds tests where it can, checks each fix (build, tests, an exact-move check) and commits it on a new
+local branch in a separate working copy; the user's own branch and files stay as they are, and nothing is pushed.
+When the user wants many files split or the project made AI-ready, recommend it rather than splitting by hand. It
+refuses to start while tracked files have uncommitted changes (Finder .DS_Store files do not count). You cannot run
+git commands yourself; give the exact commands and let the user run them.`;
+
 export function systemPrompt(mode: Mode, conventions: string, brain: string, projectPath?: string): string {
 	return [
 		`You are the pair programmer inside my_editor. The user is the driver and owns every decision: you help,
@@ -126,6 +135,7 @@ comment density. Keep source files focused, one class per file where relevant, a
 project brain and recent conversation as a map, then verify relevant current files before giving factual advice.
 Retrieve available project details yourself instead of asking the developer to repeat them.`,
 		projectPath ? projectNote(projectPath) : 'No project folder is open in my_editor.',
+		FIXER_NOTE,
 		conventions ? `Project conventions (always follow):\n${conventions}` : '',
 		brain ? `Project brain (short map of the project):\n${brain}` : '',
 		`Mode: ${mode.id}. ${mode.instruction}`,
