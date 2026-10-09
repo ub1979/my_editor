@@ -67,7 +67,9 @@ test('rules 2 and 3 compare import attributes: a kept import must be byte-identi
 	assert.match(tamper('src/report.ts', src, plan, { first: t => t.replace("type: 'json'", "type: 'css'") }).join(' '), /Rule 3/);
 	const addAttr = (t: string) => t.replace("from 'node:fs';", "from 'node:fs' with { type: 'json' };");
 	assert.match(tamper('src/report.ts', src, plan, { original: addAttr }).join(' '), /Rule 2: the import import \{ readFileSync \}/);
-	const filtered = "import { a, type T } from './m.js';\nimport { z } from './z.js';\n\nexport function f(t: T) { return t; }\n\nexport function g() { return a + z; }\n";
+	const filtered = "import { a, type T } from './m.js';\nimport { z } from './z.js';\n\n"
+		+ 'export function f(t: T) { return t; }\n\nexport function g() { return a + z; }\n';
 	const respaced = (t: string) => t.replace("import { a } from './m.js';", "import {a} from './m.js';");
-	assert.match(tamper('src/a.ts', filtered, [{ file: 'f.ts', declarations: [0] }], { original: respaced }).join(' '), /Rule 2: the import import \{ a, type T \}/);
+	assert.match(tamper('src/a.ts', filtered, [{ file: 'f.ts', declarations: [0] }], { original: respaced }).join(' '),
+		/Rule 2: the import import \{ a, type T \}/);
 });

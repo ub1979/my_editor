@@ -23,7 +23,8 @@ const pkg = (extra: Record<string, unknown>) => JSON.stringify({ name: 'p', type
 test('ts-node running TS as CommonJS (its tsconfig section, -r ts-node/register, .mocharc) narrows to types, named as ts-node', () => {
 	const section = JSON.stringify({ ...JSON.parse(OK), 'ts-node': { compilerOptions: { module: 'commonjs' } } });
 	assert.equal(scope({ 'tsconfig.json': section }), 'types: ts-node runs it as CommonJS (the "ts-node" section of tsconfig.json)');
-	for (const script of ['mocha -r ts-node/register "src/**/*.test.ts"', 'node --require ts-node/register src/a.ts', 'NODE_OPTIONS="-r ts-node/register" mocha']) {
+	const scripts = ['mocha -r ts-node/register "src/**/*.test.ts"', 'node --require ts-node/register src/a.ts', 'NODE_OPTIONS="-r ts-node/register" mocha'];
+	for (const script of scripts) {
 		assert.equal(scope({ 'package.json': pkg({ scripts: { test: script } }) }), 'types: ts-node runs it as CommonJS (-r ts-node/register)', script);
 	}
 	assert.equal(scope({ '.mocharc.json': '{"require":["ts-node/register"],"spec":"src/**/*.test.ts"}' }),
@@ -31,7 +32,8 @@ test('ts-node running TS as CommonJS (its tsconfig section, -r ts-node/register,
 	assert.equal(scope({ '.mocharc.yml': 'require: ts-node/register\n' }, 'src/a.mjs'), 'skip: ts-node runs it as CommonJS (-r ts-node/register)');
 	assert.equal(scope({ 'package.json': pkg({ scripts: { start: 'ts-node src/a.ts' } }) }), 'types: ts-node compiles each file as it runs');
 	assert.equal(scope({ 'package.json': pkg({ scripts: { start: 'ts-node-esm src/a.ts' } }) }), 'types: ts-node compiles each file as it runs');
-	assert.equal(scope({ 'package.json': pkg({ scripts: { start: 'node src/main.ts' } }) }), 'types: Node\'s type stripping runs the TypeScript without a compile step');
+	assert.equal(scope({ 'package.json': pkg({ scripts: { start: 'node src/main.ts' } }) }),
+		'types: Node\'s type stripping runs the TypeScript without a compile step');
 });
 
 test('transform tools from dependencies or config files narrow to types-only moves, each with a plain reason', () => {
@@ -69,11 +71,13 @@ test('transform tools from dependencies or config files narrow to types-only mov
 function finders(files: Record<string, string>): string[] {
 	const { root, tracked } = project({ 'package.json': '{"name":"p"}', 'src/plugins/a.ts': 'export const a = 1;\n', ...files });
 	const found = pathFinders(tsProject(ts, root, tracked));
-	return found.filter(f => findsFolder(f, 'src/plugins', ['src/plugins/a.ts', 'src/plugins/zzprobe.ts'])).map(f => `${f.file}:${f.below ?? f.patterns?.join('|')}`);
+	return found.filter(f => findsFolder(f, 'src/plugins', ['src/plugins/a.ts', 'src/plugins/zzprobe.ts']))
+		.map(f => `${f.file}:${f.below ?? f.patterns?.join('|')}`);
 }
 
 test('folder loaders: arrays of globs, member calls, a glob joined to __dirname, package.json scripts and .mocharc spec find a folder', () => {
-	assert.deepEqual(finders({ 'src/main.ts': "const m = import.meta.glob(['./plugins/*.ts', '!./plugins/x.ts']);\n" }), ['src/main.ts:./plugins/*.ts|!./plugins/x.ts']);
+	assert.deepEqual(finders({ 'src/main.ts': "const m = import.meta.glob(['./plugins/*.ts', '!./plugins/x.ts']);\n" }),
+		['src/main.ts:./plugins/*.ts|!./plugins/x.ts']);
 	assert.deepEqual(finders({ 'scripts/b.mjs': "globSync(['lib/*.ts', 'src/plugins/*.ts']);\n" }), ['scripts/b.mjs:lib/*.ts|src/plugins/*.ts']);
 	assert.deepEqual(finders({ 'scripts/b.mjs': "fg.sync('src/plugins/*.ts');\nglob.sync('src/**/*.ts');\nawait globby.globby(['src/plugins']);\n" }),
 		['scripts/b.mjs:src/plugins/*.ts', 'scripts/b.mjs:src/**/*.ts', 'scripts/b.mjs:src/plugins']);
@@ -82,7 +86,8 @@ test('folder loaders: arrays of globs, member calls, a glob joined to __dirname,
 	assert.deepEqual(finders({ 'package.json': '{"name":"p","scripts":{"build":"esbuild \'src/plugins/*.ts\' --outdir=dist","x":"tsc"}}' }),
 		['package.json:src/plugins/*.ts']);
 	assert.deepEqual(finders({ '.mocharc.yml': "spec: 'src/plugins/**/*.ts'\n" }), ['.mocharc.yml:src/plugins/**/*.ts']);
-	assert.deepEqual(finders({ '.mocharc.yaml': 'require: x\nspec:\n  - lib/*.ts\n  - src/plugins/**/*.ts\nui: bdd\n' }), ['.mocharc.yaml:lib/*.ts|src/plugins/**/*.ts']);
+	assert.deepEqual(finders({ '.mocharc.yaml': 'require: x\nspec:\n  - lib/*.ts\n  - src/plugins/**/*.ts\nui: bdd\n' }),
+		['.mocharc.yaml:lib/*.ts|src/plugins/**/*.ts']);
 	assert.deepEqual(finders({ '.mocharc.json': '{"spec":["src/plugins/*.ts"]}' }), ['.mocharc.json:src/plugins/*.ts']);
 	assert.deepEqual(finders({ 'scripts/b.mjs': "globSync(['lib/*.ts']);\nfg.sync('lib/**');\n" }), []);
 });

@@ -36,7 +36,8 @@ test('Jest focused tests count as skipped, not failed', () => {
 test('node --test TAP keys take the file from the YAML location when Node prints one (failures), else node:test', () => {
 	const tap = 'TAP version 13\n# Subtest: same\nok 1 - same\n  ---\n  duration_ms: 1\n  ...\n# Subtest: same\nnot ok 2 - same\n  ---\n'
 		+ "  duration_ms: 1\n  location: '/w/test/b test.mjs:2:1'\n  failureType: 'testCodeFailure'\n  ...\n# Subtest: g\n    # Subtest: inner\n"
-		+ "    not ok 1 - inner\n      ---\n      location: '/w/test/c.test.mjs:3:5'\n      ...\nnot ok 3 - g\n  ---\n  location: '/w/test/c.test.mjs:1:1'\n  ...\n1..3\n";
+		+ "    not ok 1 - inner\n      ---\n      location: '/w/test/c.test.mjs:3:5'\n      ...\n"
+		+ "not ok 3 - g\n  ---\n  location: '/w/test/c.test.mjs:1:1'\n  ...\n1..3\n";
 	assert.deepEqual(parseTsTests(tap, ROOTS), {
 		tests: { 'node:test same': 'pass', 'test/b_test.mjs same': 'fail', 'test/c.test.mjs g › inner': 'fail', 'test/c.test.mjs g': 'fail' },
 		packages: { 'node:test': 'pass', 'test/b_test.mjs': 'fail', 'test/c.test.mjs': 'fail' },
