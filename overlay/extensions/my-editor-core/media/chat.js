@@ -32,7 +32,9 @@ const composer = el('form', { class: 'composer' });
 const context = el('div', { class: 'context' });
 const input = /** @type {HTMLTextAreaElement} */ (el('textarea', { rows: '1', 'aria-label': 'Message the pair' }));
 const modelSelect = /** @type {HTMLSelectElement} */ (el('select', { class: 'model', 'aria-label': 'Model' }));
-const reasoningSelect = /** @type {HTMLSelectElement} */ (el('select', { class: 'reasoning', 'aria-label': 'Codex reasoning level', title: 'Codex reasoning level' }));
+const reasoningSelect = /** @type {HTMLSelectElement} */ (el('select', {
+	class: 'reasoning', 'aria-label': 'Codex reasoning level', title: 'Codex reasoning level',
+}));
 const sendButton = /** @type {HTMLButtonElement} */ (el('button', { type: 'submit', class: 'send', 'aria-label': 'Send' }));
 let menu = /** @type {HTMLElement | null} */ (null);
 let menuIndex = 0;
@@ -50,9 +52,13 @@ function renderCharacter() {
 	const chosen = activeCharacter();
 	const skills = el('button', { type: 'button', class: 'header-action', title: 'Explore skills', 'aria-label': 'Explore skills' }, [icon('grid')]);
 	skills.addEventListener('click', () => { showSkills = !showSkills; renderScroll(); });
-	const wide = el('button', { type: 'button', class: 'header-action', title: 'Open Pair in the editor', 'aria-label': 'Open Pair in the editor' }, [icon('expand')]);
+	const wide = el('button', {
+		type: 'button', class: 'header-action', title: 'Open Pair in the editor', 'aria-label': 'Open Pair in the editor',
+	}, [icon('expand')]);
 	wide.addEventListener('click', () => vscode.postMessage({ type: 'openLounge' }));
-	const side = el('button', { type: 'button', class: 'header-action', title: 'Show Pair in the sidebar', 'aria-label': 'Show Pair in the sidebar' }, [icon('sidebar')]);
+	const side = el('button', {
+		type: 'button', class: 'header-action', title: 'Show Pair in the sidebar', 'aria-label': 'Show Pair in the sidebar',
+	}, [icon('sidebar')]);
 	side.addEventListener('click', () => vscode.postMessage({ type: 'openSidebar' }));
 	const auto = el('button', { type: 'button', class: `auto-character${state.pinned ? ' pinned' : ''}`,
 		title: state.pinned ? 'Use automatic character switching' : 'Character switches with your task',
@@ -135,7 +141,8 @@ function renderContext() {
 		context.append(el('span', { class: 'ctx mode' }, [el('span', {}, [state.modeLabel ?? state.mode]), clear]));
 	}
 	if (state.file) {
-		context.append(el('span', { class: 'ctx', title: state.file }, [icon('file'), el('span', {}, [state.file.split('/').pop() + (state.selection ? ` · lines ${state.selection}` : '')])]));
+		const name = state.file.split('/').pop() + (state.selection ? ` · lines ${state.selection}` : '');
+		context.append(el('span', { class: 'ctx', title: state.file }, [icon('file'), el('span', {}, [name])]));
 	}
 	input.placeholder = state.placeholder ?? (state.mode ? `Talk to ${state.modeLabel}…` : `Message ${activeCharacter().name}…`);
 }
@@ -160,7 +167,11 @@ function renderModels() {
 		modelSelect.append(option);
 	}
 	reasoningSelect.replaceChildren();
-	for (const [value, label] of [['default', 'Effort: Codex default'], ['low', 'Effort: Low'], ['medium', 'Effort: Medium'], ['high', 'Effort: High'], ['xhigh', 'Effort: Extra high']]) {
+	const efforts = [
+		['default', 'Effort: Codex default'], ['low', 'Effort: Low'], ['medium', 'Effort: Medium'],
+		['high', 'Effort: High'], ['xhigh', 'Effort: Extra high'],
+	];
+	for (const [value, label] of efforts) {
 		const option = el('option', { value }, [label]);
 		if (value === state.reasoning) { option.setAttribute('selected', ''); }
 		reasoningSelect.append(option);

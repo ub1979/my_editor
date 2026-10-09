@@ -25,7 +25,16 @@ button:hover { background: var(--hover); }
 button:focus-visible, summary:focus-visible, input:focus-visible { outline: 2px solid var(--vscode-focusBorder); outline-offset: 2px; }
 .section-head { display: flex; align-items: start; justify-content: space-between; gap: 18px; margin-bottom: 24px; }
 .hint { margin: 5px 0 0; color: var(--muted); }
-.source { flex: none; padding: 7px 10px; border: 1px solid var(--line); border-radius: 7px; background: none; color: var(--accent); font: inherit; cursor: pointer; }
+.source {
+	flex: none;
+	padding: 7px 10px;
+	border: 1px solid var(--line);
+	border-radius: 7px;
+	background: none;
+	color: var(--accent);
+	font: inherit;
+	cursor: pointer;
+}
 .overview { max-width: 800px; margin: 0 0 28px; padding: 15px 18px; border-left: 3px solid var(--accent); background: var(--panel); font-size: 15px; }
 .part-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 14px; align-items: stretch; }
 .part-card { min-width: 0; padding: 17px 18px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); scroll-margin: 25px; }
@@ -35,9 +44,28 @@ button:focus-visible, summary:focus-visible, input:focus-visible { outline: 2px 
 .part-card p { margin: 11px 0 0; color: var(--muted); }
 .links { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line); }
 .links-label { margin-right: 3px; color: var(--muted); font: 11px var(--mono); }
-.chip { padding: 4px 8px; border: 1px solid var(--line); border-radius: 20px; background: var(--bg); color: var(--accent); font: 11px var(--mono); cursor: pointer; }
+.chip {
+	padding: 4px 8px;
+	border: 1px solid var(--line);
+	border-radius: 20px;
+	background: var(--bg);
+	color: var(--accent);
+	font: 11px var(--mono);
+	cursor: pointer;
+}
 .empty { padding: 28px; border: 1px dashed var(--line); border-radius: 12px; color: var(--muted); text-align: center; }
-input[type=search] { box-sizing: border-box; width: 100%; max-width: 480px; padding: 10px 12px; margin-bottom: 20px; border: 1px solid var(--line); border-radius: 8px; background: var(--vscode-input-background); color: var(--vscode-input-foreground); font: inherit; }
+input[type=search] {
+	box-sizing: border-box;
+	width: 100%;
+	max-width: 480px;
+	padding: 10px 12px;
+	margin-bottom: 20px;
+	border: 1px solid var(--line);
+	border-radius: 8px;
+	background: var(--vscode-input-background);
+	color: var(--vscode-input-foreground);
+	font: inherit;
+}
 .tree-body { max-width: 900px; }
 .folder { margin: 3px 0 3px 14px; border-left: 1px solid var(--line); }
 .folder > summary { padding: 6px 10px; color: var(--ink); font-family: var(--mono); cursor: pointer; }

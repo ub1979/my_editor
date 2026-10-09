@@ -69,7 +69,9 @@ function header() {
 				...(version ? [el('span', { class: 'version', 'aria-label': `my_editor version ${version}` }, [version])] : []),
 			]),
 			el('h1', {}, [projects.length ? 'Your projects' : 'Welcome']),
-			el('p', { class: 'lede' }, [projects.length ? 'Pick up where you left off, or start something new.' : 'Build software yourself, with a pair who writes only what you ask.']),
+			el('p', { class: 'lede' }, [projects.length
+				? 'Pick up where you left off, or start something new.'
+				: 'Build software yourself, with a pair who writes only what you ask.']),
 		]),
 		el('div', { class: 'actions' }, [
 			action('New project', 'primary', { type: 'new' }),

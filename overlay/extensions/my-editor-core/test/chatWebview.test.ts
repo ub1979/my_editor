@@ -30,7 +30,7 @@ test('split chat webview loads in order and renders a Codex model selection', ()
 		document, window: { addEventListener: (_name: string, handler: typeof receive) => { receive = handler; } },
 		acquireVsCodeApi: () => ({ postMessage: (message: { type: string }) => sent.push(message) }),
 	});
-	for (const file of ['chatDom.js', 'chatCards.js', 'chat.js']) {
+	for (const file of ['chatDom.js', 'chatFaces.js', 'chatCards.js', 'chat.js']) {
 		runInContext(readFileSync(join(process.cwd(), 'media', file), 'utf8'), context, { filename: file });
 	}
 	receive?.({ data: { type: 'init', project: 'm_dialer', projectPath: '/projects/m_dialer', skills: [], messages: [],

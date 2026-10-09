@@ -46,7 +46,9 @@ function renderArchitecture() {
 	]));
 	if (state.visuals.overview) section.append(el('p', { class: 'overview' }, [state.visuals.overview]));
 	if (!state.visuals.parts.length) {
-		section.append(el('p', { class: 'empty' }, [state.hasArchitecture ? 'No architecture parts with section headings yet.' : 'No architecture document yet. Run Analyse or use the Architecture card in Pair.']));
+		section.append(el('p', { class: 'empty' }, [state.hasArchitecture
+			? 'No architecture parts with section headings yet.'
+			: 'No architecture document yet. Run Analyse or use the Architecture card in Pair.']));
 		root.append(section);
 		return;
 	}
@@ -60,7 +62,8 @@ function renderArchitecture() {
 		if (part.uses.length) {
 			const links = el('div', { class: 'links' }, [el('span', { class: 'links-label' }, ['Uses →'])]);
 			for (const use of part.uses) {
-				links.append(button(`${names.get(use.id) || use.id} · ${use.count}`, () => document.getElementById(`part-${use.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 'chip'));
+				const reveal = () => document.getElementById(`part-${use.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+				links.append(button(`${names.get(use.id) || use.id} · ${use.count}`, reveal, 'chip'));
 			}
 			card.append(links);
 		}
@@ -80,7 +83,9 @@ function renderTree() {
 		button('Open tree.json ↗', () => vscode.postMessage({ type: 'treeSource' }), 'source'),
 	]));
 	if (!state.visuals.files.length) {
-		section.append(el('p', { class: 'empty' }, [state.hasTree ? 'The file tree has no valid paths yet.' : 'No file tree yet. Run Analyse or use Plan the files in Pair.']));
+		section.append(el('p', { class: 'empty' }, [state.hasTree
+			? 'The file tree has no valid paths yet.'
+			: 'No file tree yet. Run Analyse or use Plan the files in Pair.']));
 		root.append(section);
 		return;
 	}
@@ -119,7 +124,8 @@ function drawTree(container, query) {
 function appendFolderContents(parent, node, depth) {
 	for (const child of [...node.folders.values()].sort((a, b) => a.name.localeCompare(b.name))) {
 		const count = countFiles(child);
-		const details = el('details', { class: 'folder' }, [el('summary', {}, [`${child.name}/`, el('span', { class: 'folder-count' }, [`${count} file${count === 1 ? '' : 's'}`])])]);
+		const countLabel = el('span', { class: 'folder-count' }, [`${count} file${count === 1 ? '' : 's'}`]);
+		const details = el('details', { class: 'folder' }, [el('summary', {}, [`${child.name}/`, countLabel])]);
 		if (depth === 0) details.open = true;
 		if (details.open) appendFolderContents(details, child, depth + 1);
 		else details.addEventListener('toggle', () => { if (details.open && details.children.length === 1) appendFolderContents(details, child, depth + 1); });

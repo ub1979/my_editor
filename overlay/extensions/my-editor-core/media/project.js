@@ -74,9 +74,14 @@ function render(state, model, sync, project) {
 		el('dt', {}, ['Health']),
 		el('dd', {}, [button('Check AI-readiness', () => vscode.postMessage({ type: 'aiReady' }))]),
 		el('dt', {}, ['Decisions']),
-		el('dd', {}, [state.memory.decisions ? button(String(state.memory.decisions), () => vscode.postMessage({ type: 'folder', path: '.my_editor/decisions' })) : el('span', { class: 'empty' }, ['none yet'])]),
+		el('dd', {}, [state.memory.decisions
+			? button(String(state.memory.decisions), () => vscode.postMessage({ type: 'folder', path: '.my_editor/decisions' }))
+			: el('span', { class: 'empty' }, ['none yet'])]),
 		el('dt', {}, ['Chat history']),
-		el('dd', {}, [state.memory.chatDays ? button(`${state.memory.chatDays} day${state.memory.chatDays === 1 ? '' : 's'}`, () => vscode.postMessage({ type: 'folder', path: '.my_editor/chats' })) : el('span', { class: 'empty' }, ['none yet'])]),
+		el('dd', {}, [state.memory.chatDays
+			? button(`${state.memory.chatDays} day${state.memory.chatDays === 1 ? '' : 's'}`,
+				() => vscode.postMessage({ type: 'folder', path: '.my_editor/chats' }))
+			: el('span', { class: 'empty' }, ['none yet'])]),
 		el('dt', {}, ['Investigations']),
 		el('dd', {}, [button('Open records', () => vscode.postMessage({ type: 'folder', path: '.my_editor/investigations' }))]),
 		el('dt', {}, ['Reviewed changes']),
