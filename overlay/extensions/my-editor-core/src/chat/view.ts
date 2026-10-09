@@ -1,104 +1,84 @@
-import { randomBytes } from 'crypto';
 import * as vscode from 'vscode';
-import { analyseProject } from '../brain/analyse';
 import { readProjectState } from '../project/state';
 import { ApiKeys } from '../models/secrets';
-import { CONVERSATIONAL, PairEngine, Sink } from './engine';
-import { fallbackBrief, liveTurns, memoryBatch, MemoryState } from './memory';
-import { Proposal, Proposals } from './proposals';
-import { labelFor, Message, render } from './presentation';
-import { runReplyJob } from './replyJob';
-import { saveProposalEvent } from './changeJournal';
-import { skillCards } from './skillCards';
-import { character, CharacterId } from './characters';
-import { chatWebviewHtml } from './webviewHtml';
-import { editorContextMessage, modelListMessage, newChatId } from './viewUpdates';
 import { ActiveFileTracker } from './activeFile';
-import { makeAiReady } from '../aiready/healthRun';
-import { ANALYSE_ANSWERED } from './analysisOffer';
+import { analysisTask, closeAnalysisOffer } from './analysisOffer';
+import { ProposalEvent, saveProposalEvent } from './changeJournal';
+import { character } from './characters';
 import { projectCharacter, routeCharacter } from './characterRouting';
-import { chatInit, saveConversation } from './chatInit';
+import { ChatBroadcast } from './chatBroadcast';
+import { saveConversation } from './chatInit';
+import { allowedAction } from './chatGuards';
+import { ChatHandlers, handleChatMessage } from './chatMessages';
+import { ChatPanels } from './chatPanels';
+import { PendingRequest, pendingAnalysis, pendingStart } from './chatPending';
+import { ChatState, SavedChat } from './chatState';
+import { CONVERSATIONAL, PairEngine, Sink } from './engine';
+import { Message } from './presentation';
+import { Proposal, Proposals } from './proposals';
+import { runChatTurn } from './replyRun';
+import { runReplyJob } from './replyJob';
+import { skillCards } from './skillCards';
+import { newChatId } from './viewUpdates';
 
 const STATE_KEY = 'myEditor.chat.state';
-const MAX_KEPT_MESSAGES = 200;
-const MAX_VISIBLE_MESSAGES = 60;
-/** Buttons a reply may offer; anything else is ignored. */
-const ALLOWED_ACTIONS = new Set(['myEditor.saveDecision', 'myEditor.adaptFile', 'myEditor.analyseProject', 'myEditor.aiReadyFix']);
 
-interface Saved {
-	messages: Message[];
-	mode?: string;
-	memory?: MemoryState;
-	characterId?: CharacterId;
-	pinned?: boolean;
-}
+type ReplyJob = (sink: Sink, token: vscode.CancellationToken) => Promise<void>;
+
 /** The Pair conversation shared by the sidebar and centered editor tab. */
-export class ChatView implements vscode.WebviewViewProvider {
+export class ChatView implements vscode.WebviewViewProvider, ChatHandlers {
 	static readonly id = 'myEditor.chat';
-	private view: vscode.WebviewView | undefined;
-	private lounge: vscode.WebviewPanel | undefined;
-	private messages: Message[] = [];
-	private characterId: CharacterId = 'bamboo';
-	private pinned = false;
+	private readonly panels: ChatPanels;
+	private readonly state: ChatState;
+	private readonly broadcast: ChatBroadcast;
 	private projectRoot = vscode.workspace.workspaceFolders?.[0]?.uri.toString();
 	private readonly activeFile = new ActiveFileTracker();
-	private pendingPlaceholder: string | undefined;
-	private mode: string | undefined;
-	private memory: MemoryState = { brief: '' };
 	private running: vscode.CancellationTokenSource | undefined;
-	private pending: { text: string; mode?: string; kickoff?: boolean } | undefined;
+	private pending: PendingRequest | undefined;
 	private saveQueue: Promise<void> = Promise.resolve();
+
 	constructor(
 		private readonly context: vscode.ExtensionContext,
 		private readonly engine: PairEngine,
-		private readonly proposals: Proposals,
+		readonly proposals: Proposals,
 		private readonly keys: ApiKeys,
 	) {
-		const saved = context.workspaceState.get<Saved>(STATE_KEY);
-		this.messages = saved?.messages.map(m => ({
-			...m, done: true, progress: undefined,
-			// Proposal contents live in memory. After restart, an unkept diff is no longer reviewable.
-			proposals: m.proposals.map(proposal => proposal.state === 'open' ? { ...proposal, state: 'expired' as const } : proposal),
-		})) ?? [];
-		this.mode = saved?.mode;
-		this.characterId = character(saved?.characterId).id;
-		this.pinned = saved?.pinned ?? false;
-		this.memory = saved?.memory ?? { brief: '' };
+		this.panels = new ChatPanels(context.extensionUri, (message, sender) => void handleChatMessage(message, sender, this));
+		this.state = new ChatState(context.workspaceState.get<SavedChat>(STATE_KEY));
+		this.broadcast = new ChatBroadcast({
+			context, keys, state: this.state,
+			webviews: () => this.panels.webviews(),
+			activeFile: () => this.activeFile.current,
+			running: () => !!this.running,
+		});
 		context.subscriptions.push(
 			this.activeFile,
 			proposals.onDidChange(proposal => this.onProposalChanged(proposal)),
-			this.activeFile.onDidChange(() => this.postContext()),
+			this.activeFile.onDidChange(() => this.broadcast.editorContext()),
 			vscode.workspace.onDidChangeWorkspaceFolders(() => void this.selectForProject()),
-			vscode.workspace.onDidChangeConfiguration(e => e.affectsConfiguration('myEditor') && this.postModels()),
-			context.secrets.onDidChange(() => this.postModels()),
+			vscode.workspace.onDidChangeConfiguration(e => e.affectsConfiguration('myEditor') && this.broadcast.models()),
+			context.secrets.onDidChange(() => this.broadcast.models()),
 		);
 		void this.selectForProject();
 	}
+
 	resolveWebviewView(view: vscode.WebviewView): void {
-		this.view = view;
-		const media = vscode.Uri.joinPath(this.context.extensionUri, 'media');
-		view.webview.options = { enableScripts: true, localResourceRoots: [media] };
-		const nonce = randomBytes(16).toString('base64');
-		view.webview.html = chatWebviewHtml(view.webview, media, 'sidebar', nonce);
-		view.webview.onDidReceiveMessage(message => void this.onMessage(message, view.webview));
-		view.onDidChangeVisibility(() => { if (view.visible) { this.lounge?.dispose(); } });
+		this.panels.resolveSidebar(view);
 	}
-	async openLounge(): Promise<void> {
-		if (this.lounge) { this.lounge.reveal(vscode.ViewColumn.Active); await vscode.commands.executeCommand('workbench.action.closeAuxiliaryBar'); return; }
-		const panel = vscode.window.createWebviewPanel('myEditor.chatLounge', 'Pair', vscode.ViewColumn.Active,
-			{ enableScripts: true, retainContextWhenHidden: true, localResourceRoots: [vscode.Uri.joinPath(this.context.extensionUri, 'media')] });
-		this.lounge = panel;
-		panel.webview.onDidReceiveMessage(message => void this.onMessage(message, panel.webview));
-		panel.onDidDispose(() => { this.lounge = undefined; });
-		panel.webview.html = chatWebviewHtml(panel.webview, vscode.Uri.joinPath(this.context.extensionUri, 'media'), 'lounge', randomBytes(16).toString('base64'));
-		await vscode.commands.executeCommand('workbench.action.closeAuxiliaryBar');
+
+	/** Shows the chat as a centered editor tab and closes the sidebar. */
+	openLounge(): Promise<void> {
+		return this.panels.openLounge();
 	}
-	private webviews(): vscode.Webview[] { return [this.view?.webview, this.lounge?.webview].filter((view): view is vscode.Webview => !!view); }
-	private broadcast(message: unknown): void { for (const webview of this.webviews()) { void webview.postMessage(message); } }
+
+	openSidebar(): Promise<void> {
+		return this.panels.openSidebar();
+	}
+
 	/** Opens the chat on a skill, e.g. from the Project view or after creating a project. */
 	async startSkill(id: string): Promise<void> {
 		await this.openLounge();
-		if (this.webviews().length) {
+		if (this.broadcast.open) {
 			await this.pickSkill(id);
 		} else {
 			this.pending = { text: '', mode: id, kickoff: true };
@@ -108,7 +88,7 @@ export class ChatView implements vscode.WebviewViewProvider {
 	/** Sends a request as if the user typed it (Adapt buttons, fit check). */
 	async ask(text: string): Promise<void> {
 		await this.openLounge();
-		if (this.webviews().length) {
+		if (this.broadcast.open) {
 			await this.send(text);
 		} else {
 			this.pending = { text };
@@ -118,282 +98,206 @@ export class ChatView implements vscode.WebviewViewProvider {
 	/** Reads the project into the brain and drafts its architecture; with aiReady, also writes the health report. */
 	async analyse(aiReady = false): Promise<void> {
 		await this.openLounge();
-		if (!this.webviews().length) { this.pending = { text: '', mode: aiReady ? AI_READY : ANALYSE }; return; }
-		if (this.running) { return; }
-		await this.context.workspaceState.update(ANALYSE_ANSWERED, true);
-		this.broadcast({ type: 'offer', offer: undefined });
-		await this.runTask(aiReady ? 'Check AI-readiness' : 'Analyse this project', (sink, token) => (aiReady ? makeAiReady : analyseProject)(this.keys, this.proposals, sink, token));
+		if (!this.broadcast.open) {
+			this.pending = pendingAnalysis(aiReady);
+			return;
+		}
+		if (this.running) {
+			return;
+		}
+		await closeAnalysisOffer(this.context, this.broadcast);
+		const task = analysisTask(aiReady, this.keys, this.proposals);
+		await this.runTask(task.label, task.job);
+	}
+
+	async declineAnalysis(): Promise<void> {
+		await closeAnalysisOffer(this.context, this.broadcast);
 	}
 
 	/** Runs a host job as a Pair reply under a short request line, with progress, buttons and Stop (e.g. fixing on a branch). */
-	async runTask(label: string, job: (sink: Sink, token: vscode.CancellationToken) => Promise<void>): Promise<void> {
+	async runTask(label: string, job: ReplyJob): Promise<void> {
 		await this.openLounge();
-		if (this.running) { return; }
-		this.messages.push({ id: newChatId(), role: 'user', markdown: label, proposals: [], actions: [], done: true });
-		const reply: Message = { id: newChatId(), role: 'assistant', characterId: this.characterId, markdown: '', proposals: [], actions: [], done: false };
-		this.messages.push(reply);
-		this.postMessages();
+		if (this.running) {
+			return;
+		}
+		this.state.messages.push({ id: newChatId(), role: 'user', markdown: label, proposals: [], actions: [], done: true });
+		const reply = this.state.addReply(newChatId());
+		this.broadcast.messages();
 		await this.runReply(reply, job);
 	}
 
-	private async selectForProject(): Promise<void> {
-		const root = vscode.workspace.workspaceFolders?.[0]?.uri.toString();
-		if (root !== this.projectRoot) { this.projectRoot = root; this.pinned = false; }
-		if (this.pinned) { return; }
-		const id = projectCharacter(await readProjectState());
-		if (root !== vscode.workspace.workspaceFolders?.[0]?.uri.toString() || this.pinned) { return; }
-		this.characterId = id;
-		this.save();
-		this.broadcast({ type: 'character', characterId: id, pinned: false, reason: 'Project stage' });
+	toggleSkills(): void {
+		this.broadcast.post({ type: 'toggleSkills' });
 	}
 
-	toggleSkills(): void {
-		this.broadcast({ type: 'toggleSkills' });
-	}
 	async newChat(): Promise<void> {
 		this.running?.cancel();
-		this.messages = [];
-		this.mode = undefined;
-		this.pendingPlaceholder = undefined;
-		this.memory = { brief: '' };
+		this.state.reset();
 		this.save();
-		await this.postInit();
+		await this.broadcast.init();
 	}
 
-	private async onMessage(message: { type: string; text?: string; id?: string; key?: string; index?: number; href?: string }, sender?: vscode.Webview): Promise<void> {
-		switch (message.type) {
-			case 'ready':
-				await this.postInit(sender);
-				if (this.pending) {
-					const pending = this.pending;
-					this.pending = undefined;
-					if (pending.mode === ANALYSE || pending.mode === AI_READY) {
-						await this.analyse(pending.mode === AI_READY);
-					} else if (pending.kickoff && pending.mode) {
-						await this.pickSkill(pending.mode);
-					} else {
-						await this.send(pending.text);
-					}
-				}
-				return;
-			case 'send':
-				return this.send(message.text ?? '');
-			case 'openLounge':
-				return this.openLounge();
-			case 'openSidebar':
-				await vscode.commands.executeCommand('myEditor.chat.focus');
-				this.lounge?.dispose();
-				return;
-			case 'character':
-				if (this.running) { return; }
-				this.characterId = character(message.id).id;
-				this.pinned = true;
-				this.save();
-				this.broadcast({ type: 'character', characterId: this.characterId, pinned: true, reason: 'Chosen by you' });
-				return;
-			case 'autoCharacter':
-				this.pinned = false;
-				await this.selectForProject();
-				return;
-			case 'skill':
-				return this.pickSkill(message.id ?? '');
-			case 'clearMode':
-				this.mode = undefined;
-				this.pendingPlaceholder = undefined;
-				this.save();
-				return this.postMode();
-			case 'analyse':
-				return this.analyse();
-			case 'aiReady':
-				return this.analyse(true);
-			case 'notNow':
-				await this.context.workspaceState.update(ANALYSE_ANSWERED, true);
-				this.broadcast({ type: 'offer', offer: undefined });
-				return;
-			case 'newChat':
-				return this.newChat();
-			case 'stop':
-				this.running?.cancel();
-				return;
-			case 'model':
-				await vscode.workspace.getConfiguration('myEditor').update('models.default', message.key, vscode.ConfigurationTarget.Global);
-				return;
-			case 'reasoning':
-				if (['default', 'low', 'medium', 'high', 'xhigh'].includes(message.key ?? '')) {
-					await vscode.workspace.getConfiguration('myEditor').update('codexCli.reasoningEffort', message.key, vscode.ConfigurationTarget.Global);
-				}
-				return;
-			case 'chooseModel':
-				await vscode.commands.executeCommand('myEditor.chooseModel');
-				return;
-			case 'review':
-				return this.proposals.show(message.id ?? '');
-			case 'keep':
-				await this.proposals.keep(message.id ?? '');
-				return;
-			case 'undo':
-				return this.proposals.undo(message.id ?? '');
-			case 'action':
-				return this.runAction(message.id ?? '', message.index ?? -1);
-			case 'link':
-				if (message.href && /^https?:\/\//.test(message.href)) {
-					await vscode.env.openExternal(vscode.Uri.parse(message.href));
-				}
-				return;
+	async ready(sender?: vscode.Webview): Promise<void> {
+		await this.broadcast.init(sender);
+		const pending = this.pending;
+		if (!pending) {
+			return;
+		}
+		this.pending = undefined;
+		const start = pendingStart(pending);
+		if (start.kind === 'analyse') {
+			await this.analyse(start.aiReady);
+		} else if (start.kind === 'skill') {
+			await this.pickSkill(start.id);
+		} else {
+			await this.send(start.text);
 		}
 	}
 
-	private async pickSkill(id: string): Promise<void> {
+	chooseCharacter(id: string | undefined): void {
+		if (this.running) {
+			return;
+		}
+		this.state.characterId = character(id).id;
+		this.state.pinned = true;
+		this.save();
+		this.broadcast.character(true, 'Chosen by you');
+	}
+
+	async autoCharacter(): Promise<void> {
+		this.state.pinned = false;
+		await this.selectForProject();
+	}
+
+	clearMode(): void {
+		this.state.clearMode();
+		this.save();
+		this.broadcast.mode();
+	}
+
+	stop(): void {
+		this.running?.cancel();
+	}
+
+	async pickSkill(id: string): Promise<void> {
 		const card = (await skillCards(this.context.extensionUri)).find(c => c.id === id);
 		if (!card) {
 			return;
 		}
 		if (id === 'analyse') {
-			this.mode = undefined;
+			this.state.mode = undefined;
 			this.save();
-			this.postMode();
+			this.broadcast.mode();
 			await this.analyse();
 			return;
 		}
-		this.mode = card.id;
-		this.pendingPlaceholder = card.start === 'compose' ? card.placeholder : undefined;
+		this.state.mode = card.id;
+		this.state.pendingPlaceholder = card.start === 'compose' ? card.placeholder : undefined;
 		this.save();
-		this.postMode();
+		this.broadcast.mode();
 		if (card.start === 'kickoff') {
 			await this.send('', true);
 		} else if (card.start === 'run') {
 			await this.send('');
 		} else {
-			this.broadcast({ type: 'focusComposer', placeholder: this.pendingPlaceholder });
+			this.broadcast.post({ type: 'focusComposer', placeholder: this.state.pendingPlaceholder });
 		}
 	}
 
-	private async send(text: string, kickoff = false): Promise<void> {
+	async send(text: string, kickoff = false): Promise<void> {
 		if (this.running) {
 			return;
 		}
-		const route = routeCharacter(text, this.mode, this.characterId, this.pinned);
-		if (route.id !== this.characterId) {
-			this.characterId = route.id;
+		const state = this.state;
+		const route = routeCharacter(text, state.mode, state.characterId, state.pinned);
+		if (route.id !== state.characterId) {
+			state.characterId = route.id;
 			this.save();
-			this.broadcast({ type: 'character', characterId: route.id, pinned: false, reason: route.reason });
+			this.broadcast.character(false, route.reason);
 		}
-		this.pendingPlaceholder = undefined;
-		const mode = this.mode;
+		state.pendingPlaceholder = undefined;
+		const mode = state.mode;
 		if (!kickoff) {
 			if (!text.trim() && !mode) {
 				return;
 			}
-			this.messages.push({ id: newChatId(), role: 'user', markdown: text.trim() || labelFor(mode), mode, proposals: [], actions: [], done: true });
+			state.addUserMessage(newChatId(), text, mode);
 		}
-		const reply: Message = { id: newChatId(), role: 'assistant', characterId: this.characterId, markdown: '', mode, proposals: [], actions: [], done: false };
-		const prior = this.messages.filter(m => m.done && m.markdown).slice(0, kickoff ? undefined : -1);
-		const memoryMessages = prior.map(m => ({ id: m.id, role: m.role, text: m.markdown }));
-		this.messages.push(reply);
+		const history = state.history(!kickoff);
+		const reply = state.addReply(newChatId(), mode);
 		// Save the user's full paste before asking a model, so a stopped or crashed run cannot lose it.
 		this.save();
-		try { await this.saveQueue; }
-		catch { void vscode.window.showWarningMessage('Pair could not save this chat yet. Keep the editor open until storage is available.'); }
-		this.postMessages();
-
-		await this.runReply(reply, async (sink, token) => {
-			const deterministic = mode === 'changes' || mode === 'impact' || /^\/(changes|impact)\b/.test(text.trim());
-			let batch = deterministic ? [] : memoryBatch(memoryMessages, this.memory);
-			while (batch.length) {
-				sink.progress('Keeping track of earlier conversation…');
-				let brief: string;
-				try {
-					brief = await this.engine.compactHistory(this.memory.brief, batch, token);
-				} catch {
-					brief = fallbackBrief(this.memory.brief, batch);
-				}
-				if (token.isCancellationRequested) { return; }
-				this.memory = { brief, throughId: batch[batch.length - 1].id };
-				this.save();
-				batch = memoryBatch(memoryMessages, this.memory);
-			}
-			sink.progress('');
-			const live = liveTurns(memoryMessages, this.memory).map(turn => ({ role: turn.role, text: turn.text }));
-			const proposalState = this.messages.flatMap(message => message.proposals.map(proposal => `${proposal.file}: ${proposal.state}`)).slice(-12).join('\n');
-			const result = await this.engine.run({ text, mode, kickoff, characterId: reply.characterId, locateOnly: route.locateOnly, activeFile: this.activeFile.current, memory: this.memory.brief, proposalState, requestId: reply.id,
-				chatArchive: memoryMessages.map(message => ({ role: message.role, text: message.text })) }, live, sink, token);
-			// Conversations keep their skill; code-writing requests run once, then chat is plain again.
-			if (!CONVERSATIONAL.has(result.mode) && this.mode === mode && mode !== undefined && !mode.startsWith('skill:')) {
-				this.mode = undefined;
-			}
-		});
+		try {
+			await this.saveQueue;
+		} catch {
+			void vscode.window.showWarningMessage('Pair could not save this chat yet. Keep the editor open until storage is available.');
+		}
+		this.broadcast.messages();
+		const turn = { text, mode, kickoff, reply, locateOnly: route.locateOnly, history };
+		const context = {
+			state, engine: this.engine, activeFile: () => this.activeFile.current, conversational: CONVERSATIONAL, save: () => this.save(),
+		};
+		await this.runReply(reply, (sink, token) => runChatTurn(turn, context, sink, token));
 	}
 
-	/** Runs one job that writes into a reply: streamed text, progress, proposal cards, buttons and a Stop button. */
-	private async runReply(reply: Message, job: (sink: Sink, token: vscode.CancellationToken) => Promise<void>): Promise<void> {
-		await runReplyJob(reply, job, {
-			running: source => { this.running = source; this.postMode(); },
-			update: () => this.postMessage(reply),
-			save: () => this.save(),
-			proposal: proposal => { void saveProposalEvent(reply.id, proposal, 'proposed').catch(error =>
-				vscode.window.showWarningMessage(`Could not save the change record: ${error instanceof Error ? error.message : String(error)}`)); },
-		});
-	}
-
-	private async runAction(messageId: string, index: number): Promise<void> {
-		const action = this.messages.find(m => m.id === messageId)?.actions[index];
-		if (action && ALLOWED_ACTIONS.has(action.command)) {
+	async runAction(messageId: string, index: number): Promise<void> {
+		const action = this.state.messages.find(m => m.id === messageId)?.actions[index];
+		if (action && allowedAction(action.command)) {
 			await vscode.commands.executeCommand(action.command, ...action.args);
 		}
 	}
 
+	/** The project's stage picks the character, unless the user pinned one. */
+	private async selectForProject(): Promise<void> {
+		const root = vscode.workspace.workspaceFolders?.[0]?.uri.toString();
+		if (root !== this.projectRoot) {
+			this.projectRoot = root;
+			this.state.pinned = false;
+		}
+		if (this.state.pinned) {
+			return;
+		}
+		const id = projectCharacter(await readProjectState());
+		// The folder may have changed, or the user pinned a character, while the state was read.
+		if (root !== vscode.workspace.workspaceFolders?.[0]?.uri.toString() || this.state.pinned) {
+			return;
+		}
+		this.state.characterId = id;
+		this.save();
+		this.broadcast.character(false, 'Project stage');
+	}
+
+	/** Runs one job that writes into a reply: streamed text, progress, proposal cards, buttons and a Stop button. */
+	private async runReply(reply: Message, job: ReplyJob): Promise<void> {
+		await runReplyJob(reply, job, {
+			running: source => {
+				this.running = source;
+				this.broadcast.mode();
+			},
+			update: () => this.broadcast.message(reply),
+			save: () => this.save(),
+			proposal: proposal => recordProposal(reply.id, proposal, 'proposed'),
+		});
+	}
+
 	private onProposalChanged(proposal: Proposal): void {
-		for (const message of this.messages) {
-			const card = message.proposals.find(p => p.id === proposal.id);
-			if (card) {
-				card.state = proposal.state;
-				this.postMessage(message);
-				if (proposal.state !== 'open') {
-					void saveProposalEvent(message.id, proposal, proposal.state).catch(error =>
-						vscode.window.showWarningMessage(`Could not save the change record: ${error instanceof Error ? error.message : String(error)}`));
-				}
+		for (const message of this.state.applyProposal(proposal)) {
+			this.broadcast.message(message);
+			if (proposal.state !== 'open') {
+				recordProposal(message.id, proposal, proposal.state);
 			}
 		}
 		this.save();
 	}
 
 	private save(): void {
-		this.messages = this.messages.slice(-MAX_KEPT_MESSAGES);
-		const snapshot = {
-			messages: this.messages.map(message => ({ ...message, proposals: [...message.proposals], actions: [...message.actions] })),
-			mode: this.mode, memory: this.memory, characterId: this.characterId, pinned: this.pinned,
-		} satisfies Saved;
+		const snapshot = this.state.snapshot();
 		this.saveQueue = this.saveQueue.catch(() => undefined).then(() => saveConversation(this.context, STATE_KEY, snapshot));
-	}
-
-	private async postInit(target?: vscode.Webview): Promise<void> {
-		if (!this.webviews().length) { return; }
-		const message = await chatInit(this.context, this.messages, this.characterId, this.pinned, ANALYSE_ANSWERED, MAX_VISIBLE_MESSAGES);
-		if (target) { void target.postMessage(message); }
-		else { this.broadcast(message); }
-		this.postMode();
-		this.postContext();
-		await this.postModels();
-		if (this.pendingPlaceholder) {
-			const focus = { type: 'focusComposer', placeholder: this.pendingPlaceholder };
-			if (target) { void target.postMessage(focus); }
-			else { this.broadcast(focus); }
-		}
-	}
-
-	private postMessages(): void { this.broadcast({ type: 'messages', messages: this.messages.slice(-MAX_VISIBLE_MESSAGES).map(render) }); }
-
-	private postMessage(message: Message): void { this.broadcast({ type: 'message', message: render(message), running: !!this.running }); }
-
-	private postMode(): void { this.broadcast({ type: 'mode', mode: this.mode, label: this.mode ? labelFor(this.mode) : undefined, running: !!this.running }); }
-
-	private postContext(): void { this.broadcast(editorContextMessage(this.activeFile.current)); }
-
-	private async postModels(): Promise<void> {
-		if (this.webviews().length) { this.broadcast(await modelListMessage(this.keys)); }
 	}
 }
 
-/** Stands in for a skill id while the analysis waits for the chat to open. */
-const ANALYSE = '#analyse';
-const AI_READY = '#ai-ready';
+/** Writes a proposal's event to the change journal; a failure only warns. */
+function recordProposal(requestId: string, proposal: Proposal, event: ProposalEvent): void {
+	void saveProposalEvent(requestId, proposal, event).catch(error =>
+		vscode.window.showWarningMessage(`Could not save the change record: ${error instanceof Error ? error.message : String(error)}`));
+}
