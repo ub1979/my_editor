@@ -68,7 +68,7 @@ Each rule below exists to close one of these. When a rule cannot decide, the mov
 | Parser | A stdlib-only helper (`ast`, `tokenize`, `symtable`) run with the project's own interpreter as `python -I -S` | The project's grammar and scoping exactly; `-I -S` runs no `.pth`, `sitecustomize` or project code |
 | Name resolution | `symtable` for every nested scope, `ast` for module-scope expressions. Never hand-rolled scoping | Class scopes, comprehensions (inlined since 3.12), `nonlocal`, PEP 695 annotation scopes |
 | Where new files go | The original's folder, same package | Relative imports copied byte for byte resolve the same (`__package__` is the same) |
-| The facade | One block right after the original's leading imports: `from .rows import a as a, _b as _b`, every moved name, `_private` included | Keeps every attribute; the redundant alias is the explicit re-export form mypy (`no_implicit_reexport`), pyright and ruff accept (probed: plain `from .rows import a` fails `mypy --strict` for callers) |
+| The facade | One block right after the original's leading imports: `from .rows import a as a`, one statement per moved name, `_private` included, in ruff's isort order, with a blank line before it and before the next code (two before a def or class) | Keeps every attribute; the redundant alias is the explicit re-export form mypy (`no_implicit_reexport`), pyright and ruff accept (probed: plain `from .rows import a` fails `mypy --strict` for callers). isort never combines aliased imports, so one statement per name is what `ruff check --select I` and black keep (measured with ruff 0.12 and black 24) |
 | Facade at each old position instead? | Rejected | It would keep binding times exactly, but imports in the middle of a file fail ruff's default rules (`E402`), so the user's CI would fail on the branch. The quiet window below closes the gap instead, for every moved name |
 | Imports in new files | Built by the host from name bindings, copied from the original's statements. The model never writes import lines | Same as TS |
 | Unused imports in the original | Kept byte for byte, always | Every imported name is an attribute callers may use |
@@ -89,10 +89,13 @@ Interpreter**. Candidates, in order:
 | The user's earlier pick | Global storage |
 | A venv in the project folder | `.venv/`, `venv/`, `env/` with `pyvenv.cfg` and `bin/python` (`Scripts\python.exe` on Windows). uv, PDM and in-project Poetry put theirs in `.venv` |
 | Poetry, Pipenv, Hatch | Only when their lock or config file exists: `poetry env info --executable`, `pipenv --py`, `hatch env find`, run once without a shell, read-only |
-| pyenv | `.python-version` names a version or pyenv-virtualenv present under `~/.pyenv/versions/`; the concrete `~/.pyenv/versions/<v>/bin/python` is used. A shim (`~/.pyenv/shims/…`, asdf or mise shims) is rejected: it picks the version from the current folder and environment at each run |
+| pyenv | `.python-version` names a version or pyenv-virtualenv present under `~/.pyenv/versions/` (a plain version-like word whose folder, followed through links, stays there); the concrete `~/.pyenv/versions/<v>/bin/python` is used. A shim (`~/.pyenv/shims/…`, asdf or mise shims) is rejected: it picks the version from the current folder and environment at each run |
 | Anything else (conda, system Python) | The user picks a file |
 
-With one candidate the user confirms it; with several or none, a quick pick. The venv belongs to the user's folder (it
+A `#!` script is never a candidate (shims and wrappers are scripts). Whatever is chosen is refused when its probed
+`sys.executable` resolves to another file (a launcher such as macOS's `/usr/bin/python3`) or when its environment folder
+is tracked by git (a `.venv` that came with the repository). With one candidate the user confirms it; with several or
+none, a quick pick. The venv belongs to the user's folder (it
 is untracked, so the worktree has none). Splits do not install anything: `setup()` returns nothing for Python.
 
 **Running it.** The approved command text never holds a path (paths can have spaces; `splitCommand` refuses them).
@@ -100,7 +103,7 @@ Commands start with the interpreter's file name (`python`, `python3.12`), and th
 `bin` folder first on `PATH` and sets `VIRTUAL_ENV` for a venv (core change: the runner resolves the program against
 the command env's `PATH`). The interpreter path is not resolved through symlinks: a venv's `python` is a symlink, and
 following it loses the venv. The approval dialog shows the interpreter's full path, its version, `sys.prefix` (so a
-wrong venv is visible), the project's `requires-python`, and the environment.
+wrong venv is visible), the project's `requires-python` (flagged when the interpreter does not satisfy it), and the environment.
 
 **Probing it** (`python -I`, site on, no project code): version, implementation, `sys.stdlib_module_names`
 (3.10+; a shipped list for 3.9), installed top-level modules, and whether `pytest`, `pytest_randomly`, `mypy`,
@@ -139,7 +142,8 @@ Otherwise Python splits stop for the run: tests would check the user's folder in
 Probed on 3.14: `symtable` reports `json`, `str`, `Y` as globals of a nested function, `z` in a method as global (class
 scope does not enclose), and PEP 695 type alias values as their own scope. Byte spans are UTF-8 offsets computed from
 `lineno`/`col_offset` (which are UTF-8 byte columns in CPython); the host slices with `Buffer` only. Parse errors,
-including newer syntax than the interpreter knows, skip the file.
+including newer syntax than the interpreter knows and nesting deeper than the helper can walk (`RecursionError`), skip
+the file. Import aliases are tokenized per statement and NFKC-normalized as Python binds them.
 
 ## Skipped files
 
@@ -165,7 +169,7 @@ Reported, never split:
 - **Compiled or paired:** a sibling `.pxd` (Cython augments the module), a project that builds `.py` with Cython
   (`cythonize` over `.py`) or mypyc (`mypycify`, `[tool.mypyc]`, `hatch-mypyc`); a sibling `.pyi` stub (the new
   modules would need stubs); Jupytext or cell files (`# %%`, `# COMMAND ----------`, a `jupyter:` header).
-- **Bytes:** a BOM, CRLF line endings, an encoding cookie other than `utf-8`/`utf8`, a line over 1,000 characters,
+- **Bytes:** a BOM, CRLF line endings, a carriage return outside CRLF (Python ends a line there, the host does not), an encoding cookie other than `utf-8`/`utf8`, a line over 1,000 characters,
   a file over 512 KB, a symlink.
 - **File-level tool comments new files would need:** `# type: ignore` before the first statement, `# mypy:`,
   `# pyright:`, `# pytype:` file-level comments. Lint directives (`# ruff: noqa`, `# pylint: disable`) do not skip.
@@ -247,7 +251,10 @@ comparisons), comprehensions, f-strings with fields, `await`, `yield`, walrus, s
 `Exception` and the other builtin exceptions…); a stdlib class resolved by binding from this list: `abc.ABC`,
 `enum.Enum`/`IntEnum`/`StrEnum`/`Flag`/`IntFlag`, `typing.NamedTuple`/`TypedDict`/`Protocol`/`Generic[…]`; or a class
 moved earlier into the same new file that itself passes these rules and defines no `__init_subclass__`,
-`__class_getitem__` or `__set_name__`. The only keyword allowed is `metaclass=abc.ABCMeta`. So no project or
+`__class_getitem__` or `__set_name__`. The only keyword allowed is `metaclass=abc.ABCMeta`. A class is impure (so neither
+movable nor quiet when it stays) when a same-file base defines `__init_subclass__`, when it is an Enum whose class or
+same-file Enum base defines `__init__`, `__new__` or `_generate_next_value_` (run for each member), or when its body holds
+an imported object or module attribute as a value (`type.__new__` calls its `__set_name__`). So no project or
 third-party metaclass, `__init_subclass__` or registry runs. Allowed decorators, resolved by binding to the stdlib
 module (a tracked file shadowing that module name at an import root refuses):
 
@@ -276,7 +283,7 @@ class defined there.
 | A declaration reading `__file__` | Only as `os.path.dirname(__file__)`, `os.path.dirname(os.path.abspath(__file__))`, `os.path.dirname(os.path.realpath(__file__))`, `Path(__file__).parent`, `Path(__file__).resolve().parent`, `Path(__file__).absolute().parent` | Same folder, same result; anything else names the file |
 | A declaration whose name appears in a Django `migrations/` file | Never | `makemigrations` would serialize the new path |
 | A declaration whose docstring (or a docstring inside it) contains `>>>` | Never | Doctest names and collection follow the defining module (`--doctest-modules`, `doctest.testmod`) |
-| A declaration that calls `warnings.warn`, when any tracked config or code filters warnings by the original's module (`filterwarnings` with `module=`, pytest `filterwarnings` entries, `-W` options, `PYTHONWARNINGS` in config naming it) | Never | Probed: a filter on `pkg.report` no longer matches a warning raised from the moved function |
+| Any function or class, when any tracked config or code filters warnings by the original's module (`filterwarnings` with `module=`, pytest `filterwarnings` entries over several lines, `-W` options, `PYTHONWARNINGS` in config naming it) | Never | Probed: a filter on `pkg.report` no longer matches a warning raised from the moved function, and a library warning with `stacklevel` is attributed to the caller's module, so not only `warnings.warn` callers are affected |
 | A declaration reading a name bound inside a compound leading-block statement (`try`/`except ImportError`, a version or platform `if`) | Only when the import check shows each failed import in that statement raised `ModuleNotFoundError` for exactly the module it names, and every name the statement binds is the same object in both modules | Copying the statement re-runs it; a module that fails halfway would run its top half twice |
 
 **Never rebound.** A moved name must have exactly one binding in the original and must not be assigned from outside:
@@ -298,9 +305,10 @@ old place must be quiet. A statement is **quiet** when it is:
 
 - a definition or assignment with pure definition-time code, a docstring, `pass`, an `if TYPE_CHECKING:` block;
 - a call (alone or as an assignment's value) whose callee resolves by binding to this stdlib allowlist, with arguments
-  that are literals, `__name__` or names bound by imports: `logging.getLogger`, `warnings.filterwarnings`, `warnings.simplefilter`, `re.compile`, `os.environ.get`,
-  `os.getenv`, `collections.namedtuple`, `typing.TypeVar`/`NewType`/`ParamSpec`, `object()`. None of these imports a
-  module or calls back into code it is given.
+  that are literals (and `__name__` for `getLogger`): `logging.getLogger`, `re.compile`, `os.environ.get`, `os.getenv`,
+  `collections.namedtuple`, `typing.TypeVar`/`NewType`/`ParamSpec`, `object()`. None of these imports a module or calls
+  back into code it is given. Warning filters are not quiet: `re.compile` of some patterns warns, and moving it above
+  `simplefilter('error')` changes what happens.
 
 Not quiet: any other call, including anything from `importlib`, `runpy`, `pkgutil`, `threading`, `atexit`, `signal`,
 `sys.setrecursionlimit`-style hooks, and every project or third-party callee (`Flask(__name__)`, `app.register(…)`);
@@ -354,9 +362,12 @@ changes for tests that patch a network call away. The message names the file and
 **A new file** is, in order:
 
 1. `# Split from <original basename> by my_editor.` and a blank line;
-2. the original's `from __future__` statements, byte for byte (they change how moved code compiles);
-3. its import statements (below);
-4. two blank lines, then the moved spans byte for byte in original order, two blank lines apart (PEP 8 and black).
+2. the original's `from __future__` statements, byte for byte (they change how moved code compiles; the move check
+   requires every one), then a blank line;
+3. its import statements (below), with a blank line wherever the original had one between the statements it copies
+   (isort sections), and a blank line before the sibling imports;
+4. two blank lines before a def or class, else one (ruff's isort `lines-after-imports`), then the moved spans byte for
+   byte in original order, two blank lines apart (PEP 8 and black).
 
 **Import statements in a new file.** For each leading-block statement that binds a name the spans read, in the
 original's order:
@@ -368,7 +379,7 @@ original's order:
 - `if TYPE_CHECKING:` blocks are copied with their header line and only the kept import lines.
 - Other compound statements (`try`/`except ImportError`, version or platform `if`) are copied whole, with the
   imports their conditions need (`sys`).
-- Sibling new files: `from .m import X`.
+- Sibling new files: `from .m import X, Y`, names in isort order.
 
 Imports of modules the original never imported are impossible by construction, so no new module loads first. Each copied
 import repeats a lookup in `sys.modules` and, for `from m import n`, a `getattr`. A copied `from m import n` is allowed
@@ -378,16 +389,21 @@ object (*Checks per step*).
 
 **The original** keeps everything else byte for byte, minus the moved spans; blank lines around a removed span collapse
 to the longer of the two runs that bordered it, at most two (core change; Go and TS keep one). The leading block is
-unchanged. The facade block follows it, one statement per new file, in an order where a file comes after the files it
-imports:
+unchanged. The facade block follows it, one statement per moved name, sorted the way ruff's isort sorts them (by module,
+then CONSTANTS, Classes and the rest, case-insensitively and naturally); each new file imports its own siblings, so the
+order does not matter at run time. A blank line goes before the facade unless the leading block ends with a relative
+import (the same isort section), and before the next code one blank line, or two when it is a def or class:
 
 ```python
-from .rows import RowError as RowError, parse_row as parse_row, _row_cache as _row_cache
+from .rows import RowError as RowError
+from .rows import _row_cache as _row_cache
+from .rows import parse_row as parse_row
 ```
 
 When a line would exceed the project's line length (black or ruff `line-length`, default 88) it is written the way
-black writes it: `from .rows import (`, one `name as name,` per line, `)`. `__all__` stays as it is: star imports
-export the same names, because they are still bound (probed).
+black writes it: `from .rows import (`, `name as name,`, `)`. A second split of an already split original sorts its new
+statements in with the first facade, which the move check then ignores. `__all__` stays as it is: star imports export
+the same names, because they are still bound (probed).
 
 ## File names
 
@@ -437,7 +453,7 @@ another reason it is dropped.)
 
 | Label | Command | Verifies | Compared by |
 |---|---|---|---|
-| `build` | `python -m my_editor_pycheck <module>` with the helper's folder added to `PYTHONPATH` for this command only | Yes | Exit code and error lines |
+| `build` | `python <helper folder>/my_editor_pycheck.py <module>`: by path, so the helper's folder (not the project's, as `-m` would put first) is first while the helpers load; `ready()` stops the run when that path has a space | Yes | Exit code and error lines |
 | `vet` | `python -m mypy` (its config's `files`, else the top-level packages) when mypy is configured and installed; `basedpyright`/`pyright` when configured and their binary is in the environment (never one that downloads Node) | No | Error lines without positions |
 | `test` | `python -m pytest -q -rA -p no:cacheprovider` (plus `-p no:randomly` when pytest-randomly is installed); else `python -m unittest discover -v`; Django without pytest-django: `python manage.py test --verbosity 2` | No | Per-test results, else exit code |
 
@@ -447,12 +463,15 @@ another reason it is dropped.)
 1. reads the original's source and, when new modules exist, theirs (the original's facade lines name siblings whose
    first line is the split header for this original);
 2. runs the original's **leading block** alone, in a scratch module with the original's `__name__` and
-   `__package__` (this loads the same modules in the same order the real import will, so the real import then finds
-   them loaded). For each `try`/`except ImportError` statement it records which import failed and how. It then asserts:
+   `__package__`, from a meta-path hook at the moment the import system first looks for the original (so a package
+   whose `__init__.py` imports the module is checked in that state, not reported as a cycle; this loads the same
+   modules in the same order the real import will, so the real import then finds them loaded). For each
+   `try`/`except ImportError` statement it records which import failed and how. It then asserts:
    - every `from m import n` copied into a new module has `n` in `vars(m)`;
    - every `m.attr` that a moved declaration reads at definition time has `attr` in `vars(m)`;
    - every failed import inside a copied compound statement raised `ModuleNotFoundError` whose `name` is exactly the
-     module that statement imports (not a module that started and failed halfway);
+     module that statement imports (not a module that started and failed halfway), with every package above that name
+     still loaded (a package that failed halfway is removed from `sys.modules`);
 3. imports the original module by name (this runs the project's import-time code, as tests do);
 4. asserts, for each new module, that every name it binds by an import statement, and every name a copied compound
    statement binds, is the **same object** (`is`) as the original's binding of that name (the original keeps every
@@ -552,7 +571,7 @@ In `src/aiready/`, each under 400 lines:
 | Unit | Job | Interface |
 |---|---|---|
 | `resources/pyast/my_editor_pyast.py` | Parse one file: leading block, declarations, spans, comments, globals read (symtable), bindings, purity facts, skip facts | `python -I -S my_editor_pyast.py <file>` → JSON |
-| `resources/pyast/my_editor_pycheck.py` | The import check and identity invariants | `python -m my_editor_pycheck <module>` → exit code |
+| `resources/pyast/my_editor_pycheck.py` | The import check and identity invariants | `python <helper folder>/my_editor_pycheck.py <module>` → exit code |
 | `pyInterpreter.ts` | Candidates, the user's pick, probe, version gate, `commandEnv` | `pythonFor(root, storage): PyInterpreter \| string` |
 | `pyAst.ts` | Run the parser helper, type its output | `pyFileFacts(py, file): PyFacts` |
 | `pyProject.ts` | Import roots and module names, scope (pickle, `__module__` readers, Cython/mypyc), frameworks, script references, folder scans, patch strings and assignments, `reload`/`sys.modules`, tool config naming files, packaging lists, test runner, type checker, formatter | `pyProject(root, py, tracked): PyProject` |
@@ -565,7 +584,7 @@ In `src/aiready/`, each under 400 lines:
 
 `languages.ts` picks the Python adapter when the root has `pyproject.toml`, `setup.py`, `setup.cfg`,
 `requirements*.txt`, `Pipfile` or `manage.py` and neither `go.mod` nor a TS marker (mixed repositories keep their
-order until adapters are chosen per file).
+order until adapters are chosen per file, and the run says which language it chose).
 
 **Changes to the shared core** (small; Go and TS unaffected):
 
@@ -603,8 +622,8 @@ note) for one that is not; the helper accepts `symtable` table types as strings 
   shapes) refuse; a name bound twice, deleted, or assigned from a test refuses; default `def f(x=X)` with `X` an
   import is pure, with `X` a staying constant is rejected by the name rule.
 - **Early binding:** any declaration after `register()`, `app = Flask(__name__)`, `threading.Thread(…).start()`,
-  `atexit.register(f)` or `importlib.import_module('x')` is refused; one after `logger = logging.getLogger(__name__)`
-  and `warnings.filterwarnings('ignore')` moves; one before the first non-quiet statement moves.
+  `atexit.register(f)`, `importlib.import_module('x')` or `warnings.simplefilter('error')` is refused; one after
+  `logger = logging.getLogger(__name__)` moves; one before the first non-quiet statement moves.
 - **Narrowed projects:** `multiprocessing`, `ProcessPoolExecutor`, `celery`, `torch.save` or a `!!python/` YAML tag
   anywhere makes functions and classes unmovable; a package `__init__.py` with `__getattr__` skips its modules; a
   `per-file-ignores`, `[mypy-pkg.report]`, pyright `strict` path or coverage `omit` naming the file skips it; a pyenv
