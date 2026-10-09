@@ -8,6 +8,7 @@ import { ApiKeys } from '../models/secrets';
 import { noteFileName, renderChangeNote, reportWithRun, runFlaky } from './changeNote';
 import { CommandEnv, runCheck, startRun } from './fixSetup';
 import { clearState, loadState, MAX_FIXES_PER_RUN, RunState, saveState, StepRecord } from './fixState';
+import { closingText } from './fixText';
 import { AdapterFactory, adapterFor } from './languages';
 import { runAddTests, runSplit, StepContext } from './steps';
 import { commit, reattach, remove, trackedFiles } from './worktree';
@@ -44,10 +45,22 @@ export async function fixOnBranch(context: vscode.ExtensionContext, keys: ApiKey
 		state = await startRun(env, language, sink);
 		if (!state) { return; }
 	} else {
-		state.worktree = await reattach(root, state.worktree);
+		try { state.worktree = await reattach(root, state.worktree); }
+		catch (error) { return forgetRun(storage, state, sink, error); }
 		if (state.next < state.fixes.length) { sink.text(`Continuing on \`${state.worktree.branch}\` with ${state.fixes.length - state.next} fix${state.fixes.length - state.next === 1 ? '' : 'es'} left.\n`); }
 	}
 	await runFixes(env, state, language, sink, (system, text) => ask(model, keys, system, text, token, ASK_TIMEOUT_MS));
+}
+
+/** The branch's working copy cannot be reopened: offer to forget the run (the branch and its commits stay) instead of asking again next time. */
+async function forgetRun(storage: string, state: RunState, sink: Sink, error: unknown): Promise<void> {
+	const message = error instanceof Error ? error.message : String(error);
+	const answer = await vscode.window.showWarningMessage(`The working copy for ${state.worktree.branch} could not be reopened.`, {
+		modal: true, detail: `${message}\n\nForget this run? The branch and its commits stay; only my_editor's record of the run is removed.`,
+	}, 'Forget this run');
+	if (answer !== 'Forget this run') { sink.text(`The run on \`${state.worktree.branch}\` could not continue: ${message}`); return; }
+	clearState(storage, state.root);
+	sink.text(`Forgot the run. The branch \`${state.worktree.branch}\` and its commits are still there.`);
 }
 
 function stepLine(step: StepRecord): string {
@@ -110,12 +123,11 @@ async function closeRun(env: CommandEnv, state: RunState, sink: Sink): Promise<v
 	let removed = true;
 	try { await remove(state.root, worktree); } catch { removed = false; }
 	const report = path.join(state.root, '.my_editor', 'ai-ready', 'report.md');
-	try { writeFileSync(report, reportWithRun(existsSync(report) ? readFileSync(report, 'utf8') : '# AI-ready health report', state, note)); } catch { /* The note on the branch is the record. */ }
+	let reportUpdated = true;
+	try { writeFileSync(report, reportWithRun(existsSync(report) ? readFileSync(report, 'utf8') : '# AI-ready health report', state, note)); }
+	catch { reportUpdated = false; /* The note on the branch is the record. */ }
 	clearState(env.storage, state.root);
 	const committed = state.steps.filter(step => step.status === 'committed').length;
-	const { branch, base } = state.worktree;
-	sink.text(`\n**Done.** ${committed} fix${committed === 1 ? '' : 'es'} committed on \`${branch}\`, with the change note \`${note}\`. `
-		+ `Your folder and its branch were not touched, and nothing was pushed.${removed ? '' : ` Remove the working copy \`${worktree}\` when you are done with it.`}\n\n`
-		+ `Review with \`git diff ${base.slice(0, 12)}..${branch}\`, keep the changes with \`git merge ${branch}\`, or delete them with \`git branch -D ${branch}\`.`);
+	sink.text(closingText({ committed, branch: state.worktree.branch, base: state.worktree.base, note, removed, worktree, reportUpdated }));
 	sink.action('Refresh the brain after merging', 'myEditor.analyseProject', []);
 }

@@ -79,21 +79,68 @@ export function freeFolder(root: string): string {
 	}
 }
 
-/** Creates the branch at HEAD and checks it out in a new worktree next to the project. The user's folder is not touched. */
-export async function prepare(root: string): Promise<Worktree> {
+/**
+ * Creates the branch at HEAD and checks it out in a new worktree next to the project, in `folder` (the one the user
+ * approved). The user's folder is not touched.
+ */
+export async function prepare(root: string, folder = freeFolder(root)): Promise<Worktree> {
 	const branch = await freeBranch(root);
-	const folder = freeFolder(root);
 	const base = (await git(root, ['rev-parse', 'HEAD'])).trim();
 	await git(root, ['worktree', 'add', '--quiet', folder, '-b', branch, base]);
 	return { branch, path: folder, base };
 }
 
-/** After a crash: the worktree from saved state, or prune and check the branch out again. */
+function real(file: string): string {
+	try { return realpathSync(file); } catch { return path.resolve(file); }
+}
+
+/** Worktrees from `git worktree list --porcelain`, the main one (the user's folder) first. */
+async function worktrees(root: string): Promise<{ path: string; branch?: string }[]> {
+	return (await git(root, ['worktree', 'list', '--porcelain'])).split('\n\n').map(block => {
+		const lines = block.split('\n');
+		return { path: lines.find(line => line.startsWith('worktree '))?.slice(9) ?? '', branch: lines.find(line => line.startsWith('branch '))?.slice(7) };
+	}).filter(entry => entry.path);
+}
+
+/** Throws unless `folder` is a linked worktree of `root` with `branch` checked out; never the user's folder. */
+async function assertRunWorktree(root: string, folder: string, branch: string): Promise<void> {
+	const listed = await worktrees(root);
+	if (real(folder) === real(root) || (listed[0] && real(folder) === real(listed[0].path))) {
+		throw new Error(`The branch ${branch} is checked out in your folder, so my_editor will not reset it. Switch your folder to another branch first.`);
+	}
+	if (!listed.some(entry => entry.branch === `refs/heads/${branch}` && real(entry.path) === real(folder))) {
+		throw new Error(`${folder} is not the working copy of ${branch}.`);
+	}
+}
+
+/** Puts the run's worktree back at its last commit (a fix that stopped half way). Runs only inside that worktree. */
+async function cleanWorktree(root: string, folder: string, branch: string): Promise<void> {
+	await assertRunWorktree(root, folder, branch);
+	await git(folder, ['reset', '-q']);
+	await git(folder, ['checkout', 'HEAD', '--', '.']);
+	await git(folder, ['clean', '-fd']);
+}
+
+/**
+ * Continue after a stop or crash: the saved worktree when Git still lists it on the run's branch, else the branch
+ * checked out again in a free folder. Either way, it is reset to its last commit.
+ */
 export async function reattach(root: string, worktree: Worktree): Promise<Worktree> {
-	if (existsSync(path.join(worktree.path, '.git'))) { return worktree; }
 	await git(root, ['worktree', 'prune']);
-	const folder = existsSync(worktree.path) ? freeFolder(root) : worktree.path;
-	await git(root, ['worktree', 'add', '--quiet', folder, worktree.branch]);
+	const listed = await worktrees(root);
+	const on = listed.find(entry => entry.branch === `refs/heads/${worktree.branch}`);
+	let folder = worktree.path;
+	if (on) {
+		if (on !== listed[0] && real(on.path) !== real(worktree.path)) {
+			throw new Error(`The branch ${worktree.branch} is checked out in ${on.path}, not in the run's working copy.`);
+		}
+		// The main worktree is the user's folder; cleanWorktree refuses it.
+		folder = on === listed[0] ? on.path : worktree.path;
+	} else {
+		folder = existsSync(worktree.path) ? freeFolder(root) : worktree.path;
+		await git(root, ['worktree', 'add', '--quiet', folder, worktree.branch]);
+	}
+	await cleanWorktree(root, folder, worktree.branch);
 	return { ...worktree, path: folder };
 }
 
@@ -109,11 +156,20 @@ export async function commit(worktree: string, paths: readonly string[], subject
 	return (await git(worktree, ['rev-parse', 'HEAD'])).trim();
 }
 
-/** Undoes a step: tracked files back to the last commit, the step's new files removed. */
+/**
+ * Undoes a step: everything unstaged, tracked files back to the last commit, and the step's new files (and any new
+ * file that was staged, say by a commit that failed) removed.
+ */
 export async function restore(worktree: string, newFiles: readonly string[]): Promise<void> {
-	const changed = await changedFiles(worktree);
-	if (changed.length) { await git(worktree, ['checkout', 'HEAD', '--', ...changed]); }
-	for (const file of newFiles) { rmSync(path.join(worktree, file), { force: true }); }
+	const fields = (await git(worktree, ['diff', '--name-status', '--no-renames', '-z', 'HEAD'])).split('\0').filter(Boolean);
+	const entries: { status: string; file: string }[] = [];
+	for (let i = 0; i + 1 < fields.length; i += 2) { entries.push({ status: fields[i], file: fields[i + 1] }); }
+	const paths = [...new Set([...entries.map(entry => entry.file), ...newFiles])];
+	if (paths.length) { await git(worktree, ['reset', '-q', '--', ...paths]); }
+	const tracked = entries.filter(entry => entry.status !== 'A').map(entry => entry.file);
+	if (tracked.length) { await git(worktree, ['checkout', 'HEAD', '--', ...tracked]); }
+	const added = entries.filter(entry => entry.status === 'A').map(entry => entry.file);
+	for (const file of new Set([...added, ...newFiles])) { rmSync(path.join(worktree, file), { force: true }); }
 }
 
 /** Removes the worktree (files the tests left behind included); the branch stays. */
@@ -121,7 +177,8 @@ export async function remove(root: string, worktree: string): Promise<void> {
 	await git(root, ['worktree', 'remove', '--force', worktree]);
 }
 
-/** Deletes a branch this run created, when the run is discarded before anything was committed on it. */
-export async function deleteBranch(root: string, branch: string): Promise<void> {
-	await git(root, ['branch', '-D', branch]);
+/** Removes a run's worktree and deletes its branch, when the run is discarded before anything was committed on it. */
+export async function discard(root: string, worktree: Worktree): Promise<void> {
+	if (existsSync(worktree.path)) { await remove(root, worktree.path); }
+	await git(root, ['branch', '-D', worktree.branch]);
 }

@@ -167,18 +167,24 @@ export async function runAddTests(ctx: StepContext, fix: FixChoice): Promise<Ste
 		const code = fileFromReply(reply);
 		if (!code) { feedback = 'The reply had no ```go code block.'; continue; }
 		writeFileSync(abs(testFile), code.endsWith('\n') ? code : `${code}\n`);
-		const outcome = await checkNewTests(ctx, fix.file, testFile, info);
-		if (outcome === 'stopped' || typeof outcome === 'string') {
-			rmSync(abs(testFile), { force: true });
-			await restore(worktree, []);
-			if (outcome === 'stopped') { return 'stopped'; }
-			feedback = outcome;
-			continue;
+		// Until the commit lands, a throw anywhere (a check, git) must not leave the test file behind.
+		let committed = false;
+		try {
+			const outcome = await checkNewTests(ctx, fix.file, testFile, info);
+			if (outcome === 'stopped' || typeof outcome === 'string') {
+				await restore(worktree, [testFile]);
+				if (outcome === 'stopped') { return 'stopped'; }
+				feedback = outcome;
+				continue;
+			}
+			const summary = checkSummary(outcome.results, ctx.flaky);
+			const body = `Adds ${testFile}; no source file changed.\n\nChecks: ${summary}${outcome.dropped.length ? `\nDropped failing tests: ${outcome.dropped.join(', ')}` : ''}`;
+			const sha = await commit(worktree, [testFile], `my_editor: add tests for ${path.posix.basename(fix.file)} (${fix.file})`, body);
+			committed = true;
+			return { file: fix.file, kind: 'tests', status: 'committed', commit: sha, testFile, dropped: outcome.dropped, checks: summary };
+		} finally {
+			if (!committed) { rmSync(abs(testFile), { force: true }); }
 		}
-		const summary = checkSummary(outcome.results, ctx.flaky);
-		const body = `Adds ${testFile}; no source file changed.\n\nChecks: ${summary}${outcome.dropped.length ? `\nDropped failing tests: ${outcome.dropped.join(', ')}` : ''}`;
-		const sha = await commit(worktree, [testFile], `my_editor: add tests for ${path.posix.basename(fix.file)} (${fix.file})`, body);
-		return { file: fix.file, kind: 'tests', status: 'committed', commit: sha, testFile, dropped: outcome.dropped, checks: summary };
 	}
 	return done('skipped', `The tests did not work: ${feedback.split('\n')[0]}`);
 }

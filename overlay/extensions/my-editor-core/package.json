@@ -324,7 +324,9 @@
           "type": "number",
           "default": 10,
           "minimum": 1,
-          "description": "How long one build or test command may run while fixing a project on a local branch, in minutes."
+          "maximum": 240,
+          "description": "How long one build or test command may run while fixing a project on a local branch, in minutes.",
+          "scope": "machine"
         },
         "myEditor.autoComments.enabled": {
           "type": "boolean",

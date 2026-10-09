@@ -2,13 +2,14 @@ import { readFileSync } from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import type { Sink } from '../chat/engine';
-import { CheckResult, failureLines } from './baseline';
+import { CheckResult, failureLines, runBaseline } from './baseline';
 import { fixChoices, pickFixes } from './fixPicker';
 import { logDir, RunState, saveState } from './fixState';
+import { approvalDetail, timeoutMinutes } from './fixText';
 import { fileStats, scanHealth } from './health';
 import type { LanguageAdapter } from './language';
 import { runCommand, tail } from './projectCommands';
-import { deleteBranch, freeFolder, initRepository, prepare, prerequisites, remove, trackedFiles } from './worktree';
+import { discard, freeFolder, initRepository, prepare, prerequisites, trackedFiles, Worktree } from './worktree';
 
 const MAX_FAILURE_LINES = 200;
 
@@ -19,9 +20,9 @@ export interface CommandEnv {
 	readonly token: vscode.CancellationToken;
 }
 
-/** The per-command timeout from settings (minutes, default 10). */
+/** The per-command timeout from settings (minutes, default 10, clamped to 1–240). */
 function timeoutMs(): number {
-	return Math.max(1, vscode.workspace.getConfiguration('myEditor').get<number>('aiReady.commandTimeoutMinutes', 10)) * 60_000;
+	return timeoutMinutes(vscode.workspace.getConfiguration('myEditor').get<unknown>('aiReady.commandTimeoutMinutes')) * 60_000;
 }
 
 /** Runs one approved command in the worktree, logs its full output in run state, and parses it. */
@@ -82,42 +83,44 @@ export async function startRun(env: CommandEnv, adapter: (root: string, tracked:
 	const checks = [...new Map(picked.flatMap(fix => local.checks(fix.file)).map(check => [check.command, check])).values()];
 	const approved = checks.map(check => check.command);
 	const folder = freeFolder(root);
-	const answer = await vscode.window.showWarningMessage('Run these commands on a new local branch?', {
-		modal: true,
-		detail: `In a new working copy at ${folder}, on a new branch:\n\n${approved.join('\n')}\n\n`
-			+ `They build the project and run its tests, which runs project code. my_editor also runs read-only ${local.label} tools `
-			+ '(to list packages and check formatting) and local git commands there. Your folder and branch are not touched, and nothing is pushed.',
-	}, 'Run them');
+	const answer = await vscode.window.showWarningMessage('Run these commands on a new local branch?',
+		{ modal: true, detail: approvalDetail(folder, approved, local.label) }, 'Run them');
 	if (answer !== 'Run them') { sink.text('The commands were not approved, so nothing changed.'); return undefined; }
-	const worktree = await prepare(root);
-	sink.text(`Working on branch \`${worktree.branch}\` in \`${worktree.path}\`. Your folder stays as it is.\n`);
-	logDir(env.storage, root, true);
-	const state: RunState = {
-		version: 1, root, language: local.label, worktree, startedAt: new Date().toISOString(), approved, fixes: picked, next: 0, steps: [],
-		baseline: {}, skippedFiles: [...skipped].map(([file, reason]) => ({ file, reason })),
-	};
-	const inWorktree = adapter(worktree.path, await trackedFiles(worktree.path));
-	for (const { command, label } of checks) {
-		const runs: CheckResult[] = [];
-		for (const round of [1, 2]) {
-			sink.progress(`Baseline ${round} of 2: \`${command}\`…`);
-			runs.push(await runCheck(env, inWorktree, worktree.path, approved, command, label));
-			if (token.isCancellationRequested) { return discardUnstarted(state, sink); }
+	const worktree = await prepare(root, folder);
+	try {
+		sink.text(`Working on branch \`${worktree.branch}\` in \`${worktree.path}\`. Your folder stays as it is.\n`);
+		logDir(env.storage, root, true);
+		const inWorktree = adapter(worktree.path, await trackedFiles(worktree.path));
+		const outcome = await runBaseline(checks, {
+			check: (command, label) => runCheck(env, inWorktree, worktree.path, approved, command, label),
+			cancelled: () => token.isCancellationRequested,
+			progress: text => sink.progress(text),
+		});
+		if ('stopped' in outcome) { return await discardUnstarted(root, worktree, sink, 'Stopped before any fix.'); }
+		if ('problem' in outcome) { return await discardUnstarted(root, worktree, sink, outcome.problem); }
+		for (const [command, [first]] of Object.entries(outcome.baseline)) {
+			if (first.code !== 0) { sink.text(`\`${command}\` already fails before any change; it must keep failing the same way.\n`); }
 		}
-		state.baseline[command] = [runs[0], runs[1]];
-		if (runs[0].code !== 0) { sink.text(`\`${command}\` already fails before any change; it must keep failing the same way.\n`); }
+		const state: RunState = {
+			version: 1, root, language: local.label, worktree, startedAt: new Date().toISOString(), approved, fixes: picked, next: 0, steps: [],
+			baseline: outcome.baseline, skippedFiles: [...skipped].map(([file, reason]) => ({ file, reason })),
+		};
+		saveState(env.storage, state);
+		sink.progress('');
+		return state;
+	} catch (error) {
+		return discardUnstarted(root, worktree, sink, `The run could not start: ${error instanceof Error ? error.message : String(error)}`);
 	}
-	saveState(env.storage, state);
-	sink.progress('');
-	return state;
 }
 
-/** Stop during the baseline: nothing was committed, so the worktree and its branch go away. */
-async function discardUnstarted(state: RunState, sink: Sink): Promise<undefined> {
+/** Before any fix (Stop, a baseline that could not run, or an error): nothing was committed, so the worktree and branch go. */
+async function discardUnstarted(root: string, worktree: Worktree, sink: Sink, reason: string): Promise<undefined> {
+	sink.progress('');
 	try {
-		await remove(state.root, state.worktree.path);
-		await deleteBranch(state.root, state.worktree.branch);
-	} catch { /* The user can delete them by hand; the message below names them. */ }
-	sink.text(`Stopped before any fix. The branch \`${state.worktree.branch}\` and its working copy were removed.`);
+		await discard(root, worktree);
+		sink.text(`${reason} The branch \`${worktree.branch}\` and its working copy were removed.`);
+	} catch {
+		sink.text(`${reason} Remove the working copy \`${worktree.path}\` and the branch \`${worktree.branch}\` by hand.`);
+	}
 	return undefined;
 }

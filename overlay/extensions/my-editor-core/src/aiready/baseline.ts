@@ -1,3 +1,5 @@
+import type { CheckCommand } from './language';
+
 export type Outcome = 'pass' | 'fail' | 'skip';
 
 /** Per-test and per-package outcomes of one test command. Test keys are `<package> <test>`. */
@@ -112,4 +114,43 @@ export function checkSummary(results: readonly CheckResult[], flaky: readonly st
 	const passed = outcomes.filter(outcome => outcome === 'pass').length;
 	return `${[...new Set(results.map(result => `\`${result.command}\``))].join(', ')}: same as before`
 		+ `${outcomes.length ? ` (${passed} of ${outcomes.length} tests passing)` : ''}${flaky.length ? `; ${flaky.length} flaky excluded` : ''}.`;
+}
+
+/** What recording a baseline needs from the run. */
+export interface BaselineRunner {
+	readonly check: (command: string, label: string) => Promise<CheckResult>;
+	readonly cancelled: () => boolean;
+	readonly progress: (text: string) => void;
+}
+
+export type BaselineOutcome =
+	| { readonly baseline: Record<string, readonly [CheckResult, CheckResult]> }
+	| { readonly stopped: true }
+	| { readonly problem: string };
+
+/**
+ * Runs every check twice on the untouched branch. A run that timed out or did not start leaves nothing to compare
+ * with, so the run stops with what to change.
+ */
+export async function runBaseline(checks: readonly CheckCommand[], runner: BaselineRunner): Promise<BaselineOutcome> {
+	const baseline: Record<string, readonly [CheckResult, CheckResult]> = {};
+	for (const { command, label } of checks) {
+		const runs: CheckResult[] = [];
+		for (const round of [1, 2]) {
+			runner.progress(`Baseline ${round} of 2: \`${command}\`…`);
+			const result = await runner.check(command, label);
+			if (runner.cancelled()) { return { stopped: true }; }
+			if (result.code === undefined) {
+				return {
+					problem: result.timedOut
+						? `\`${command}\` timed out while recording how the project behaves before any change. Raise `
+							+ '**myEditor.aiReady.commandTimeoutMinutes** in Settings, or fix the command, then try again.'
+						: `\`${command}\` did not start: ${result.tail.split('\n')[0] || 'no output'}. Install the tool or fix the command, then try again.`,
+				};
+			}
+			runs.push(result);
+		}
+		baseline[command] = [runs[0], runs[1]];
+	}
+	return { baseline };
 }

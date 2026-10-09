@@ -1,6 +1,6 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
-import { CheckResult, checkSummary, compareWithBaseline, failureLines, flakyTests, Outcome, unverified } from '../src/aiready/baseline';
+import { CheckResult, checkSummary, compareWithBaseline, failureLines, flakyTests, Outcome, runBaseline, unverified } from '../src/aiready/baseline';
 
 const tests = (outcomes: Record<string, Outcome>, packages: Record<string, Outcome> = {}) => ({ tests: outcomes, packages });
 const testRun = (code: number, outcomes: Record<string, Outcome>, packages: Record<string, Outcome> = {}): CheckResult =>
@@ -56,4 +56,21 @@ test('a vet failure that existed before must stay the same, wherever its line mo
 test('checkSummary names each command once and counts the last test run', () => {
 	const summary = checkSummary([checkRun(0, ''), testRun(0, { 'm A': 'pass', 'm B': 'skip' }), testRun(0, { 'm A': 'pass', 'm B': 'pass' })], ['m C']);
 	assert.equal(summary, '`go vet ./internal/store`, `go test -count=1 -json ./a`: same as before (2 of 2 tests passing); 1 flaky excluded.');
+});
+
+test('a baseline run that timed out or did not start stops the run with what to do', async () => {
+	const checks = [{ label: 'build' as const, command: 'go build ./...' }, { label: 'test' as const, command: 'go test ./a' }];
+	const ok = (command: string): CheckResult => ({ command, code: 0, failures: [], tail: '', log: '' });
+	const run = (bad: Partial<CheckResult>, cancelled = false) => runBaseline(checks, {
+		check: async command => (command === 'go test ./a' ? { ...ok(command), ...bad } : ok(command)), cancelled: () => cancelled, progress: () => undefined,
+	});
+	const good = await run({});
+	assert.ok('baseline' in good && good.baseline['go test ./a'][1].code === 0);
+	const timedOut = await run({ code: undefined, timedOut: true });
+	assert.ok('problem' in timedOut);
+	assert.match(timedOut.problem, /`go test \.\/a` timed out[\s\S]*commandTimeoutMinutes/);
+	const unstarted = await run({ code: undefined, tail: 'go was not found.' });
+	assert.ok('problem' in unstarted);
+	assert.match(unstarted.problem, /`go test \.\/a` did not start: go was not found\.[\s\S]*fix the command/);
+	assert.deepEqual(await run({}, true), { stopped: true });
 });

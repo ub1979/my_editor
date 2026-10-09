@@ -1,6 +1,6 @@
 import { strict as assert } from 'node:assert';
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { test } from 'node:test';
@@ -86,4 +86,22 @@ test('steps: a split is planned by ID, checked and committed; a bad plan is refu
 	assert.equal(stopped, 'stopped');
 	await remove(root, worktree);
 	assert.equal(execFileSync('git', ['status', '--porcelain'], { cwd: root, encoding: 'utf8' }), '');
+});
+
+test('add-tests removes its file when the commit fails', async t => {
+	const run = await setup();
+	if (!run) { t.skip('Go is not installed'); return; }
+	const { worktree, ctx } = run;
+	const lock = path.join(execFileSync('git', ['rev-parse', '--absolute-git-dir'], { cwd: worktree, encoding: 'utf8' }).trim(), 'index.lock');
+	let testRuns = 0;
+	const check: StepContext['check'] = async (command, label) => {
+		const result = await ctx.check(command, label);
+		if (label === 'test' && ++testRuns === 2) { writeFileSync(lock, ''); }
+		return result;
+	};
+	const good = 'package shop\n\nimport "testing"\n\nfunc TestAiDescribe(t *testing.T) {\n\tif Describe(2) != "2" {\n\t\tt.Fatal()\n\t}\n}\n';
+	await assert.rejects(runAddTests({ ...ctx, check, ask: async () => `\`\`\`go\n${good}\`\`\`` }, { file: 'shop.go', kind: 'tests', lines: 13 }), /index\.lock|git add failed/);
+	rmSync(lock, { force: true });
+	assert.ok(!existsSync(path.join(worktree, 'shop_ai_test.go')));
+	assert.equal(execFileSync('git', ['status', '--porcelain'], { cwd: worktree, encoding: 'utf8' }), '');
 });
