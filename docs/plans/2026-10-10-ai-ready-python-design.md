@@ -1,6 +1,6 @@
 # Make a project AI-ready: Python (Stage 2c)
 
-- **Date:** 10 October 2026
+- **Date:** 10 October 2026 (narrowed after an adversarial review the same day)
 - **Status:** Design, not built. Needs review before a plan.
 - **Builds on:** [AI-ready design](2026-10-07-ai-ready-design.md), *Stage 2a: Go*,
   [TS/JS design](2026-10-09-ai-ready-ts-design.md) (its structure and its review lessons), the `LanguageAdapter`
@@ -17,10 +17,16 @@ Where the safe choice is unclear, version 1 refuses or skips.
 |---|---|
 | A `.py` module inside a regular package (every folder from its `sys.path` root down has `__init__.py`), project interpreter CPython 3.9 to 3.14, no Cython or mypyc build of `.py` files | Functions, classes, literal constants and `type` aliases whose definition-time code is pure (see *What may move*) |
 | As above, and a tracked file reads `__module__`, calls `inspect.getmodule`, `inspect.getmembers`, `pyclbr`, or reads `vars(m)`/`m.__dict__` of a project module | Constants only: the project itself looks at where things are defined |
-| As above, and a tracked file uses `pickle`, `cPickle`, `_pickle`, `dill`, `cloudpickle`, `joblib`, `shelve`, `jsonpickle`, `copyreg`, or defines `__reduce__`/`__reduce_ex__` | Functions, constants and type aliases; no classes (a pickle names a class by its module) |
+| As above, and the project may pickle by reference: a tracked file or a dependency uses `pickle`, `cPickle`, `_pickle`, `dill`, `cloudpickle`, `joblib`, `shelve`, `jsonpickle`, `copyreg`, `multiprocessing`, `concurrent.futures.ProcessPoolExecutor`, Celery, RQ, Dramatiq, Ray, Dask, `torch.save`/`torch.load`, PyYAML `!!python/` tags or `yaml.unsafe_load`/`yaml.Loader`, or defines `__reduce__`/`__reduce_ex__` | Constants only. Pickle names functions as well as classes by module and qualified name, so a pickle written by the branch names the new module |
+| A file whose package `__init__.py` defines `__getattr__` or `__dir__` | Nothing; skipped (a lazy package can run code when a sibling is looked up) |
+| A file whose exact path or dotted module name appears in tracked tool config: ruff or flake8 `per-file-ignores`, `[mypy-pkg.mod]` or `[[tool.mypy.overrides]] module`, pyright `include`/`exclude`/`strict`/`ignore`, coverage `omit`/`include`/`source`, pytest `--cov=pkg.mod` | Nothing; skipped (the new files would not get the same treatment) |
 | A module not in a package (a top-level module, a script folder), or in a namespace package (no `__init__.py`) | Nothing; skipped (no relative facade is possible, or a name could resolve in another portion) |
 | Project interpreter 3.15 or later | Nothing; the run stops with *Python splitting needs Python 3.9 to 3.14 for now.* 3.15 adds lazy imports (PEP 810: `lazy import`, `__lazy_modules__`, a global lazy mode), so "every module the original imports is already loaded at the facade" stops being true. Re-review before enabling |
-| Interpreter older than 3.9, PyPy, or no interpreter chosen | Nothing; the run stops with a plain message |
+| Interpreter older than 3.9, PyPy, a pyenv shim, or no interpreter chosen | Nothing; the run stops with a plain message |
+
+Every moved name also needs a **quiet window** (see *Early binding*): only statements on a short stdlib allowlist may
+run between the imports and its old place. Most files with top-level calls therefore move only what comes before the
+first call.
 
 Every narrowed or skipped file names the reason in the report.
 
@@ -63,7 +69,7 @@ Each rule below exists to close one of these. When a rule cannot decide, the mov
 | Name resolution | `symtable` for every nested scope, `ast` for module-scope expressions. Never hand-rolled scoping | Class scopes, comprehensions (inlined since 3.12), `nonlocal`, PEP 695 annotation scopes |
 | Where new files go | The original's folder, same package | Relative imports copied byte for byte resolve the same (`__package__` is the same) |
 | The facade | One block right after the original's leading imports: `from .rows import a as a, _b as _b`, every moved name, `_private` included | Keeps every attribute; the redundant alias is the explicit re-export form mypy (`no_implicit_reexport`), pyright and ruff accept (probed: plain `from .rows import a` fails `mypy --strict` for callers) |
-| Facade at each old position instead? | Rejected | It would keep binding times exactly, but imports in the middle of a file fail ruff's default rules (`E402`), so the user's CI would fail on the branch. The early-binding rule below closes the gap instead |
+| Facade at each old position instead? | Rejected | It would keep binding times exactly, but imports in the middle of a file fail ruff's default rules (`E402`), so the user's CI would fail on the branch. The quiet window below closes the gap instead, for every moved name |
 | Imports in new files | Built by the host from name bindings, copied from the original's statements. The model never writes import lines | Same as TS |
 | Unused imports in the original | Kept byte for byte, always | Every imported name is an attribute callers may use |
 | A moved definition that uses a name that stays | Refused | It would need an import back into the original, a cycle with the facade. Annotations count as uses (they are evaluated in the new module's globals by `get_type_hints`, `dataclass` and pydantic) |
@@ -83,7 +89,7 @@ Interpreter**. Candidates, in order:
 | The user's earlier pick | Global storage |
 | A venv in the project folder | `.venv/`, `venv/`, `env/` with `pyvenv.cfg` and `bin/python` (`Scripts\python.exe` on Windows). uv, PDM and in-project Poetry put theirs in `.venv` |
 | Poetry, Pipenv, Hatch | Only when their lock or config file exists: `poetry env info --executable`, `pipenv --py`, `hatch env find`, run once without a shell, read-only |
-| pyenv | `.python-version` names a version or pyenv-virtualenv present under `~/.pyenv/versions/` |
+| pyenv | `.python-version` names a version or pyenv-virtualenv present under `~/.pyenv/versions/`; the concrete `~/.pyenv/versions/<v>/bin/python` is used. A shim (`~/.pyenv/shims/…`, asdf or mise shims) is rejected: it picks the version from the current folder and environment at each run |
 | Anything else (conda, system Python) | The user picks a file |
 
 With one candidate the user confirms it; with several or none, a quick pick. The venv belongs to the user's folder (it
@@ -93,7 +99,8 @@ is untracked, so the worktree has none). Splits do not install anything: `setup(
 Commands start with the interpreter's file name (`python`, `python3.12`), and the adapter's `commandEnv` puts its
 `bin` folder first on `PATH` and sets `VIRTUAL_ENV` for a venv (core change: the runner resolves the program against
 the command env's `PATH`). The interpreter path is not resolved through symlinks: a venv's `python` is a symlink, and
-following it loses the venv. The approval dialog shows the interpreter's full path and the environment.
+following it loses the venv. The approval dialog shows the interpreter's full path, its version, `sys.prefix` (so a
+wrong venv is visible), the project's `requires-python`, and the environment.
 
 **Probing it** (`python -I`, site on, no project code): version, implementation, `sys.stdlib_module_names`
 (3.10+; a shipped list for 3.9), installed top-level modules, and whether `pytest`, `pytest_randomly`, `mypy`,
@@ -179,8 +186,7 @@ Reported, never split:
 - **Package-wide `import *`:** a tracked `from <package> import *` when the package's `__init__.py` has no literal
   `__all__` (the new submodule would become a star-exported name; probed).
 
-`__init__.py` is **not** skipped. It follows the same rules; most are in an import cycle with their submodules, so the
-early-binding rule applies to every name moved out of them (see *Review*). One difference: the package namespace is
+`__init__.py` is **not** skipped. It follows the same rules, including the quiet window (see *Review*). One difference: the package namespace is
 the original's namespace, so splitting `__init__.py` adds one attribute per new file (`pkg.rows`). The file-name rule
 keeps it from colliding with any name, and the package-wide `import *` skip keeps star exports the same.
 
@@ -209,9 +215,11 @@ docstring) belongs to that assignment. A declaration sharing a line with other c
 them when they move together).
 
 **Definition-time code** is what runs when the statement is executed: decorators and their arguments; default values;
-parameter and return annotations before 3.14 unless the file has `from __future__ import annotations`; a class's
-bases, keywords, body statements and class-level annotations (`dataclass` evaluates those on 3.14 too); an
-assignment's value and, before 3.14 without the future import, its annotation. Function bodies, method bodies and
+parameter and return annotations unless annotations are deferred; a class's bases, keywords, body statements and
+class-level annotations (`dataclass` evaluates those even when deferred); an assignment's value and its annotation
+unless deferred. Annotations count as **deferred** only when the file has `from __future__ import annotations`, or
+the project's `requires-python` lower bound is 3.14 or later. The interpreter used for the run does not decide it:
+the code may also run on older versions. With no `requires-python`, annotations are treated as evaluated. Function bodies, method bodies and
 lambda bodies run later and do not count. A `type X = …` value and PEP 695 bounds are lazy and do not count.
 
 **Pure** definition-time code is only:
@@ -222,7 +230,9 @@ lambda bodies run later and do not count. A `type X = …` value and PEP 695 bou
   tuples of literals (hashing anything else runs `__hash__`/`__eq__`);
 - lambdas with pure defaults;
 - **reads** of: a name bound by the leading block and never rebound; a builtin name that the file never binds; a
-  definition moved earlier into the same new file; an attribute of a name bound by `import m` (a module object);
+  definition moved earlier into the same new file; an attribute `m.attr` of a name bound by `import m` (a module
+  object), which the import check must confirm is in `vars(m)` right after the leading block (a module `__getattr__`
+  can run code);
 - **type expressions**: subscripts of builtin generics (`list`, `dict`, `tuple`, `set`, `frozenset`, `type`) or of
   names bound from `typing`, `typing_extensions` or `collections.abc`; `|` between builtins, `None`, those names and
   classes moved to the same file; string annotations (not evaluated, but their names count as uses);
@@ -265,40 +275,42 @@ class defined there.
 | A declaration reading `__name__`, `__module__`, `__doc__`, `__spec__`, `__loader__`, `__package__`, `__path__`, `__builtins__`, `__cached__` | Never | They name the module |
 | A declaration reading `__file__` | Only as `os.path.dirname(__file__)`, `os.path.dirname(os.path.abspath(__file__))`, `os.path.dirname(os.path.realpath(__file__))`, `Path(__file__).parent`, `Path(__file__).resolve().parent`, `Path(__file__).absolute().parent` | Same folder, same result; anything else names the file |
 | A declaration whose name appears in a Django `migrations/` file | Never | `makemigrations` would serialize the new path |
+| A declaration whose docstring (or a docstring inside it) contains `>>>` | Never | Doctest names and collection follow the defining module (`--doctest-modules`, `doctest.testmod`) |
+| A declaration that calls `warnings.warn`, when any tracked config or code filters warnings by the original's module (`filterwarnings` with `module=`, pytest `filterwarnings` entries, `-W` options, `PYTHONWARNINGS` in config naming it) | Never | Probed: a filter on `pkg.report` no longer matches a warning raised from the moved function |
+| A declaration reading a name bound inside a compound leading-block statement (`try`/`except ImportError`, a version or platform `if`) | Only when the import check shows each failed import in that statement raised `ModuleNotFoundError` for exactly the module it names, and every name the statement binds is the same object in both modules | Copying the statement re-runs it; a module that fails halfway would run its top half twice |
 
 **Never rebound.** A moved name must have exactly one binding in the original and must not be assigned from outside:
 no `orig.X = …`, `setattr(orig, 'X', …)`, `del orig.X` in any tracked file, through any name or attribute chain that
-resolves to the original module.
+resolves to the original module. The same holds for every **leading-block name a moved span reads**: exactly one
+binding in the leading block (statements binding it in several branches of one compound statement count as one), no
+`global` assignment, no `del`, and no other binding anywhere in the file.
 
 ## Early binding
 
 The facade binds every moved name right after the leading block, earlier than its old place. With pure definition-time
-code nothing about the moved objects changes, but the name now exists earlier. Code can see that in only three ways:
+code nothing about the moved objects changes, but the name now exists earlier. Code running in between could see
+that: by catching the `NameError` it used to get, by inspecting the namespace, or by importing the original while it
+is still loading (directly, through a cycle, or through a library that imports or calls back). Version 1 does not try
+to tell those apart.
 
-1. it catches the `NameError` (or `ImportError`, `AttributeError`) it used to get;
-2. it inspects the namespace (`globals()`, `vars`, `dir`, `sys.modules`, frames): those files are skipped;
-3. another module reads the original while it is still loading: only possible inside an import cycle.
+**Rule: every moved name needs a quiet window.** Every top-level statement between the leading block and the name's
+old place must be quiet. A statement is **quiet** when it is:
 
-The verifying check proves at baseline that the original imports without an uncaught error, so case 1 narrows to
-caught errors. Rule:
+- a definition or assignment with pure definition-time code, a docstring, `pass`, an `if TYPE_CHECKING:` block;
+- a call (alone or as an assignment's value) whose callee resolves by binding to this stdlib allowlist, with arguments
+  that are literals, `__name__` or names bound by imports: `logging.getLogger`, `warnings.filterwarnings`, `warnings.simplefilter`, `re.compile`, `os.environ.get`,
+  `os.getenv`, `collections.namedtuple`, `typing.TypeVar`/`NewType`/`ParamSpec`, `object()`. None of these imports a
+  module or calls back into code it is given.
 
-- A **quiet** top-level statement cannot reach the original's namespace: a definition or assignment with pure
-  definition-time code, a docstring, `pass`, an `if TYPE_CHECKING:` block, or a call whose callee is a name or
-  attribute chain rooted at an import binding, and whose arguments are literals, `__name__`, `__file__` and names bound by imports (`logger =
-  logging.getLogger(__name__)`, `app = Flask(__name__)` are quiet). A call to this file's functions, or one passing
-  this file's functions or classes, or a decorated staying definition, is not quiet.
-- A moved name **used by staying code** needs a **quiet window** (every top-level statement between the leading block
-  and its old place is quiet) when the original has any handler that could catch a `NameError`: bare `except:`,
-  `except Exception`, `except BaseException`, `except NameError`, a handler naming anything that is not a builtin
-  exception, or `contextlib.suppress` of those.
-- **In an import cycle**, every moved name needs a quiet window.
-- Otherwise no window is needed.
+Not quiet: any other call, including anything from `importlib`, `runpy`, `pkgutil`, `threading`, `atexit`, `signal`,
+`sys.setrecursionlimit`-style hooks, and every project or third-party callee (`Flask(__name__)`, `app.register(…)`);
+decorated staying definitions; staying definitions with impure definition-time code; any other compound statement.
 
-**The module graph.** Edges are every `import` and `from … import` at any depth (inside functions too),
-`importlib.import_module('literal')`, `__import__('literal')`, and `sys.modules['literal']` reads, resolved to tracked
-modules. `if TYPE_CHECKING:` imports are not edges. A non-literal `import_module`/`__import__`, or `sys.modules[x]`,
-counts as an edge to every tracked module. A module importing its own package (`from . import x` in a submodule while
-`__init__` imports that submodule) is a cycle.
+So a file whose first statement after the imports is `app = Flask(__name__)` moves nothing defined after it. This is
+the main narrowing of version 1.
+
+Import cycles need no rule of their own: with every moved name behind a quiet window, nothing runs between the facade
+and the old place that could import the original or read it.
 
 ## Names that cross files
 
@@ -326,6 +338,13 @@ README naming `pkg.report.parse_row` must not block a split, while the folder an
   the original module (by a binding or attribute chain) and `'X'`, or with a non-literal name;
 - assigns or deletes `<the module>.X`.
 
+And for **every** name moved code reads (not only X), the plan is rejected when any tracked `.py` file:
+
+- builds a string with the original's dotted name as a prefix (an f-string or concatenation starting with
+  `'pkg.report.'`, `'%s.%s' % ('pkg.report', …)` with a literal module part);
+- uses `patch.object`, `patch.multiple`, `monkeypatch.setattr`, `setattr` or `delattr` on the original module at all,
+  whatever the name argument.
+
 Probed: with `helper` and `caller` both moved, `patch('pkg.report.helper')` still reaches staying code but no longer
 reaches `caller`; `patch('pkg.report.json')` no longer reaches a moved function using `json`. Both are real behavior
 changes for tests that patch a network call away. The message names the file and line.
@@ -352,8 +371,10 @@ original's order:
 - Sibling new files: `from .m import X`.
 
 Imports of modules the original never imported are impossible by construction, so no new module loads first. Each copied
-import repeats a lookup in `sys.modules` and, for `from m import n`, a `getattr`; the verifying check proves the result
-is the same object (*Checks per step*).
+import repeats a lookup in `sys.modules` and, for `from m import n`, a `getattr`. A copied `from m import n` is allowed
+only when `n` is already in `vars(m)` right after the leading block; otherwise the `getattr` would run `m.__getattr__`
+again (a deprecation warning, a lazy load). The verifying check enforces this and proves every result is the same
+object (*Checks per step*).
 
 **The original** keeps everything else byte for byte, minus the moved spans; blank lines around a removed span collapse
 to the longer of the two runs that bordered it, at most two (core change; Go and TS keep one). The leading block is
@@ -421,21 +442,37 @@ another reason it is dropped.)
 | `test` | `python -m pytest -q -rA -p no:cacheprovider` (plus `-p no:randomly` when pytest-randomly is installed); else `python -m unittest discover -v`; Django without pytest-django: `python manage.py test --verbosity 2` | No | Per-test results, else exit code |
 
 **The verifying check.** The core needs one passing `verifies` check before a split. For Python it is
-`my_editor_pycheck`, shipped in `resources/pyast/`, which:
+`my_editor_pycheck`, shipped in `resources/pyast/`, run in a fresh interpreter. It:
 
-1. imports the original module by name in a fresh interpreter (this runs the project's import-time code, as tests do);
-2. finds the new modules: the original's facade lines naming siblings whose first line is the split header for this
-   original;
-3. asserts, for each new module, that every name it binds by an import statement is the **same object** (`is`) as the
-   original's binding of that name (the original keeps every import, so it is always there), and every moved name is
-   the same object in both;
-4. exits non-zero with a plain line for any failure.
+1. reads the original's source and, when new modules exist, theirs (the original's facade lines name siblings whose
+   first line is the split header for this original);
+2. runs the original's **leading block** alone, in a scratch module with the original's `__name__` and
+   `__package__` (this loads the same modules in the same order the real import will, so the real import then finds
+   them loaded). For each `try`/`except ImportError` statement it records which import failed and how. It then asserts:
+   - every `from m import n` copied into a new module has `n` in `vars(m)`;
+   - every `m.attr` that a moved declaration reads at definition time has `attr` in `vars(m)`;
+   - every failed import inside a copied compound statement raised `ModuleNotFoundError` whose `name` is exactly the
+     module that statement imports (not a module that started and failed halfway);
+3. imports the original module by name (this runs the project's import-time code, as tests do);
+4. asserts, for each new module, that every name it binds by an import statement, and every name a copied compound
+   statement binds, is the **same object** (`is`) as the original's binding of that name (the original keeps every
+   import, so it is always there), and that every moved name is the same object in both;
+5. exits non-zero with a plain line for any failure.
+
+These facts need the project's code to run, so they cannot be known when the plan is checked. The host's static
+rules allow such a move; the import check then fails the step, which is undone with the reason, as any failing check.
+
+**What the import check proves:** the original and every new module import without error under the project
+interpreter; no name the new modules import or re-run differs from the original's; nothing a new module imports runs a
+module `__getattr__` again; copied fallbacks failed cleanly; the facade re-exports the same objects. **What it does
+not prove:** behavior when functions are later called (that is rule 6's static binding check and the tests); behavior
+under another interpreter, environment or import order (another entry point importing a different module first);
+anything about modules other than the original and its new files; that import-time side effects (files, network,
+logging setup) happened exactly once, since it imports in its own process.
 
 It needs no baseline, so it holds after any number of committed steps. At baseline (no new modules yet) it proves the
-module imports. Point 3 catches what static rules cannot: a module `__getattr__` that returns a fresh object, and an
-import with side effects between the original's import and the facade (a monkeypatching library). A module that does
-not import at baseline (missing settings, a service) has no verifying check, and its split is skipped with the error
-line, by the existing `noVerifyingCheck`.
+leading block runs and the module imports. A module that does not import at baseline (missing settings, a service)
+has no verifying check, and its split is skipped with the error line, by the existing `noVerifyingCheck`.
 
 `compileall` is not used: the moved bytes are identical, the facade and imports are built by the host, and the
 import check compiles the original and every new module anyway.
@@ -465,7 +502,7 @@ clean (probed with `mypy --strict`).
   earlier, in another module, gives the same objects;
 - no module loads first in a new place: new modules import only what the original's leading block already loaded;
 - every name a new module imports is the same object the original holds (import check);
-- the moved names exist earlier only where nothing can see it (*Early binding*).
+- the moved names exist earlier only across quiet statements, which cannot look (*Early binding*).
 
 **What may still differ** (in the change note). `__qualname__` of a top-level definition has no module part and does
 not change; only `__module__` and `__globals__` do:
@@ -481,7 +518,10 @@ not change; only `__module__` and `__globals__` do:
 - the order of names in the original's `__dict__` (facade names come right after the imports); `dir()` and
   `inspect.getmembers` sort and do not change;
 - the package gains the new submodules as attributes (`pkg.rows`), which the file-name rule keeps from colliding; when
-  the original is `__init__.py`, those attributes are on the original itself.
+  the original is `__init__.py`, those attributes are on the original itself;
+- under Python 3.15's global lazy-import mode (`-X lazy_imports`, `PYTHON_LAZY_IMPORTS`), which the people running the
+  program may turn on, imports load when first used rather than in order. The version gate checks the project's
+  interpreter only; how end users run the code is out of reach, and the change note says so.
 
 ## Tooling and loaders
 
@@ -515,7 +555,7 @@ In `src/aiready/`, each under 400 lines:
 | `resources/pyast/my_editor_pycheck.py` | The import check and identity invariants | `python -m my_editor_pycheck <module>` → exit code |
 | `pyInterpreter.ts` | Candidates, the user's pick, probe, version gate, `commandEnv` | `pythonFor(root, storage): PyInterpreter \| string` |
 | `pyAst.ts` | Run the parser helper, type its output | `pyFileFacts(py, file): PyFacts` |
-| `pyProject.ts` | Import roots and module names, scope (pickle, `__module__` readers, Cython/mypyc), frameworks, script references, folder scans, patch strings and assignments, `reload`/`sys.modules`, module graph and cycles, packaging lists, test runner, type checker, formatter | `pyProject(root, py, tracked): PyProject` |
+| `pyProject.ts` | Import roots and module names, scope (pickle, `__module__` readers, Cython/mypyc), frameworks, script references, folder scans, patch strings and assignments, `reload`/`sys.modules`, tool config naming files, packaging lists, test runner, type checker, formatter | `pyProject(root, py, tracked): PyProject` |
 | `pyRules.ts` | Skip reasons, purity, movability, early-binding windows, file-name problems (pure) | `pySkipReason(…)`, `pyFileInfoView(…)`, `pyFileNameProblems(…)` |
 | `pySplit.ts` | Name rules, patch rejections, new files, import filtering, facade (pure) | `buildPySplit(source, info, plan): SplitResult` |
 | `pyMoveCheck.ts` | Rule 2's import part, rule 4 names, rule 6 bindings | `pyImportProblems(…)`, `pySameDeclarations(…)` |
@@ -562,9 +602,16 @@ note) for one that is not; the helper accepts `symtable` table types as strings 
   base with `__init_subclass__` does not; `global X`, `__name__`, `__doc__`, `__file__` (other than the dirname
   shapes) refuse; a name bound twice, deleted, or assigned from a test refuses; default `def f(x=X)` with `X` an
   import is pure, with `X` a staying constant is rejected by the name rule.
-- **Early binding:** a moved helper used by staying code after `register()` and with an `except Exception:` in the file
-  is refused; without the broad handler it moves; `logger = logging.getLogger(__name__)` is quiet; a file in a cycle
-  (including `__init__.py` and a submodule doing `from . import x`) needs the window for every name.
+- **Early binding:** any declaration after `register()`, `app = Flask(__name__)`, `threading.Thread(…).start()`,
+  `atexit.register(f)` or `importlib.import_module('x')` is refused; one after `logger = logging.getLogger(__name__)`
+  and `warnings.filterwarnings('ignore')` moves; one before the first non-quiet statement moves.
+- **Narrowed projects:** `multiprocessing`, `ProcessPoolExecutor`, `celery`, `torch.save` or a `!!python/` YAML tag
+  anywhere makes functions and classes unmovable; a package `__init__.py` with `__getattr__` skips its modules; a
+  `per-file-ignores`, `[mypy-pkg.report]`, pyright `strict` path or coverage `omit` naming the file skips it; a pyenv
+  shim is rejected; annotations count as evaluated without `requires-python` and deferred with `>=3.14`.
+- **More refusals:** a docstring with `>>>`; a `warnings.warn` caller with `filterwarnings(module='pkg.report')` in a
+  test config; a name the leading block binds twice or deletes; an f-string starting `'pkg.report.'` in a test;
+  `patch.object(report, 'other')` blocks every name moved code reads.
 - **Skipped files:** shebang, main guard, a `python -m` reference in a Makefile, `conftest.py`, `models.py` in a
   Django project, `management/commands/x.py`, CRLF, BOM, a `latin-1` cookie, `# type: ignore` at the top, `exec`,
   `globals()`, `from x import *`, an import after a statement, a `try` with `warnings.warn` in a handler, a sibling
@@ -584,7 +631,9 @@ note) for one that is not; the helper accepts `symtable` table types as strings 
 - **Move check:** pass on a clean split; fail on an edited body, a dropped facade name, an import the original did not
   have, a facade naming a file outside the plan, a shadowing import (rule 6), a changed `__all__`.
 - **Import check:** passes on a clean split; fails when an imported module's `__getattr__` returns a new object each
-  time, and when an import between the original's import and the facade monkeypatches a module attribute.
+  time, when a copied `from m import n` needs `m.__getattr__`, when an `m.attr` read at definition time is not in
+  `vars(m)`, when a copied `try/except ImportError` caught an `ImportError` other than `ModuleNotFoundError` for its
+  own module, and when an import between the original's import and the facade monkeypatches a module attribute.
 - **Checks:** pytest `-rA` keys for parametrized and class tests, collection errors, unittest `-v` in both formats;
   pyright and mypy lines compare equal after a move; no `__pycache__` or cache folder appears in the worktree; no
   `push`, `fetch` or `remote` git command.
@@ -600,32 +649,40 @@ note) for one that is not; the helper accepts `symtable` table types as strings 
   and anything with impure definition-time code, even when the order could be proven.
 - Moving code that uses the module logger (`logger` stays, so its users stay). This is the most common refusal; a
   later version may move it with a shared-state module.
+- Moving anything after a non-allowlisted top-level call, even when the call provably cannot see the original.
+- Functions and classes in projects that pickle by reference, use process pools or job queues.
 - Rewriting patch targets in tests, updating callers, or adding `__all__`.
 - Python 3.15 lazy imports.
 
 ## Review: the points most likely to be wrong
 
-1. **The early-binding argument.** It rests on "only caught errors, introspection or a cycle can see a name early".
-   Third-party code called at import time that inspects frames or `sys.modules` could still see it.
-2. **Quiet calls.** `logging.getLogger(__name__)` and `Flask(__name__)` are called quiet because they get no object
-   from this file; a library that walks the caller's frame (`inspect.stack()`) breaks that.
-3. **`__init__.py`.** Allowed, but almost always in a cycle, so only names in the quiet window move. A package-level
-   lazy `__getattr__` in another module, or a partner that catches `ImportError` from `from pkg import x`, is the
-   weak spot.
-4. **Re-running conditional imports.** A copied `try/except ImportError` re-tries a failed import; a module that fails
-   halfway runs its top half twice. The import check does not see that.
-5. **`__module__` as "may differ".** Tracebacks, error-tracker grouping and new pickles change for moved classes and
-   functions. The scope rules catch projects that read `__module__` or pickle, by pattern only.
-6. **Patch detection** is by string and by resolvable module references; a patch target built at run time
-   (`f'{mod}.helper'`) is missed and only the tests guard it.
-7. **The interpreter.** A wrong pick (another venv) gives a consistent but wrong baseline. The approval dialog shows the
-   path, and `ready()` proves imports resolve in the worktree, not that it is the project's usual environment.
-8. **Module dict order** changes. Code iterating a module's `__dict__` through a path we do not resolve could register
+Revised after an adversarial review on 10 October 2026, which narrowed: the quiet window to every moved name with a
+stdlib-only allowlist of quiet calls; pickling by reference to cover functions, process pools and job queues; copied
+`try/except ImportError` and `m.attr` reads to what the import check confirms; lazy packages, doctests, module-keyed
+warning filters, tool config naming the file, and annotations read from `requires-python`. What remains:
+
+1. **The quiet-call allowlist.** Each entry is a claim that it imports nothing and calls nothing it is given. A logging
+   configuration that installs a custom logger class (`logging.setLoggerClass`) earlier in the program breaks it for
+   `getLogger`.
+2. **`__init__.py`.** Allowed, under the same quiet window. A partner module that catches `ImportError` from `from pkg
+   import x` during package import is the weak spot.
+3. **The import check runs the leading block twice in one process** (once in a scratch module, once for real). The
+   second run finds every module loaded, but a leading-block import with side effects on the importer (rare) behaves
+   differently in the scratch run.
+4. **`__module__` as "may differ"** for projects that neither read it nor pickle. Tracebacks, error-tracker grouping and
+   logging's `%(module)s` still change. The narrowing patterns (pickle, pools, queues) may miss a library that pickles
+   behind the project's back.
+5. **Patch and string detection** is by pattern; a patch target read from config at run time is missed and only the
+   tests guard it.
+6. **The interpreter.** A wrong pick gives a consistent but wrong baseline. The approval dialog shows the path, version,
+   `sys.prefix` and `requires-python`; `ready()` proves imports resolve in the worktree, not that it is the usual
+   environment.
+7. **Module dict order** changes. Code iterating a module's `__dict__` through a path we do not resolve could register
    things in a different order.
-9. **The decorator and stdlib-call allowlists.** The task preferred refusing every decorator; this design allows a short
+8. **The decorator and stdlib-call allowlists.** The task preferred refusing every decorator; this design allows a short
    stdlib list (`dataclass`, `lru_cache`, `overload`, `TypeVar`, `re.compile`…) resolved by binding, because refusing
-   `@dataclass` would pin most modern classes. Each entry is a claim that it runs no project code and reads the module
-   only in ways the closure preserves.
+   `@dataclass` would pin most modern classes.
+9. **End users on Python 3.15** with global lazy imports are out of reach of any check here.
 
 Related: [AI-ready design](2026-10-07-ai-ready-design.md), [TS/JS design](2026-10-09-ai-ready-ts-design.md),
 [Stage 2 Go plan](2026-10-09-ai-ready-stage2-go-plan.md).
