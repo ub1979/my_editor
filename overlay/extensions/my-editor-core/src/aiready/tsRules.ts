@@ -135,6 +135,7 @@ export function tsFileInfoView(file: string, facts: TsFacts, context: TsFileCont
 	const first = Math.min(imports[0]?.span.start ?? Infinity, declarations[0]?.span.start ?? Infinity, bytes(text.length));
 	return {
 		path: file, declarations, facts, context, style, jsxRoots, skip,
+		narrowed: !skip && context.scope === 'types' ? `only types may move${context.scopeReason ? ` (${context.scopeReason})` : ''}` : undefined,
 		importRegion: imports.length ? { start: imports[0].span.start, end: imports[imports.length - 1].span.end } : { start: bytes(facts.facadeAt), end: bytes(facts.facadeAt) },
 		frame: [{ start: 0, end: first }, ...imports.map(imp => imp.span)],
 		prelude: { start: 0, end: first },

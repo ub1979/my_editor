@@ -48,6 +48,8 @@ export interface FileInfo {
 	readonly prelude?: Span;
 	/** Why this file is never split or given tests, if it is not. */
 	readonly skip?: string;
+	/** What a fix there may move when that is narrower than usual (TS: "only types may move (why)"). */
+	readonly narrowed?: string;
 }
 
 /** The model's plan: which declarations go to which new file. */

@@ -2,6 +2,7 @@ import { strict as assert } from 'node:assert';
 import { readFileSync } from 'node:fs';
 import * as path from 'node:path';
 import { test } from 'node:test';
+import { pickFixes } from '../src/aiready/fixPicker';
 import { alreadyFailingText, approvalDetail, closingText, timeoutMinutes } from '../src/aiready/fixText';
 
 test('the approval modal says the commands run project code and tests written by the AI model', () => {
@@ -55,4 +56,12 @@ test('already-failing checks are one short line and a bullet list', () => {
 test('the approval modal says when more fixes are chosen than one run does', () => {
 	assert.match(approvalDetail('/p/w', ['go build ./...'], 'Go', 40), /^40 fixes chosen: 25 now; Continue does the rest\./);
 	assert.doesNotMatch(approvalDetail('/p/w', ['go build ./...'], 'Go', 25), /Continue does the rest/);
+});
+
+test('a types-only split row says so', async () => {
+	let rows: string[] = [];
+	await pickFixes([{ file: 'a.ts', kind: 'split', lines: 500, narrowed: 'only types may move (Vite compiles each file with esbuild)' }, { file: 'b.ts', kind: 'split', lines: 450 }],
+		async items => { rows = items.map(item => item.description); return undefined; });
+	assert.equal(rows[0], '500 lines · split: only types may move (Vite compiles each file with esbuild)');
+	assert.equal(rows[1], '450 lines · split into focused files');
 });

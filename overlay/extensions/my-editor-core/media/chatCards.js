@@ -10,7 +10,7 @@ function renderWelcome() {
 			el('p', {}, [state.project ? `Working with ${state.project}` : 'Open a project and we can start.']),
 		])]),
 	]);
-	if (state.project && !state.messages.length) {
+	if (state.project && state.otherChats && !state.messages.length) {
 		box.append(el('p', { class: 'group-note' }, ['This folder has its own Pair conversation. Open the earlier folder to see its chat.']));
 	}
 	if (state.offer) {

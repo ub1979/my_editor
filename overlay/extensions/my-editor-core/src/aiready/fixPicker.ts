@@ -8,13 +8,13 @@ import type { FileStats, HealthFinding } from './health';
  * are never split. Biggest first.
  */
 export function fixChoices(findings: readonly HealthFinding[], stats: readonly FileStats[], extensions: readonly string[],
-	skipped: ReadonlyMap<string, string>): FixChoice[] {
+	skipped: ReadonlyMap<string, string>, narrowed: ReadonlyMap<string, string> = new Map()): FixChoice[] {
 	const lines = new Map(stats.map(s => [s.path, s.lines]));
 	const choices: FixChoice[] = [];
 	for (const finding of findings) {
 		const file = finding.file;
 		if (!file || !extensions.includes(path.extname(file)) || skipped.has(file)) { continue; }
-		if (finding.kind === 'too-long') { choices.push({ file, kind: 'split', lines: lines.get(file) ?? 0 }); }
+		if (finding.kind === 'too-long') { choices.push({ file, kind: 'split', lines: lines.get(file) ?? 0, narrowed: narrowed.get(file) }); }
 		if (finding.kind === 'untested') { choices.push({ file, kind: 'tests', lines: lines.get(file) ?? 0 }); }
 	}
 	return choices.sort((a, b) => b.lines - a.lines || a.file.localeCompare(b.file) || a.kind.localeCompare(b.kind));
@@ -35,7 +35,7 @@ export async function pickFixes(choices: readonly FixChoice[], show: ShowPicker)
 	let preselected = 0;
 	const items = choices.map(choice => ({
 		label: choice.file,
-		description: `${choice.lines} lines · ${choice.kind === 'split' ? 'split into focused files' : 'add tests'}`,
+		description: `${choice.lines} lines · ${choice.kind === 'split' ? `split${choice.narrowed ? `: ${choice.narrowed}` : ' into focused files'}` : 'add tests'}`,
 		picked: choice.kind === 'split' && preselected++ < MAX_FIXES_PER_RUN,
 		choice,
 	}));

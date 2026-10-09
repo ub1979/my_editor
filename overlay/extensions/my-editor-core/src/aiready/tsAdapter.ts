@@ -24,8 +24,7 @@ const CODE = /\.(?:[cm]?[jt]sx?)$/;
 export const TS_LANGUAGE: LanguageInfo = {
 	label: 'TypeScript/JavaScript', extensions: ['.ts', '.tsx', '.mts', '.cts', '.js', '.jsx', '.mjs'], fixes: ['split'],
 	mayDiffer: 'File names and line numbers in stack traces, `console.trace` and logger caller fields may differ for moved code, and so may '
-		+ 'bundler chunk contents, hot-reload boundaries and source maps. Interfaces and type aliases moved in a types-only project change no '
-		+ 'emitted JavaScript. The program’s behavior does not change.',
+		+ 'bundler chunk contents, hot-reload boundaries and source maps. The program’s behavior does not change.',
 };
 
 /** The lockfiles' hash while `node_modules` exists: what the install made is still in place. */

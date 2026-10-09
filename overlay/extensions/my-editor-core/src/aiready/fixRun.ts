@@ -1,11 +1,11 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, writeFileSync } from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { ask } from '../brain/analyse';
 import type { Sink } from '../chat/engine';
 import { loadCatalog, pickDefault } from '../models/catalog';
 import { ApiKeys } from '../models/secrets';
-import { noteFileName, renderChangeNote, reportWithRun, runFlaky } from './changeNote';
+import { noteFileName, renderChangeNote, reportPath, runFlaky, writeRunReport } from './changeNote';
 import { CommandEnv, prepareWorktree, runCheck, startRun } from './fixSetup';
 import { clearState, discardRest, loadState, MAX_FIXES_PER_RUN, RunState, saveState, StepRecord } from './fixState';
 import { closingText } from './fixText';
@@ -128,14 +128,11 @@ async function closeRun(env: CommandEnv, state: RunState, sink: Sink, mayDiffer:
 	const note = noteFileName(at);
 	const worktree = state.worktree.path;
 	mkdirSync(path.dirname(path.join(worktree, note)), { recursive: true });
-	writeFileSync(path.join(worktree, note), renderChangeNote(state, at, mayDiffer));
+	writeFileSync(path.join(worktree, note), renderChangeNote(state, at, mayDiffer, existsSync(reportPath(state.root))));
 	await commit(worktree, [note], 'my_editor: change note for the AI-ready fixes', 'What this branch changed, how each change was checked, and what was left.');
 	let removed = true;
 	try { await remove(state.root, worktree); } catch { removed = false; }
-	const report = path.join(state.root, '.my_editor', 'ai-ready', 'report.md');
-	let reportUpdated = true;
-	try { writeFileSync(report, reportWithRun(existsSync(report) ? readFileSync(report, 'utf8') : '# AI-ready health report', state, note)); }
-	catch { reportUpdated = false; /* The note on the branch is the record. */ }
+	const reportUpdated = writeRunReport(state.root, state, note);
 	clearState(env.storage, state.root);
 	const committed = state.steps.filter(step => step.status === 'committed').length;
 	const discarded = state.steps.filter(step => step.status === 'discarded').length;

@@ -17,7 +17,7 @@ import { ActiveFileTracker } from './activeFile';
 import { makeAiReady } from '../aiready/healthRun';
 import { ANALYSE_ANSWERED } from './analysisOffer';
 import { projectCharacter, routeCharacter } from './characterRouting';
-import { chatInit } from './chatInit';
+import { chatInit, saveConversation } from './chatInit';
 
 const STATE_KEY = 'myEditor.chat.state';
 const MAX_KEPT_MESSAGES = 200;
@@ -363,7 +363,7 @@ export class ChatView implements vscode.WebviewViewProvider {
 			messages: this.messages.map(message => ({ ...message, proposals: [...message.proposals], actions: [...message.actions] })),
 			mode: this.mode, memory: this.memory, characterId: this.characterId, pinned: this.pinned,
 		} satisfies Saved;
-		this.saveQueue = this.saveQueue.catch(() => undefined).then(() => this.context.workspaceState.update(STATE_KEY, snapshot));
+		this.saveQueue = this.saveQueue.catch(() => undefined).then(() => saveConversation(this.context, STATE_KEY, snapshot));
 	}
 
 	private async postInit(target?: vscode.Webview): Promise<void> {

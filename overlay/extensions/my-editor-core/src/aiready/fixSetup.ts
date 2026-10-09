@@ -76,14 +76,16 @@ export async function startRun(env: CommandEnv, adapter: (root: string, tracked:
 	const fixable = (f: (typeof findings)[number]) => (f.kind === 'too-long' && offers('split')) || (f.kind === 'untested' && offers('tests'));
 	const candidates = [...new Set(findings.filter(f => f.file && fixable(f)).map(f => f.file!))].filter(file => sources.includes(file));
 	const skipped = new Map<string, string>();
+	const narrowed = new Map<string, string>();
 	for (const file of candidates) {
 		if (token.isCancellationRequested) { return undefined; }
 		try {
-			const reason = (await local.parse(file)).skip;
-			if (reason) { skipped.set(file, reason); }
+			const info = await local.parse(file);
+			if (info.skip) { skipped.set(file, info.skip); }
+			else if (info.narrowed) { narrowed.set(file, info.narrowed); }
 		} catch (error) { skipped.set(file, error instanceof Error ? error.message : String(error)); }
 	}
-	const choices = fixChoices(findings, stats, local.extensions, skipped).filter(choice => offers(choice.kind));
+	const choices = fixChoices(findings, stats, local.extensions, skipped, narrowed).filter(choice => offers(choice.kind));
 	sink.progress('');
 	if (!choices.length) {
 		sink.text(`Nothing here can be fixed on a branch yet: no long or untested ${local.label} files that may be split or tested.`);
@@ -98,9 +100,11 @@ export async function startRun(env: CommandEnv, adapter: (root: string, tracked:
 	const answer = await vscode.window.showWarningMessage('Run these commands on a new local branch?',
 		{ modal: true, detail: approvalDetail(folder, approved, local.label, picked.length, setup.length > 0) }, 'Run them');
 	if (answer !== 'Run them') { sink.text('The commands were not approved, so nothing changed.'); return undefined; }
+	const limits = [...new Set(picked.filter(fix => fix.kind === 'split' && fix.narrowed).map(fix => fix.narrowed!))];
 	const worktree = await prepare(root, folder);
 	try {
 		sink.text(`Working on branch \`${worktree.branch}\` in \`${worktree.path}\`. Your folder stays as it is.\n`);
+		if (limits.length) { sink.text(`In this project ${limits.join('; and ')}, so splits leave the run-time code in place.\n`); }
 		logDir(env.storage, root, true);
 		const inWorktree = adapter(worktree.path, await trackedFiles(worktree.path));
 		const ready = await prepareWorktree(env, inWorktree, worktree.path, approved, sink);

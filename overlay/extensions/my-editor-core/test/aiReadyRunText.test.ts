@@ -1,10 +1,10 @@
 import { strict as assert } from 'node:assert';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { test } from 'node:test';
 import { CheckResult, checkSummary, compareWithBaseline, runSetup } from '../src/aiready/baseline';
-import { renderChangeNote } from '../src/aiready/changeNote';
+import { renderChangeNote, reportPath, writeRunReport } from '../src/aiready/changeNote';
 import type { RunState } from '../src/aiready/fixState';
 import { GO_LANGUAGE } from '../src/aiready/goAdapter';
 import type { LanguageAdapter } from '../src/aiready/language';
@@ -92,4 +92,26 @@ test('the change note takes what may differ from the adapter and stays neutral w
 	assert.doesNotMatch(neutral, /runtime\.Caller|console\.trace/);
 	assert.match(renderChangeNote(state, at, GO_LANGUAGE.mayDiffer), /runtime\.Caller/);
 	assert.match(renderChangeNote({ ...state, language: TS_LANGUAGE.label }, at, TS_LANGUAGE.mayDiffer), /`console\.trace`/);
+});
+
+test('the change note names types-only moves and the health report only when they apply', () => {
+	const fix = { file: 'a.ts', kind: 'split' as const, lines: 500 };
+	const step = { file: 'a.ts', kind: 'split' as const, status: 'committed' as const, commit: 'abcdef1234', moved: [] };
+	const state: RunState = {
+		version: 1, root: '/p/shop', language: 'TypeScript/JavaScript', worktree: { branch: 'b', path: '/p/w', base: '0123456789abcdef' }, startedAt: '2026-10-09T10:00:00Z',
+		approved: [], fixes: [fix], next: 1, steps: [step], baseline: {}, skippedFiles: [],
+	};
+	const at = new Date('2026-10-09T12:34:00Z');
+	const plain = renderChangeNote(state, at, TS_LANGUAGE.mayDiffer);
+	assert.doesNotMatch(plain, /types-only|health report/);
+	const types = renderChangeNote({ ...state, fixes: [{ ...fix, narrowed: 'only types may move (x)' }] }, at, TS_LANGUAGE.mayDiffer, true);
+	assert.match(types, /moved in a types-only project/);
+	assert.match(types, /from the health report are suggestions/);
+});
+
+test('a run summary creates the health report when there was none', () => {
+	const root = mkdtempSync(path.join(os.tmpdir(), 'my-editor-report-'));
+	const state = { worktree: { branch: 'b' }, steps: [] } as unknown as RunState;
+	assert.equal(writeRunReport(root, state, 'n.md'), true);
+	assert.match(readFileSync(reportPath(root), 'utf8'), /^# AI-ready health report[\s\S]*## Fixes on a local branch/);
 });

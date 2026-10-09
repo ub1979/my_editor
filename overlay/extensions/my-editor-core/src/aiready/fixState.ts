@@ -11,6 +11,8 @@ export interface FixChoice {
 	readonly file: string;
 	readonly kind: FixKind;
 	readonly lines: number;
+	/** Set when the file's scope is narrower than usual, e.g. "only types may move (why)". */
+	readonly narrowed?: string;
 }
 
 /** What happened to one fix. */

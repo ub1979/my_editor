@@ -1,3 +1,4 @@
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import * as path from 'path';
 import { MAX_SOURCE_LINES } from '../quality/sourcePolicy';
 import { flakyTests } from './baseline';
@@ -48,6 +49,9 @@ function neverSplit(state: RunState): string[] {
 /** What may still differ for moved code when the adapter does not say. */
 const MAY_DIFFER = 'File names and line numbers in error traces may differ for moved code.';
 
+/** Said only when a split ran in a types-only file. */
+const TYPES_ONLY = 'Interfaces and type aliases moved in a types-only project change no emitted JavaScript.';
+
 function commitLines(step: StepRecord): string[] {
 	return [stepLine(step), ...(step.checks ? [`  Checks: ${step.checks}`] : []), ...(planText(step) ? [`  ${planText(step)}`] : [])];
 }
@@ -57,7 +61,7 @@ function notDoneLine(step: StepRecord): string {
 }
 
 /** The change note committed on the branch at close (pure); `mayDiffer` comes from the language adapter. */
-export function renderChangeNote(state: RunState, at: Date, mayDiffer = MAY_DIFFER): string {
+export function renderChangeNote(state: RunState, at: Date, mayDiffer = MAY_DIFFER, hasReport = false): string {
 	const committed = state.steps.filter(step => step.status === 'committed');
 	const notDone = state.steps.filter(step => step.status === 'skipped' || step.status === 'refused');
 	const discarded = state.steps.filter(step => step.status === 'discarded');
@@ -66,6 +70,7 @@ export function renderChangeNote(state: RunState, at: Date, mayDiffer = MAY_DIFF
 	const failing = Object.entries(state.baseline).filter(([, [first]]) => first.code !== 0).map(([command]) => command);
 	const notes = state.steps.flatMap(step => step.notes ?? []);
 	const { branch, base } = state.worktree;
+	const narrowed = state.steps.some(step => step.status === 'committed' && step.kind === 'split' && state.fixes.some(fix => fix.file === step.file && fix.narrowed));
 	const lines = [
 		`# AI-ready changes: ${path.basename(state.root)}`, '',
 		`${at.toISOString().slice(0, 16).replace('T', ' ')} UTC · branch \`${branch}\` from \`${base.slice(0, 7)}\` · ${state.language}`, '',
@@ -85,9 +90,9 @@ export function renderChangeNote(state: RunState, at: Date, mayDiffer = MAY_DIFF
 			...failing.map(command => `- \`${command}\``), ''] : []),
 		'## Left for you', '',
 		...notes.map(note => `- ${note}`),
-		`- ${mayDiffer}`,
+		`- ${mayDiffer}${narrowed ? ` ${TYPES_ONLY}` : ''}`,
 		'- Git hooks did not run for these commits. Run your usual checks when you review.',
-		'- Bugs and design problems from the health report are suggestions; ask Pair about them.', '',
+		...(hasReport ? ['- Bugs and design problems from the health report are suggestions; ask Pair about them.'] : []), '',
 		'## How to review', '',
 		'```sh',
 		`git diff ${base.slice(0, 12)}..${branch}`,
@@ -108,4 +113,19 @@ export function reportWithRun(report: string, state: RunState, notePath: string)
 	const kept = report.split(`\n${RUN_SECTION}`)[0].trimEnd();
 	return `${kept}\n\n${RUN_SECTION}\n\n${committed} fix${committed === 1 ? '' : 'es'} committed on \`${state.worktree.branch}\``
 		+ `${others ? `, ${others} skipped or refused` : ''}${discarded ? `, ${discarded} discarded by you` : ''}. Details: \`${notePath}\` on that branch.\n`;
+}
+
+/** The health report's path in the user's folder. */
+export function reportPath(root: string): string {
+	return path.join(root, '.my_editor', 'ai-ready', 'report.md');
+}
+
+/** Adds this run's summary to the health report, creating the report and its folder when there is none. False when it cannot be written. */
+export function writeRunReport(root: string, state: RunState, notePath: string): boolean {
+	const file = reportPath(root);
+	try {
+		mkdirSync(path.dirname(file), { recursive: true });
+		writeFileSync(file, reportWithRun(existsSync(file) ? readFileSync(file, 'utf8') : '# AI-ready health report', state, notePath));
+		return true;
+	} catch { return false; /* The note on the branch is the record. */ }
 }

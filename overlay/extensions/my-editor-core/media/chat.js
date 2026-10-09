@@ -6,6 +6,7 @@ let state = {
 	characters: [],
 	characterId: 'bamboo',
 	pinned: false,
+	otherChats: false,
 	switchNote: '',
 	skills: [],
 	messages: [],
@@ -301,6 +302,7 @@ window.addEventListener('message', event => {
 			state.characters = data.characters ?? [];
 			state.characterId = data.characterId ?? 'bamboo';
 			state.pinned = !!data.pinned;
+			state.otherChats = !!data.otherChats;
 			state.switchNote = '';
 			state.skills = data.skills;
 			state.messages = data.messages;
