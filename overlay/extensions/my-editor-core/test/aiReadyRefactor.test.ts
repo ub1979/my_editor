@@ -6,6 +6,7 @@ import { test } from 'node:test';
 import { renderChangeNote } from '../src/aiready/changeNote';
 import { needingRefactor, screenFix, type Screener } from '../src/aiready/fixScreen';
 import type { RunState } from '../src/aiready/fixState';
+import { earlyText } from '../src/aiready/fixText';
 import type { Declaration, FileInfo, LanguageAdapter, SplitPlan } from '../src/aiready/language';
 import { planProblems } from '../src/aiready/splitPlan';
 import { needsRefactor } from '../src/aiready/stillOver';
@@ -99,4 +100,13 @@ test('an oversized declaration may go to its own file only when the original end
 	const twoBig: FileInfo = { ...MIXED, declarations: [decl(0, 'A', 450), decl(1, 'B', 430), decl(2, 'c', 100, false)] };
 	const problems = planProblems(sized(560, [435]), { source: text(990), info: twoBig, existing: [] }, [{ file: 'b.go', declarations: [1] }]);
 	assert.deepEqual(problems, ['"b.go" would hold `B` (430 lines) on its own while mixed.go stays over the limit.']);
+});
+
+test('the run text says which files need a real refactor apart from the chosen fixes it skips', () => {
+	const over = [{ file: STEP.path, lines: 467, reason: STEP_REASON }];
+	const refactor = { step: { file: STEP.path, kind: 'split' as const, status: 'skipped' as const, early: true, over }, brief: STEP_REASON, unchecked: false };
+	const other = { step: { file: 'gen.go', kind: 'split' as const, status: 'skipped' as const, early: true }, brief: 'never split: generated', unchecked: false };
+	assert.equal(earlyText([refactor, other]), '1 chosen fix is skipped before any work: `gen.go`: never split: generated.\n'
+		+ `1 file needs a real refactor, so it is not split (listed in the change note): \`${STEP.path}\`: ${STEP_REASON}.\n`);
+	assert.doesNotMatch(earlyText([other]), /real refactor/);
 });

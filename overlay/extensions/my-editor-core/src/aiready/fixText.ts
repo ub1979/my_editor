@@ -50,14 +50,18 @@ function grouped(outcomes: readonly EarlyOutcome[]): string {
 
 /** The run text said once, right after the baseline: which chosen fixes are skipped before any work, and why. */
 export function earlyText(outcomes: readonly EarlyOutcome[]): string {
-	const unchecked = outcomes.filter(outcome => outcome.unchecked);
-	const other = outcomes.filter(outcome => !outcome.unchecked);
+	const refactor = outcomes.filter(outcome => outcome.step.over?.length);
+	const unchecked = outcomes.filter(outcome => outcome.unchecked && !refactor.includes(outcome));
+	const other = outcomes.filter(outcome => !outcome.unchecked && !refactor.includes(outcome));
 	const lines = [
 		...(unchecked.length ? [`${unchecked.length} chosen fix${unchecked.length === 1 ? '' : 'es'} can't be checked here and `
 			+ `${unchecked.length === 1 ? 'is' : 'are'} skipped: ${grouped(unchecked)}.`] : []),
 		...(other.length ? [`${other.length} ${unchecked.length ? 'more' : `chosen fix${other.length === 1 ? '' : 'es'}`} `
 			+ `${other.length === 1 ? 'is' : 'are'} skipped before any work: `
 			+ `${other.map(({ step, brief }) => `\`${step.file}\`: ${brief}`).join('; ')}.`] : []),
+		...(refactor.length ? [`${refactor.length} file${refactor.length === 1 ? ' needs' : 's need'} a real refactor, so `
+			+ `${refactor.length === 1 ? 'it is' : 'they are'} not split (listed in the change note): `
+			+ `${refactor.map(({ step, brief }) => `\`${step.file}\`: ${brief}`).join('; ')}.`] : []),
 	];
 	return lines.map(line => `${line}\n`).join('');
 }
