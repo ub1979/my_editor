@@ -124,8 +124,8 @@ export interface LanguageAdapter {
 	unformatted(files: readonly string[]): Promise<string[]>;
 	/** Exact build, vet and test commands for the file's unit, in order. */
 	checks(file: string): CheckCommand[];
-	/** Per-test results from a test command's output. */
-	parseTests(output: string): TestRun;
+	/** Per-test results from a test command's output; undefined when no known format matched (compared by exit code then). */
+	parseTests(output: string): TestRun | undefined;
 	/** The add-tests fix writes this file. */
 	testFileName(file: string): string;
 	/** Test names a test file declares. */

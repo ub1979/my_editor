@@ -11,6 +11,8 @@ export interface TestRun {
 /** One run of one check command. */
 export interface CheckResult {
 	readonly command: string;
+	/** The check's label (`test` for a test command), when known. */
+	readonly label?: string;
 	/** Exit code; undefined when the command could not start, timed out or was stopped. */
 	readonly code: number | undefined;
 	/** Error lines with file positions removed, so a moved declaration's error still compares equal. */
@@ -110,17 +112,23 @@ function exitProblem(now: CheckResult): string {
 
 type Baseline = Readonly<Record<string, readonly [CheckResult, CheckResult]>>;
 
-/** A one-line summary of a passing step's checks. A build or vet that failed before is `not a check`; a test run that failed before is still compared test by test. */
+/**
+ * A one-line summary of a passing step's checks. A build or vet that failed before is `not a check`; a test run that
+ * failed before is still compared test by test, unless its output was not recognised (then only its exit code was).
+ */
 export function checkSummary(results: readonly CheckResult[], flaky: readonly string[], baseline: Baseline): string {
 	const outcomes = Object.values([...results].reverse().find(result => result.tests)?.tests?.tests ?? {});
 	const passed = outcomes.filter(outcome => outcome === 'pass').length;
 	const state = (command: string) => {
 		const before = baseline[command]?.[0];
-		if (before?.code === 0) { return 'passed'; }
-		return before?.tests ? 'already failing; tests compared one by one' : 'already failing before this run (not a check)';
+		// A test command whose output no parser knew was compared by its exit code only.
+		const exitOnly = before?.label === 'test' && !before.tests ? '; exit code only (test output not recognised)' : '';
+		if (before?.code === 0) { return `passed${exitOnly}`; }
+		return before?.tests ? 'already failing; tests compared one by one' : `already failing before this run (not a check)${exitOnly}`;
 	};
 	const commands = [...new Set(results.map(result => result.command))].map(command => `\`${command}\`: ${state(command)}`);
-	return `${commands.join('; ')}${outcomes.length ? ` (${passed} of ${outcomes.length} tests passing)` : ''}${flaky.length ? `; ${flaky.length} flaky excluded` : ''}.`;
+	const counted = outcomes.length ? ` (${passed} of ${outcomes.length} tests passing)` : '';
+	return `${commands.join('; ')}${counted}${flaky.length ? `; ${flaky.length} flaky excluded` : ''}.`;
 }
 
 const ERROR_LINE = /error|undefined|cannot/i;
@@ -140,7 +148,8 @@ export function noVerifyingCheck(checks: readonly CheckCommand[], baseline: Base
 	const recorded = checks.filter(check => check.verifies && baseline[check.command]);
 	if (!recorded.length) { return `No compile check of ${unit} was recorded for this run.`; }
 	if (recorded.some(check => baseline[check.command].every(run => run.code === 0))) { return undefined; }
-	return `Nothing here can compile ${unit} to check this split: its build already fails (${errorLine(baseline[recorded[0].command][0])}). Fix the build, then run this again.`;
+	const line = errorLine(baseline[recorded[0].command][0]);
+	return `Nothing here can compile ${unit} to check this split: its build already fails (${line}). Fix the build, then run this again.`;
 }
 
 /** What recording a baseline needs from the run. */

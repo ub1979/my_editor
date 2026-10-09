@@ -13,7 +13,7 @@ interface MochaTest {
 	readonly file?: string;
 }
 
-const OUTCOME: Record<string, Outcome> = { passed: 'pass', failed: 'fail', pending: 'skip', skipped: 'skip', todo: 'skip', disabled: 'skip' };
+const OUTCOME: Record<string, Outcome> = { passed: 'pass', failed: 'fail', pending: 'skip', skipped: 'skip', todo: 'skip', disabled: 'skip', focused: 'skip' };
 
 /** A test file's path relative to the project (the worktree's absolute prefix removed), with no spaces. */
 function relative(file: string, roots: readonly string[]): string {
@@ -31,34 +31,56 @@ function jsonReport(output: string): unknown {
 	return undefined;
 }
 
-/** `node --test` TAP: `# Subtest:` lines give the path of nested tests; `ok`/`not ok` lines their outcome. */
-function parseTap(output: string): TestRun {
+/** A test outcome with its key's parts, until its YAML block (which may name its file) has been read. */
+interface TapResult {
+	readonly name: string;
+	readonly outcome: Outcome;
+	file?: string;
+}
+
+/**
+ * `node --test` TAP: `# Subtest:` lines give the path of nested tests; `ok`/`not ok` lines their outcome; a `location:`
+ * in the YAML block after a result names its file (Node prints one for failures). Keys are `<file> <path>`, or
+ * `node:test <path>` when no location was printed.
+ */
+function parseTap(output: string, roots: readonly string[]): TestRun {
 	const tests: Record<string, Outcome> = {};
+	const packages: Record<string, Outcome> = {};
 	const stack: string[] = [];
-	let failed = false;
+	let pending: TapResult | undefined;
+	const flush = () => {
+		if (!pending) { return; }
+		const file = pending.file ? relative(pending.file, roots) : 'node:test';
+		let key = `${file} ${pending.name}`;
+		for (let n = 2; key in tests; n++) { key = `${file} ${pending.name} #${n}`; }
+		tests[key] = pending.outcome;
+		packages[file] = packages[file] === 'fail' || pending.outcome === 'fail' ? 'fail' : 'pass';
+		pending = undefined;
+	};
 	for (const line of output.split('\n')) {
 		const subtest = /^(\s*)# Subtest: (.*)$/.exec(line);
-		if (subtest) { stack.length = subtest[1].length / 4; stack.push(subtest[2]); continue; }
+		if (subtest) { flush(); stack.length = subtest[1].length / 4; stack.push(subtest[2]); continue; }
+		const location = /^\s+location:\s*'?(.*?):\d+:\d+'?\s*$/.exec(line);
+		if (location && pending && !pending.file) { pending.file = location[1]; continue; }
 		const result = /^(\s*)(not ok|ok) \d+ - (.*?)(?:\s+#\s+(SKIP|TODO)\b.*)?$/.exec(line);
 		if (!result) { continue; }
+		flush();
 		const level = result[1].length / 4;
 		const name = [...stack.slice(0, level), result[3].replace(/\\#/g, '#')].join(' › ');
-		let key = `node:test ${name}`;
-		for (let n = 2; key in tests; n++) { key = `node:test ${name} #${n}`; }
-		const outcome: Outcome = result[4] ? 'skip' : result[2] === 'ok' ? 'pass' : 'fail';
-		failed ||= outcome === 'fail';
-		tests[key] = outcome;
+		pending = { name, outcome: result[4] ? 'skip' : result[2] === 'ok' ? 'pass' : 'fail' };
 	}
-	return { tests, packages: Object.keys(tests).length ? { 'node:test': failed ? 'fail' : 'pass' } : {} };
+	flush();
+	return { tests, packages };
 }
 
 /**
  * Per-test outcomes from a TS/JS test command: Jest or Vitest `--json` reports, Mocha's JSON reporter, or `node --test`
- * TAP. Keys are `<test file> <describe › test>` (`node:test <path>` for TAP). Anything else gives no tests, so the run
- * is compared by exit code.
+ * TAP. Keys are `<test file> <describe › test>` (`node:test <path>` for TAP without a location). Undefined for any
+ * other output, so the run is compared by exit code.
  */
-export function parseTsTests(output: string, roots: readonly string[]): TestRun {
-	const report = jsonReport(output) as { testResults?: readonly JestFile[]; tests?: readonly MochaTest[]; passes?: readonly MochaTest[]; failures?: readonly MochaTest[] } | undefined;
+export function parseTsTests(output: string, roots: readonly string[]): TestRun | undefined {
+	const report = jsonReport(output) as { testResults?: readonly JestFile[]; tests?: readonly MochaTest[]; passes?: readonly MochaTest[];
+		failures?: readonly MochaTest[] } | undefined;
 	const tests: Record<string, Outcome> = {};
 	const packages: Record<string, Outcome> = {};
 	if (report?.testResults) {
@@ -83,5 +105,5 @@ export function parseTsTests(output: string, roots: readonly string[]): TestRun 
 		}
 		return { tests, packages };
 	}
-	return /^\s*(not ok|ok) \d+ - /m.test(output) ? parseTap(output) : { tests, packages };
+	return /^\s*(not ok|ok) \d+ - /m.test(output) ? parseTap(output, roots) : undefined;
 }

@@ -31,7 +31,7 @@ export async function runCheck(env: CommandEnv, adapter: LanguageAdapter, worktr
 	const log = path.join(logDir(env.storage, env.root), `${Date.now()}-${label}.log`);
 	const output = await runCommand(command, { cwd: worktree, approved, timeoutMs: timeoutMs(), logFile: log, cancel: env.token, env: adapter.commandEnv });
 	return {
-		command, code: output.code, timedOut: output.timedOut, log,
+		command, label, code: output.code, timedOut: output.timedOut, log,
 		failures: label === 'test' ? [] : failureLines(output.error ?? output.output).slice(0, MAX_FAILURE_LINES),
 		tests: label === 'test' && output.code !== undefined ? adapter.parseTests(output.stdout) : undefined,
 		tail: tail(output.error ?? output.output),
