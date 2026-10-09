@@ -193,6 +193,9 @@ when the module is linked, before any code runs, so they are never early. Types 
 A`, `class C extends Base`), the target must come earlier in the original and both must go to the same new file.
 Otherwise the plan is rejected. New files run in facade order, not in the original's order, so a read across new
 files could see a binding before it is set.
+The same holds for a statement that stays: if its definition-time code reads a moved name declared later in the
+original (`class S { static s = y }` before `var y = 1`), the plan is rejected, because the facade's import would
+give it the value where it saw `undefined` before (`tsc --strict` does not flag a `var` read early).
 
 **Never reassigned.** A moved name of any kind (function, class, `let`, `var`) must not be assigned anywhere outside
 its own declaration. After the move it is an import in the original and in sibling files, and imports cannot be
@@ -268,9 +271,10 @@ original's import of the `jsxFactory`/`jsxFragmentFactory` root name (`React` by
 to one, as in Go). Its import block changes only in these ways:
 
 1. **Only specifiers written as types may be dropped.** A specifier in an `import type …` declaration, or written
-   `type T` inline, is dropped when nothing left uses it, except that a declaration without `import type` is never
-   emptied: if every specifier in it would go, it stays byte-identical (under `verbatimModuleSyntax`
-   `import { type T } from 'm'` still loads `m`, under elision it does not, so neither change is safe for both).
+   `type T` inline, is dropped when its last use moved (one already unused before the split stays), except that a
+   declaration without `import type` is never emptied: if every specifier in it would go, it stays byte-identical (under
+   `verbatimModuleSyntax` `import { type T } from 'm'` still loads `m`, under elision it does not, so neither change
+   is safe for both).
 2. **A specifier with no value use before the split stays byte-identical**, even if nothing uses it after. If the
    project has `noUnusedLocals`, `tsc` then fails differently from the baseline and the step is skipped.
 3. **Load order is kept.** A specifier whose last value use moved is removed. If it was the declaration's last

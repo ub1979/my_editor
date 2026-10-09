@@ -2,8 +2,8 @@ import { keepBindings, sideEffectText, TsImport } from './tsImports';
 import type { TsDeclaration, TsFileInfo } from './tsRules';
 
 /**
- * The original's import declarations after the move: unchanged, dropped (`import type` with no use left), filtered
- * (specifiers written as types with no use left, or whose last value use moved while another kept one still loads the
+ * The original's import declarations after the move: unchanged, dropped (`import type` whose last use moved), filtered
+ * (specifiers written as types whose last use moved, or whose last value use moved while another kept one still loads the
  * module), or turned into a side-effect import (the last value use of every specifier moved). Undefined means unchanged.
  * In a types-only file only specifiers written as types may go: dropping any other changes the emitted JavaScript
  * under one of the two readings of imports (elision or `verbatimModuleSyntax`), so that is refused.
@@ -15,6 +15,8 @@ export function originalImports(info: TsFileInfo, decls: readonly TsDeclaration[
 	const stayingValue = new Set(staying.flatMap(d => d.ts.valueUses));
 	const stayingAny = new Set(staying.flatMap(d => [...d.ts.valueUses, ...d.ts.typeUses]));
 	const everValue = new Set(decls.flatMap(d => d.ts.valueUses));
+	const moved = decls.filter(d => groupOf.has(d.id));
+	const movedAny = new Set(moved.flatMap(d => [...d.ts.valueUses, ...d.ts.typeUses]));
 	const out = new Map<TsImport, string | null>();
 	for (const imp of info.facts.imports) {
 		if (imp.kind === 'export' || imp.sideEffect) { continue; }
@@ -29,7 +31,8 @@ export function originalImports(info: TsFileInfo, decls: readonly TsDeclaration[
 				}
 				continue;
 			}
-			if (b.typeOnly) { drop.add(b.local); continue; }
+			// Only a type specifier whose last use moved goes; one unused before the split stays as it was.
+			if (b.typeOnly) { if (movedAny.has(b.local)) { drop.add(b.local); } continue; }
 			if (!lostValue) { continue; }
 			if (typesOnly) {
 				problems.push(`${b.local} (from ${imp.specifier}) is not written as a type, and a types-only move may drop only imports `

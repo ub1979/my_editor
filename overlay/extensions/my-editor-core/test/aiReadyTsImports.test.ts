@@ -24,7 +24,7 @@ function emit(code: string, verbatimModuleSyntax: boolean): string {
 }
 
 test('a rebuilt import keeps `$` patterns in its text: no $$, $& or $1 expansion', () => {
-	const kept = "import { $$, type Gone } from './dollar.js';\n\nexport function moved() { return 1; }\n\nexport function stays() { return $$; }\n";
+	const kept = "import { $$, type Gone } from './dollar.js';\n\nexport function moved(g: Gone) { return g; }\n\nexport function stays() { return $$; }\n";
 	assert.match(text(split('src/a.ts', kept, [{ file: 'b.ts', declarations: [0] }])), /^import \{ \$\$ \} from '\.\/dollar\.js';$/m);
 	const amp = "import { $1, type Gone } from './$&.js';\n\nexport function moved(g: Gone) { return g; }\n\nexport function stays() { return $1; }\n";
 	assert.match(text(split('src/a.ts', amp, [{ file: 'b.ts', declarations: [0] }])), /^import \{ \$1 \} from '\.\/\$&\.js';$/m);

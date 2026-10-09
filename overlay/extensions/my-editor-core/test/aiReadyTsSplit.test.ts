@@ -191,3 +191,10 @@ test('a default-exported type is imported on its own type line', () => {
 	const src = 'export default interface Row { a: string }\nexport interface Col { b: string }\nexport function f(r: Row, c: Col) { return [r, c]; }\n';
 	assert.match(text(split('src/t.ts', src, [{ file: 'rows.ts', declarations: [0, 1] }])), /^import type Row from '\.\/rows\.js';\nimport type \{ Col \} from '\.\/rows\.js';\nexport type \{ default, Col \} from '\.\/rows\.js';\n/);
 });
+
+test('a type specifier that was already unused before the split stays; only one whose last use moved is dropped', () => {
+	const src = "import type { A, Unused } from './t.js';\nimport type { Other } from './o.js';\nimport { type T, v } from './v.js';\n\n"
+		+ 'export function moved(a: A, t: T) { return [a, t]; }\nexport function stays() { return v; }\n';
+	const result = text(split('src/t.ts', src, [{ file: 'moved.ts', declarations: [0] }]));
+	assert.match(result, /^import type \{ Unused \} from '\.\/t\.js';\nimport type \{ Other \} from '\.\/o\.js';\nimport \{ v \} from '\.\/v\.js';\n/);
+});
