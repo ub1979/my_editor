@@ -6,7 +6,7 @@ import type { Sink } from '../chat/engine';
 import { loadCatalog, pickDefault } from '../models/catalog';
 import { ApiKeys } from '../models/secrets';
 import { noteFileName, renderChangeNote, reportWithRun, runFlaky } from './changeNote';
-import { CommandEnv, runCheck, startRun } from './fixSetup';
+import { CommandEnv, prepareWorktree, runCheck, startRun } from './fixSetup';
 import { clearState, discardRest, loadState, MAX_FIXES_PER_RUN, RunState, saveState, StepRecord } from './fixState';
 import { closingText } from './fixText';
 import { AdapterFactory, adapterFor } from './languages';
@@ -32,7 +32,7 @@ export async function fixOnBranch(context: vscode.ExtensionContext, keys: ApiKey
 	const model = pickDefault(await loadCatalog(keys));
 	if (!model) { sink.text('No model is available. Choose one with **my_editor: Choose Default Model** first.'); return; }
 	const language = await adapterFor(root, {
-		extensionPath: context.extensionUri.fsPath, storageDir: storage, version: String(context.extension.packageJSON.version ?? 'dev'),
+		extensionPath: context.extensionUri.fsPath, storageDir: storage, version: String(context.extension.packageJSON.version ?? 'dev'), appRoot: vscode.env.appRoot,
 	});
 	if (typeof language === 'string') { sink.text(language); return; }
 	if (state && !options.continue) {
@@ -48,6 +48,8 @@ export async function fixOnBranch(context: vscode.ExtensionContext, keys: ApiKey
 	} else {
 		try { state.worktree = await reattach(root, state.worktree); }
 		catch (error) { return forgetRun(storage, state, sink, error); }
+		const ready = await prepareWorktree(env, language, state.worktree.path, state.approved, sink);
+		if (ready) { sink.progress(''); sink.text(ready === 'stopped' ? 'Stopped before any fix.' : ready); return; }
 		if (state.next < state.fixes.length) { sink.text(`Continuing on \`${state.worktree.branch}\` with ${state.fixes.length - state.next} fix${state.fixes.length - state.next === 1 ? '' : 'es'} left.\n`); }
 	}
 	await runFixes(env, state, language, sink, (system, text) => ask(model, keys, system, text, token, ASK_TIMEOUT_MS));

@@ -2,14 +2,14 @@ import { readFileSync } from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import type { Sink } from '../chat/engine';
-import { CheckResult, failureLines, runBaseline } from './baseline';
+import { CheckResult, failureLines, runBaseline, runSetup } from './baseline';
 import { fixChoices, pickFixes, skippedWithLines } from './fixPicker';
 import { logDir, RunState, saveState } from './fixState';
 import { alreadyFailingText, approvalDetail, timeoutMinutes } from './fixText';
 import { fileStats, scanHealth } from './health';
 import type { LanguageAdapter } from './language';
 import { runCommand, tail } from './projectCommands';
-import { discard, freeFolder, initRepository, prepare, prerequisites, trackedFiles, Worktree } from './worktree';
+import { changedFiles, discard, freeFolder, initRepository, prepare, prerequisites, trackedFiles, Worktree } from './worktree';
 
 const MAX_FAILURE_LINES = 200;
 
@@ -65,7 +65,8 @@ export async function startRun(env: CommandEnv, adapter: (root: string, tracked:
 	const sources = tracked.filter(file => local.extensions.includes(path.extname(file)));
 	const stats = sources.map(file => fileStats(file, readFileSync(path.join(root, file), 'utf8')));
 	const findings = scanHealth(stats, tracked, { languages: [local.label], checks: [], tests: [] }, []);
-	const candidates = [...new Set(findings.filter(f => f.file && (f.kind === 'too-long' || f.kind === 'untested')).map(f => f.file!))]
+	const offers = (kind: 'split' | 'tests') => !local.fixes || local.fixes.includes(kind);
+	const candidates = [...new Set(findings.filter(f => f.file && ((f.kind === 'too-long' && offers('split')) || (f.kind === 'untested' && offers('tests')))).map(f => f.file!))]
 		.filter(file => sources.includes(file));
 	const skipped = new Map<string, string>();
 	for (const file of candidates) {
@@ -75,21 +76,24 @@ export async function startRun(env: CommandEnv, adapter: (root: string, tracked:
 			if (reason) { skipped.set(file, reason); }
 		} catch (error) { skipped.set(file, error instanceof Error ? error.message : String(error)); }
 	}
-	const choices = fixChoices(findings, stats, local.extensions, skipped);
+	const choices = fixChoices(findings, stats, local.extensions, skipped).filter(choice => offers(choice.kind));
 	sink.progress('');
 	if (!choices.length) { sink.text(`Nothing here can be fixed on a branch yet: no long or untested ${local.label} files that may be split or tested.`); return undefined; }
 	const picked = await pickFixes(choices, (items, options) => vscode.window.showQuickPick(items, { ...options, canPickMany: true }));
 	if (!picked?.length) { sink.text('No fixes were chosen, so nothing changed.'); return undefined; }
 	const checks = [...new Map(picked.flatMap(fix => local.checks(fix.file)).map(check => [check.command, check])).values()];
-	const approved = checks.map(check => check.command);
+	const setup = local.setup?.() ?? [];
+	const approved = [...setup, ...checks].map(check => check.command);
 	const folder = freeFolder(root);
 	const answer = await vscode.window.showWarningMessage('Run these commands on a new local branch?',
-		{ modal: true, detail: approvalDetail(folder, approved, local.label, picked.length) }, 'Run them');
+		{ modal: true, detail: approvalDetail(folder, approved, local.label, picked.length, setup.length > 0) }, 'Run them');
 	if (answer !== 'Run them') { sink.text('The commands were not approved, so nothing changed.'); return undefined; }
 	const worktree = await prepare(root, folder);
 	try {
 		sink.text(`Working on branch \`${worktree.branch}\` in \`${worktree.path}\`. Your folder stays as it is.\n`);
 		logDir(env.storage, root, true);
+		const ready = await prepareWorktree(env, adapter, worktree.path, approved, sink);
+		if (ready) { return await discardUnstarted(root, worktree, sink, ready === 'stopped' ? 'Stopped before any fix.' : ready); }
 		const inWorktree = adapter(worktree.path, await trackedFiles(worktree.path));
 		const outcome = await runBaseline(checks, {
 			check: (command, label) => runCheck(env, inWorktree, worktree.path, approved, command, label),
@@ -110,6 +114,17 @@ export async function startRun(env: CommandEnv, adapter: (root: string, tracked:
 	} catch (error) {
 		return discardUnstarted(root, worktree, sink, `The run could not start: ${error instanceof Error ? error.message : String(error)}`);
 	}
+}
+
+/** Runs the adapter's setup (an install) once in the worktree: undefined when ready, else a plain message or 'stopped'. */
+export async function prepareWorktree(env: CommandEnv, adapter: (root: string, tracked: readonly string[]) => LanguageAdapter, worktree: string,
+	approved: readonly string[], sink: Sink): Promise<string | undefined> {
+	const local = adapter(worktree, await trackedFiles(worktree));
+	return runSetup(local.setup?.() ?? [], {
+		check: (command, label) => runCheck(env, local, worktree, approved, command, label),
+		cancelled: () => env.token.isCancellationRequested,
+		progress: text => sink.progress(text),
+	}, () => changedFiles(worktree), () => local.ready?.());
 }
 
 /** Before any fix (Stop, a baseline that could not run, or an error): nothing was committed, so the worktree and branch go. */
