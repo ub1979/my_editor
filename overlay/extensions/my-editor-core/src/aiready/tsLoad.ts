@@ -6,7 +6,7 @@ import type * as TS from 'typescript';
 export type Ts = typeof TS;
 
 const NEEDS = 'TypeScript splitting needs the editor\'s TypeScript 5 or 6.';
-const loaded = new Map<string, Ts | string>();
+const loaded = new Map<string, Ts>();
 
 /** Where the editor ships its TypeScript: `<appRoot>/extensions/node_modules/typescript`. */
 export function bundledTypeScript(appRoot: string): string {
@@ -14,20 +14,22 @@ export function bundledTypeScript(appRoot: string): string {
 }
 
 /**
- * Loads TypeScript from a folder once, with a run-time `require` so esbuild leaves it out of the bundle. A plain
- * message when it is missing or not major 5 or 6 (TS 7, the native compiler, has a different API).
+ * Loads TypeScript from a folder, with a run-time `require` so esbuild leaves it out of the bundle; a success is kept,
+ * a failure is tried again next time. A plain message when it is missing or not major 5 or 6 (TS 7, the native
+ * compiler, has a different API).
  */
 export function loadTypeScript(dir: string): Ts | string {
 	const cached = loaded.get(dir);
 	if (cached) { return cached; }
-	let result: Ts | string;
 	try {
 		const ts = createRequire(__filename)(dir) as Ts;
 		const major = Number(String(ts.version ?? '').split('.')[0]);
-		result = (major === 5 || major === 6) && typeof ts.createProgram === 'function' ? ts : `${NEEDS} Found ${ts.version ?? 'an unknown version'}.`;
+		if ((major === 5 || major === 6) && typeof ts.createProgram === 'function') {
+			loaded.set(dir, ts);
+			return ts;
+		}
+		return `${NEEDS} Found ${ts.version ?? 'an unknown version'}.`;
 	} catch {
-		result = `${NEEDS} It was not found in ${dir}.`;
+		return `${NEEDS} It was not found in ${dir}.`;
 	}
-	loaded.set(dir, result);
-	return result;
 }

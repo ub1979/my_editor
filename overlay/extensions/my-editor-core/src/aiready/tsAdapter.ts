@@ -1,13 +1,16 @@
+import { createHash } from 'crypto';
 import { existsSync, readdirSync, readFileSync, realpathSync } from 'fs';
 import * as path from 'path';
-import type { FileInfo, LanguageAdapter } from './language';
+import type { FileInfo, LanguageAdapter, LanguageInfo } from './language';
 import { runTool } from './projectCommands';
 import { tsFileFacts } from './tsAst';
 import { analysisOptions, builds, holder, jsxMode, jsxRoots, readConfigs, TsConfig } from './tsConfig';
 import { cyclicFiles } from './tsGraph';
 import type { Ts } from './tsLoad';
 import { tsImportProblems, tsSameDeclarations } from './tsMoveCheck';
-import { checkCommands, commandEnv, fileScope, nearestPackage, PackageJson, scopeReason, setupCommands, TsProject, tsProject, workspaceLinkProblem } from './tsProject';
+import {
+	checkCommands, commandEnv, fileScope, LOCKFILES, nearestPackage, PackageJson, scopeReason, setupCommands, TsProject, tsProject, workspaceLinkProblem,
+} from './tsProject';
 import { tsSplitPrompt, tsTestPrompt } from './tsPrompts';
 import { specifierStyle, TsFileContext, TsFileInfo, tsFileInfoView, tsFileNameProblems, tsSkipReason } from './tsRules';
 import { findsFolder, frameworkFolder, globRegExp, PathFinder, pathFinders } from './tsScan';
@@ -16,6 +19,24 @@ import { parseTsTests } from './tsTests';
 import { unitFacts, unitOf } from './tsUnit';
 
 const CODE = /\.(?:[cm]?[jt]sx?)$/;
+
+/** TypeScript and JavaScript as the core sees them before an adapter exists. */
+export const TS_LANGUAGE: LanguageInfo = {
+	label: 'TypeScript/JavaScript', extensions: ['.ts', '.tsx', '.mts', '.cts', '.js', '.jsx', '.mjs'], fixes: ['split'],
+	mayDiffer: 'File names and line numbers in stack traces, `console.trace` and logger caller fields may differ for moved code, and so may '
+		+ 'bundler chunk contents, hot-reload boundaries and source maps. Interfaces and type aliases moved in a types-only project change no '
+		+ 'emitted JavaScript. The program’s behavior does not change.',
+};
+
+/** The lockfiles' hash while `node_modules` exists: what the install made is still in place. */
+function installStamp(root: string): string | undefined {
+	if (!existsSync(path.join(root, 'node_modules'))) { return undefined; }
+	const hash = createHash('sha256');
+	for (const [file] of LOCKFILES) {
+		if (existsSync(path.join(root, file))) { hash.update(`${file}\0`).update(readFileSync(path.join(root, file))).update('\0'); }
+	}
+	return hash.digest('hex');
+}
 
 /** Whether the nearest package.json marks a file side-effect-free (`false`, or a list that does not match it). */
 function sideEffectFree(found: { dir: string; pkg: PackageJson } | undefined, file: string): boolean {
@@ -86,11 +107,12 @@ export function createTsAdapter(root: string, ts: Ts, tracked: readonly string[]
 		finders ??= pathFinders(p);
 		generated ??= generatedPatterns(root, tracked);
 		const finder = finders.find(f => f.file !== file && findsFolder(f, dir, [file, `${dir}/zzprobe${path.extname(file)}`]));
+		const where = dir === '.' ? 'the top folder' : `${dir}/`;
 		const pkg = nearestPackage(p, file);
 		return {
 			scope: 'skip' in scoped ? { skip: scoped.skip } : scoped.scope, scopeReason: scopeReason(ts, p, file),
 			jsx: config ? jsxMode(ts, config.options) : 'other', emitDecoratorMetadata: !!config?.options.emitDecoratorMetadata, cyclic: cyclic.has(file),
-			foundByPath: frameworkFolder(p, file) ?? (finder ? `${finder.file} finds files in ${dir === '.' ? 'the top folder' : `${dir}/`} by a path string` : undefined),
+			foundByPath: frameworkFolder(p, file) ?? (finder ? `${finder.file} finds files in ${where} by a path string` : undefined),
 			sideEffectFree: sideEffectFree(pkg, file), exportsWildcard: hasWildcard(pkg?.pkg.exports),
 			listedInFiles: !!pkg?.pkg.files?.some(entry => path.posix.normalize(path.posix.join(pkg.dir, entry)) === file),
 			generatedAttribute: generated.some(re => re.test(file)),
@@ -100,9 +122,7 @@ export function createTsAdapter(root: string, ts: Ts, tracked: readonly string[]
 	const entries = (file: string) => { try { return readdirSync(path.join(root, path.posix.dirname(file))); } catch { return []; } };
 	return {
 		id: 'ts',
-		label: 'TypeScript/JavaScript',
-		extensions: ['.ts', '.tsx', '.mts', '.cts', '.js', '.jsx', '.mjs'],
-		fixes: ['split'],
+		...TS_LANGUAGE,
 		get commandEnv() { return commandEnv(facts()); },
 		async parse(file) {
 			const text = readFileSync(path.join(root, file), 'utf8');
@@ -143,6 +163,7 @@ export function createTsAdapter(root: string, ts: Ts, tracked: readonly string[]
 		checks: file => checkCommands(ts, facts(), file),
 		setup: () => setupCommands(facts()),
 		ready: () => workspaceLinkProblem(facts()),
+		setupStamp: () => installStamp(root),
 		importProblems: tsImportProblems,
 		parseTests: output => parseTsTests(output, roots),
 		testFileName: file => file.replace(/(\.[cm]?[jt]sx?)$/, '.ai.test$1'),

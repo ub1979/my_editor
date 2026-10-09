@@ -87,6 +87,16 @@ export interface Prompt {
 	readonly text: string;
 }
 
+/** What the core knows about a language without creating its adapter. */
+export interface LanguageInfo {
+	readonly label: string;
+	readonly extensions: readonly string[];
+	/** The fix kinds it offers. */
+	readonly fixes: readonly ('split' | 'tests')[];
+	/** For the change note: what may still differ for moved code, and what does not. */
+	readonly mayDiffer: string;
+}
+
 /**
  * Everything the language-neutral fixer needs from one language. Go is the first adapter; TS/JS, Python, C#, Rust and
  * C/C++ follow. Paths are relative to the root the adapter was created for, with `/` separators.
@@ -101,12 +111,16 @@ export interface LanguageAdapter {
 	parse(file: string): Promise<FileInfo>;
 	/** The fix kinds it offers; both when absent. */
 	readonly fixes?: readonly ('split' | 'tests')[];
+	/** For the change note: what may still differ for moved code; the note stays neutral without it. */
+	readonly mayDiffer?: string;
 	/** Why a new file split from `original` (relative) may not have this name. */
 	fileNameProblems(name: string, original: string): string[];
 	/** Commands run once in a new worktree, before the baseline and approved with the rest (TS: the lockfile's install). */
 	setup?(): CheckCommand[];
 	/** Why the worktree is not ready after `setup` (TS: a workspace package resolves outside it). */
 	ready?(): string | undefined;
+	/** A fingerprint of what `setup` installed while its result is in place (TS: the lockfiles' hash while node_modules exists). */
+	setupStamp?(): string | undefined;
 	/**
 	 * Move rule 2's import part, for adapters that add imports by design (TS: the facade). When present it replaces the
 	 * generic checks that the original gains no import and that new files only use the original's imports.

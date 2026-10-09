@@ -1,8 +1,16 @@
 import { strict as assert } from 'node:assert';
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import { test } from 'node:test';
-import { CheckResult, checkSummary, compareWithBaseline } from '../src/aiready/baseline';
+import { CheckResult, checkSummary, compareWithBaseline, runSetup } from '../src/aiready/baseline';
+import { renderChangeNote } from '../src/aiready/changeNote';
+import type { RunState } from '../src/aiready/fixState';
+import { GO_LANGUAGE } from '../src/aiready/goAdapter';
 import type { LanguageAdapter } from '../src/aiready/language';
+import { fixableFinding, languageNote } from '../src/aiready/languages';
 import { planProblems } from '../src/aiready/splitPlan';
+import { TS_LANGUAGE } from '../src/aiready/tsAdapter';
 import { parseTsTests } from '../src/aiready/tsTests';
 
 const ROOTS = ['/w'];
@@ -49,4 +57,38 @@ test('plan problems quote a model-written file name as JSON, cut to 60 character
 	const many = planProblems(adapter, input, Array.from({ length: 30 }, (_, i) => ({ file: `f${i}.ts`, declarations: [] })));
 	assert.equal(many.length, 11);
 	assert.match(many[10], /^and 50 more problems\.$/);
+});
+
+test('setup is skipped when its result is still in place (Continue after an install), but the worktree is still checked', async () => {
+	let ran = 0;
+	const runner = { check: async (): Promise<CheckResult> => { ran++; return { command: 'npm ci', code: 1, failures: [], tail: 'x', log: '' }; },
+		cancelled: () => false, progress: () => undefined };
+	const install = [{ label: 'install' as const, command: 'npm ci' }];
+	assert.equal(await runSetup(install, runner, async () => [], () => 'pkg-a resolves outside', true), 'pkg-a resolves outside');
+	assert.equal(await runSetup(install, runner, async () => [], () => undefined, true), undefined);
+	assert.equal(ran, 0);
+	assert.match(await runSetup(install, runner, async () => [], () => undefined) ?? '', /failed \(exit 1\)/);
+});
+
+test('fixable findings come from the adapters\' extensions and fixes; a mixed Go and TS folder says Go is chosen first', () => {
+	assert.ok(fixableFinding('src/a.ts', 'too-long') && fixableFinding('src/a.mjs', 'too-long') && fixableFinding('a.go', 'untested'));
+	assert.ok(!fixableFinding('src/a.ts', 'untested') && !fixableFinding('a.py', 'too-long') && !fixableFinding('a.go', 'design'));
+	const dir = mkdtempSync(path.join(os.tmpdir(), 'my-editor-mixed-'));
+	writeFileSync(path.join(dir, 'go.mod'), 'module x\n');
+	assert.equal(languageNote(dir), undefined);
+	writeFileSync(path.join(dir, 'package.json'), '{}');
+	assert.match(languageNote(dir) ?? '', /both Go and TypeScript\/JavaScript.*Go is chosen first/);
+});
+
+test('the change note takes what may differ from the adapter and stays neutral without one', () => {
+	const state: RunState = {
+		version: 1, root: '/p/shop', language: 'Go', worktree: { branch: 'b', path: '/p/w', base: '0123456789abcdef' }, startedAt: '2026-10-09T10:00:00Z',
+		approved: [], fixes: [], next: 0, steps: [], baseline: {}, skippedFiles: [],
+	};
+	const at = new Date('2026-10-09T12:34:00Z');
+	const neutral = renderChangeNote(state, at);
+	assert.match(neutral, /File names and line numbers in error traces may differ for moved code\./);
+	assert.doesNotMatch(neutral, /runtime\.Caller|console\.trace/);
+	assert.match(renderChangeNote(state, at, GO_LANGUAGE.mayDiffer), /runtime\.Caller/);
+	assert.match(renderChangeNote({ ...state, language: TS_LANGUAGE.label }, at, TS_LANGUAGE.mayDiffer), /`console\.trace`/);
 });

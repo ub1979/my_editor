@@ -161,11 +161,13 @@ export interface BaselineRunner {
 
 /**
  * Runs the adapter's setup commands (an install) once in the new worktree. Undefined when it is ready; else a plain
- * message (a command failed, tracked files changed, or `ready` names a problem), or 'stopped'.
+ * message (a command failed, tracked files changed, or `ready` names a problem), or 'stopped'. With `installed`, what
+ * the commands made is still in place (Continue): they do not run again, and only `ready` is asked.
  */
 export async function runSetup(commands: readonly CheckCommand[], runner: BaselineRunner, changed: () => Promise<string[]>,
-	ready: () => string | undefined): Promise<string | 'stopped' | undefined> {
+	ready: () => string | undefined, installed = false): Promise<string | 'stopped' | undefined> {
 	if (!commands.length) { return undefined; }
+	if (installed) { return ready(); }
 	for (const { command, label } of commands) {
 		runner.progress(`Preparing the working copy: \`${command}\`…`);
 		const result = await runner.check(command, label);

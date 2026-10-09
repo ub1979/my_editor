@@ -54,7 +54,7 @@ export interface TsProject {
 	readonly testGlobs: readonly string[];
 }
 
-const LOCKFILES: readonly [string, Manager['name']][] = [['package-lock.json', 'npm'], ['npm-shrinkwrap.json', 'npm'], ['pnpm-lock.yaml', 'pnpm'],
+export const LOCKFILES: readonly [string, Manager['name']][] = [['package-lock.json', 'npm'], ['npm-shrinkwrap.json', 'npm'], ['pnpm-lock.yaml', 'pnpm'],
 	['yarn.lock', 'yarn'], ['bun.lock', 'bun'], ['bun.lockb', 'bun']];
 
 function readJson(file: string): PackageJson | undefined {

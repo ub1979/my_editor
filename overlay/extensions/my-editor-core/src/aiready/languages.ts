@@ -1,8 +1,8 @@
 import { existsSync } from 'fs';
 import * as path from 'path';
-import { createGoAdapter, goTools, goVersionProblem } from './goAdapter';
+import { createGoAdapter, GO_LANGUAGE, goTools, goVersionProblem } from './goAdapter';
 import type { LanguageAdapter } from './language';
-import { createTsAdapter } from './tsAdapter';
+import { createTsAdapter, TS_LANGUAGE } from './tsAdapter';
 import { bundledTypeScript, loadTypeScript } from './tsLoad';
 import { lockfileProblem } from './tsProject';
 
@@ -18,12 +18,20 @@ export interface AdapterHost {
 	readonly appRoot: string;
 }
 
-const TS_EXTENSIONS = ['.ts', '.tsx', '.mts', '.cts', '.js', '.jsx', '.mjs'];
+/** Every language with an adapter, in the order a folder's language is chosen. */
+const LANGUAGES = [GO_LANGUAGE, TS_LANGUAGE];
+const TS_MARKERS = ['package.json', 'tsconfig.json', 'jsconfig.json'];
 
-/** Whether a health finding has a fix on a branch: Go splits and tests; TS/JS splits. */
+/** Whether a health finding has a fix on a branch, from the adapters' extensions and fix kinds. */
 export function fixableFinding(file: string, kind: string): boolean {
-	const ext = path.extname(file);
-	return (ext === '.go' && (kind === 'too-long' || kind === 'untested')) || (TS_EXTENSIONS.includes(ext) && kind === 'too-long');
+	const fix = kind === 'too-long' ? 'split' : kind === 'untested' ? 'tests' : undefined;
+	return !!fix && LANGUAGES.some(language => language.extensions.includes(path.extname(file)) && language.fixes.includes(fix));
+}
+
+/** In a folder with both a `go.mod` and a `package.json`/`tsconfig.json`: which language a run uses. */
+export function languageNote(root: string): string | undefined {
+	if (!existsSync(path.join(root, 'go.mod')) || !TS_MARKERS.some(name => existsSync(path.join(root, name)))) { return undefined; }
+	return `This folder has both Go and ${TS_LANGUAGE.label} in its top folder; Go is chosen first, so only Go files are offered.`;
 }
 
 /**
@@ -37,10 +45,11 @@ export async function adapterFor(root: string, host: AdapterHost): Promise<Adapt
 		const problem = await goVersionProblem(tools.go, root);
 		return problem ?? ((dir, tracked) => createGoAdapter(dir, tools, tracked));
 	}
-	if (['package.json', 'tsconfig.json', 'jsconfig.json'].some(name => existsSync(path.join(root, name)))) {
+	if (TS_MARKERS.some(name => existsSync(path.join(root, name)))) {
 		const ts = loadTypeScript(bundledTypeScript(host.appRoot));
 		if (typeof ts === 'string') { return ts; }
 		return lockfileProblem(root) ?? ((dir, tracked) => createTsAdapter(dir, ts, tracked));
 	}
-	return 'Fixing on a branch works for Go, TypeScript and JavaScript projects (a `go.mod`, `package.json` or `tsconfig.json` in the top folder). Python, C#, Rust and C/C++ come next.';
+	return 'Fixing on a branch works for Go, TypeScript and JavaScript projects (a `go.mod`, `package.json` or `tsconfig.json` in the top folder). '
+		+ 'Python, C#, Rust and C/C++ come next.';
 }

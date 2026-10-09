@@ -52,11 +52,18 @@ async function checkPrerequisites(root: string, sink: Sink): Promise<boolean> {
 	return true;
 }
 
+/** A started run and the adapter for its worktree, built once for the install, the baseline and the fixes. */
+export interface StartedRun {
+	readonly state: RunState;
+	readonly adapter: LanguageAdapter;
+}
+
 /**
  * A new run: prerequisites, the fix picker (from a fresh deterministic scan, never the report's text), approval of the
  * exact commands, the worktree and branch, and the baseline run twice. Undefined when the user stopped or declined.
  */
-export async function startRun(env: CommandEnv, adapter: (root: string, tracked: readonly string[]) => LanguageAdapter, sink: Sink): Promise<RunState | undefined> {
+export async function startRun(env: CommandEnv, adapter: (root: string, tracked: readonly string[]) => LanguageAdapter,
+	sink: Sink): Promise<StartedRun | undefined> {
 	const { root, token } = env;
 	if (!await checkPrerequisites(root, sink)) { return undefined; }
 	sink.progress('Finding files to fix…');
@@ -66,8 +73,8 @@ export async function startRun(env: CommandEnv, adapter: (root: string, tracked:
 	const stats = sources.map(file => fileStats(file, readFileSync(path.join(root, file), 'utf8')));
 	const findings = scanHealth(stats, tracked, { languages: [local.label], checks: [], tests: [] }, []);
 	const offers = (kind: 'split' | 'tests') => !local.fixes || local.fixes.includes(kind);
-	const candidates = [...new Set(findings.filter(f => f.file && ((f.kind === 'too-long' && offers('split')) || (f.kind === 'untested' && offers('tests')))).map(f => f.file!))]
-		.filter(file => sources.includes(file));
+	const fixable = (f: (typeof findings)[number]) => (f.kind === 'too-long' && offers('split')) || (f.kind === 'untested' && offers('tests'));
+	const candidates = [...new Set(findings.filter(f => f.file && fixable(f)).map(f => f.file!))].filter(file => sources.includes(file));
 	const skipped = new Map<string, string>();
 	for (const file of candidates) {
 		if (token.isCancellationRequested) { return undefined; }
@@ -78,7 +85,10 @@ export async function startRun(env: CommandEnv, adapter: (root: string, tracked:
 	}
 	const choices = fixChoices(findings, stats, local.extensions, skipped).filter(choice => offers(choice.kind));
 	sink.progress('');
-	if (!choices.length) { sink.text(`Nothing here can be fixed on a branch yet: no long or untested ${local.label} files that may be split or tested.`); return undefined; }
+	if (!choices.length) {
+		sink.text(`Nothing here can be fixed on a branch yet: no long or untested ${local.label} files that may be split or tested.`);
+		return undefined;
+	}
 	const picked = await pickFixes(choices, (items, options) => vscode.window.showQuickPick(items, { ...options, canPickMany: true }));
 	if (!picked?.length) { sink.text('No fixes were chosen, so nothing changed.'); return undefined; }
 	const checks = [...new Map(picked.flatMap(fix => local.checks(fix.file)).map(check => [check.command, check])).values()];
@@ -92,9 +102,9 @@ export async function startRun(env: CommandEnv, adapter: (root: string, tracked:
 	try {
 		sink.text(`Working on branch \`${worktree.branch}\` in \`${worktree.path}\`. Your folder stays as it is.\n`);
 		logDir(env.storage, root, true);
-		const ready = await prepareWorktree(env, adapter, worktree.path, approved, sink);
-		if (ready) { return await discardUnstarted(root, worktree, sink, ready === 'stopped' ? 'Stopped before any fix.' : ready); }
 		const inWorktree = adapter(worktree.path, await trackedFiles(worktree.path));
+		const ready = await prepareWorktree(env, inWorktree, worktree.path, approved, sink);
+		if (ready) { return await discardUnstarted(root, worktree, sink, ready === 'stopped' ? 'Stopped before any fix.' : ready); }
 		const outcome = await runBaseline(checks, {
 			check: (command, label) => runCheck(env, inWorktree, worktree.path, approved, command, label),
 			cancelled: () => token.isCancellationRequested,
@@ -106,25 +116,29 @@ export async function startRun(env: CommandEnv, adapter: (root: string, tracked:
 		if (failing.length) { sink.text(alreadyFailingText(failing)); }
 		const state: RunState = {
 			version: 1, root, language: local.label, worktree, startedAt: new Date().toISOString(), approved, fixes: picked, next: 0, steps: [],
-			baseline: outcome.baseline, skippedFiles: skippedWithLines(skipped, stats),
+			baseline: outcome.baseline, skippedFiles: skippedWithLines(skipped, stats), setupStamp: inWorktree.setupStamp?.(),
 		};
 		saveState(env.storage, state);
 		sink.progress('');
-		return state;
+		return { state, adapter: inWorktree };
 	} catch (error) {
 		return discardUnstarted(root, worktree, sink, `The run could not start: ${error instanceof Error ? error.message : String(error)}`);
 	}
 }
 
-/** Runs the adapter's setup (an install) once in the worktree: undefined when ready, else a plain message or 'stopped'. */
-export async function prepareWorktree(env: CommandEnv, adapter: (root: string, tracked: readonly string[]) => LanguageAdapter, worktree: string,
-	approved: readonly string[], sink: Sink): Promise<string | undefined> {
-	const local = adapter(worktree, await trackedFiles(worktree));
-	return runSetup(local.setup?.() ?? [], {
-		check: (command, label) => runCheck(env, local, worktree, approved, command, label),
+/**
+ * Runs the adapter's setup (an install) once in the worktree: undefined when ready, else a plain message or 'stopped'.
+ * On Continue, `stamp` is the setup stamp saved after the last install; while the adapter still reports it (TS:
+ * node_modules is there and the lockfile is unchanged), the install does not run again.
+ */
+export async function prepareWorktree(env: CommandEnv, adapter: LanguageAdapter, worktree: string, approved: readonly string[], sink: Sink,
+	stamp?: string): Promise<string | undefined> {
+	const installed = stamp !== undefined && adapter.setupStamp?.() === stamp;
+	return runSetup(adapter.setup?.() ?? [], {
+		check: (command, label) => runCheck(env, adapter, worktree, approved, command, label),
 		cancelled: () => env.token.isCancellationRequested,
 		progress: text => sink.progress(text),
-	}, () => changedFiles(worktree), () => local.ready?.());
+	}, () => changedFiles(worktree), () => adapter.ready?.(), installed);
 }
 
 /** Before any fix (Stop, a baseline that could not run, or an error): nothing was committed, so the worktree and branch go. */

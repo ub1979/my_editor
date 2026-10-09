@@ -49,6 +49,8 @@ export interface RunState {
 	readonly baseline: Record<string, readonly [CheckResult, CheckResult]>;
 	/** Files that are never split, with the reason, for the change note. */
 	readonly skippedFiles: readonly { readonly file: string; readonly reason: string; readonly lines?: number }[];
+	/** The adapter's setup stamp after the last install, so Continue skips the install while its result is in place. */
+	setupStamp?: string;
 }
 
 /** "Discard the rest": records every fix not yet run as discarded by the user and ends the run's queue. */

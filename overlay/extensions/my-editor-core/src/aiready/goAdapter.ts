@@ -6,7 +6,7 @@ import { goSplitPrompt, goTestPrompt } from './goPrompts';
 import { directiveLines, goFileInfoView, GoFileInfo, goFileNameProblems, GoModuleFacts, goSkipReason, Platforms, platforms } from './goRules';
 import { buildGoSplit, goSplitHeader } from './goSplit';
 import { goTestNames, goTestProblems, parseGoTest } from './goTests';
-import type { LanguageAdapter } from './language';
+import type { LanguageAdapter, LanguageInfo } from './language';
 import { declarationProblems } from './moveCheck';
 import { findTool, runTool } from './projectCommands';
 
@@ -58,6 +58,13 @@ export function goPackage(file: string): string {
 	return dir === '.' ? '.' : `./${dir}`;
 }
 
+/** Go as the core sees it before an adapter exists. */
+export const GO_LANGUAGE: LanguageInfo = {
+	label: 'Go', extensions: ['.go'], fixes: ['split', 'tests'],
+	mayDiffer: 'File names and line numbers in panics, `runtime.Caller`, `log.Lshortfile`, `slog` source attributes and package-level closure names '
+		+ '(`glob..funcN`) may differ for moved code. The program’s behavior does not.',
+};
+
 /**
  * The Go language adapter for one root (the user's folder for the picker, the worktree for fixes). `tracked` lists the
  * root's tracked files, for nested modules and `//go:generate`/`//go:embed` lines.
@@ -87,9 +94,8 @@ export function createGoAdapter(root: string, tools: GoTools, tracked: readonly 
 	const testFileName = (file: string) => file.replace(/\.go$/, '_ai_test.go');
 	return {
 		id: 'go',
-		label: 'Go',
+		...GO_LANGUAGE,
 		commandEnv: GO_ENV,
-		extensions: ['.go'],
 		async parse(file) {
 			const ast = await goFileInfo(tools.helper, path.join(root, file));
 			return goFileInfoView(file, ast, await packageNames(file), goSkipReason(file, ast, moduleFacts(), tools.platforms));

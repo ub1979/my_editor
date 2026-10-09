@@ -32,27 +32,32 @@ function stepLine(step: StepRecord): string {
 		const moved = (step.moved ?? []).map(m => `\`${m.file}\` (${m.names.join(', ')})`).join('; ');
 		return `- \`${short}\` Split \`${step.file}\` into ${moved}.`;
 	}
-	return `- \`${short}\` Added tests for \`${step.file}\` in \`${step.testFile}\`${step.dropped?.length ? `; dropped failing tests ${step.dropped.join(', ')}` : ''}.`;
+	const dropped = step.dropped?.length ? `; dropped failing tests ${step.dropped.join(', ')}` : '';
+	return `- \`${short}\` Added tests for \`${step.file}\` in \`${step.testFile}\`${dropped}.`;
 }
 
 /** Skipped files over the limit with their reasons, then one count for the rest (a file with no recorded size is listed). */
 function neverSplit(state: RunState): string[] {
 	const long = state.skippedFiles.filter(s => s.lines === undefined || s.lines > MAX_SOURCE_LINES);
 	const rest = state.skippedFiles.length - long.length;
-	return [...long.map(s => `- \`${s.file}\`: ${s.reason}.`), ...(rest ? [`- plus ${rest} file${rest === 1 ? '' : 's'} under ${MAX_SOURCE_LINES} lines that need no split. They have no tests and cannot be given any, so the picker does not offer them`] : [])];
+	const others = `- plus ${rest} file${rest === 1 ? '' : 's'} under ${MAX_SOURCE_LINES} lines that need no split. `
+		+ 'They have no tests and cannot be given any, so the picker does not offer them';
+	return [...long.map(s => `- \`${s.file}\`: ${s.reason}.`), ...(rest ? [others] : [])];
 }
 
-/** What may still differ for moved code, by adapter label. */
-const MAY_DIFFER: Record<string, string> = {
-	Go: 'File names and line numbers in panics, `runtime.Caller`, `log.Lshortfile`, `slog` source attributes and package-level closure names '
-		+ '(`glob..funcN`) may differ for moved code. The program’s behavior does not.',
-	'TypeScript/JavaScript': 'File names and line numbers in stack traces, `console.trace` and logger caller fields may differ for moved code, and so may '
-		+ 'bundler chunk contents, hot-reload boundaries and source maps. Interfaces and type aliases moved in a types-only project change no emitted '
-		+ 'JavaScript. The program’s behavior does not change.',
-};
+/** What may still differ for moved code when the adapter does not say. */
+const MAY_DIFFER = 'File names and line numbers in error traces may differ for moved code.';
 
-/** The change note committed on the branch at close (pure). */
-export function renderChangeNote(state: RunState, at: Date): string {
+function commitLines(step: StepRecord): string[] {
+	return [stepLine(step), ...(step.checks ? [`  Checks: ${step.checks}`] : []), ...(planText(step) ? [`  ${planText(step)}`] : [])];
+}
+
+function notDoneLine(step: StepRecord): string {
+	return `- \`${step.file}\` (${step.kind === 'split' ? 'split' : 'tests'}): ${step.status}. ${step.reason ?? ''} ${planText(step)}`.trimEnd();
+}
+
+/** The change note committed on the branch at close (pure); `mayDiffer` comes from the language adapter. */
+export function renderChangeNote(state: RunState, at: Date, mayDiffer = MAY_DIFFER): string {
 	const committed = state.steps.filter(step => step.status === 'committed');
 	const notDone = state.steps.filter(step => step.status === 'skipped' || step.status === 'refused');
 	const discarded = state.steps.filter(step => step.status === 'discarded');
@@ -69,8 +74,8 @@ export function renderChangeNote(state: RunState, at: Date): string {
 		+ 'then the checks of its package, with the same results as before the run. A check that already failed before the run is marked '
 		+ '"not a check" on its commit: it proves nothing about that commit.', '',
 		'## Commits', '',
-		...(committed.length ? committed.flatMap(step => [stepLine(step), ...(step.checks ? [`  Checks: ${step.checks}`] : []), ...(planText(step) ? [`  ${planText(step)}`] : [])]) : ['No fix was committed.']), '',
-		...(notDone.length ? ['## Skipped or refused', '', ...notDone.map(step => `- \`${step.file}\` (${step.kind === 'split' ? 'split' : 'tests'}): ${step.status}. ${step.reason ?? ''} ${planText(step)}`.trimEnd()), ''] : []),
+		...(committed.length ? committed.flatMap(commitLines) : ['No fix was committed.']), '',
+		...(notDone.length ? ['## Skipped or refused', '', ...notDone.map(notDoneLine), ''] : []),
 		...(pending.length ? ['## Not run yet', '', ...pending.map(fix => `- \`${fix.file}\` (${fix.kind === 'split' ? 'split' : 'tests'})`), ''] : []),
 		...(discarded.length ? ['## Discarded by you', '', ...discarded.map(step => `- \`${step.file}\` (${step.kind === 'split' ? 'split' : 'tests'})`), ''] : []),
 		...(state.skippedFiles.length ? ['## Files never split', '', ...neverSplit(state), ''] : []),
@@ -80,7 +85,7 @@ export function renderChangeNote(state: RunState, at: Date): string {
 			...failing.map(command => `- \`${command}\``), ''] : []),
 		'## Left for you', '',
 		...notes.map(note => `- ${note}`),
-		`- ${MAY_DIFFER[state.language] ?? MAY_DIFFER.Go}`,
+		`- ${mayDiffer}`,
 		'- Git hooks did not run for these commits. Run your usual checks when you review.',
 		'- Bugs and design problems from the health report are suggestions; ask Pair about them.', '',
 		'## How to review', '',

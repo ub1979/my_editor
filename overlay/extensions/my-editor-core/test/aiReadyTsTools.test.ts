@@ -1,5 +1,10 @@
 import { strict as assert } from 'node:assert';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import { test } from 'node:test';
+import { createTsAdapter } from '../src/aiready/tsAdapter';
+import { loadTypeScript } from '../src/aiready/tsLoad';
 import { fileScope, tsProject } from '../src/aiready/tsProject';
 import { findsFolder, pathFinders } from '../src/aiready/tsScan';
 import { ESM, project, ts } from './tsFixture';
@@ -80,4 +85,24 @@ test('folder loaders: arrays of globs, member calls, a glob joined to __dirname,
 	assert.deepEqual(finders({ '.mocharc.yaml': 'require: x\nspec:\n  - lib/*.ts\n  - src/plugins/**/*.ts\nui: bdd\n' }), ['.mocharc.yaml:lib/*.ts|src/plugins/**/*.ts']);
 	assert.deepEqual(finders({ '.mocharc.json': '{"spec":["src/plugins/*.ts"]}' }), ['.mocharc.json:src/plugins/*.ts']);
 	assert.deepEqual(finders({ 'scripts/b.mjs': "globSync(['lib/*.ts']);\nfg.sync('lib/**');\n" }), []);
+});
+
+test('a failed TypeScript load is not cached: the editor\'s copy may appear later', () => {
+	const dir = path.join(mkdtempSync(path.join(os.tmpdir(), 'my-editor-tsload-')), 'typescript');
+	assert.match(String(loadTypeScript(dir)), /not found/);
+	mkdirSync(dir);
+	writeFileSync(path.join(dir, 'package.json'), '{"main":"index.js"}');
+	writeFileSync(path.join(dir, 'index.js'), 'module.exports = { version: "5.9.3", createProgram() {} };');
+	assert.equal(typeof loadTypeScript(dir), 'object');
+});
+
+test('the install stamp is the lockfile\'s hash while node_modules exists, so Continue skips a second install', () => {
+	const { root, tracked } = project({ ...ESM, 'tsconfig.json': OK, 'src/a.ts': 'export const a = 1;\n' });
+	const adapter = createTsAdapter(root, ts, tracked);
+	assert.equal(adapter.setupStamp?.(), undefined);
+	mkdirSync(path.join(root, 'node_modules'));
+	const stamp = adapter.setupStamp?.();
+	assert.match(stamp ?? '', /^[0-9a-f]{64}$/);
+	writeFileSync(path.join(root, 'package-lock.json'), '{"lockfileVersion":3}');
+	assert.notEqual(adapter.setupStamp?.(), stamp);
 });

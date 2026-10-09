@@ -9,7 +9,8 @@ import { noteFileName, renderChangeNote, reportWithRun, runFlaky } from './chang
 import { CommandEnv, prepareWorktree, runCheck, startRun } from './fixSetup';
 import { clearState, discardRest, loadState, MAX_FIXES_PER_RUN, RunState, saveState, StepRecord } from './fixState';
 import { closingText } from './fixText';
-import { AdapterFactory, adapterFor } from './languages';
+import type { LanguageAdapter } from './language';
+import { adapterFor, languageNote } from './languages';
 import { runAddTests, runSplit, StepContext } from './steps';
 import { commit, reattach, remove, trackedFiles } from './worktree';
 
@@ -42,17 +43,24 @@ export async function fixOnBranch(context: vscode.ExtensionContext, keys: ApiKey
 		if (answer === 'Discard the rest') { discardRest(state); }
 		else if (answer !== 'Continue') { return; }
 	}
+	let adapter: LanguageAdapter;
 	if (!state) {
-		state = await startRun(env, language, sink);
-		if (!state) { return; }
+		const note = languageNote(root);
+		if (note) { sink.text(`${note}\n`); }
+		const started = await startRun(env, language, sink);
+		if (!started) { return; }
+		({ state, adapter } = started);
 	} else {
 		try { state.worktree = await reattach(root, state.worktree); }
 		catch (error) { return forgetRun(storage, state, sink, error); }
-		const ready = await prepareWorktree(env, language, state.worktree.path, state.approved, sink);
+		adapter = language(state.worktree.path, await trackedFiles(state.worktree.path));
+		const ready = await prepareWorktree(env, adapter, state.worktree.path, state.approved, sink, state.setupStamp);
 		if (ready) { sink.progress(''); sink.text(ready === 'stopped' ? 'Stopped before any fix.' : ready); return; }
-		if (state.next < state.fixes.length) { sink.text(`Continuing on \`${state.worktree.branch}\` with ${state.fixes.length - state.next} fix${state.fixes.length - state.next === 1 ? '' : 'es'} left.\n`); }
+		state.setupStamp = adapter.setupStamp?.();
+		const left = state.fixes.length - state.next;
+		if (left > 0) { sink.text(`Continuing on \`${state.worktree.branch}\` with ${left} fix${left === 1 ? '' : 'es'} left.\n`); }
 	}
-	await runFixes(env, state, language, sink, (system, text) => ask(model, keys, system, text, token, ASK_TIMEOUT_MS));
+	await runFixes(env, state, adapter, sink, (system, text) => ask(model, keys, system, text, token, ASK_TIMEOUT_MS));
 }
 
 /** The branch's working copy cannot be reopened: offer to forget the run (the branch and its commits stay) instead of asking again next time. */
@@ -75,11 +83,10 @@ function stepLine(step: StepRecord): string {
 	return `- ${what}: ${step.status}. ${step.reason ?? ''}`.trimEnd();
 }
 
-async function runFixes(env: CommandEnv, state: RunState, language: AdapterFactory, sink: Sink,
+async function runFixes(env: CommandEnv, state: RunState, adapter: LanguageAdapter, sink: Sink,
 	askModel: (system: string, text: string) => Promise<string>): Promise<void> {
 	const { storage, token } = env;
 	const worktree = state.worktree.path;
-	const adapter = language(worktree, await trackedFiles(worktree));
 	const ctx: StepContext = {
 		adapter, worktree, ask: askModel, baseline: state.baseline, flaky: runFlaky(state),
 		check: (command, label) => runCheck(env, adapter, worktree, state.approved, command, label),
@@ -112,16 +119,16 @@ async function runFixes(env: CommandEnv, state: RunState, language: AdapterFacto
 		sink.action('Continue', 'myEditor.aiReadyFix', [{ continue: true }]);
 		return;
 	}
-	await closeRun(env, state, sink);
+	await closeRun(env, state, sink, adapter.mayDiffer);
 }
 
 /** Commits the change note on the branch, removes the worktree (the branch stays), and updates the report. */
-async function closeRun(env: CommandEnv, state: RunState, sink: Sink): Promise<void> {
+async function closeRun(env: CommandEnv, state: RunState, sink: Sink, mayDiffer: string | undefined): Promise<void> {
 	const at = new Date();
 	const note = noteFileName(at);
 	const worktree = state.worktree.path;
 	mkdirSync(path.dirname(path.join(worktree, note)), { recursive: true });
-	writeFileSync(path.join(worktree, note), renderChangeNote(state, at));
+	writeFileSync(path.join(worktree, note), renderChangeNote(state, at, mayDiffer));
 	await commit(worktree, [note], 'my_editor: change note for the AI-ready fixes', 'What this branch changed, how each change was checked, and what was left.');
 	let removed = true;
 	try { await remove(state.root, worktree); } catch { removed = false; }

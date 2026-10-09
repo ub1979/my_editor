@@ -4,14 +4,17 @@ import type { CheckResult } from '../src/aiready/baseline';
 import { noteFileName, renderChangeNote, reportWithRun } from '../src/aiready/changeNote';
 import { fixChoices, pickFixes, skippedWithLines } from '../src/aiready/fixPicker';
 import { discardRest, type RunState } from '../src/aiready/fixState';
+import { GO_LANGUAGE } from '../src/aiready/goAdapter';
 import { fileStats } from '../src/aiready/health';
+import { TS_LANGUAGE } from '../src/aiready/tsAdapter';
 
 const fix = (file: string, kind: 'split' | 'tests', lines: number) => ({ file, kind, lines });
 const testRun = (code: number, outcome: 'pass' | 'fail'): CheckResult =>
 	({ command: 'go test -count=1 -json ./a', code, failures: [], tests: { tests: { 'm TestF': outcome }, packages: {} }, tail: '', log: '' });
 
 test('fix choices: Go files only, never-split files left out, biggest first, splits pre-selected', async () => {
-	const stats = [fileStats('a.go', 'x\n'.repeat(900)), fileStats('b.go', 'x\n'.repeat(500)), fileStats('c.ts', 'x\n'.repeat(700)), fileStats('gen.go', 'x\n'.repeat(800))];
+	const stats = [fileStats('a.go', 'x\n'.repeat(900)), fileStats('b.go', 'x\n'.repeat(500)), fileStats('c.ts', 'x\n'.repeat(700)),
+		fileStats('gen.go', 'x\n'.repeat(800))];
 	const findings = [
 		{ kind: 'too-long' as const, file: 'b.go', text: '' }, { kind: 'too-long' as const, file: 'a.go', text: '' },
 		{ kind: 'untested' as const, file: 'b.go', text: '' }, { kind: 'too-long' as const, file: 'c.ts', text: '' },
@@ -47,7 +50,8 @@ test('the change note shows plan attempts and lists only skipped files over 400 
 	const note = renderChangeNote(run, new Date('2026-10-09T12:34:00Z'));
 	assert.match(note, /Plan: 2 attempts; rejected: Declaration 9 does not exist\./);
 	assert.match(note, /`c\.go` \(split\): refused\. The move check failed: Rule 2\. Plan: 2 attempts; rejected: a \/ b/);
-	assert.match(note, /## Files never split\n\n- `gen\.go`: generated code\.\n- plus 2 files under 400 lines that need no split\. They have no tests and cannot be given any, so the picker does not offer them/);
+	assert.match(note, /## Files never split\n\n- `gen\.go`: generated code\.\n- plus 2 files under 400 lines that need no split\. /);
+	assert.match(note, /under 400 lines that need no split\. They have no tests and cannot be given any, so the picker does not offer them/);
 	assert.doesNotMatch(note, /x\.go/);
 });
 
@@ -68,7 +72,7 @@ function state(root: string): RunState {
 }
 
 test('the change note lists commits, refusals, flaky tests, what is left and how to review', () => {
-	const note = renderChangeNote(state('/p/shop'), new Date('2026-10-09T12:34:00Z'));
+	const note = renderChangeNote(state('/p/shop'), new Date('2026-10-09T12:34:00Z'), GO_LANGUAGE.mayDiffer);
 	for (const pattern of [/^# AI-ready changes: shop/, /`abcdef1` Split `a.go` into `a_query.go` \(Find, List\)/, /Checks: `go build/,
 		/`fedcba9` Added tests for `b.go` in `b_ai_test.go`; dropped failing tests TestAiSlow/, /`c.go` \(split\): refused. The move check failed/,
 		/## Not run yet\n\n- `d.go` \(split\)/, /`gen.go`: generated code/, /- m TestF/, /stays at 450 lines/, /glob\.\.funcN/,
@@ -77,7 +81,8 @@ test('the change note lists commits, refusals, flaky tests, what is left and how
 	}
 	assert.match(noteFileName(new Date(2026, 9, 9, 7, 5)), /^\.my_editor\/changes\/ai-ready-2026-10-09-0705\.md$/);
 	const report = reportWithRun('# Report\n\nBody\n\n## Fixes on a local branch\n\nOld run.\n', state('/p/shop'), 'x.md');
-	assert.equal(report, '# Report\n\nBody\n\n## Fixes on a local branch\n\n2 fixes committed on `my_editor/ai-ready`, 1 skipped or refused. Details: `x.md` on that branch.\n');
+	assert.equal(report, '# Report\n\nBody\n\n## Fixes on a local branch\n\n'
+		+ '2 fixes committed on `my_editor/ai-ready`, 1 skipped or refused. Details: `x.md` on that branch.\n');
 });
 
 test('discarding the rest records each fix as discarded by the user, in the note and the report', () => {
@@ -96,12 +101,13 @@ test('skipped files carry their line counts from the file stats, and the note sa
 	const stats = [fileStats('big.go', 'x\n'.repeat(900)), fileStats('small.go', 'x\n'.repeat(30))];
 	assert.deepEqual(skippedWithLines(new Map([['big.go', 'generated'], ['small.go', 'cgo']]), stats),
 		[{ file: 'big.go', reason: 'generated', lines: 900 }, { file: 'small.go', reason: 'cgo', lines: 30 }]);
-	assert.match(renderChangeNote(state('/p/shop'), new Date('2026-10-09T12:34:00Z')), /already failed before the run is marked "not a check" on its commit: it proves nothing about that commit/);
+	assert.match(renderChangeNote(state('/p/shop'), new Date('2026-10-09T12:34:00Z')),
+		/already failed before the run is marked "not a check" on its commit: it proves nothing about that commit/);
 });
 
-test('the change note names what may differ in the run\'s language', () => {
-	const ts = renderChangeNote({ ...state('/p/shop'), language: 'TypeScript/JavaScript' }, new Date('2026-10-09T12:34:00Z'));
+test('the change note names what may differ in the run\'s language, as its adapter says', () => {
+	const ts = renderChangeNote({ ...state('/p/shop'), language: 'TypeScript/JavaScript' }, new Date('2026-10-09T12:34:00Z'), TS_LANGUAGE.mayDiffer);
 	assert.match(ts, /stack traces, `console\.trace` and logger caller fields/);
 	assert.doesNotMatch(ts, /runtime\.Caller/);
-	assert.match(renderChangeNote(state('/p/shop'), new Date('2026-10-09T12:34:00Z')), /runtime\.Caller/);
+	assert.match(renderChangeNote(state('/p/shop'), new Date('2026-10-09T12:34:00Z'), GO_LANGUAGE.mayDiffer), /runtime\.Caller/);
 });
