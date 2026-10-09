@@ -45,6 +45,9 @@
     "src/aiready/healthReview.ts",
     "src/aiready/report.ts",
     "src/aiready/language.ts",
-    "src/aiready/baseline.ts"
+    "src/aiready/baseline.ts",
+    "src/aiready/projectCommands.ts",
+    "src/aiready/goAst.ts",
+    "src/aiready/goRules.ts"
   ]
 }
