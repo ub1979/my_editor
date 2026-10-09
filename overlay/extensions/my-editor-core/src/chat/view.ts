@@ -23,7 +23,7 @@ const STATE_KEY = 'myEditor.chat.state';
 const MAX_KEPT_MESSAGES = 200;
 const MAX_VISIBLE_MESSAGES = 60;
 /** Buttons a reply may offer; anything else is ignored. */
-const ALLOWED_ACTIONS = new Set(['myEditor.saveDecision', 'myEditor.adaptFile', 'myEditor.analyseProject']);
+const ALLOWED_ACTIONS = new Set(['myEditor.saveDecision', 'myEditor.adaptFile', 'myEditor.analyseProject', 'myEditor.aiReadyFix']);
 
 interface Saved {
 	messages: Message[];
@@ -118,20 +118,22 @@ export class ChatView implements vscode.WebviewViewProvider {
 	/** Reads the project into the brain and drafts its architecture; with aiReady, also writes the health report. */
 	async analyse(aiReady = false): Promise<void> {
 		await this.openLounge();
-		if (!this.webviews().length) {
-			this.pending = { text: '', mode: aiReady ? AI_READY : ANALYSE };
-			return;
-		}
-		if (this.running) {
-			return;
-		}
+		if (!this.webviews().length) { this.pending = { text: '', mode: aiReady ? AI_READY : ANALYSE }; return; }
+		if (this.running) { return; }
 		await this.context.workspaceState.update(ANALYSE_ANSWERED, true);
 		this.broadcast({ type: 'offer', offer: undefined });
-		this.messages.push({ id: newChatId(), role: 'user', markdown: aiReady ? 'Check AI-readiness' : 'Analyse this project', proposals: [], actions: [], done: true });
+		await this.runTask(aiReady ? 'Check AI-readiness' : 'Analyse this project', (sink, token) => (aiReady ? makeAiReady : analyseProject)(this.keys, this.proposals, sink, token));
+	}
+
+	/** Runs a host job as a Pair reply under a short request line, with progress, buttons and Stop (e.g. fixing on a branch). */
+	async runTask(label: string, job: (sink: Sink, token: vscode.CancellationToken) => Promise<void>): Promise<void> {
+		await this.openLounge();
+		if (this.running) { return; }
+		this.messages.push({ id: newChatId(), role: 'user', markdown: label, proposals: [], actions: [], done: true });
 		const reply: Message = { id: newChatId(), role: 'assistant', characterId: this.characterId, markdown: '', proposals: [], actions: [], done: false };
 		this.messages.push(reply);
 		this.postMessages();
-		await this.runReply(reply, (sink, token) => (aiReady ? makeAiReady : analyseProject)(this.keys, this.proposals, sink, token));
+		await this.runReply(reply, job);
 	}
 
 	private async selectForProject(): Promise<void> {

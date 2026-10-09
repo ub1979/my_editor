@@ -1,0 +1,121 @@
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
+import * as path from 'path';
+import * as vscode from 'vscode';
+import { ask } from '../brain/analyse';
+import type { Sink } from '../chat/engine';
+import { loadCatalog, pickDefault } from '../models/catalog';
+import { ApiKeys } from '../models/secrets';
+import { noteFileName, renderChangeNote, reportWithRun, runFlaky } from './changeNote';
+import { CommandEnv, runCheck, startRun } from './fixSetup';
+import { clearState, loadState, MAX_FIXES_PER_RUN, RunState, saveState, StepRecord } from './fixState';
+import { AdapterFactory, adapterFor } from './languages';
+import { runAddTests, runSplit, StepContext } from './steps';
+import { commit, reattach, remove, trackedFiles } from './worktree';
+
+const ASK_TIMEOUT_MS = 300_000;
+
+export interface FixOptions {
+	/** Resume the saved run without asking (the Continue button). */
+	readonly continue?: boolean;
+}
+
+/** "Fix on a local branch": pick fixes, prepare the safety net, run up to 25 fixes, and close when all are done. */
+export async function fixOnBranch(context: vscode.ExtensionContext, keys: ApiKeys, sink: Sink, token: vscode.CancellationToken,
+	options: FixOptions = {}): Promise<void> {
+	const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+	if (!root) { sink.text('Open a project folder first.'); return; }
+	const storage = context.globalStorageUri.fsPath;
+	const env: CommandEnv = { storage, root, token };
+	const model = pickDefault(await loadCatalog(keys));
+	if (!model) { sink.text('No model is available. Choose one with **my_editor: Choose Default Model** first.'); return; }
+	const language = await adapterFor(root, {
+		extensionPath: context.extensionUri.fsPath, storageDir: storage, version: String(context.extension.packageJSON.version ?? 'dev'),
+	});
+	if (typeof language === 'string') { sink.text(language); return; }
+	let state = loadState(storage, root);
+	if (state && !options.continue) {
+		const answer = await vscode.window.showInformationMessage(`A fix run on ${state.worktree.branch} is not finished.`, {
+			modal: true, detail: `${state.next} of ${state.fixes.length} fixes done. Continue it, or discard the rest (the branch and its commits stay)?`,
+		}, 'Continue', 'Discard the rest');
+		if (answer === 'Discard the rest') { state.next = state.fixes.length; }
+		else if (answer !== 'Continue') { return; }
+	}
+	if (!state) {
+		state = await startRun(env, language, sink);
+		if (!state) { return; }
+	} else {
+		state.worktree = await reattach(root, state.worktree);
+		if (state.next < state.fixes.length) { sink.text(`Continuing on \`${state.worktree.branch}\` with ${state.fixes.length - state.next} fix${state.fixes.length - state.next === 1 ? '' : 'es'} left.\n`); }
+	}
+	await runFixes(env, state, language, sink, (system, text) => ask(model, keys, system, text, token, ASK_TIMEOUT_MS));
+}
+
+function stepLine(step: StepRecord): string {
+	const what = step.kind === 'split' ? `Split \`${step.file}\`` : `Tests for \`${step.file}\``;
+	if (step.status === 'committed') {
+		const detail = step.kind === 'split' ? ` into ${(step.moved ?? []).map(m => `\`${m.file}\``).join(', ')}` : ` in \`${step.testFile}\``;
+		return `- ${what}${detail}: committed \`${step.commit?.slice(0, 7)}\`.`;
+	}
+	return `- ${what}: ${step.status}. ${step.reason ?? ''}`.trimEnd();
+}
+
+async function runFixes(env: CommandEnv, state: RunState, language: AdapterFactory, sink: Sink,
+	askModel: (system: string, text: string) => Promise<string>): Promise<void> {
+	const { storage, token } = env;
+	const worktree = state.worktree.path;
+	const adapter = language(worktree, await trackedFiles(worktree));
+	const ctx: StepContext = {
+		adapter, worktree, ask: askModel, baseline: state.baseline, flaky: runFlaky(state),
+		check: (command, label) => runCheck(env, adapter, worktree, state.approved, command, label),
+		cancelled: () => token.isCancellationRequested,
+		progress: text => sink.progress(text),
+	};
+	let done = 0;
+	while (state.next < state.fixes.length && done < MAX_FIXES_PER_RUN && !token.isCancellationRequested) {
+		const fix = state.fixes[state.next];
+		sink.progress(`Fix ${state.next + 1} of ${state.fixes.length}: ${fix.file}`);
+		let outcome: StepRecord | 'stopped';
+		try { outcome = fix.kind === 'split' ? await runSplit(ctx, fix) : await runAddTests(ctx, fix); }
+		catch (error) {
+			if (token.isCancellationRequested) { break; }
+			outcome = { file: fix.file, kind: fix.kind, status: 'skipped', reason: error instanceof Error ? error.message : String(error) };
+		}
+		if (outcome === 'stopped') { break; }
+		state.steps.push(outcome);
+		state.next++;
+		done++;
+		saveState(storage, state);
+		sink.text(`${stepLine(outcome)}\n`);
+	}
+	sink.progress('');
+	if (state.next < state.fixes.length) {
+		saveState(storage, state);
+		const left = state.fixes.length - state.next;
+		sink.text(`\n${token.isCancellationRequested ? 'Stopped.' : `That is ${MAX_FIXES_PER_RUN} fixes for this run.`} `
+			+ `${left} fix${left === 1 ? ' is' : 'es are'} left on \`${state.worktree.branch}\`; Continue picks up from \`${state.fixes[state.next].file}\`.`);
+		sink.action('Continue', 'myEditor.aiReadyFix', [{ continue: true }]);
+		return;
+	}
+	await closeRun(env, state, sink);
+}
+
+/** Commits the change note on the branch, removes the worktree (the branch stays), and updates the report. */
+async function closeRun(env: CommandEnv, state: RunState, sink: Sink): Promise<void> {
+	const at = new Date();
+	const note = noteFileName(at);
+	const worktree = state.worktree.path;
+	mkdirSync(path.dirname(path.join(worktree, note)), { recursive: true });
+	writeFileSync(path.join(worktree, note), renderChangeNote(state, at));
+	await commit(worktree, [note], 'my_editor: change note for the AI-ready fixes', 'What this branch changed, how each change was checked, and what was left.');
+	let removed = true;
+	try { await remove(state.root, worktree); } catch { removed = false; }
+	const report = path.join(state.root, '.my_editor', 'ai-ready', 'report.md');
+	try { writeFileSync(report, reportWithRun(existsSync(report) ? readFileSync(report, 'utf8') : '# AI-ready health report', state, note)); } catch { /* The note on the branch is the record. */ }
+	clearState(env.storage, state.root);
+	const committed = state.steps.filter(step => step.status === 'committed').length;
+	const { branch, base } = state.worktree;
+	sink.text(`\n**Done.** ${committed} fix${committed === 1 ? '' : 'es'} committed on \`${branch}\`, with the change note \`${note}\`. `
+		+ `Your folder and its branch were not touched, and nothing was pushed.${removed ? '' : ` Remove the working copy \`${worktree}\` when you are done with it.`}\n\n`
+		+ `Review with \`git diff ${base.slice(0, 12)}..${branch}\`, keep the changes with \`git merge ${branch}\`, or delete them with \`git branch -D ${branch}\`.`);
+	sink.action('Refresh the brain after merging', 'myEditor.analyseProject', []);
+}

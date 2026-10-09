@@ -21,7 +21,7 @@ const LABELS: Record<FindingKind, string> = {
 const SUGGESTIONS = new Set<FindingKind>(['bug', 'poor-code']);
 const SUMMARY_KINDS: FindingKind[] = ['too-long', 'near-limit', 'many-classes', 'untested', 'mixed-job', 'design'];
 const NEXT_STEP = [
-	'Characterization tests that pin how files behave today, before anything moves',
+	'Characterization tests that pin how files behave today, before anything moves, where the compiler cannot prove a move safe',
 	'Split long or mixed files into focused files',
 	'One class per file',
 	'Tests for untested files',
@@ -78,7 +78,7 @@ export function renderReport(input: ReportInput): string {
 			...(review.notReviewed.length ? [`${review.notReviewed.map(plain).join(', ')}. They hit the call limit, had no room for an excerpt, or the model failed; run the check again to retry.`, ''] : [])] : []),
 		'## What the fixing step will offer', '',
 		...NEXT_STEP.map(item => `- ${item}`), '',
-		'Fixes will run on a separate local branch, one per commit, each checked so the program behaves as before. That step is not built yet.', '',
+		'Fixes run on a separate local branch, one per commit, each checked so the program behaves as before. For Go projects, choose **Fix on a local branch** in Pair; other languages follow.', '',
 	];
 	return lines.filter((line, i, all) => !(line === '' && all[i - 1] === '')).join('\n');
 }

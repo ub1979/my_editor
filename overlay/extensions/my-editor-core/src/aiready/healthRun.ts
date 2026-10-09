@@ -66,6 +66,9 @@ async function writeHealthReport(keys: ApiKeys, sink: Sink, token: vscode.Cancel
 	sink.text(`\n\n**Health report** written to \`.my_editor/ai-ready/report.md\`: ${count('too-long')} over 400 lines, `
 		+ `${count('many-classes')} with more than one class, ${count('untested')} without tests, ${count('mixed-job', 'design')} design notes `
 		+ `and ${count('bug', 'poor-code')} suggestions.${review.partial ? ' I stopped early, so the report is partial.' : ''} Nothing in the code changed.`);
+	if (commands.languages.includes('Go') && all.some(f => f.file?.endsWith('.go') && (f.kind === 'too-long' || f.kind === 'untested'))) {
+		sink.action('Fix on a local branch', 'myEditor.aiReadyFix', []);
+	}
 	try { await vscode.commands.executeCommand('markdown.showPreview', uri); } catch { await vscode.window.showTextDocument(uri); }
 }
 

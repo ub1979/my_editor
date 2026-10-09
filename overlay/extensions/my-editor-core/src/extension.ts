@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { fixOnBranch, FixOptions } from './aiready/fixRun';
 import { buildBrain, updateBrainFile } from './brain/brain';
 import { AutoComments } from './comments/autoComments';
 import { PairEngine } from './chat/engine';
@@ -90,6 +91,9 @@ export function activate(context: vscode.ExtensionContext): void {
 		vscode.commands.registerCommand('myEditor.saveDecision', (draft: DecisionDraft) => saveDecision(draft)),
 		vscode.commands.registerCommand('myEditor.analyseProject', () => chat.analyse()),
 		vscode.commands.registerCommand('myEditor.aiReady', () => chat.analyse(true)),
+		vscode.commands.registerCommand('myEditor.aiReadyFix', (options?: FixOptions) => chat.runTask(
+			options?.continue ? 'Continue fixing on the local branch' : 'Fix on a local branch',
+			(sink, token) => fixOnBranch(context, keys, sink, token, options))),
 		vscode.commands.registerCommand('myEditor.buildBrain', () => vscode.window.withProgress(
 			{ location: vscode.ProgressLocation.Notification, title: 'Building the project brain' },
 			async progress => {

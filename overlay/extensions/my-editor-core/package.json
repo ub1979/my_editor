@@ -46,6 +46,11 @@
         "category": "my_editor"
       },
       {
+        "command": "myEditor.aiReadyFix",
+        "title": "Fix on a Local Branch",
+        "category": "my_editor"
+      },
+      {
         "command": "myEditor.buildBrain",
         "title": "Build Project Brain",
         "category": "my_editor"
@@ -314,6 +319,12 @@
           "default": "http://localhost:1234/v1",
           "description": "LM Studio server URL (OpenAI-compatible). Only settable in user settings, so a project cannot redirect it.",
           "scope": "machine"
+        },
+        "myEditor.aiReady.commandTimeoutMinutes": {
+          "type": "number",
+          "default": 10,
+          "minimum": 1,
+          "description": "How long one build or test command may run while fixing a project on a local branch, in minutes."
         },
         "myEditor.autoComments.enabled": {
           "type": "boolean",
