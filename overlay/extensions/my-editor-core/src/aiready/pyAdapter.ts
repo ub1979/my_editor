@@ -75,7 +75,7 @@ export function createPyAdapter(root: string, python: PyInterpreter, dirs: { hel
 		testOutput: 'both',
 		codeFence: 'python',
 		get commandEnv() { return pyCommandEnv(facts()); },
-		get approvalNote() { return pythonApprovalNote(python, facts().config.requiresPython, pyCommandEnv(facts())); },
+		approvalNote: worktree => pythonApprovalNote(python, facts().config.requiresPython, pyCommandEnv(facts(), worktree)),
 		async parse(file) {
 			const text = readFileSync(path.join(root, file));
 			const pyFacts = await pyFileFacts(python.path, dirs.helperDir, path.join(root, file), dirs.storageDir);

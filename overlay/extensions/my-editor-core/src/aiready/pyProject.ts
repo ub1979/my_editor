@@ -157,9 +157,9 @@ export function warningFilter(project: PyProject, module: string): string | unde
 	return line ? `${line.file} filters warnings by ${module}` : undefined;
 }
 
-/** The env of every approved command. */
-export function pyCommandEnv(project: PyProject): Record<string, string> {
-	return pythonEnv(project.python, project.roots.map(r => path.join(project.root, r)), project.storageDir, project.root);
+/** The env of every approved command, run in `at`: the project's own folder, or (for the approval modal) the working copy it will be. */
+export function pyCommandEnv(project: PyProject, at = project.root): Record<string, string> {
+	return pythonEnv(project.python, project.roots.map(r => path.join(at, r)), project.storageDir, at);
 }
 
 function pycheckPath(project: PyProject): string {

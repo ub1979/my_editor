@@ -1,5 +1,6 @@
 import { strict as assert } from 'node:assert';
-import { mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { test } from 'node:test';
@@ -9,6 +10,7 @@ import { adapterFor, fixableFinding } from '../src/aiready/languages';
 import { runCommand, tail } from '../src/aiready/projectCommands';
 import { createPyAdapter } from '../src/aiready/pyAdapter';
 import { runAddTests, runSplit, StepContext } from '../src/aiready/steps';
+import { prepare } from '../src/aiready/worktree';
 import { fakePython, HELPER, noPython, python, pyProjectFiles } from './pyFixture';
 
 const skip = noPython();
@@ -44,7 +46,7 @@ test('commands start with the interpreter file name; a path with spaces stays in
 	const pycheck = `python ${path.join(HELPER, 'my_editor_pycheck.py')} pkg.report`;
 	assert.equal(adapter.checks('pkg/report.py')[0].command, pycheck);
 	assert.ok(adapter.commandEnv!.PATH.startsWith(`${dir}${path.delimiter}`));
-	assert.match(adapter.approvalNote ?? '', /^Python: .*my editor-.*\/\.venv\/bin\/python \(3\./);
+	assert.match(adapter.approvalNote!('/w/x.ai-ready'), /^Python: .*my editor-.*\/\.venv\/bin\/python \(3\./);
 	writeFileSync(path.join(root, 'my_editor_pycheck.py'), 'print("shadowed")\n');
 	writeFileSync(path.join(root, 'my_editor_pyast.py'), 'raise SystemExit("shadowed")\n');
 	const out = await runCommand(pycheck, { cwd: root, approved: [pycheck], timeoutMs: 60_000,
@@ -52,6 +54,42 @@ test('commands start with the interpreter file name; a path with spaces stays in
 	assert.equal(out.code, 0, out.output);
 	assert.match(out.output, /pkg\.report imports; its split modules share every object/);
 });
+
+const WHERE = 'import os\nimport unittest\n\nimport pkg.report\n\n\nclass TestWhere(unittest.TestCase):\n    def test_imports_the_working_copy(self):\n'
+	+ '        here = os.path.realpath(os.getcwd())\n        self.assertTrue(os.path.realpath(pkg.report.__file__).startswith(here + os.sep), pkg.report.__file__)\n';
+
+test('every command runs on the working copy: PYTHONPATH, the import check and the tests resolve the module there, and the modal shows that path',
+	{ skip }, async () => {
+		const env = mkdtempSync(path.join(os.tmpdir(), 'venv-'));
+		execFileSync(python()!.path, ['-m', 'venv', '--without-pip', env]);
+		const { root } = pyProjectFiles({ 'pyproject.toml': '[project]\nname = "pkg"\n', 'src/pkg/__init__.py': '', 'src/pkg/report.py': REPORT,
+			'tests/__init__.py': '', 'tests/test_where.py': WHERE }, true);
+		// An editable install of the user's folder, as `pip install -e .` leaves it.
+		writeFileSync(path.join(env, 'lib', readdirSync(path.join(env, 'lib'))[0], 'site-packages', '__editable__.pkg.pth'), `${path.join(root, 'src')}\n`);
+		const venv = { ...python()!, path: path.join(env, 'bin', 'python'), prefix: env, venv: true,
+			tools: { pytest: false, randomly: false, mypy: false, black: false, pytestDjango: false } };
+		const dirs = { helperDir: HELPER, storageDir: store() };
+		const tracked = execFileSync('git', ['ls-files'], { cwd: root, encoding: 'utf8' }).trim().split('\n');
+		const local = createPyAdapter(root, venv, dirs, tracked);
+		const worktree = (await prepare(root)).path;
+		const inWorktree = createPyAdapter(worktree, venv, dirs, tracked);
+		const wt = realpathSync(worktree);
+		assert.ok(inWorktree.commandEnv!.PYTHONPATH.split(path.delimiter).every(p => realpathSync(p).startsWith(wt)), inWorktree.commandEnv!.PYTHONPATH);
+		assert.ok(local.approvalNote!(worktree).includes(`PYTHONPATH=${inWorktree.commandEnv!.PYTHONPATH},`), local.approvalNote!(worktree));
+		assert.equal(inWorktree.ready!(), undefined);
+		const checks = inWorktree.checks('src/pkg/report.py');
+		assert.deepEqual(checks.map(c => c.label), ['build', 'test']);
+		const run = (command: string, over: Readonly<Record<string, string>>) => runCommand(command, { cwd: worktree, approved: [command],
+			timeoutMs: 60_000, logFile: path.join(store(), 'log'), env: over });
+		for (const check of checks) {
+			const out = await run(check.command, inWorktree.commandEnv!);
+			assert.equal(out.code, 0, out.output);
+		}
+		// The same commands with the user's folder on PYTHONPATH import the user's code: both checks catch that.
+		const build = await run(checks[0].command, local.commandEnv!);
+		assert.match(build.output, /pkg\.report resolves to .*, outside this folder/);
+		assert.notEqual((await run(checks[1].command, local.commandEnv!)).code, 0);
+	});
 
 /** A step context on a repository with the real interpreter, the baseline recorded, and the model replaced by fixed replies. */
 async function context(files: Record<string, string>, replies: string[]): Promise<{ ctx: StepContext; root: string; adapter: LanguageAdapter }> {

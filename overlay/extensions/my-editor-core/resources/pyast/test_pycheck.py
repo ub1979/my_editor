@@ -15,15 +15,15 @@ HEADER = '# Split from report.py by my_editor.\n\n'
 SHADOWS = {'my_editor_pycheck.py': 'print("my_editor_pycheck: shadowed")\n', 'my_editor_pyast.py': 'raise SystemExit("shadowed helper")\n'}
 
 
-def run(files, module='pkg.report'):
-    """Writes the files into a temporary folder and runs the check there; returns (exit code, output)."""
+def run(files, module='pkg.report', pythonpath='{root}'):
+    """Writes the files into a temporary folder and runs the check there (`{root}` in `pythonpath` is that folder); returns (exit code, output)."""
     with tempfile.TemporaryDirectory() as root:
         for name, text in dict(SHADOWS, **files).items():
             path = os.path.join(root, name)
             os.makedirs(os.path.dirname(path), exist_ok=True)
             with open(path, 'w') as handle:
                 handle.write(textwrap.dedent(text))
-        env = dict(os.environ, PYTHONPATH=root, PYTHONDONTWRITEBYTECODE='1')
+        env = dict(os.environ, PYTHONPATH=pythonpath.replace('{root}', root), PYTHONDONTWRITEBYTECODE='1')
         result = subprocess.run([sys.executable, os.path.join(HERE, 'my_editor_pycheck.py'), module], cwd=root, env=env, capture_output=True, text=True)
         return result.returncode, result.stdout + result.stderr
 
@@ -131,6 +131,20 @@ class ImportCheck(unittest.TestCase):
         code, out = run(files)
         self.assertEqual(code, 1)
         self.assertIn('imports pkg.report back (an import cycle)', out)
+
+    def test_a_module_that_resolves_outside_the_folder_fails(self):
+        """The design's import check: a src layout whose package an editable install or PYTHONPATH finds in another folder
+        (the user's, not the working copy) fails, so tests never check other code."""
+        with tempfile.TemporaryDirectory() as other:
+            os.makedirs(os.path.join(other, 'src', 'pkg'))
+            for name in ('__init__.py', 'report.py'):
+                open(os.path.join(other, 'src', 'pkg', name), 'w').close()
+            files = {'src/pkg/__init__.py': '', 'src/pkg/report.py': 'X = 1\n'}
+            code, out = run(files, pythonpath=os.path.join(other, 'src'))
+            self.assertEqual(code, 1, out)
+            self.assertRegex(out, r'pkg\.report resolves to .*, outside this folder, so the check would test other code')
+            code, out = run(files, pythonpath=os.path.join('{root}', 'src') + os.pathsep + os.path.join(other, 'src'))
+            self.assertEqual(code, 0, out)
 
     def test_a_module_that_does_not_import_fails_with_its_error(self):
         code, out = run({'pkg/__init__.py': '', 'pkg/report.py': 'import json\nraise RuntimeError("needs settings")\n'})

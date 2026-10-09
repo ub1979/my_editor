@@ -113,8 +113,11 @@ export interface LanguageAdapter {
 	readonly commandEnv?: Readonly<Record<string, string>>;
 	/** How blank lines around a removed span collapse: to one (the default), or to the longer bordering run, at most two (Python). */
 	readonly blankLines?: 'one' | 'longest';
-	/** Said in the approval modal before anything runs (Python: the interpreter, its version and `sys.prefix`). */
-	readonly approvalNote?: string;
+	/**
+	 * Said in the approval modal before anything runs (Python: the interpreter, its version, `sys.prefix` and the env), for
+	 * the working copy at `worktree`, where the commands will run.
+	 */
+	approvalNote?(worktree: string): string;
 	/** Which output `parseTests` reads: stdout (the default), or stdout and stderr together (Python: unittest reports on stderr). */
 	readonly testOutput?: 'stdout' | 'both';
 	/** The info string of the code block the test prompt asks for (`go`, `python`), named when a reply has none. */
