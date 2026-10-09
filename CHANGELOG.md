@@ -2,6 +2,12 @@
 
 my_editor uses the version in `overlay/extensions/my-editor-core/package.json` as its own release number. The Home page displays that version. The underlying editor shell keeps its upstream version independently.
 
+## 0.0.9 alpha — 2026-10-10 (installed; live check by the user pending)
+
+- TypeScript and JavaScript projects can be fixed on a local branch too. Whole declarations move byte for byte into new files in the same folder and the original re-exports them; analysis uses the editor's own TypeScript. Projects that run through CommonJS, Babel, Vite, Next.js, Vitest, esbuild, Bun, tsx, swc, webpack or Parcel move only types, which those tools erase. Each split must pass the project's `tsc` and tests against a baseline.
+- A split runs only if at least one compile check of its package passed before the run; commit messages and the change note say which checks passed and which already failed.
+- The fixer is built on a language-neutral core with one adapter per language.
+
 ## 0.0.8 alpha — 2026-10-09 (installed; live check by the user pending)
 
 - The first-open offer and command now say **Check AI-readiness**: that step only reports. Fixing is its own step, **Fix on a local branch**.
