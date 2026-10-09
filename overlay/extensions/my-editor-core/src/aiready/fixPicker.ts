@@ -14,7 +14,7 @@ export function fixChoices(findings: readonly HealthFinding[], stats: readonly F
 	for (const finding of findings) {
 		const file = finding.file;
 		if (!file || !extensions.includes(path.extname(file)) || skipped.has(file)) { continue; }
-		if (finding.kind === 'too-long') { choices.push({ file, kind: 'split', lines: lines.get(file) ?? 0, narrowed: narrowed.get(file) }); }
+		if (finding.kind === 'too-long') { choices.push({ file, kind: 'split', lines: lines.get(file) ?? 0, ...(narrowed.has(file) ? { narrowed: narrowed.get(file) } : {}) }); }
 		if (finding.kind === 'untested') { choices.push({ file, kind: 'tests', lines: lines.get(file) ?? 0 }); }
 	}
 	return choices.sort((a, b) => b.lines - a.lines || a.file.localeCompare(b.file) || a.kind.localeCompare(b.kind));
