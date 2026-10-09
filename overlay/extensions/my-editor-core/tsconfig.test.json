@@ -61,6 +61,11 @@
     "src/aiready/fixPicker.ts",
     "src/aiready/changeNote.ts",
     "src/aiready/fixText.ts",
-    "src/aiready/steps.ts"
+    "src/aiready/steps.ts",
+    "src/aiready/tsLoad.ts",
+    "src/aiready/tsConfig.ts",
+    "src/aiready/tsProject.ts",
+    "src/aiready/tsScan.ts",
+    "src/aiready/tsGraph.ts"
   ]
 }
