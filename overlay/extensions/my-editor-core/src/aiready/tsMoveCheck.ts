@@ -1,7 +1,7 @@
 import * as path from 'path';
 import type { FileInfo, ParsedFile } from './language';
 import { declarationProblems } from './moveCheck';
-import type { TsImport } from './tsAst';
+import { keepBindings, sideEffectText, TsBinding, TsImport } from './tsImports';
 import type { TsFileInfo } from './tsRules';
 
 const stem = (name: string) => path.posix.basename(name).replace(/\.[^.]+$/, '');
@@ -27,7 +27,8 @@ function usedNames(info: TsFileInfo, values: boolean): Set<string> {
  * written as types that nothing left uses (never all of them unless it is `import type`) or specifiers whose last value
  * use moved, or became a side-effect import of the same module; after them only the facade, which names only the
  * plan's new files and only what they export. A new file: only filtered copies of the original's imports, imports of
- * sibling new files, and `import type` from the original.
+ * sibling new files, and `import type` from the original. A changed import must be exactly the rebuilt text, so
+ * attributes (`with { type: 'json' }`) and layout stay; in a types-only file only specifiers written as types may go.
  */
 export function tsImportProblems(before: ParsedFile, after: ParsedFile, files: readonly ParsedFile[]): string[] {
 	const was = before.info as TsFileInfo;
@@ -40,20 +41,21 @@ export function tsImportProblems(before: ParsedFile, after: ParsedFile, files: r
 	const stayingAny = usedNames(now, false);
 	const old = was.facts.imports;
 	const current = now.facts.imports;
+	const typesOnly = was.context.scope === 'types';
+	const lost = (b: TsBinding) => !stayingAny.has(b.local) && (b.typeOnly || (!typesOnly && everValue.has(b.local)));
 	let at = 0;
 	for (const imp of old) {
 		const found = current[at];
 		if (found && found.text === imp.text) { at++; continue; }
-		if (found && found.specifier === imp.specifier && found.kind === imp.kind && imp.kind === 'import') {
-			if (found.sideEffect && !imp.typeOnly && imp.bindings.every(b => !stayingAny.has(b.local) && (b.typeOnly || everValue.has(b.local)))
-				&& imp.bindings.some(b => !b.typeOnly)) { at++; continue; }
-			const kept = found.bindings.map(b => b.text);
-			const dropped = imp.bindings.filter(b => !kept.includes(b.text));
-			const allowed = found.typeOnly === imp.typeOnly && kept.every(text => imp.bindings.some(b => b.text === text)) && dropped.every(b =>
-				!stayingAny.has(b.local) && (b.typeOnly || (everValue.has(b.local) && found.bindings.some(k => stayingValue.has(k.local)))));
-			if (allowed && kept.length) { at++; continue; }
+		if (found && found.specifier === imp.specifier && found.kind === imp.kind && imp.kind === 'import' && !imp.sideEffect) {
+			const effect = found.sideEffect && found.text === sideEffectText(imp) && !imp.typeOnly && imp.bindings.every(lost) && imp.bindings.some(b => !b.typeOnly);
+			const keptNames = new Set(found.bindings.map(b => b.local));
+			const dropped = imp.bindings.filter(b => !keptNames.has(b.local));
+			const filtered = !found.sideEffect && dropped.length > 0 && keepBindings(imp, keptNames) === found.text
+				&& dropped.every(b => lost(b) && (b.typeOnly || found.bindings.some(k => stayingValue.has(k.local))));
+			if (effect || filtered) { at++; continue; }
 		}
-		if (imp.typeOnly && imp.bindings.every(b => !stayingAny.has(b.local))) { continue; }
+		if (imp.typeOnly && imp.bindings.length && imp.bindings.every(b => !stayingAny.has(b.local))) { continue; }
 		problems.push(`Rule 2: the import ${imp.text.trim().split('\n')[0]} changed beyond what the move allows.`);
 		if (found && found.specifier === imp.specifier) { at++; }
 	}
@@ -86,8 +88,9 @@ export function tsImportProblems(before: ParsedFile, after: ParsedFile, files: r
 				}
 				continue;
 			}
-			const copy = old.find(o => o.specifier === imp.specifier && o.kind === imp.kind && o.typeOnly === imp.typeOnly && !o.sideEffect
-				&& imp.bindings.every(b => o.bindings.some(ob => ob.text === b.text)));
+			const names = new Set(imp.bindings.map(b => b.local));
+			const copy = old.find(o => o.specifier === imp.specifier && o.kind === imp.kind && !o.sideEffect
+				&& imp.bindings.every(b => o.bindings.some(ob => ob.local === b.local)) && keepBindings(o, names) === imp.text);
 			if (!copy) { problems.push(`${where} imports ${imp.text.trim()}, which is not a filtered copy of an import of the original.`); }
 		}
 	}
@@ -106,7 +109,9 @@ export function tsSameDeclarations(before: readonly FileInfo[], after: readonly 
 	const surface = (info: TsFileInfo | undefined) => new Set(info?.surface ?? []);
 	const old = surface(was[0]);
 	const current = surface(now[0]);
-	for (const entry of old) { if (!current.has(entry)) { problems.push(`Rule 4: ${was[0].path} no longer exports ${entry.split('|')[0]} the same way (${entry}).`); } }
+	for (const entry of old) {
+		if (!current.has(entry)) { problems.push(`Rule 4: ${was[0].path} no longer exports ${entry.split('|')[0]} the same way (${entry}).`); }
+	}
 	for (const entry of current) { if (!old.has(entry)) { problems.push(`Rule 4: ${was[0].path} now exports ${entry.split('|')[0]} differently (${entry}).`); } }
 	for (const info of now.filter(n => !was.some(w => w.path === n.path))) {
 		const own = ownExports(info).sort().join(', ');
@@ -121,6 +126,8 @@ export function tsSameDeclarations(before: readonly FileInfo[], after: readonly 
 	const a = count(was);
 	const b = count(now);
 	const changed = [...new Set([...a.keys(), ...b.keys()])].filter(key => (a.get(key) ?? 0) !== (b.get(key) ?? 0));
-	if (changed.length) { problems.push(`Rule 6: ${changed.length} identifier binding${changed.length === 1 ? '' : 's'} differ after the move (${changed[0].split('|')[2]}).`); }
+	if (changed.length) {
+		problems.push(`Rule 6: ${changed.length} identifier binding${changed.length === 1 ? '' : 's'} differ after the move (${changed[0].split('|')[2]}).`);
+	}
 	return problems;
 }

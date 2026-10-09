@@ -1,6 +1,7 @@
 import * as path from 'path';
 import type { SplitPlan, SplitResult } from './language';
-import { keepBindings, TsImport } from './tsAst';
+import { keepBindings } from './tsImports';
+import { originalImports, rebuildOriginal } from './tsOriginal';
 import type { TsDeclaration, TsFileInfo } from './tsRules';
 
 /** What the pure split needs from the outside: whether a relative specifier from the original reaches a file in its folder. */
@@ -55,7 +56,8 @@ export function buildTsSplit(source: Buffer, info: TsFileInfo, plan: SplitPlan, 
 	const needs: Needs[] = plan.map(() => ({ imports: new Set(), siblings: new Map(), fromOriginal: new Set() }));
 	for (const d of decls.filter(d => groupOf.has(d.id))) {
 		const i = groupOf.get(d.id)!;
-		const uses: [string, boolean][] = [...d.ts.valueUses.map(n => [n, true] as [string, boolean]), ...(js ? [] : d.ts.typeUses.map(n => [n, false] as [string, boolean]))];
+		const uses: [string, boolean][] = [...d.ts.valueUses.map(n => [n, true] as [string, boolean]),
+			...(js ? [] : d.ts.typeUses.map(n => [n, false] as [string, boolean]))];
 		for (const [name, value] of uses) {
 			if (locals.has(name)) { needs[i].imports.add(name); continue; }
 			const target = owner.get(name);
@@ -66,7 +68,9 @@ export function buildTsSplit(source: Buffer, info: TsFileInfo, plan: SplitPlan, 
 				if (reads && target.id > d.id) { problems.push(`${label(d)} reads ${name} (${target.id}) when it is defined, so ${name} must come earlier in the file.`); }
 			} else if (j !== undefined) {
 				if (reads) { problems.push(`${label(d)} reads ${name} (${target.id}) when it is defined; move both to the same file, ${name} first.`); }
-				else if (!target.ts.exported) { problems.push(`${label(d)} uses ${name} (${target.id}), which is not exported: a helper moves to the same file as every declaration that uses it.`); }
+				else if (!target.ts.exported) {
+					problems.push(`${label(d)} uses ${name} (${target.id}), which is not exported: a helper moves to the same file as every declaration that uses it.`);
+				}
 				else {
 					const names = needs[i].siblings.get(j) ?? new Map<string, boolean>();
 					names.set(name, (names.get(name) ?? false) || (value && target.ts.valueMeaning));
@@ -93,7 +97,9 @@ export function buildTsSplit(source: Buffer, info: TsFileInfo, plan: SplitPlan, 
 			const j = target && groupOf.get(target.id);
 			if (!target || j === undefined) { continue; }
 			if (!target.ts.exported) { problems.push(`${label(s)} stays and uses ${name} (${target.id}), which is not exported; moving it would add an export.`); }
-			else if (s.ts.defReads.includes(name) && target.id > s.id) { problems.push(`${label(s)} stays and reads ${name} (${target.id}) when it is defined, before ${name} is defined now; it would see it early.`); }
+			else if (s.ts.defReads.includes(name) && target.id > s.id) {
+				problems.push(`${label(s)} stays and reads ${name} (${target.id}) when it is defined, before ${name} is defined now; it would see it early.`);
+			}
 			else if (s.ts.kind === 'export list' && !target.ts.valueMeaning) { problems.push(`The export list (${s.id}) names the type ${name}, which may not move.`); }
 			else { facade[j].uses.set(name, target); }
 		}
@@ -111,14 +117,15 @@ export function buildTsSplit(source: Buffer, info: TsFileInfo, plan: SplitPlan, 
 	const rewrites = originalImports(info, decls, groupOf, problems);
 	if (problems.length) { throw new Error([...new Set(problems)].slice(0, 8).join(' ')); }
 	const byId = new Map(decls.map(d => [d.id, d]));
+	const ownSpec = specifierFor(info, path.posix.basename(info.path), quote);
 	const files = plan.map((group, i) => {
 		const lines = [
-			...info.facts.imports.filter(imp => imp.kind !== 'export' && !imp.sideEffect).flatMap(imp => {
+			...info.facts.imports.filter(imp => imp.kind !== 'export' && !imp.sideEffect && imp.bindings.length).flatMap(imp => {
 				const text = keepBindings(imp, needs[i].imports);
 				return text === undefined ? [] : [text];
 			}),
 			...[...needs[i].siblings].sort(([a], [b]) => a - b).flatMap(([j, names]) => importLines(plan[j].file, names, owner, info, quote, semi, js)),
-			...(needs[i].fromOriginal.size ? [`import type { ${[...needs[i].fromOriginal].join(', ')} } from ${specifierFor(info, path.posix.basename(info.path), quote)}${semi}`] : []),
+			...(needs[i].fromOriginal.size ? [`import type { ${[...needs[i].fromOriginal].join(', ')} } from ${ownSpec}${semi}`] : []),
 		];
 		const spans = group.declarations.map(id => byId.get(id)!).sort((a, b) => a.id - b.id).map(d => source.subarray(d.span.start, d.span.end).toString('utf8'));
 		return { name: group.file, text: Buffer.from(`${tsSplitHeader(info.path)}${lines.length ? `${lines.join('\n')}\n\n` : ''}${spans.join('\n\n')}\n`) };
@@ -137,7 +144,8 @@ function valueCycles(plan: SplitPlan, needs: readonly Needs[]): string[] {
 		state[i] = 2;
 		return false;
 	};
-	return plan.some((_, i) => state[i] === 0 && visit(i)) ? ['Two new files would import values from each other (an import cycle); group those declarations together.'] : [];
+	if (!plan.some((_, i) => state[i] === 0 && visit(i))) { return []; }
+	return ['Two new files would import values from each other (an import cycle); group those declarations together.'];
 }
 
 /** A new file's imports from one sibling: values, then types (`import type`); plain JS has value imports only. */
@@ -155,126 +163,26 @@ function bindingLine(keyword: string, names: readonly string[], owner: ReadonlyM
 	const def = names.find(name => owner.get(name)?.ts.isDefault);
 	const named = names.filter(name => name !== def);
 	// `import type D, { A }` is an error (TS1363), so a type-only default gets its own line.
-	if (def && named.length && keyword === 'import type') { return [`${keyword} ${def} from ${spec}${semi}`, `${keyword} { ${named.join(', ')} } from ${spec}${semi}`]; }
+	if (def && named.length && keyword === 'import type') {
+		return [`${keyword} ${def} from ${spec}${semi}`, `${keyword} { ${named.join(', ')} } from ${spec}${semi}`];
+	}
 	return [`${keyword} ${def ?? ''}${def && named.length ? ', ' : ''}${named.length ? `{ ${named.join(', ')} }` : ''} from ${spec}${semi}`];
 }
 
 /** The facade lines for one new file: imports for staying code, then value and type re-exports of what was exported. */
-function facadeFor(file: string, moved: readonly TsDeclaration[], uses: ReadonlyMap<string, TsDeclaration>, info: TsFileInfo, quote: string, semi: string): string[] {
+function facadeFor(file: string, moved: readonly TsDeclaration[], uses: ReadonlyMap<string, TsDeclaration>, info: TsFileInfo, quote: string,
+	semi: string): string[] {
 	const spec = specifierFor(info, file, quote);
 	const owner = new Map(moved.flatMap(d => d.names.map(name => [name, d] as const)));
 	const used = [...uses].sort(([, a], [, b]) => a.id - b.id).map(([name]) => name);
 	const exported = [...moved].sort((a, b) => a.id - b.id).filter(d => d.ts.exported);
 	const exportName = (d: TsDeclaration) => (d.ts.isDefault ? ['default'] : d.names);
+	const values = exported.filter(d => d.ts.valueMeaning).flatMap(exportName);
+	const types = exported.filter(d => !d.ts.valueMeaning).flatMap(exportName);
 	return [
 		...bindingLine('import', used.filter(name => owner.get(name)?.ts.valueMeaning), owner, spec, semi),
 		...bindingLine('import type', used.filter(name => !owner.get(name)?.ts.valueMeaning), owner, spec, semi),
-		...(exported.some(d => d.ts.valueMeaning) ? [`export { ${exported.filter(d => d.ts.valueMeaning).flatMap(exportName).join(', ')} } from ${spec}${semi}`] : []),
-		...(exported.some(d => !d.ts.valueMeaning) ? [`export type { ${exported.filter(d => !d.ts.valueMeaning).flatMap(exportName).join(', ')} } from ${spec}${semi}`] : []),
+		...(values.length ? [`export { ${values.join(', ')} } from ${spec}${semi}`] : []),
+		...(types.length ? [`export type { ${types.join(', ')} } from ${spec}${semi}`] : []),
 	];
-}
-
-/**
- * The original's import declarations after the move: unchanged, dropped (`import type` with no use left), filtered
- * (specifiers written as types with no use left, or whose last value use moved while another kept one still loads the
- * module), or turned into a side-effect import (the last value use of every specifier moved). Undefined means unchanged.
- */
-function originalImports(info: TsFileInfo, decls: readonly TsDeclaration[], groupOf: ReadonlyMap<number, number>, problems: string[]): Map<TsImport, string | null> {
-	const staying = decls.filter(d => !groupOf.has(d.id));
-	const stayingValue = new Set(staying.flatMap(d => d.ts.valueUses));
-	const stayingAny = new Set(staying.flatMap(d => [...d.ts.valueUses, ...d.ts.typeUses]));
-	const everValue = new Set(decls.flatMap(d => d.ts.valueUses));
-	const out = new Map<TsImport, string | null>();
-	for (const imp of info.facts.imports) {
-		if (imp.kind === 'export' || imp.sideEffect) { continue; }
-		const drop = new Set<string>();
-		let valueMoved = false;
-		for (const b of imp.bindings) {
-			const lostValue = everValue.has(b.local) && !stayingValue.has(b.local);
-			if (stayingAny.has(b.local)) {
-				if (lostValue && !b.typeOnly) { problems.push(`The last value use of ${b.local} (from ${imp.specifier}) moves, but staying code still uses it as a type, so ${imp.specifier} could stop loading in its place.`); }
-				continue;
-			}
-			if (b.typeOnly) { drop.add(b.local); } else if (lostValue) { drop.add(b.local); valueMoved = true; }
-		}
-		if (!drop.size) { continue; }
-		const keep = new Set(imp.bindings.filter(b => !drop.has(b.local)).map(b => b.local));
-		if (imp.kind === 'equals') { problems.push(`${imp.text.trim()} would lose its last use; it is never rewritten.`); continue; }
-		if (!keep.size) {
-			if (imp.typeOnly) { out.set(imp, null); }
-			else if (valueMoved) { out.set(imp, `import ${imp.pieces.suffix.replace(/^\s*from\s*/, '')}`); }
-			continue;
-		}
-		if (valueMoved && ![...keep].some(name => stayingValue.has(name))) {
-			problems.push(`The last value use of ${[...drop].join(', ')} (from ${imp.specifier}) moves, and the names left in that import might no longer load it; move their users too, or none.`);
-			continue;
-		}
-		out.set(imp, keepBindings(imp, keep)!);
-	}
-	return out;
-}
-
-interface Line {
-	text: Buffer;
-	readonly start: number;
-	readonly end: number;
-	gap: boolean;
-	facade?: boolean;
-}
-
-function rebuildOriginal(source: Buffer, info: TsFileInfo, moved: ReadonlySet<number>, rewrites: ReadonlyMap<TsImport, string | null>, facade: readonly string[]): Buffer {
-	let lines = splitLines(source);
-	const inside = (line: Line, start: number, end: number) => line.start >= start && line.end <= end;
-	for (const d of info.declarations.filter(d => moved.has(d.id))) {
-		for (const line of lines) { if (inside(line, d.span.start, d.span.end)) { line.gap = true; } }
-	}
-	for (const [imp, text] of rewrites) {
-		const old = source.subarray(imp.span.start, imp.span.end).toString('utf8');
-		const own = lines.filter(line => inside(line, imp.span.start, imp.span.end));
-		lines = lines.filter(line => !own.includes(line) || line === own[0]);
-		if (text === null) { lines = lines.filter(line => line !== own[0]); } else { own[0].text = Buffer.from(old.replace(imp.text, text)); }
-	}
-	if (facade.length) {
-		const imports = info.facts.imports;
-		const at = imports.length
-			? lines.findIndex(line => line.start > imports[imports.length - 1].span.end)
-			: lines.findIndex(line => line.start >= info.facts.bytes(info.facts.facadeAt));
-		const added = facade.map(text => ({ text: Buffer.from(text), start: -1, end: -1, gap: false, facade: true }));
-		lines.splice(at < 0 ? lines.length : at, 0, ...added);
-	}
-	const out = collapse(lines);
-	const last = out.map(line => line.facade).lastIndexOf(true);
-	if (last >= 0 && last + 1 < out.length && out[last + 1].text.toString('utf8').trim() !== '') {
-		out.splice(last + 1, 0, { text: Buffer.alloc(0), start: -1, end: -1, gap: false });
-	}
-	const finalNewline = source.length > 0 && source[source.length - 1] === 10;
-	const parts = out.flatMap((line, index) => (index ? [Buffer.from('\n'), line.text] : [line.text]));
-	return Buffer.concat([...parts, ...(finalNewline && out.length ? [Buffer.from('\n')] : [])]);
-}
-
-/** Each run of blank lines and gaps holding a gap becomes one blank line if it held a blank line, else nothing; at the end, nothing. */
-function collapse(lines: readonly Line[]): Line[] {
-	const blank = (line: Line) => !line.gap && !line.facade && line.text.toString('utf8').trim() === '';
-	const out: Line[] = [];
-	for (let i = 0; i < lines.length;) {
-		if (!lines[i].gap && !blank(lines[i])) { out.push(lines[i]); i++; continue; }
-		let j = i;
-		while (j < lines.length && (lines[j].gap || blank(lines[j]))) { j++; }
-		const run = lines.slice(i, j);
-		if (!run.some(line => line.gap)) { out.push(...run); }
-		else if (run.some(blank) && j < lines.length) { out.push({ text: Buffer.alloc(0), start: -1, end: -1, gap: false }); }
-		i = j;
-	}
-	return out;
-}
-
-function splitLines(source: Buffer): Line[] {
-	const lines: Line[] = [];
-	let start = 0;
-	for (let i = source.indexOf(10); i >= 0; i = source.indexOf(10, start)) {
-		lines.push({ text: source.subarray(start, i), start, end: i, gap: false });
-		start = i + 1;
-	}
-	if (start < source.length) { lines.push({ text: source.subarray(start), start, end: source.length, gap: false }); }
-	return lines;
 }

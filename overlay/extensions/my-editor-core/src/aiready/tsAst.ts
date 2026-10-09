@@ -1,38 +1,13 @@
 import * as path from 'path';
 import type * as TS from 'typescript';
-import type { Span } from './language';
+import { importOf, TsImport } from './tsImports';
 import type { Ts } from './tsLoad';
-import { classPure, definitionReads, enumLiteral, hasDecorators, identifiers, isDeclarationName, isPure, isTypeUse, isWrite, moduleName, Scope, spanProblems } from './tsRefs';
+import {
+	classPure, definitionReads, enumLiteral, hasDecorators, identifiers, isDeclarationName, isPure, isTypeUse, isWrite, moduleName, Scope, spanProblems,
+} from './tsRefs';
 
-/** One binding of an import or re-export, with its exact source text. */
-export interface TsBinding {
-	/** The local name (for a re-export: the exported name). */
-	readonly local: string;
-	/** `default`, `*`, `=` (for `import x = require()`) or the imported name. */
-	readonly imported: string;
-	/** Written as a type: in `import type …` or with an inline `type`. */
-	readonly typeOnly: boolean;
-	readonly text: string;
-}
-
-/** An import, `import x = require()` or `export … from`, as written. Texts are UTF-16 slices of the statement. */
-export interface TsImport {
-	readonly kind: 'import' | 'equals' | 'export';
-	readonly text: string;
-	/** Whole lines, UTF-8. */
-	readonly span: Span;
-	readonly own: boolean;
-	/** The module specifier with its quotes. */
-	readonly specifier: string;
-	readonly module: string;
-	readonly typeOnly: boolean;
-	readonly sideEffect: boolean;
-	/** `export * from`. */
-	readonly star: boolean;
-	readonly bindings: readonly TsBinding[];
-	/** Pieces to rebuild the statement with fewer bindings: prefix, default, between, braces open/separators/close, namespace, suffix. */
-	readonly pieces: { prefix: string; between: string; open: string; seps: string[]; close: string; suffix: string; defaultText?: string; namespaceText?: string };
-}
+export { keepBindings } from './tsImports';
+export type { TsBinding, TsImport } from './tsImports';
 
 /** One top-level statement other than an import (overloads grouped), with what the rules need. */
 export interface TsDecl {
@@ -108,7 +83,8 @@ function scriptKind(ts: Ts, file: string): TS.ScriptKind {
 }
 
 /** A program over one file's text only (no resolution, no libraries), for the binder and checker. */
-export function fileProgram(ts: Ts, file: string, text: string, options: TS.CompilerOptions): { source: TS.SourceFile; checker: TS.TypeChecker; program: TS.Program } {
+export function fileProgram(ts: Ts, file: string, text: string, options: TS.CompilerOptions):
+	{ source: TS.SourceFile; checker: TS.TypeChecker; program: TS.Program } {
 	const name = path.resolve('/', file);
 	const source = ts.createSourceFile(name, text, ts.ScriptTarget.Latest, true, scriptKind(ts, file));
 	const host = ts.createCompilerHost(options);
@@ -175,7 +151,10 @@ function describe(ts: Ts, node: TS.Statement): { kind: string; names: string[]; 
 	if (ts.isClassDeclaration(node)) { return { kind: 'class', names: [name(node)], valueMeaning: true, plainNames: true }; }
 	if (ts.isInterfaceDeclaration(node)) { return { kind: 'interface', names: [node.name.text], valueMeaning: false, plainNames: true }; }
 	if (ts.isTypeAliasDeclaration(node)) { return { kind: 'type', names: [node.name.text], valueMeaning: false, plainNames: true }; }
-	if (ts.isEnumDeclaration(node)) { return { kind: hasModifier(ts, node, ts.SyntaxKind.ConstKeyword) ? 'const enum' : 'enum', names: [node.name.text], valueMeaning: true, plainNames: true }; }
+	if (ts.isEnumDeclaration(node)) {
+		const kind = hasModifier(ts, node, ts.SyntaxKind.ConstKeyword) ? 'const enum' : 'enum';
+		return { kind, names: [node.name.text], valueMeaning: true, plainNames: true };
+	}
 	if (ts.isVariableStatement(node)) {
 		const flags = node.declarationList.flags;
 		const kind = flags & ts.NodeFlags.Using ? 'using' : flags & ts.NodeFlags.Const ? 'const' : flags & ts.NodeFlags.Let ? 'let' : 'var';
@@ -194,70 +173,10 @@ function quiet(scope: Scope, node: TS.Statement, pure: boolean): boolean {
 	if (hasModifier(ts, node, ts.SyntaxKind.DeclareKeyword) || ts.isFunctionDeclaration(node) || ts.isInterfaceDeclaration(node)
 		|| ts.isTypeAliasDeclaration(node) || ts.isImportDeclaration(node) || ts.isExportDeclaration(node) || ts.isEmptyStatement(node)) { return true; }
 	if (ts.isImportEqualsDeclaration(node)) { return ts.isExternalModuleReference(node.moduleReference); }
+	// `using` and `await using` call the value's dispose method when the module body ends, so they always run code.
+	if (ts.isVariableStatement(node) && node.declarationList.flags & ts.NodeFlags.Using) { return false; }
 	if (ts.isClassDeclaration(node) || ts.isVariableStatement(node) || ts.isEnumDeclaration(node)) { return pure; }
 	return ts.isExpressionStatement(node) && ts.isStringLiteral(node.expression);
-}
-
-function importOf(ts: Ts, node: TS.Statement, source: TS.SourceFile): Omit<TsImport, 'span' | 'own'> | undefined {
-	const start = node.getStart(source);
-	const text = node.getText(source);
-	const slice = (from: number, to: number) => source.text.slice(from, to);
-	if (ts.isImportEqualsDeclaration(node) && ts.isExternalModuleReference(node.moduleReference)) {
-		const spec = node.moduleReference.expression;
-		return { kind: 'equals', text, specifier: spec.getText(source), module: ts.isStringLiteralLike(spec) ? spec.text : '', typeOnly: node.isTypeOnly, sideEffect: false, star: false,
-			bindings: [{ local: node.name.text, imported: '=', typeOnly: node.isTypeOnly, text }], pieces: { prefix: text, between: '', open: '', seps: [], close: '', suffix: '' } };
-	}
-	const spec = (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) ? node.moduleSpecifier : undefined;
-	if (!spec || !ts.isStringLiteralLike(spec)) { return undefined; }
-	const base = { specifier: spec.getText(source), module: spec.text, text };
-	if (ts.isExportDeclaration(node)) {
-		const named = node.exportClause && ts.isNamedExports(node.exportClause) ? node.exportClause.elements : [];
-		return { ...base, kind: 'export', typeOnly: node.isTypeOnly, sideEffect: false, star: !node.exportClause,
-			bindings: named.map(e => ({ local: e.name.text, imported: (e.propertyName ?? e.name).getText(source), typeOnly: node.isTypeOnly || e.isTypeOnly, text: e.getText(source) })),
-			pieces: { prefix: text, between: '', open: '', seps: [], close: '', suffix: '' } };
-	}
-	const clause = (node as TS.ImportDeclaration).importClause;
-	if (!clause) { return { ...base, kind: 'import', typeOnly: false, sideEffect: true, star: false, bindings: [], pieces: { prefix: text, between: '', open: '', seps: [], close: '', suffix: '' } }; }
-	const bindings: TsBinding[] = [];
-	const named = clause.namedBindings;
-	const first = clause.name ?? named!;
-	const last = named ?? clause.name!;
-	const pieces = { prefix: slice(start, first.getStart(source)), between: '', open: '', seps: [] as string[], close: '', suffix: slice(last.end, node.end) } as TsImport['pieces'];
-	if (clause.name) {
-		bindings.push({ local: clause.name.text, imported: 'default', typeOnly: clause.isTypeOnly, text: clause.name.text });
-		pieces.defaultText = clause.name.text;
-		if (named) { pieces.between = slice(clause.name.end, named.getStart(source)); }
-	}
-	if (named && ts.isNamespaceImport(named)) {
-		bindings.push({ local: named.name.text, imported: '*', typeOnly: clause.isTypeOnly, text: named.getText(source) });
-		pieces.namespaceText = named.getText(source);
-	} else if (named) {
-		const elements = named.elements;
-		pieces.open = elements.length ? slice(named.getStart(source), elements[0].getStart(source)) : slice(named.getStart(source), named.end - 1);
-		pieces.close = elements.length ? slice(elements[elements.length - 1].end, named.end) : '}';
-		elements.forEach((e, i) => {
-			bindings.push({ local: e.name.text, imported: (e.propertyName ?? e.name).getText(source), typeOnly: clause.isTypeOnly || e.isTypeOnly, text: e.getText(source) });
-			if (i < elements.length - 1) { pieces.seps.push(slice(e.end, elements[i + 1].getStart(source))); }
-		});
-	}
-	return { ...base, kind: 'import', typeOnly: clause.isTypeOnly, sideEffect: false, star: false, bindings, pieces };
-}
-
-/** Rebuilds an import keeping only some local names, from its own text pieces; undefined when none is kept. */
-export function keepBindings(imp: TsImport, keep: ReadonlySet<string>): string | undefined {
-	const p = imp.pieces;
-	if (imp.bindings.every(b => keep.has(b.local))) { return imp.text; }
-	if (imp.kind !== 'import' || !imp.bindings.some(b => keep.has(b.local))) { return undefined; }
-	const hasDefault = p.defaultText !== undefined;
-	const def = hasDefault && keep.has(imp.bindings[0].local);
-	const rest = imp.bindings.slice(hasDefault ? 1 : 0);
-	let tail = '';
-	if (p.namespaceText !== undefined) { tail = keep.has(rest[0].local) ? p.namespaceText : ''; }
-	else {
-		const kept = rest.map((b, i) => ({ b, i })).filter(({ b }) => keep.has(b.local));
-		if (kept.length) { tail = `${p.open}${kept.map(({ b, i }, j) => `${b.text}${j < kept.length - 1 ? p.seps[i] : ''}`).join('')}${p.close}`; }
-	}
-	return `${p.prefix}${def ? p.defaultText : ''}${def && tail ? p.between : ''}${tail}${p.suffix}`;
 }
 
 /** Everything the TS rules need from one file's text, from a single-file program. */
@@ -311,14 +230,16 @@ export function tsFileFacts(ts: Ts, file: string, text: string, options: TS.Comp
 					: false;
 		const jsx = group.some(member => containsJsx(ts, member));
 		const docText = text.slice(span.start, node.getStart(source)).trim();
+		const whole = text.slice(span.start, spans[spans.length - 1].end);
+		const exports = ts.isExportDeclaration(node) && node.exportClause && ts.isNamedExports(node.exportClause) ? node.exportClause.elements : [];
 		decls.push({
 			...info, exported: hasModifier(ts, node, ts.SyntaxKind.ExportKeyword), isDefault: hasModifier(ts, node, ts.SyntaxKind.DefaultKeyword),
 			declare: hasModifier(ts, node, ts.SyntaxKind.DeclareKeyword), start: span.start, end: spans[spans.length - 1].end, own: spans.every(s => s.own),
 			docText, valueUses: [...uses].filter(([, k]) => k === 'value').map(([n]) => n), typeUses: [...uses].filter(([, k]) => k === 'type').map(([n]) => n),
 			defReads: definitionReads(scope, node), quiet: quiet(scope, node, pure), pure, problems: group.flatMap(member => spanProblems(scope, member)),
-			decorators: hasDecorators(ts, node), jsx, jsdocTypes: /\.[cm]?jsx?$/.test(file) && /@(typedef|callback|import)\b/.test(text.slice(span.start, spans[spans.length - 1].end)),
+			decorators: hasDecorators(ts, node), jsx, jsdocTypes: /\.[cm]?jsx?$/.test(file) && /@(typedef|callback|import)\b/.test(whole),
 			literalEnum: ts.isEnumDeclaration(node) && enumLiteral(ts, node), assigned: [],
-			listed: ts.isExportDeclaration(node) && node.exportClause && ts.isNamedExports(node.exportClause) ? node.exportClause.elements.map(e => (e.propertyName ?? e.name).getText(source)) : [],
+			listed: exports.map(e => (e.propertyName ?? e.name).getText(source)),
 		});
 		previousEnd = last.end;
 	}
