@@ -43,6 +43,8 @@
     "src/aiready/commandDetect.ts",
     "src/aiready/health.ts",
     "src/aiready/healthReview.ts",
-    "src/aiready/report.ts"
+    "src/aiready/report.ts",
+    "src/aiready/language.ts",
+    "src/aiready/baseline.ts"
   ]
 }
