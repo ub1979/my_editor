@@ -1,6 +1,6 @@
 import { spawnSync } from 'child_process';
 import { createHash } from 'crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, realpathSync, writeFileSync } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { findTool } from './projectCommands';
@@ -12,6 +12,8 @@ export interface PyInterpreter {
 	readonly version: readonly [number, number, number];
 	readonly implementation: string;
 	readonly prefix: string;
+	/** `sys.executable` as the probe saw it: a launcher or shim runs another file than the one chosen. */
+	readonly executable?: string;
 	readonly venv: boolean;
 	readonly stdlib: readonly string[];
 	/** Top-level modules installed in its site-packages. */
@@ -28,6 +30,7 @@ const PROBE = [
 	'  | {m.name for m in mods if getattr(m.module_finder, "path", "") not in site})',
 	'has = lambda n: importlib.util.find_spec(n) is not None',
 	'print(json.dumps({"version": list(sys.version_info[:3]), "implementation": sys.implementation.name, "prefix": sys.prefix,',
+	'  "executable": sys.executable,',
 	'  "venv": sys.prefix != getattr(sys, "base_prefix", sys.prefix), "stdlib": std, "installed": own, "tools": {"pytest": has("pytest"),',
 	'  "randomly": has("pytest_randomly"), "mypy": has("mypy"), "black": has("black"), "pytestDjango": has("pytest_django")}}))',
 ].join('\n');
@@ -67,6 +70,39 @@ function ask(tool: string, args: readonly string[], cwd: string): string | undef
 
 const EXE = process.platform === 'win32' ? path.join('Scripts', 'python.exe') : path.join('bin', 'python');
 
+/** A script (`#!`), as version-manager shims and wrappers are: it picks the real interpreter at each run. */
+function script(file: string): boolean {
+	try {
+		const fd = openSync(file, 'r');
+		try { const head = Buffer.alloc(2); return readSync(fd, head, 0, 2, 0) === 2 && head.toString('latin1') === '#!'; } finally { closeSync(fd); }
+	} catch { return false; }
+}
+
+const real = (file: string) => { try { return realpathSync(file); } catch { return path.resolve(file); } };
+
+/** A pyenv version named by `.python-version`: a plain name whose folder (followed through links) stays under ~/.pyenv/versions. */
+function pyenvPython(name: string): string | undefined {
+	const versions = path.join(os.homedir(), '.pyenv', 'versions');
+	if (!/^[A-Za-z0-9][\w.+-]*$/.test(name) || name.includes('..')) { return undefined; }
+	const folder = path.join(versions, name);
+	return real(folder).startsWith(`${real(versions)}${path.sep}`) ? path.join(folder, 'bin', 'python') : undefined;
+}
+
+/** Why an interpreter in the project folder cannot be trusted: its environment folder came with the repository (tracked by git). */
+export function trackedInterpreter(root: string, file: string): string | undefined {
+	for (const at of new Set([path.resolve(file), real(file)])) {
+		const rel = [path.relative(path.resolve(root), at), path.relative(real(root), at)].find(r => r && !r.startsWith('..') && !path.isAbsolute(r));
+		if (!rel) { continue; }
+		const parts = rel.split(path.sep);
+		const folder = parts.length > 2 ? parts.slice(0, -2).join(path.sep) : parts.length === 2 ? parts[0] : rel;
+		const listed = spawnSync('git', ['ls-files', '-z', '--', folder], { cwd: root, encoding: 'utf8', timeout: 30_000 });
+		if (listed.status === 0 && listed.stdout) {
+			return `${folder} is tracked by git, so ${file} came with the repository; choose an interpreter you installed.`;
+		}
+	}
+	return undefined;
+}
+
 /** Interpreters for a project: a venv in its folder, Poetry, Pipenv or Hatch when configured, and pyenv versions it names. */
 export function pythonCandidates(folder: string): string[] {
 	const root = path.resolve(folder);
@@ -83,11 +119,9 @@ export function pythonCandidates(folder: string): string[] {
 		found.push(env ? path.join(env, EXE) : '');
 	}
 	if (has('.python-version')) {
-		for (const version of readFileSync(path.join(root, '.python-version'), 'utf8').split(/\s+/).filter(Boolean)) {
-			found.push(path.join(os.homedir(), '.pyenv', 'versions', version, 'bin', 'python'));
-		}
+		for (const version of readFileSync(path.join(root, '.python-version'), 'utf8').split(/\s+/).filter(Boolean)) { found.push(pyenvPython(version) ?? ''); }
 	}
-	return [...new Set(found.filter(file => file && existsSync(file)))];
+	return [...new Set(found.filter(file => file && existsSync(file) && !script(file) && !trackedInterpreter(root, file)))];
 }
 
 /** The user's pick per project folder, in global storage. */
@@ -111,15 +145,26 @@ export type ChoosePython = (candidates: readonly string[]) => Promise<string | u
  */
 export async function pythonFor(root: string, storageDir: string, choose: ChoosePython): Promise<PyInterpreter | string> {
 	let file = picks(storageDir)[root];
-	if (!file || !existsSync(file)) {
+	const remembered = !!file && existsSync(file);
+	if (!remembered) {
 		file = await choose(pythonCandidates(root)) ?? '';
 		if (!file) { return 'No Python interpreter was chosen, so nothing was changed. Run **AI-Ready: Choose Python Interpreter** to pick one.'; }
 	}
+	const python = checkedPython(root, file);
+	if (typeof python === 'string') { return remembered ? `${python} Run **AI-Ready: Choose Python Interpreter** to pick another.` : python; }
+	rememberPython(storageDir, root, file);
+	return python;
+}
+
+/** Probes a chosen file and checks it: the version gate, a launcher that runs another file, a pick tracked by git. */
+export function checkedPython(root: string, file: string): PyInterpreter | string {
 	const python = probePython(file);
 	if (typeof python === 'string') { return python; }
-	const problem = interpreterProblem(python);
+	const problem = interpreterProblem(python) ?? trackedInterpreter(root, file);
 	if (problem) { return problem; }
-	rememberPython(storageDir, root, file);
+	if (python.executable && real(python.executable) !== real(file)) {
+		return `${file} runs ${python.executable}; choose that interpreter instead (a launcher or shim can pick another one at each run).`;
+	}
 	return python;
 }
 
@@ -136,9 +181,33 @@ export function pythonEnv(python: PyInterpreter, roots: readonly string[], stora
 	};
 }
 
+/** Whether a version meets a PEP 440 specifier set (`>=3.10,<3.13`, `~=3.12`, `==3.11.*`); undefined for a clause it cannot read. */
+export function meetsSpec(version: readonly number[], spec: string): boolean | undefined {
+	const cmp = (a: readonly number[], b: readonly number[]) => {
+		for (let i = 0; i < Math.max(a.length, b.length); i++) { if ((a[i] ?? 0) !== (b[i] ?? 0)) { return (a[i] ?? 0) - (b[i] ?? 0); } }
+		return 0;
+	};
+	const prefix = (want: readonly number[]) => want.every((n, i) => version[i] === n);
+	let ok = true;
+	for (const clause of spec.split(',').map(c => c.trim()).filter(Boolean)) {
+		const m = /^(~=|===?|!=|<=|>=|<|>)\s*(\d+(?:\.\d+)*)(\.\*)?$/.exec(clause);
+		if (!m) { return undefined; }
+		const want = m[2].split('.').map(Number);
+		const c = cmp(version, want);
+		const met = m[3] ? (m[1] === '!=' ? !prefix(want) : prefix(want))
+			: { '~=': c >= 0 && prefix(want.slice(0, -1)), '==': c === 0, '===': c === 0, '!=': c !== 0, '<=': c <= 0, '>=': c >= 0, '<': c < 0, '>': c > 0 }[m[1]];
+		ok &&= !!met;
+	}
+	return ok;
+}
+
 /** What the approval modal says about the interpreter, so a wrong pick is visible before anything runs. */
 export function pythonApprovalNote(python: PyInterpreter, requiresPython: string | undefined, env: Readonly<Record<string, string>>): string {
 	const shown = ['PYTHONPATH', 'VIRTUAL_ENV', 'PYTHONDONTWRITEBYTECODE', 'PYTHONHASHSEED'].filter(key => env[key]).map(key => `${key}=${env[key]}`);
-	return `Python: ${python.path} (${python.version.join('.')}, sys.prefix ${python.prefix}); the project asks for `
-		+ `${requiresPython ? `Python ${requiresPython}` : 'no Python version'}. Commands run with ${shown.join(', ')}, the interpreter's folder first on PATH. `;
+	const version = python.version.join('.');
+	const unmet = requiresPython && meetsSpec(python.version, requiresPython) === false
+		? `**${version} does not satisfy requires-python ${requiresPython}**, so the checks may not show how the project runs. ` : '';
+	return `Python: ${python.path} (${version}, sys.prefix ${python.prefix}); the project asks for `
+		+ `${requiresPython ? `Python ${requiresPython}` : 'no Python version'}. ${unmet}`
+		+ `Commands run with ${shown.join(', ')}, the interpreter's folder first on PATH. `;
 }

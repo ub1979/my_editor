@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { interpreterProblem, probePython, pythonCandidates, rememberPython } from './pyInterpreter';
+import { checkedPython, pythonCandidates, rememberPython } from './pyInterpreter';
 
 const BROWSE = 'Choose a file…';
 
@@ -23,9 +23,8 @@ export async function choosePythonCommand(storageDir: string): Promise<void> {
 	if (!root) { void vscode.window.showInformationMessage('Open a project folder first.'); return; }
 	const file = await choosePython(pythonCandidates(root));
 	if (!file) { return; }
-	const probed = probePython(file);
-	const problem = typeof probed === 'string' ? probed : interpreterProblem(probed);
-	if (problem || typeof probed === 'string') { void vscode.window.showWarningMessage(problem ?? 'That file is not a Python interpreter.'); return; }
+	const probed = checkedPython(root, file);
+	if (typeof probed === 'string') { void vscode.window.showWarningMessage(probed); return; }
 	rememberPython(storageDir, root, file);
 	void vscode.window.showInformationMessage(`Fixes in this folder use ${file} (Python ${probed.version.join('.')}).`);
 }

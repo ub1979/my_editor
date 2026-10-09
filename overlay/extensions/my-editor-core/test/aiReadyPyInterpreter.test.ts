@@ -1,10 +1,13 @@
 import { strict as assert } from 'node:assert';
+import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { test } from 'node:test';
 import { pyFileFacts } from '../src/aiready/pyAst';
-import { interpreterProblem, probePython, pythonApprovalNote, pythonCandidates, pythonEnv, pythonFor, PyInterpreter } from '../src/aiready/pyInterpreter';
+import {
+	interpreterProblem, probePython, pythonApprovalNote, pythonCandidates, pythonEnv, pythonFor, PyInterpreter, rememberPython,
+} from '../src/aiready/pyInterpreter';
 import { fakePython, HELPER, noPython, python } from './pyFixture';
 
 const temp = () => mkdtempSync(path.join(os.tmpdir(), 'my-editor-python-'));
@@ -65,18 +68,50 @@ test('the version gate: 3.15 and 3.8 stop, PyPy stops, a pyenv shim is rejected'
 	assert.match(await pythonFor(temp(), temp(), async () => undefined) as string, /No Python interpreter was chosen/);
 });
 
-test('a .python-version names a concrete pyenv interpreter, never the shim', () => {
+test('a .python-version names a concrete pyenv interpreter, never the shim, a path outside the versions or a script', { skip: noPython() }, () => {
 	const root = temp();
 	const home = temp();
+	const outside = temp();
 	const saved = process.env.HOME;
 	process.env.HOME = home;
 	try {
-		const file = fakePython(path.join(home, '.pyenv', 'versions', '3.12.4', 'bin'), [3, 12, 4]);
-		writeFileSync(path.join(root, '.python-version'), '3.12.4\n');
+		const versions = path.join(home, '.pyenv', 'versions');
+		mkdirSync(path.join(versions, '3.12.4', 'bin'), { recursive: true });
+		const file = path.join(versions, '3.12.4', 'bin', 'python');
+		symlinkSync(python()!.path, file);
+		mkdirSync(path.join(outside, 'bin'));
+		symlinkSync(python()!.path, path.join(outside, 'bin', 'python'));
+		symlinkSync(outside, path.join(versions, 'linked'));
+		fakePython(path.join(versions, '3.11.0', 'bin'), [3, 11, 0]);
+		writeFileSync(path.join(root, '.python-version'), `3.12.4\n../../../${path.relative(home, outside)}\nlinked\n3.11.0\n`);
 		assert.deepEqual(pythonCandidates(root), [file]);
 	} finally {
 		process.env.HOME = saved;
 	}
+});
+
+test('review items 8 and 9: a script or a tracked venv is no candidate; a launcher or a tracked pick is refused', { skip: noPython() }, async () => {
+	const root = temp();
+	mkdirSync(path.join(root, '.venv'));
+	writeFileSync(path.join(root, '.venv', 'pyvenv.cfg'), 'home = /usr/bin\n');
+	fakePython(path.join(root, '.venv', 'bin'), [3, 12, 0]);
+	assert.deepEqual(pythonCandidates(root), [], 'a #! script is a shim or a wrapper, not an interpreter');
+	const repo = temp();
+	const tracked = venv(repo);
+	execFileSync('git', ['init', '-q'], { cwd: repo });
+	execFileSync('git', ['add', '-f', '.venv'], { cwd: repo });
+	assert.deepEqual(pythonCandidates(repo), []);
+	assert.match(await pythonFor(repo, temp(), async () => tracked) as string, /\.venv is tracked by git/);
+	const launcher = fakePython(temp(), [3, 12, 0], 'cpython', '/somewhere/else/python3.12');
+	assert.match(await pythonFor(temp(), temp(), async () => launcher) as string, /runs \/somewhere\/else\/python3\.12; choose that interpreter instead/);
+});
+
+test('a remembered interpreter that fails says how to choose another', async () => {
+	const root = temp();
+	const storage = temp();
+	rememberPython(storage, root, fakePython(temp(), [3, 15, 0]));
+	assert.match(await pythonFor(root, storage, async () => assert.fail('the pick is remembered')) as string,
+		/3\.9 to 3\.14 for now\. Run \*\*AI-Ready: Choose Python Interpreter\*\* to pick another\./);
 });
 
 test('the command env puts the interpreter first, sets the venv and import roots, and keeps caches out of the worktree', () => {
@@ -90,6 +125,13 @@ test('the command env puts the interpreter first, sets the venv and import roots
 	assert.ok(env.MYPY_CACHE_DIR.startsWith('/store/mypy-cache/'));
 	const note = pythonApprovalNote(probed, '>=3.9', env);
 	assert.match(note, /Python: \/p\/my project\/\.venv\/bin\/python \(3\.12\.2, sys\.prefix \/p\/my project\/\.venv\); the project asks for Python >=3\.9/);
+	assert.doesNotMatch(note, /does not satisfy/);
+	for (const spec of ['>=3.13', '>=3.10,<3.12', '==3.11.*', '~=3.12.3', '!=3.12.*']) {
+		assert.match(pythonApprovalNote(probed, spec, env), new RegExp(`3\\.12\\.2 does not satisfy requires-python ${spec.replace(/[.*+]/g, '\\$&')}`), spec);
+	}
+	for (const spec of ['>3.11', '~=3.10', '==3.12.*', '>=3.9,<4', '<=3.12.2']) {
+		assert.doesNotMatch(pythonApprovalNote(probed, spec, env), /does not satisfy/, spec);
+	}
 });
 
 test('pyFileFacts runs the helper isolated and reports a parse error as facts', { skip: noPython() }, async () => {

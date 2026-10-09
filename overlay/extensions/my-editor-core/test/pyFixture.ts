@@ -45,12 +45,12 @@ export function pyProjectFiles(files: Record<string, string>, git = false): { ro
 	return { root, tracked: Object.keys(files).sort() };
 }
 
-/** A fake interpreter: a script that prints the probe's JSON for this version and implementation. */
-export function fakePython(dir: string, version: [number, number, number], implementation = 'cpython'): string {
+/** A fake interpreter: a script that prints the probe's JSON for this version and implementation (and `sys.executable`, itself by default). */
+export function fakePython(dir: string, version: [number, number, number], implementation = 'cpython', executable?: string): string {
 	const file = path.join(dir, 'python');
 	mkdirSync(dir, { recursive: true });
 	const tools = { pytest: false, randomly: false, mypy: false, black: false, pytestDjango: false };
-	const probe = { version, implementation, prefix: dir, venv: false, stdlib: ['json', 'os'], installed: [], tools };
+	const probe = { version, implementation, prefix: dir, venv: false, stdlib: ['json', 'os'], installed: [], tools, executable: executable ?? file };
 	writeFileSync(file, `#!/bin/sh\necho '${JSON.stringify(probe)}'\n`, { mode: 0o755 });
 	return file;
 }
