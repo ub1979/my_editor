@@ -1,4 +1,4 @@
-// Chat DOM primitives and icon vocabulary. Loaded first, before chatFaces.js, chatCards.js and chat.js.
+// Chat DOM primitives and icon vocabulary. Loaded first, before chatFaces.js, chatCards.js, chatMenu.js and chat.js.
 const app = /** @type {HTMLElement} */ (document.getElementById('app'));
 
 /** Simple stroke icons on a 24px grid, drawn with currentColor. */
@@ -32,15 +32,6 @@ const ICONS = {
 	sidebar: 'M3 4h18v16H3zM15 4v16',
 	link: 'M10 13a5 5 0 0 0 7.1 0l2-2a5 5 0 0 0-7.1-7.1l-1.1 1.1M14 11a5 5 0 0 0-7.1 0l-2 2a5 5 0 0 0 7.1 7.1l1.1-1.1',
 };
-
-const COMMANDS = [
-	['feature', 'Add a feature to this file'], ['change', 'Rewrite the selected lines'], ['next', 'Take the next small step'],
-	['locate', 'Find files and lines to change'],
-	['file', 'Write the whole file'], ['explain', 'Explain the file or selection'], ['review', 'Review without editing'],
-	['why', 'Why is this code like this?'], ['brainstorm', 'Explore approaches'], ['requirements', 'Work out what to build'],
-	['architecture', 'Design the parts'], ['tree', 'Plan the files'], ['impact', 'What does a change affect?'],
-	['changes', 'Git history and current edits'], ['skill', 'Run a skill by name'],
-];
 
 /** @param {string} tag @param {Record<string, string>} [attrs] @param {(Node|string)[]} [children] */
 function el(tag, attrs = {}, children = []) {

@@ -36,8 +36,6 @@ const reasoningSelect = /** @type {HTMLSelectElement} */ (el('select', {
 	class: 'reasoning', 'aria-label': 'Codex reasoning level', title: 'Codex reasoning level',
 }));
 const sendButton = /** @type {HTMLButtonElement} */ (el('button', { type: 'submit', class: 'send', 'aria-label': 'Send' }));
-let menu = /** @type {HTMLElement | null} */ (null);
-let menuIndex = 0;
 let showSkills = false;
 
 composer.append(context, input, el('div', { class: 'row' }, [modelSelect, reasoningSelect, el('span', { class: 'spacer' }), sendButton]));
@@ -179,47 +177,6 @@ function renderModels() {
 	reasoningSelect.hidden = !String(state.model ?? '').startsWith('codex-cli:');
 }
 
-/* "/" command menu */
-
-function closeMenu() {
-	menu?.remove();
-	menu = null;
-}
-
-function openMenu() {
-	const match = /^\/(\w*)$/.exec(input.value);
-	if (!match) {
-		closeMenu();
-		return;
-	}
-	const items = COMMANDS.filter(([name]) => name.startsWith(match[1]));
-	if (!items.length) {
-		closeMenu();
-		return;
-	}
-	menuIndex = Math.min(menuIndex, items.length - 1);
-	closeMenu();
-	menu = el('div', { class: 'menu', role: 'listbox' });
-	items.forEach(([name, desc], index) => {
-		const option = el('button', { type: 'button', role: 'option', 'aria-selected': String(index === menuIndex) }, [
-			el('span', { class: 'cmd' }, [`/${name}`]), el('span', { class: 'desc' }, [desc]),
-		]);
-		option.addEventListener('mousedown', event => {
-			event.preventDefault();
-			pick(name);
-		});
-		menu?.append(option);
-	});
-	composer.append(menu);
-}
-
-function pick(name) {
-	input.value = `/${name} `;
-	closeMenu();
-	input.focus();
-	renderSend();
-}
-
 /* Events */
 
 function send() {
@@ -256,24 +213,8 @@ input.addEventListener('input', () => {
 });
 
 input.addEventListener('keydown', event => {
-	if (menu) {
-		const count = menu.children.length;
-		if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-			event.preventDefault();
-			menuIndex = (menuIndex + (event.key === 'ArrowDown' ? 1 : count - 1)) % count;
-			openMenu();
-			return;
-		}
-		if (event.key === 'Enter' || event.key === 'Tab') {
-			event.preventDefault();
-			const option = /** @type {HTMLElement} */ (menu.children[menuIndex]);
-			pick(option.querySelector('.cmd')?.textContent?.slice(1) ?? '');
-			return;
-		}
-		if (event.key === 'Escape') {
-			closeMenu();
-			return;
-		}
+	if (menuKey(event)) {
+		return;
 	}
 	if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
 		event.preventDefault();
