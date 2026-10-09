@@ -8,7 +8,7 @@ const REMOTE_COMMANDS = new Set(['push', 'fetch', 'pull', 'remote', 'clone', 'ls
 /** The one branch every run adds its fixes to. It is local only; my_editor never suggests merging it. */
 export const FIX_BRANCH = 'ai_fix';
 /** The branch earlier versions used; its work moves to `ai_fix` once. */
-const OLD_BRANCH = 'my_editor/ai-ready';
+export const OLD_BRANCH = 'my_editor/ai-ready';
 
 /**
  * The full argument list for one local git command: hooks off (they could run project code, reformat files or talk to
@@ -20,7 +20,8 @@ export function gitArgs(args: readonly string[]): string[] {
 	return ['-c', 'core.hooksPath=/dev/null', ...args];
 }
 
-async function git(cwd: string, args: readonly string[]): Promise<string> {
+/** Runs one local git command (see `gitArgs`) and returns its output; throws when it fails. */
+export async function git(cwd: string, args: readonly string[]): Promise<string> {
 	const bin = findTool('git');
 	if (!bin) { throw new Error('Git was not found.'); }
 	const result = await runTool(bin, gitArgs(args), cwd, { GIT_TERMINAL_PROMPT: '0' });

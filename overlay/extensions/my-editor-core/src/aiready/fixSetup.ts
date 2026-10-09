@@ -1,16 +1,16 @@
-import { readFileSync } from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import type { Sink } from '../chat/engine';
 import { CheckResult, failureLines, runBaseline, runSetup } from './baseline';
-import { fixChoices, pickFixes, skippedWithLines } from './fixPicker';
+import { fixTip } from './branchTip';
+import { findCandidates } from './fixCandidates';
+import { pickFixes, skippedWithLines } from './fixPicker';
 import { screenFix, screenQueue } from './fixScreen';
 import { logDir, RunState, saveState } from './fixState';
 import { alreadyFailingText, approvalDetail, behindText, earlyText, timeoutMinutes } from './fixText';
-import { fileStats, scanHealth } from './health';
 import type { LanguageAdapter } from './language';
 import { runCommand, tail } from './projectCommands';
-import { changedFiles, discard, freeFolder, initRepository, prepare, prerequisites, trackedFiles, Worktree } from './worktree';
+import { changedFiles, discard, FIX_BRANCH, freeFolder, initRepository, prepare, prerequisites, trackedFiles, Worktree } from './worktree';
 
 const MAX_FAILURE_LINES = 200;
 
@@ -69,26 +69,10 @@ export async function startRun(env: CommandEnv, adapter: (root: string, tracked:
 	sink: Sink): Promise<StartedRun | undefined> {
 	const { root, token } = env;
 	if (!await checkPrerequisites(root, sink)) { return undefined; }
-	sink.progress('Finding files to fix…');
-	const tracked = await trackedFiles(root);
-	const local = adapter(root, tracked);
-	const sources = tracked.filter(file => local.extensions.includes(path.extname(file)));
-	const stats = sources.map(file => fileStats(file, readFileSync(path.join(root, file), 'utf8')));
-	const findings = scanHealth(stats, tracked, { languages: [local.label], checks: [], tests: [] }, []);
-	const offers = (kind: 'split' | 'tests') => !local.fixes || local.fixes.includes(kind);
-	const fixable = (f: (typeof findings)[number]) => (f.kind === 'too-long' && offers('split')) || (f.kind === 'untested' && offers('tests'));
-	const candidates = [...new Set(findings.filter(f => f.file && fixable(f)).map(f => f.file!))].filter(file => sources.includes(file));
-	const skipped = new Map<string, string>();
-	const narrowed = new Map<string, string>();
-	for (const file of candidates) {
-		if (token.isCancellationRequested) { return undefined; }
-		try {
-			const info = await local.parse(file);
-			if (info.skip) { skipped.set(file, info.skip); }
-			else if (info.narrowed) { narrowed.set(file, info.narrowed); }
-		} catch (error) { skipped.set(file, error instanceof Error ? error.message : String(error)); }
-	}
-	const choices = fixChoices(findings, stats, local.extensions, skipped, narrowed).filter(choice => offers(choice.kind));
+	sink.progress(`Finding files to fix${await fixTip(root) ? ` on ${FIX_BRANCH}, with the earlier runs' fixes` : ''}…`);
+	const found = await findCandidates(root, adapter, () => token.isCancellationRequested);
+	if (!found) { return undefined; }
+	const { local, choices, refactor, skipped, stats } = found;
 	sink.progress('');
 	if (!choices.length) {
 		sink.text(`Nothing here can be fixed on a branch yet: no long or untested ${local.label} files that may be split or tested.`);
@@ -123,7 +107,9 @@ export async function startRun(env: CommandEnv, adapter: (root: string, tracked:
 		const failing = Object.entries(outcome.baseline).filter(([, [first]]) => first.code !== 0).map(([command]) => command);
 		if (failing.length) { sink.text(alreadyFailingText(failing)); }
 		sink.progress('Finding fixes nothing here can check…');
-		const queue = await screenQueue(picked, fix => screenFix(inWorktree, worktree.path, outcome.baseline, fix), () => token.isCancellationRequested);
+		// Splits that need a real refactor are settled here too, so the change note lists them; they use none of the budget.
+		const queue = await screenQueue([...refactor, ...picked], fix => screenFix(inWorktree, worktree.path, outcome.baseline, fix),
+			() => token.isCancellationRequested);
 		if (queue === 'stopped') { return await discardUnstarted(root, worktree, sink, 'Stopped before any fix.'); }
 		sink.text(earlyText(queue.early));
 		const state: RunState = {
