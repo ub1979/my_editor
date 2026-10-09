@@ -3,8 +3,8 @@ import * as path from 'path';
 import type { FileInfo, ParsedFile } from './language';
 import { declarationProblems } from './moveCheck';
 import type { PyLead } from './pyAst';
-import { boundName, copiedLead } from './pyImports';
-import { pyLineSuffixes, suffixed } from './pyNoqa';
+import { boundName, copiedLead, facadeLine } from './pyImports';
+import { NOQA, pyLineSuffixes, suffixed } from './pyNoqa';
 import type { PyFileInfo } from './pyRules';
 import { resolveRelative } from './pyScan';
 
@@ -15,7 +15,8 @@ const firstLine = (text: string) => `\`${text.split('\n')[0].trim()}\``;
  * Move rule 2's import part for Python. The original: its leading block byte-identical (but `  # noqa: F401` exactly
  * where the split leaves an import unused in a project linted by ruff or flake8), then only the facade, which
  * names exactly the plan's new files and, across its statements per file, exactly that file's moved names, each as
- * `name as name` (facade statements an earlier split left are ignored). A new file: every `__future__` statement of the
+ * `name as name`, written as the split writes it (with `  # noqa: F401` only for flake8; facade statements an earlier
+ * split left are ignored). A new file: every `__future__` statement of the
  * original, and otherwise only filtered copies of leading-block statements, whole copies of compound ones, and imports of
  * names its sibling new files define.
  */
@@ -30,7 +31,17 @@ export function pyImportProblems(before: ParsedFile, after: ParsedFile, files: r
 	if (kept.length !== oldLead.length || kept.some((t, i) => t !== oldLead[i])) { problems.push(`Rule 2: the leading imports of ${was.path} changed.`); }
 	const stems = files.map(f => stem(f.info.path));
 	const earlier = new Set(was.facade.map(i => text(before, was.facts.lead[i])));
-	const facade = now.facade.map(i => now.facts.lead[i]).filter(item => !earlier.has(text(after, item))).map(item => item.imports[0]);
+	const fresh = now.facade.map(i => now.facts.lead[i]).filter(item => !earlier.has(text(after, item)));
+	const noqa = was.context.lintsImports?.flake8 ? NOQA : '';
+	for (const item of fresh) {
+		const imp = item.imports[0];
+		const names = imp.aliases.map(a => a.name);
+		const forms = [facadeLine(imp.module, names, Infinity, noqa), facadeLine(imp.module, names, 0, noqa)];
+		if (!forms.includes(text(after, item))) {
+			problems.push(`Rule 2: the facade line ${firstLine(text(after, item))} is not written as ${firstLine(forms[0])} or its wrapped form.`);
+		}
+	}
+	const facade = fresh.map(item => item.imports[0]);
 	const region = now.importRegion;
 	const between = region ? now.facade.map(i => now.facts.lead[i]).reduceRight((rest, item) =>
 		rest.slice(0, item.start - region.start) + rest.slice(item.end - region.start), after.text.subarray(region.start, region.end).toString('utf8')) : '';

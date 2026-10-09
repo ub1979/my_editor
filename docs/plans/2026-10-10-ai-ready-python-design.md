@@ -420,6 +420,13 @@ or `__future__` import, a redundant alias (`x as x`), a line that already names 
 line the suffix would push past the line length (black and isort would wrap it; that import is then still reported).
 The result stays clean under `ruff check`, `ruff check --select I` and `black --check` (measured with black 24).
 
+**The facade under flake8.** Ruff takes `from .rows import a as a` as an explicit re-export; flake8 (pyflakes) reports
+it as unused outside `__init__.py`. So when flake8 lints the project (its section or `.flake8` file, or flake8 among the
+dependencies), each new facade statement carries `  # noqa: F401` on its first line: `from .rows import a as a  # noqa:
+F401`, or `from .rows import (  # noqa: F401` when wrapped (the suffix counts toward the line length). Names are not
+added to `__all__` instead, which would change what star imports export. Clean under flake8 7, ruff (default rules and
+`--select I`) and black.
+
 ## File names
 
 `fileNameProblems(name, original)`:
@@ -444,7 +451,8 @@ Rules 1, 3 and 5 are the language-neutral ones. Rule 2 and rule 4 get Python par
    original as re-parsed after the move (`lineSuffixes`, a core hook: lines of the original that gain a suffix by
    design); a missing, extra or different suffix fails. `importProblems`: the leading block is byte-identical but for
    those suffixes; the facade names exactly the plan's new files
-   and, per file, exactly its moved names, each as `name as name`; each new file's imports are a filtered copy of a
+   and, per file, exactly its moved names, each as `name as name`, every new facade statement written exactly as the split
+   writes it, one line or wrapped, with `  # noqa: F401` when flake8 lints the project and without it otherwise; each new file's imports are a filtered copy of a
    leading-block statement, a whole copied compound statement, a `__future__` copy, or a sibling new-file import.
 3. A new file holds only its header comment, `__future__` imports, import statements and moved spans.
 4. Same declarations and same names:

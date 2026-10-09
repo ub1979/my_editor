@@ -134,3 +134,35 @@ test('no noqa where black and isort would wrap the line, after a backslash, or w
 	assert.deepEqual(await splitIn([{ file: 'rows.py', declarations: [0] }], () => undefined, text, RUFF, keep), []);
 	assert.ok(original.startsWith(head), original);
 });
+
+const FLAKE8 = { '.flake8': '[flake8]\nmax-line-length = 88\nextend-ignore = E203\n' };
+const FACADE = 'import json\n\n\ndef parse(line):\n    return json.loads(line)\n\n\n'
+	+ 'def a_function_whose_facade_line_wraps(x):\n    return x\n\n\ndef where():\n    return 1\n';
+
+test('a flake8 project: each facade line carries `  # noqa: F401` (flake8 reads `x as x` as unused), and rule 2 takes it only there', { skip },
+	async () => {
+		const plan: SplitPlan = [{ file: 'rows.py', declarations: [0, 1] }];
+		let original = '';
+		const lint: string[] = [];
+		assert.deepEqual(await splitIn(plan, () => undefined, FACADE, FLAKE8, (root, texts) => {
+			original = texts['pkg/report.py'];
+			for (const [tool, args] of [['flake8', ['pkg/report.py']], ['ruff', ['check', '--no-cache', '--isolated', 'pkg/report.py']],
+				['ruff', ['check', '--no-cache', '--isolated', '--select', 'I', 'pkg/report.py']], ['black', ['--check', '-q', 'pkg/report.py']]] as const) {
+				const bin = findTool(tool);
+				const out = bin ? spawnSync(bin, args, { cwd: root, encoding: 'utf8' }) : undefined;
+				if (out && out.status !== 0) { lint.push(`${tool} ${args.join(' ')}: ${out.stdout}${out.stderr}`); }
+			}
+		}), []);
+		const long = 'a_function_whose_facade_line_wraps';
+		assert.equal(original.split('\n\n\n')[0], `import json  # noqa: F401\n\nfrom .rows import (  # noqa: F401\n    ${long} as ${long},\n)\n`
+			+ 'from .rows import parse as parse  # noqa: F401');
+		assert.deepEqual(lint, []);
+		const facadeEdit = (from: string, to: string, extra: Record<string, string>) =>
+			splitIn(plan, t => { t['pkg/report.py'] = t['pkg/report.py'].replace(from, to); }, FACADE, extra);
+		assert.match((await facadeEdit('parse as parse  # noqa: F401', 'parse as parse', FLAKE8)).join(' '),
+			/Rule 2: the facade line `from \.rows import parse as parse` is not written as/);
+		assert.match((await facadeEdit('parse as parse  # noqa: F401', 'parse as parse  # noqa', FLAKE8)).join(' '), /Rule 2: the facade line/);
+		assert.match((await facadeEdit('parse as parse\n', 'parse as parse  # noqa: F401\n', RUFF)).join(' '), /Rule 2: the facade line/,
+			'ruff takes `x as x` as a re-export: no noqa there');
+		assert.deepEqual(await splitIn(plan, () => undefined, FACADE, RUFF), []);
+	});

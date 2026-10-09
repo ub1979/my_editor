@@ -21,8 +21,11 @@ export interface PyFileContext {
 	readonly shadowed: ReadonlySet<string>;
 	/** The first line of each sibling whose split header names this file: those siblings are the facade's targets. */
 	readonly splitSiblings: readonly string[];
-	/** Set when ruff or flake8 lints the project: imports a split leaves unused get `  # noqa: F401` within this line length. */
-	readonly lintsImports?: { readonly lineLength: number };
+	/**
+	 * Set when ruff or flake8 lints the project: imports a split leaves unused get `  # noqa: F401` within this line length,
+	 * and with flake8 every facade line does too.
+	 */
+	readonly lintsImports?: { readonly lineLength: number; readonly flake8: boolean };
 }
 
 export interface PyDeclaration extends Declaration {

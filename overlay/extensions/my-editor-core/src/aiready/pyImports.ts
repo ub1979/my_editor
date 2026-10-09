@@ -79,10 +79,13 @@ export function siblingImport(stem: string, names: readonly string[], lineLength
 	return line.length <= lineLength ? line : `from .${stem} import (\n${sorted.map(n => `    ${n},\n`).join('')})`;
 }
 
-/** `from .rows import a as a`, wrapped the way black does when it is longer than `lineLength`. */
-export function facadeLine(stem: string, names: readonly string[], lineLength: number): string {
-	const line = `from .${stem} import ${names.map(n => `${n} as ${n}`).join(', ')}`;
-	return line.length <= lineLength ? line : `from .${stem} import (\n${names.map(n => `    ${n} as ${n},\n`).join('')})`;
+/**
+ * `from .rows import a as a`, wrapped the way black does when it is longer than `lineLength`. With `noqa` (flake8, which
+ * reports the redundant alias as unused) it carries `  # noqa: F401` on its first line, after the `(` when wrapped.
+ */
+export function facadeLine(stem: string, names: readonly string[], lineLength: number, noqa = ''): string {
+	const line = `from .${stem} import ${names.map(n => `${n} as ${n}`).join(', ')}${noqa}`;
+	return line.length <= lineLength ? line : `from .${stem} import (${noqa}\n${names.map(n => `    ${n} as ${n},\n`).join('')})`;
 }
 
 /** One facade statement: its module (the new file's stem), the names it re-exports and its text. */
@@ -96,9 +99,9 @@ export interface FacadeEntry {
  * The facade the way ruff's isort writes it: aliased imports are never combined (`combine-as-imports` is off), so one
  * statement per name, sorted by module and then by name. Entries already in the file (an earlier split) keep their text.
  */
-export function facadeStatements(entries: readonly FacadeEntry[], fresh: readonly { module: string; names: readonly string[] }[], lineLength: number):
-	string[] {
-	const all = [...entries, ...fresh.flatMap(f => f.names.map(n => ({ module: f.module, names: [n], text: facadeLine(f.module, [n], lineLength) })))];
+export function facadeStatements(entries: readonly FacadeEntry[], fresh: readonly { module: string; names: readonly string[] }[], lineLength: number,
+	noqa = ''): string[] {
+	const all = [...entries, ...fresh.flatMap(f => f.names.map(n => ({ module: f.module, names: [n], text: facadeLine(f.module, [n], lineLength, noqa) })))];
 	return all.sort((a, b) => moduleOrder(a.module, b.module) || isortOrder(a.names[0], b.names[0]))
 		.map(e => e.text);
 }

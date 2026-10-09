@@ -50,6 +50,17 @@ test('ruff or flake8 lints the project: a config section or file, or the tool am
 	}
 });
 
+test('flake8 is told apart from ruff: its section or file, or flake8 among the dependencies', () => {
+	const flake8 = (files: [string, string][]) => pyToolConfig(new Map(files)).flake8;
+	for (const files of [[['setup.cfg', '[flake8]\n']], [['.flake8', '']], [['pyproject.toml', '[tool.flake8]\nmax-line-length = 88\n']],
+		[['requirements-dev.txt', 'flake8==7\n']], [['tox.ini', '[testenv:lint]\ndeps = flake8\n']]] as [string, string][][]) {
+		assert.equal(flake8(files), true, JSON.stringify(files));
+	}
+	for (const files of [[], [['pyproject.toml', '[tool.ruff]\n']], [['ruff.toml', '']], [['requirements-dev.txt', 'ruff\n']]] as [string, string][][]) {
+		assert.equal(flake8(files), false, JSON.stringify(files));
+	}
+});
+
 test('reviewer point 4: a declared dependency on a pickling library narrows the project to constants', () => {
 	assert.ok(PICKLING_LIBRARIES.includes('cloudpickle') && PICKLING_LIBRARIES.includes('celery'));
 	assert.deepEqual(dependencyNames(configEntries('setup.cfg', '[options]\ninstall_requires =\n    dill>=0.3\n    numpy\n'), []), ['dill', 'numpy']);

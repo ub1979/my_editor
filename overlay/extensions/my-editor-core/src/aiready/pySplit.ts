@@ -2,7 +2,7 @@ import * as path from 'path';
 import type { NewFile, SplitPlan, SplitResult } from './language';
 import type { PyLead } from './pyAst';
 import { copiedLead, facadeStatements, moduleOrder, rebuildOriginal, siblingImport } from './pyImports';
-import { noqaLines, readNames } from './pyNoqa';
+import { NOQA, noqaLines, readNames } from './pyNoqa';
 import { hookOf, PyDeclaration, PyFileInfo } from './pyRules';
 
 /** The exact first lines of a module split from `file`. */
@@ -94,7 +94,7 @@ export interface PySplitOptions {
  * isort: after `__future__`, between statements the original kept apart (its sections), before the sibling imports, and
  * two before a def or class (else one). The original keeps every byte except the moved spans and gains the facade after
  * its leading block, sorted in with an earlier split's facade, and `  # noqa: F401` on each import only moved code used
- * when the project lints with ruff or flake8. Throws with every problem when the plan breaks a rule. A
+ * when the project lints with ruff or flake8 (with flake8, on each facade line too). Throws with every problem when the plan breaks a rule. A
  * file that is never split (a test file whose failing tests are dropped) only loses the spans.
  */
 export function buildPySplit(source: Buffer, info: PyFileInfo, plan: SplitPlan, options: PySplitOptions): SplitResult {
@@ -128,7 +128,8 @@ export function buildPySplit(source: Buffer, info: PyFileInfo, plan: SplitPlan, 
 	const old = info.facade.map(i => lead[i]);
 	const entries = old.map(item => ({ module: item.imports[0].module, names: item.imports[0].aliases.map(a => a.name),
 		text: source.subarray(item.start, item.end).toString('utf8') }));
-	const facade = facadeStatements(entries, plan.map((group, g) => ({ module: stem(group.file), names: names(g) })), options.lineLength);
+	const noqa = info.context.lintsImports?.flake8 ? NOQA : '';
+	const facade = facadeStatements(entries, plan.map((group, g) => ({ module: stem(group.file), names: names(g) })), options.lineLength, noqa);
 	const last = lead.filter((_, i) => !info.facade.includes(i)).pop();
 	const relative = last?.kind === 'import' && last.imports[0]?.kind === 'from' && last.imports[0].level > 0;
 	const place = old.length ? { start: old[0].start, end: old[old.length - 1].end, blankBefore: !relative }

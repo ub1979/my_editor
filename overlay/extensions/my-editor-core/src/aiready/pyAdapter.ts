@@ -64,7 +64,7 @@ export function createPyAdapter(root: string, python: PyInterpreter, dirs: { hel
 			module, package: pkg, skip: 'skip' in found ? found.skip : projectSkip(p, file, module, pkg), constantsOnly: p.constantsOnly,
 			deferred: p.config.deferredAnnotations, django: p.django, patches: patches.get(module) ?? NO_PATCHES, migrationWords: p.scan.migrationWords,
 			warningFilter: module ? warningFilter(p, module) : undefined, shadowed: p.shadowed, splitSiblings: siblings(file).map(n => n.replace(/\.py$/, '')),
-			lintsImports: p.config.lintsImports ? { lineLength: p.config.lineLength } : undefined,
+			lintsImports: p.config.lintsImports ? { lineLength: p.config.lineLength, flake8: p.config.flake8 } : undefined,
 		};
 	};
 	const moduleName = (file: string) => { const found = moduleOf(facts(), file); return 'skip' in found ? undefined : found.module; };
