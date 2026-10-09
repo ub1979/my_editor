@@ -118,9 +118,10 @@ const DEFINITION = /^(?:async\s+def|def|class)\b|^@/;
  * bordering run (at most two), and the facade lines in place of the old facade (or where the leading block ends). The
  * facade gets a blank line before it (black after a docstring, isort between sections) and, before the next code, two
  * blank lines when that is a def or class and one otherwise (isort's lines after imports; black wants two before a def).
+ * A line that starts at a key of `suffixes` gets that suffix (`  # noqa: F401` on an import the move leaves unused).
  */
 export function rebuildOriginal(source: Buffer, removed: readonly { start: number; end: number }[], place: FacadePlace | undefined,
-	facade: readonly string[]): Buffer {
+	facade: readonly string[], suffixes: ReadonlyMap<number, string> = new Map()): Buffer {
 	const MARK = '\u0000facade';
 	const items: (string | undefined)[] = [];
 	let offset = 0;
@@ -132,7 +133,7 @@ export function rebuildOriginal(source: Buffer, removed: readonly { start: numbe
 		offset = end + 1;
 		if (place && start === place.start) { items.push(MARK); }
 		if (place && place.end > place.start && start >= place.start && end <= place.end) { continue; }
-		items.push(removed.some(span => start >= span.start && end <= span.end) ? undefined : line);
+		items.push(removed.some(span => start >= span.start && end <= span.end) ? undefined : `${line}${suffixes.get(start) ?? ''}`);
 	}
 	if (place && place.start >= offset) { items.push(MARK); }
 	const out = collapse(items, 'longest');

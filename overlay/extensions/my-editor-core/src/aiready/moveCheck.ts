@@ -13,14 +13,16 @@ export interface MoveCheckInput {
 	readonly importProblems?: (before: ParsedFile, after: ParsedFile, files: readonly ParsedFile[]) => string[];
 	/** How blank lines around a removed span collapse (`LanguageAdapter.blankLines`); one by default. */
 	readonly blankLines?: 'one' | 'longest';
+	/** Lines of the original that gain a suffix by design (`LanguageAdapter.lineSuffixes`), by where they start in `before`. */
+	readonly lineSuffixes?: (before: ParsedFile, after: ParsedFile) => ReadonlyMap<number, string>;
 }
 
 const IMPORTS = '\u0000imports';
 
 /**
  * Move rules 1–3, on byte spans and without AI. 1: each moved span is byte-identical to a declaration in exactly the
- * new file the plan names. 2: the original equals its old bytes minus the moved spans, with only import specs removed
- * and blank lines around removed spans collapsed to one (or, with `longest`, to the longer bordering run, at most two).
+ * new file the plan names. 2: the original equals its old bytes minus the moved spans, with only import specs removed,
+ * the adapter's line suffixes added, and blank lines around removed spans collapsed to one (or, with `longest`, to the longer bordering run, at most two).
  * 3: a new file holds only its frame (header comment, package clause, imports) and its moved spans; the bytes before
  * its package clause are exactly the header (no build or `//go:debug` line), and its imports are some of the
  * original's, none blank. Empty means pass.
@@ -49,7 +51,8 @@ export function checkMove(input: MoveCheckInput): string[] {
 		}
 	});
 	const moved = plan.flatMap(group => group.declarations.map(id => byId.get(id)!.span));
-	const expected = afterImports(collapse(marked(before, moved, !!after.info.importRegion), input.blankLines));
+	const suffixes = input.lineSuffixes?.(before, after) ?? new Map<number, string>();
+	const expected = afterImports(collapse(marked(before, moved, !!after.info.importRegion, suffixes), input.blankLines));
 	const actual = afterImports(marked(after, [], true).map(item => item ?? ''));
 	if (expected.length !== actual.length || expected.some((line, i) => line !== actual[i])) {
 		const at = expected.findIndex((line, i) => line !== actual[i]);
@@ -90,7 +93,8 @@ export function declarationProblems(before: readonly FileInfo[], after: readonly
  * The file's lines, with the import region as one marker line and removed spans as gaps (undefined). An empty region
  * marks where imports would go (TS: the facade of a file without imports), before the line it starts.
  */
-function marked(file: ParsedFile, removed: readonly Span[], keepImports: boolean): (string | undefined)[] {
+function marked(file: ParsedFile, removed: readonly Span[], keepImports: boolean, suffixes: ReadonlyMap<number, string> = new Map()):
+	(string | undefined)[] {
 	const out: (string | undefined)[] = [];
 	const region = file.info.importRegion;
 	let offset = 0;
@@ -103,7 +107,7 @@ function marked(file: ParsedFile, removed: readonly Span[], keepImports: boolean
 			if (start === region.start) { out.push(keepImports ? IMPORTS : undefined); }
 			continue;
 		}
-		out.push(removed.some(span => start >= span.start && end <= span.end) ? undefined : line.toString('utf8'));
+		out.push(removed.some(span => start >= span.start && end <= span.end) ? undefined : `${line.toString('utf8')}${suffixes.get(start) ?? ''}`);
 	}
 	return out;
 }

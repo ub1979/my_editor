@@ -103,7 +103,9 @@ Commands start with the interpreter's file name (`python`, `python3.12`), and th
 `bin` folder first on `PATH` and sets `VIRTUAL_ENV` for a venv (core change: the runner resolves the program against
 the command env's `PATH`). The interpreter path is not resolved through symlinks: a venv's `python` is a symlink, and
 following it loses the venv. The approval dialog shows the interpreter's full path, its version, `sys.prefix` (so a
-wrong venv is visible), the project's `requires-python` (flagged when the interpreter does not satisfy it), and the environment.
+wrong venv is visible), the project's `requires-python` (flagged when the interpreter does not satisfy it), and the environment
+as the commands get it: `PYTHONPATH` names the new working copy's import roots, not the user's folder (the note is made
+before the worktree exists, for the folder the user approves).
 
 **Probing it** (`python -I`, site on, no project code): version, implementation, `sys.stdlib_module_names`
 (3.10+; a shipped list for 3.9), installed top-level modules, and whether `pytest`, `pytest_randomly`, `mypy`,
@@ -405,6 +407,19 @@ black writes it: `from .rows import (`, `name as name,`, `)`. A second split of 
 statements in with the first facade, which the move check then ignores. `__all__` stays as it is: star imports export
 the same names, because they are still bound (probed).
 
+**Imports only moved code used.** They stay in the original (module attributes callers may read), but ruff's default
+rules and flake8 then report them (F401) on a file that passed before. So when the project lints with ruff or flake8 (a
+`[tool.ruff…]`, `[tool.flake8]` or `[flake8]` section in a top-level pyproject.toml, setup.cfg, tox.ini or .flake8, a
+top-level ruff.toml or .ruff.toml, or `ruff` or `flake8` among its dependencies, dev groups or tox `deps`), the split
+appends `  # noqa: F401` (two spaces, as black writes inline comments) to the first line of each leading-block import
+statement, inside a `TYPE_CHECKING` block or a fallback too, that binds a name the original read before the split and
+no longer reads (its staying statements, its leading conditions and the strings in `__all__` count as reads). One such
+name is enough, even when the statement binds others still read: both tools report per statement and read the noqa on
+its first line (probed with ruff 0.12 and flake8 7; after the closing parenthesis neither does). No suffix on a facade
+or `__future__` import, a redundant alias (`x as x`), a line that already names noqa, a line ending in a backslash, or a
+line the suffix would push past the line length (black and isort would wrap it; that import is then still reported).
+The result stays clean under `ruff check`, `ruff check --select I` and `black --check` (measured with black 24).
+
 ## File names
 
 `fileNameProblems(name, original)`:
@@ -425,7 +440,10 @@ Rules 1, 3 and 5 are the language-neutral ones. Rule 2 and rule 4 get Python par
 
 1. Each moved span appears byte-identical in exactly the new file the plan names.
 2. The original equals its old bytes minus the moved spans (blank runs collapsed as above), with the facade block as the
-   only addition. `importProblems`: the leading block is byte-identical; the facade names exactly the plan's new files
+   only addition and `  # noqa: F401` exactly on the lines *Imports only moved code used* names, computed again from the
+   original as re-parsed after the move (`lineSuffixes`, a core hook: lines of the original that gain a suffix by
+   design); a missing, extra or different suffix fails. `importProblems`: the leading block is byte-identical but for
+   those suffixes; the facade names exactly the plan's new files
    and, per file, exactly its moved names, each as `name as name`; each new file's imports are a filtered copy of a
    leading-block statement, a whole copied compound statement, a `__future__` copy, or a sibling new-file import.
 3. A new file holds only its header comment, `__future__` imports, import statements and moved spans.

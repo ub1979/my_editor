@@ -55,8 +55,10 @@ test('commands start with the interpreter file name; a path with spaces stays in
 	assert.match(out.output, /pkg\.report imports; its split modules share every object/);
 });
 
-const WHERE = 'import os\nimport unittest\n\nimport pkg.report\n\n\nclass TestWhere(unittest.TestCase):\n    def test_imports_the_working_copy(self):\n'
-	+ '        here = os.path.realpath(os.getcwd())\n        self.assertTrue(os.path.realpath(pkg.report.__file__).startswith(here + os.sep), pkg.report.__file__)\n';
+const WHERE = 'import os\nimport unittest\n\nimport pkg.report\n\n\nclass TestWhere(unittest.TestCase):\n'
+	+ '    def test_imports_the_working_copy(self):\n'
+	+ '        here = os.path.realpath(os.getcwd())\n'
+	+ '        self.assertTrue(os.path.realpath(pkg.report.__file__).startswith(here + os.sep), pkg.report.__file__)\n';
 
 test('every command runs on the working copy: PYTHONPATH, the import check and the tests resolve the module there, and the modal shows that path',
 	{ skip }, async () => {

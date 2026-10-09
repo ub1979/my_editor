@@ -98,10 +98,22 @@ export interface PyToolConfig {
 	readonly dependencies: readonly string[];
 	/** Why `.py` files are compiled (Cython or mypyc), if they are. */
 	readonly compiled?: string;
+	/** Ruff or flake8 lints the project (unused imports, F401, by default): a config section or file, or the tool among its (dev) dependencies. */
+	readonly lintsImports: boolean;
 	readonly entries: readonly ConfigEntry[];
 }
 
 const PYTEST = /^(tool\.pytest\.ini_options|pytest|tool:pytest)$/;
+
+/** Whether ruff or flake8 lints the project: a section or config file at the top, or the tool among its dependencies, dev groups or tox deps. */
+function lintsImports(files: ReadonlyMap<string, string>, entries: readonly ConfigEntry[], dependencies: readonly string[]): boolean {
+	const configured = [...files].some(([file, text]) => CONFIG_FILES.test(file) && !file.includes('/')
+		&& (/^(ruff\.toml|\.ruff\.toml|\.flake8)$/.test(file) || /^\s*\[(tool\.ruff|tool\.flake8|flake8)[\].]/m.test(text)));
+	const dev = entries.filter(e => /^(dependency-groups|tool\.pdm\.dev-dependencies)$/.test(e.section)
+		|| (e.section === 'tool.uv' && e.key === 'dev-dependencies') || (/^testenv/.test(e.section) && e.key === 'deps')).flatMap(e => words(e.value));
+	const names = [...dependencies, ...dev.map(w => /^\s*([A-Za-z0-9][\w.-]*)/.exec(w)?.[1]?.toLowerCase() ?? '')];
+	return configured || names.some(name => name === 'ruff' || name === 'flake8');
+}
 
 /** Reads the settings from `files` (path → text) of tracked config files, requirements files and setup.py. */
 export function pyToolConfig(files: ReadonlyMap<string, string>): PyToolConfig {
@@ -121,6 +133,7 @@ export function pyToolConfig(files: ReadonlyMap<string, string>): PyToolConfig {
 		...entries.filter(e => /pytest11/.test(e.section)).flatMap(e => words(e.value).map(w => w.split(':')[0]))].filter(Boolean);
 	const setup = files.get('setup.py') ?? '';
 	const pyproject = files.get('pyproject.toml') ?? '';
+	const dependencies = dependencyNames(entries, requirements);
 	const compiled = /cythonize\s*\([^)]*\.py\b/.test(setup) ? 'setup.py builds .py files with Cython'
 		: /\bmypycify\b/.test(setup) || /^\[tool\.mypyc\]|hatch-mypyc/m.test(pyproject) ? 'the project compiles .py files with mypyc' : undefined;
 	return {
@@ -134,7 +147,7 @@ export function pyToolConfig(files: ReadonlyMap<string, string>): PyToolConfig {
 			const e = entry(entries, PYTEST, 'pythonpath');
 			return e ? words(e.value).map(p => path.posix.normalize(p).replace(/\/$/, '')) : [];
 		})(),
-		plugins: [...new Set(plugins)], dependencies: dependencyNames(entries, requirements), compiled, entries,
+		plugins: [...new Set(plugins)], dependencies, compiled, entries, lintsImports: lintsImports(files, entries, dependencies),
 	};
 }
 

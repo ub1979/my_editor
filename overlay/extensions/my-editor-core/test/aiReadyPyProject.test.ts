@@ -34,6 +34,22 @@ test('config: requires-python decides deferred annotations; line length, pytest 
 	assert.deepEqual(configEntries('setup.cfg', '[options]\ninstall_requires =\n    dill\n    numpy\n').map(e => e.value), ['\n    dill\n    numpy']);
 });
 
+test('ruff or flake8 lints the project: a config section or file, or the tool among its dev dependencies', () => {
+	const lints = (files: [string, string][]) => pyToolConfig(new Map(files)).lintsImports;
+	for (const files of [[['pyproject.toml', '[tool.ruff]\n']], [['pyproject.toml', '[tool.ruff.lint]\nselect = ["F"]\n']], [['setup.cfg', '[flake8]\n']],
+		[['tox.ini', '[flake8]\nmax-line-length = 100\n']], [['.flake8', '[flake8]\n']], [['ruff.toml', 'line-length = 100\n']], [['.ruff.toml', '']],
+		[['requirements-dev.txt', 'ruff==0.6\n']], [['pyproject.toml', '[dependency-groups]\ndev = ["flake8>=7"]\n']],
+		[['pyproject.toml', '[project.optional-dependencies]\nlint = ["ruff"]\n']],
+		[['pyproject.toml', '[tool.poetry.group.dev.dependencies]\nruff = "^0.6"\n']],
+		[['tox.ini', '[testenv:lint]\ndeps =\n    flake8\ncommands = flake8\n']]] as [string, string][][]) {
+		assert.equal(lints(files), true, JSON.stringify(files));
+	}
+	const none = [[], [['pyproject.toml', '[tool.black]\n[tool.isort]\n']], [['requirements.txt', 'ruffus\n']], [['docs/ruff.toml', '']]];
+	for (const files of none as [string, string][][]) {
+		assert.equal(lints(files), false, JSON.stringify(files));
+	}
+});
+
 test('reviewer point 4: a declared dependency on a pickling library narrows the project to constants', () => {
 	assert.ok(PICKLING_LIBRARIES.includes('cloudpickle') && PICKLING_LIBRARIES.includes('celery'));
 	assert.deepEqual(dependencyNames(configEntries('setup.cfg', '[options]\ninstall_requires =\n    dill>=0.3\n    numpy\n'), []), ['dill', 'numpy']);

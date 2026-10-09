@@ -5,6 +5,7 @@ import { runTool } from './projectCommands';
 import { pyFileFacts } from './pyAst';
 import { PyInterpreter, pythonApprovalNote } from './pyInterpreter';
 import { pyImportProblems, pySameDeclarations } from './pyMoveCheck';
+import { pyLineSuffixes } from './pyNoqa';
 import {
 	checkCommands, importRootProblem, moduleOf, modulePatches, projectSkip, pyCommandEnv, PyProject, pyProject, warningFilter,
 } from './pyProject';
@@ -63,6 +64,7 @@ export function createPyAdapter(root: string, python: PyInterpreter, dirs: { hel
 			module, package: pkg, skip: 'skip' in found ? found.skip : projectSkip(p, file, module, pkg), constantsOnly: p.constantsOnly,
 			deferred: p.config.deferredAnnotations, django: p.django, patches: patches.get(module) ?? NO_PATCHES, migrationWords: p.scan.migrationWords,
 			warningFilter: module ? warningFilter(p, module) : undefined, shadowed: p.shadowed, splitSiblings: siblings(file).map(n => n.replace(/\.py$/, '')),
+			lintsImports: p.config.lintsImports ? { lineLength: p.config.lineLength } : undefined,
 		};
 	};
 	const moduleName = (file: string) => { const found = moduleOf(facts(), file); return 'skip' in found ? undefined : found.module; };
@@ -94,6 +96,7 @@ export function createPyAdapter(root: string, python: PyInterpreter, dirs: { hel
 		buildSplit: (source, info, plan) => buildPySplit(source, info as PyFileInfo, plan,
 			{ lineLength: facts().config.lineLength, deferred: facts().config.deferredAnnotations }),
 		importProblems: pyImportProblems,
+		lineSuffixes: pyLineSuffixes,
 		sameDeclarations: pySameDeclarations,
 		unitFiles: async file => [file, ...siblings(file).map(name => path.posix.join(path.posix.dirname(file), name))],
 		async unformatted(files) {

@@ -145,7 +145,7 @@ async function checkSplit(ctx: StepContext, file: string, newFiles: readonly str
 	const problems = [
 		...checkMove({
 			before: { text: facts.source, info: facts.info }, after, files, plan: facts.plan, header: adapter.splitHeader(file),
-			importProblems: adapter.importProblems, blankLines: adapter.blankLines,
+			importProblems: adapter.importProblems, blankLines: adapter.blankLines, lineSuffixes: adapter.lineSuffixes,
 		}),
 		...adapter.sameDeclarations(facts.unitBefore, unitAfter),
 	];

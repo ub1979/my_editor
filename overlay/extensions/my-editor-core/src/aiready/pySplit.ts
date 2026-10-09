@@ -2,6 +2,7 @@ import * as path from 'path';
 import type { NewFile, SplitPlan, SplitResult } from './language';
 import type { PyLead } from './pyAst';
 import { copiedLead, facadeStatements, moduleOrder, rebuildOriginal, siblingImport } from './pyImports';
+import { noqaLines, readNames } from './pyNoqa';
 import { hookOf, PyDeclaration, PyFileInfo } from './pyRules';
 
 /** The exact first lines of a module split from `file`. */
@@ -92,7 +93,8 @@ export interface PySplitOptions {
  * imports of sibling new modules, then the moved spans byte for byte, two blank lines apart. Blank lines follow ruff's
  * isort: after `__future__`, between statements the original kept apart (its sections), before the sibling imports, and
  * two before a def or class (else one). The original keeps every byte except the moved spans and gains the facade after
- * its leading block, sorted in with an earlier split's facade. Throws with every problem when the plan breaks a rule. A
+ * its leading block, sorted in with an earlier split's facade, and `  # noqa: F401` on each import only moved code used
+ * when the project lints with ruff or flake8. Throws with every problem when the plan breaks a rule. A
  * file that is never split (a test file whose failing tests are dropped) only loses the spans.
  */
 export function buildPySplit(source: Buffer, info: PyFileInfo, plan: SplitPlan, options: PySplitOptions): SplitResult {
@@ -131,5 +133,6 @@ export function buildPySplit(source: Buffer, info: PyFileInfo, plan: SplitPlan, 
 	const relative = last?.kind === 'import' && last.imports[0]?.kind === 'from' && last.imports[0].level > 0;
 	const place = old.length ? { start: old[0].start, end: old[old.length - 1].end, blankBefore: !relative }
 		: { start: info.facts.facadeAt, end: info.facts.facadeAt, blankBefore: !relative };
-	return { original: rebuildOriginal(source, removed, place, facade), files };
+	const unused = noqaLines(source, info, readNames(info), readNames(info, new Set(plan.flatMap(group => group.declarations))));
+	return { original: rebuildOriginal(source, removed, place, facade, unused), files };
 }

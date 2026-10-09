@@ -141,6 +141,11 @@ export interface LanguageAdapter {
 	 * generic checks that the original gains no import and that new files only use the original's imports.
 	 */
 	importProblems?(before: ParsedFile, after: ParsedFile, files: readonly ParsedFile[]): string[];
+	/**
+	 * Lines of the original that move rule 2 expects with a suffix, by where they start in `before` (Python: `  # noqa: F401`
+	 * on an import the split leaves unused, when the project lints with ruff or flake8).
+	 */
+	lineSuffixes?(before: ParsedFile, after: ParsedFile): ReadonlyMap<number, string>;
 	/** The exact text a new file split from `file` starts with (Go: a comment naming the original and a blank line). */
 	splitHeader(file: string): string;
 	/** New files and the new original, imports rebuilt. Throws when the plan cannot be applied. */

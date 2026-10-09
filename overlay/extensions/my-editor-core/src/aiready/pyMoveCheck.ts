@@ -4,6 +4,7 @@ import type { FileInfo, ParsedFile } from './language';
 import { declarationProblems } from './moveCheck';
 import type { PyLead } from './pyAst';
 import { boundName, copiedLead } from './pyImports';
+import { pyLineSuffixes, suffixed } from './pyNoqa';
 import type { PyFileInfo } from './pyRules';
 import { resolveRelative } from './pyScan';
 
@@ -11,7 +12,8 @@ const stem = (file: string) => path.posix.basename(file).replace(/\.py$/, '');
 const firstLine = (text: string) => `\`${text.split('\n')[0].trim()}\``;
 
 /**
- * Move rule 2's import part for Python. The original: its leading block byte-identical, then only the facade, which
+ * Move rule 2's import part for Python. The original: its leading block byte-identical (but `  # noqa: F401` exactly
+ * where the split leaves an import unused in a project linted by ruff or flake8), then only the facade, which
  * names exactly the plan's new files and, across its statements per file, exactly that file's moved names, each as
  * `name as name` (facade statements an earlier split left are ignored). A new file: every `__future__` statement of the
  * original, and otherwise only filtered copies of leading-block statements, whole copies of compound ones, and imports of
@@ -22,7 +24,8 @@ export function pyImportProblems(before: ParsedFile, after: ParsedFile, files: r
 	const now = after.info as PyFileInfo;
 	const text = (file: ParsedFile, item: PyLead) => file.text.subarray(item.start, item.end).toString('utf8');
 	const problems: string[] = [];
-	const oldLead = was.facts.lead.filter((_, i) => !was.facade.includes(i)).map(item => text(before, item));
+	const suffixes = pyLineSuffixes(before, after);
+	const oldLead = was.facts.lead.filter((_, i) => !was.facade.includes(i)).map(item => suffixed(before.text, item.start, item.end, suffixes));
 	const kept = now.facts.lead.filter((_, i) => !now.facade.includes(i)).map(item => text(after, item));
 	if (kept.length !== oldLead.length || kept.some((t, i) => t !== oldLead[i])) { problems.push(`Rule 2: the leading imports of ${was.path} changed.`); }
 	const stems = files.map(f => stem(f.info.path));
