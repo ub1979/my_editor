@@ -5,8 +5,8 @@ import { CheckResult, failureLines, runBaseline, runSetup } from './baseline';
 import { fixTip } from './branchTip';
 import { findCandidates } from './fixCandidates';
 import { pickFixes, skippedWithLines } from './fixPicker';
-import { screenFix, screenQueue } from './fixScreen';
-import { logDir, RunState, saveState } from './fixState';
+import { needingRefactor, screenFix, screenQueue } from './fixScreen';
+import { type FixChoice, logDir, RunState, saveState } from './fixState';
 import { alreadyFailingText, approvalDetail, behindText, earlyText, timeoutMinutes } from './fixText';
 import type { LanguageAdapter } from './language';
 import { runCommand, tail } from './projectCommands';
@@ -107,9 +107,11 @@ export async function startRun(env: CommandEnv, adapter: (root: string, tracked:
 		const failing = Object.entries(outcome.baseline).filter(([, [first]]) => first.code !== 0).map(([command]) => command);
 		if (failing.length) { sink.text(alreadyFailingText(failing)); }
 		sink.progress('Finding fixes nothing here can check…');
-		// Splits that need a real refactor are settled here too, so the change note lists them; they use none of the budget.
-		const queue = await screenQueue([...refactor, ...picked], fix => screenFix(inWorktree, worktree.path, outcome.baseline, fix),
-			() => token.isCancellationRequested);
+		const screen = (fix: FixChoice) => screenFix(inWorktree, worktree.path, outcome.baseline, fix);
+		const cancelled = () => token.isCancellationRequested;
+		// Splits that need a real refactor are settled here too, picked or not, so the change note lists them; they use none of the budget.
+		const later = await needingRefactor(found.unparsed.filter(fix => !picked.some(p => p.file === fix.file && p.kind === fix.kind)), screen, cancelled);
+		const queue = await screenQueue([...refactor, ...later, ...picked], screen, cancelled);
 		if (queue === 'stopped') { return await discardUnstarted(root, worktree, sink, 'Stopped before any fix.'); }
 		sink.text(earlyText(queue.early));
 		const state: RunState = {

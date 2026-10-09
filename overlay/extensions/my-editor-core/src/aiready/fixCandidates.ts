@@ -18,6 +18,8 @@ export interface Candidates {
 	readonly choices: FixChoice[];
 	/** Splits that need a real refactor: never offered, settled before any work and listed as still over the limit. */
 	readonly refactor: FixChoice[];
+	/** Offered splits of files new or changed on the branch, which only its working copy can parse. */
+	readonly unparsed: FixChoice[];
 	/** Files never split, with the reason. */
 	readonly skipped: Map<string, string>;
 	readonly stats: FileStats[];
@@ -54,5 +56,7 @@ export async function findCandidates(root: string, factory: AdapterFactory, canc
 	}
 	const all = fixChoices(findings, stats, local.extensions, skipped, narrowed).filter(choice => offers(choice.kind));
 	const refactors = (choice: FixChoice) => choice.kind === 'split' && refactor.has(choice.file);
-	return { local, tip: source.tip, choices: all.filter(c => !refactors(c)), refactor: all.filter(refactors), skipped, stats };
+	const choices = all.filter(c => !refactors(c));
+	const unparsed = choices.filter(c => c.kind === 'split' && source.changed.has(c.file));
+	return { local, tip: source.tip, choices, refactor: all.filter(refactors), unparsed, skipped, stats };
 }

@@ -80,6 +80,7 @@ test('a second run offers the files still over the limit on ai_fix, not the ones
 	assert.ok(found);
 	assert.deepEqual(found.choices.map(c => `${c.file} ${c.lines}`), ['c.go 450', 'd.go 420', 'b_big.go 410']);
 	assert.deepEqual(found.refactor.map(c => c.file), ['solo.go']);
+	assert.deepEqual(found.unparsed.map(c => c.file), ['b_big.go']);
 	assert.deepEqual(parsed.sort(), ['c.go', 'd.go', 'solo.go'], 'files that differ on ai_fix are screened later, in its working copy');
 	assert.equal(found.tip, git('rev-parse', 'ai_fix'));
 	rmSync(root, { recursive: true, force: true });

@@ -88,3 +88,14 @@ export async function screenQueue(fixes: readonly FixChoice[], screen: (fix: Fix
 	}
 	return { fixes: [...settled, ...rest], early };
 }
+
+/** The fixes screening settles as needing a real refactor: the change note lists them even when nobody picked them. */
+export async function needingRefactor(fixes: readonly FixChoice[], screen: (fix: FixChoice) => Promise<EarlyOutcome | undefined>,
+	cancelled: () => boolean): Promise<FixChoice[]> {
+	const found: FixChoice[] = [];
+	for (const fix of fixes) {
+		if (cancelled()) { break; }
+		if ((await screen(fix))?.step.over?.length) { found.push(fix); }
+	}
+	return found;
+}

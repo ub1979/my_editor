@@ -4,7 +4,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { test } from 'node:test';
 import { renderChangeNote } from '../src/aiready/changeNote';
-import { screenFix, type Screener } from '../src/aiready/fixScreen';
+import { needingRefactor, screenFix, type Screener } from '../src/aiready/fixScreen';
 import type { RunState } from '../src/aiready/fixState';
 import type { Declaration, FileInfo, LanguageAdapter, SplitPlan } from '../src/aiready/language';
 import { planProblems } from '../src/aiready/splitPlan';
@@ -49,6 +49,16 @@ test('screening settles a needs-refactor split before any model call or check, w
 		reason: 'Needs a real refactor: `StepVerification` is 452 lines by itself.', over: [{ file: STEP.path, lines: 467, reason: STEP_REASON }] });
 	assert.equal(early?.brief, STEP_REASON);
 	assert.equal(early?.unchecked, false);
+});
+
+test('of the fixes nobody picked, only the ones that need a real refactor are kept for the change note', async () => {
+	const root = mkdtempSync(path.join(os.tmpdir(), 'my-editor-refactor-'));
+	const infos: Record<string, FileInfo> = { 'step.go': STEP, 'mixed.go': MIXED };
+	const adapter: Screener = { checks: () => [], parse: async file => infos[file], testFileName: file => file };
+	const fixes = [{ file: 'mixed.go', kind: 'split' as const, lines: 725 }, { file: 'step.go', kind: 'split' as const, lines: 467 }];
+	const kept = await needingRefactor(fixes, fix => screenFix(adapter, root, {}, fix), () => false);
+	assert.deepEqual(kept, [fixes[1]]);
+	assert.deepEqual(await needingRefactor(fixes, fix => screenFix(adapter, root, {}, fix), () => true), []);
 });
 
 test('the change note lists a needs-refactor file under Still over 400 lines, not as skipped', () => {
