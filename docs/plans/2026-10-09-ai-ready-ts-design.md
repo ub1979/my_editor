@@ -16,11 +16,13 @@ Where the safe choice is unclear, version 1 refuses or skips.
 | TS compiled to ES modules and checked by `tsc`: `module` and `moduleResolution` set, no transform tool, nothing runs the code as CommonJS | Functions, interfaces and type aliases; classes, `const`/`let`/`var` and enums whose definition-time code is pure (see *What may move*) |
 | TS that runs as CommonJS anywhere: `module: commonjs`, a `.cts` file, a CommonJS package under `node16`/`nodenext`, or tests under Jest | Interfaces and type aliases only |
 | A transform tool configured or installed: Babel, swc, esbuild `tsconfigRaw`, Sucrase, Metro, `tsx`, `esbuild-register`, `ts-node` with swc | Interfaces and type aliases only |
+| TS run without a compile step: Node's type stripping (a script runs `node` on a `.ts`/`.mts` file, `--experimental-strip-types`/`--experimental-transform-types`, or tsconfig `erasableSyntaxOnly`), Bun (`bun.lock`, `bun.lockb`, `bunfig.toml`) or Deno (`deno.json`, `deno.jsonc`) | Interfaces and type aliases only |
 | Plain JS as ES modules run natively (`.mjs` or `"type": "module"`), no Jest, no transform tool, no JSX | Function declarations only |
 | CommonJS source, other plain JS, a tsconfig without `module` or `moduleResolution` | Nothing; the files are skipped with the reason |
 
-A types-only move changes no emitted JavaScript: the facade is `export type … from`, and nothing loads the new
-files at run time.
+A types-only move changes no emitted JavaScript of the original, under both the elision and the verbatim reading of
+imports: the facade is `export type … from`, the original drops only unused specifiers written as types and never
+empties a declaration (see *The original*), and nothing loads the new files at run time.
 
 ## Goal
 
@@ -165,7 +167,8 @@ initializers. Function bodies, methods, instance fields and parameter defaults r
 
 - literals (string, number, bigint, boolean, `null`, regex) and templates without substitutions;
 - function, arrow and class expressions (a class expression's own definition-time code must be pure);
-- identifier reads;
+- reads of module-scope bindings (this file's imports and top-level declarations), and of `undefined`, `NaN` and
+  `Infinity`. Other global reads (`window`, `process`, `Error`) are not pure: a global can be an accessor;
 - array literals and object literals of the above, with plain keys (identifiers, strings, numbers), no spread, no
   computed keys, no getters or setters;
 - `new Map()`, `new Set()`, `new WeakMap()` and `new WeakSet()` with no arguments, when the name is the global one.
@@ -261,15 +264,20 @@ original's import of the `jsxFactory`/`jsxFragmentFactory` root name (`React` by
 `preserve` and no tsconfig are refused (above).
 
 **The original** keeps everything else byte for byte, minus the moved spans (blank lines around a removed span collapse
-to one, as in Go). Its import block changes in exactly three ways:
+to one, as in Go). Its import block changes only in these ways:
 
-1. A specifier that nothing left in the original uses is removed, unless that changes when its module loads (next
-   rule). Side-effect imports always stay.
-2. **Load order is kept.** If a declaration loaded its module at run time before the split and would not after, it
-   becomes a side-effect import of the same specifier (`import { z } from 'zod';` becomes `import 'zod';`). The
-   module still first loads at the same place in the original's import order. If only some specifiers remain and
-   they no longer load the module (only type uses left, under elision), the plan is rejected.
-3. **The facade block** follows the last import (or, with no imports, comes before the first statement, after any
+1. **Only specifiers written as types may be dropped.** A specifier in an `import type …` declaration, or written
+   `type T` inline, is dropped when nothing left uses it, except that a declaration without `import type` is never
+   emptied: if every specifier in it would go, it stays byte-identical (under `verbatimModuleSyntax`
+   `import { type T } from 'm'` still loads `m`, under elision it does not, so neither change is safe for both).
+2. **A specifier with no value use before the split stays byte-identical**, even if nothing uses it after. If the
+   project has `noUnusedLocals`, `tsc` then fails differently from the baseline and the step is skipped.
+3. **Load order is kept.** A specifier whose last value use moved is removed. If it was the declaration's last
+   specifier, the declaration becomes a side-effect import of the same specifier (`import { z } from 'zod';` becomes
+   `import 'zod';`): the declaration loaded its module before under both readings, and still does, at the same place
+   in the original's import order. If other specifiers remain, the plan is rejected, because under elision they may no
+   longer load the module. Side-effect imports always stay.
+4. **The facade block** follows the last import (or, with no imports, comes before the first statement, after any
    `'use strict'`), then a blank line. Per new file: `import { … }` for moved names the original's staying code uses
    (`import type` when the name has no value meaning), then `export { … } from` for moved names that were exported by
    their own keyword, then `export type { … } from` for those that are types only:
@@ -336,8 +344,9 @@ Rules 1, 3 and 5 are the language-neutral ones on byte spans. Rule 2 and rule 4 
 
 1. Each moved span appears byte-identical in exactly the new file the plan names.
 2. The original equals its old bytes minus the moved spans (blank lines may collapse). Its import block is checked by
-   the adapter (`importProblems`): every old import declaration is unchanged, lost only unused specifiers, or became a
-   side-effect import under the load-order rule; the only added lines are the facade block, and it names only the
+   the adapter (`importProblems`): every old import declaration is unchanged, lost only unused specifiers written as types
+   (never all of them unless it is `import type`) or specifiers whose last value use moved, or became a side-effect
+   import under the load-order rule; the only added lines are the facade block, and it names only the
    plan's new files. Each new file's imports must be a filtered copy of an original import declaration, an import of
    a sibling new file, or `import type` from the original.
 3. A new file holds only its header comment, import lines and moved spans.
@@ -389,9 +398,11 @@ may have changed; otherwise stop with a plain message.
 
 The change note says exactly what was shown, and no more.
 
-**Types-only moves** (interfaces and type aliases). The emitted JavaScript of every file is the same: the facade is
-`export type … from`, the new files are reached only through erased imports, and the load-order rule keeps every
-module load in place. Shown by: the move check and `tsc`.
+**Types-only moves** (interfaces and type aliases). The original's emitted JavaScript is the same under both the
+elision and the verbatim reading: the facade is `export type … from`; the only specifiers dropped are written as
+types, from declarations that are `import type` (erased either way) or that keep another specifier (so they load, or
+not, exactly as before); no value use moves. The new files are reached only through erased imports, so they never
+run. Shown by: the move check and `tsc`.
 
 **Run-time moves** (ES module output, `tsc` only, no transform tool, not under Jest). Shown by the move check, `tsc`
 and the tests:
@@ -401,8 +412,10 @@ and the tests:
 - every module the original imported first loads at the same place in its import order;
 - moved definitions run after all the original's imports and before its body. With pure definition-time code, a quiet
   window, same-file order for reads between moved names, and no cycle, no code runs between their old and new place;
-- ES module re-exports are live bindings, and namespace objects are sorted and frozen, so `instanceof`, singletons,
-  `Object.keys(ns)` and assignment behave as before;
+- in production module objects (Node's ES modules, browsers, standard bundler output), re-exports are live bindings
+  and namespace objects are sorted and frozen, so `instanceof`, singletons, `Object.keys(ns)` and assignment behave as
+  before. Vitest and vite-node build their own module objects, whose keys and descriptors may differ; a test that
+  inspects them is guarded only by the test comparison;
 - each new module is imported only by the original and its siblings, each with one specifier, so it has one instance
   per instance of the original.
 
@@ -475,7 +488,7 @@ Pure unit tests, with the dev-dependency TypeScript and, when `MY_EDITOR_TS` is 
   `Symbol('s')`, `Object.freeze({})` and `f()` are not.
 - **Movability:** a function after `init();` moves; a `const` after `init();` does not (quiet window); a class with a
   decorator, a static block calling code, or `extends mixin(B)` does not; `extends Base` with `Base` an import after
-  quiet statements does; `const B = A` with `A` later in the file, or in another new file, is rejected; a `let`, a
+  quiet statements does; `extends Error` and `const x = window` (global reads) do not; `const B = A` with `A` later in the file, or in another new file, is rejected; a `let`, a
   function or a class assigned elsewhere does not move; a literal enum moves, a computed one and a `const enum` do
   not; merged declarations, `declare const`, `declare global` and a namespace do not; `import.meta.url`,
   `__filename`, top-level `this`, and `this` or `arguments` inside a top-level arrow (also nested arrows) refuse;
@@ -496,10 +509,11 @@ Pure unit tests, with the dev-dependency TypeScript and, when `MY_EDITOR_TS` is 
   in a staying `export { I }` list is rejected.
 - **Imports:** filtered specifiers keep `as`, `type`, default, namespace, attributes, quotes and semicolons; side-effect
   imports stay only in the original; classic JSX copies `React`, `react-jsx` does not.
-- **The original's import block:** an unused specifier is removed; a fully unused value import becomes `import 'm'`;
-  a type-only import with no uses left is removed under elision and becomes `import 'm'` under
-  `verbatimModuleSyntax`, `importsNotUsedAsValues` or `preserveValueImports` unless it was `import type`; the partial
-  case that would stop loading `m` is rejected; the facade has separate value and type lines; `export default
+- **The original's import block:** an unused `import type` specifier and an unused inline `type T` are dropped; the
+  last inline `type T` of a plain `import { … }` is kept byte-identical; a specifier with no value use before stays
+  byte-identical (and `noUnusedLocals` then skips the step through the build comparison); a declaration whose last
+  specifier lost its last value use becomes `import 'm'`; one whose other specifiers remain is rejected; a types-only
+  move leaves the original's emitted JavaScript identical under both `verbatimModuleSyntax` and elision; the facade has separate value and type lines; `export default
   function` re-exports as `default`; a file with no imports gets its facade after `'use strict'`.
 - **Specifiers:** copies `.js`, `.ts` or none from the original; `.mts` maps to `.mjs` and `.cts` to `.cjs`; falls back
   to siblings that agree; rejects when there is nothing to copy or siblings disagree; a specifier that does not resolve
