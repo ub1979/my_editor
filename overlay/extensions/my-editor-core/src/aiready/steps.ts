@@ -16,7 +16,7 @@ export interface StepContext {
 	readonly worktree: string;
 	readonly ask: (system: string, text: string) => Promise<string>;
 	/** Runs one approved command in the worktree and parses its output. */
-	readonly check: (command: string, label: string) => Promise<CheckResult>;
+	readonly check: (command: string, label: string, env?: Readonly<Record<string, string>>) => Promise<CheckResult>;
 	readonly baseline: Readonly<Record<string, readonly [CheckResult, CheckResult]>>;
 	readonly flaky: readonly string[];
 	readonly cancelled: () => boolean;
@@ -39,7 +39,7 @@ async function runChecks(ctx: StepContext, file: string, allowNew: readonly stri
 	const newFailing: string[] = [];
 	for (const check of ctx.adapter.checks(file).filter(c => !only || c.label === only)) {
 		ctx.progress(`Running \`${check.command}\`…`);
-		const result = await ctx.check(check.command, check.label);
+		const result = await ctx.check(check.command, check.label, check.env);
 		if (ctx.cancelled()) { return { results, problems: [], newFailing, stopped: true }; }
 		const baseline = ctx.baseline[check.command];
 		if (!baseline) { return { results, problems: [`No baseline for \`${check.command}\`.`], newFailing, stopped: false }; }
@@ -141,7 +141,10 @@ async function checkSplit(ctx: StepContext, file: string, newFiles: readonly str
 	const files = await Promise.all(newFiles.map(read));
 	const unitAfter = await Promise.all((await adapter.unitFiles(file)).map(name => adapter.parse(name)));
 	const problems = [
-		...checkMove({ before: { text: facts.source, info: facts.info }, after, files, plan: facts.plan, header: adapter.splitHeader(file), importProblems: adapter.importProblems }),
+		...checkMove({
+			before: { text: facts.source, info: facts.info }, after, files, plan: facts.plan, header: adapter.splitHeader(file),
+			importProblems: adapter.importProblems, blankLines: adapter.blankLines,
+		}),
 		...adapter.sameDeclarations(facts.unitBefore, unitAfter),
 	];
 	const other = (await changedFiles(worktree)).filter(name => name !== file);

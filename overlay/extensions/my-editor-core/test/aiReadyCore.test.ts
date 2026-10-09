@@ -92,7 +92,7 @@ test('setup runs once before the baseline: a failed install or a changed tracked
 	assert.match(await runSetup(install, runner(0), async () => ['src/gen.ts'], () => undefined) ?? '', /changed tracked files: src\/gen\.ts/);
 	assert.match(await runSetup(install, runner(0), async () => [], () => 'pkg-a resolves outside the working copy') ?? '', /pkg-a resolves outside/);
 	assert.equal(await runSetup(install, { ...runner(0), cancelled: () => true }, async () => [], () => undefined), 'stopped');
-	assert.equal(await runSetup([], runner(1), async () => ['x'], () => 'no'), undefined);
+	assert.equal(await runSetup([], runner(1), async () => ['x'], () => 'no'), 'no');
 });
 
 test('the approval modal says what an install does: registry, install scripts, repository config, and a command chosen by my_editor', () => {

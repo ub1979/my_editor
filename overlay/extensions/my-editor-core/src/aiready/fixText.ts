@@ -22,13 +22,13 @@ function installText(command: string): string {
 		+ '.pnpmfile.cjs can also run code during the install. ';
 }
 
-/** The approval modal's detail: where the commands run, the exact commands, and what they run. */
-export function approvalDetail(folder: string, approved: readonly string[], language: string, fixCount = 0, installs = false): string {
+/** The approval modal's detail: where the commands run, the exact commands, what they run, and the adapter's note. */
+export function approvalDetail(folder: string, approved: readonly string[], language: string, fixCount = 0, installs = false, note = ''): string {
 	const over = fixCount > MAX_FIXES_PER_RUN ? `${fixCount} fixes chosen: ${MAX_FIXES_PER_RUN} now; Continue does the rest.\n\n` : '';
 	return `${over}In a new working copy at ${folder}, on a new branch:\n\n${approved.join('\n')}\n\n`
 		+ (installs ? installText(approved[0]) : '')
 		+ `${installs ? 'The others' : 'They'} build the project and run its tests, which runs project code and tests written by the AI model. `
-		+ `my_editor also runs read-only ${language} tools (to list packages and check formatting) and local git commands there. `
+		+ `my_editor also runs read-only ${language} tools (to list packages and check formatting) and local git commands there. ${note}`
 		+ 'Your files and your branch stay as they are until the end, when the health report in .my_editor/ai-ready/ is updated. Nothing is pushed.';
 }
 

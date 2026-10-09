@@ -11,6 +11,8 @@ export interface MoveCheckInput {
 	readonly header: string;
 	/** The adapter's own import check (`LanguageAdapter.importProblems`); replaces the generic import-key checks. */
 	readonly importProblems?: (before: ParsedFile, after: ParsedFile, files: readonly ParsedFile[]) => string[];
+	/** How blank lines around a removed span collapse (`LanguageAdapter.blankLines`); one by default. */
+	readonly blankLines?: 'one' | 'longest';
 }
 
 const IMPORTS = '\u0000imports';
@@ -18,9 +20,10 @@ const IMPORTS = '\u0000imports';
 /**
  * Move rules 1–3, on byte spans and without AI. 1: each moved span is byte-identical to a declaration in exactly the
  * new file the plan names. 2: the original equals its old bytes minus the moved spans, with only import specs removed
- * and blank lines around removed spans collapsed to one. 3: a new file holds only its frame (header comment, package
- * clause, imports) and its moved spans; the bytes before its package clause are exactly the header (no build or
- * `//go:debug` line), and its imports are some of the original's, none blank. Empty means pass.
+ * and blank lines around removed spans collapsed to one (or, with `longest`, to the longer bordering run, at most two).
+ * 3: a new file holds only its frame (header comment, package clause, imports) and its moved spans; the bytes before
+ * its package clause are exactly the header (no build or `//go:debug` line), and its imports are some of the
+ * original's, none blank. Empty means pass.
  */
 export function checkMove(input: MoveCheckInput): string[] {
 	const problems: string[] = [];
@@ -46,7 +49,7 @@ export function checkMove(input: MoveCheckInput): string[] {
 		}
 	});
 	const moved = plan.flatMap(group => group.declarations.map(id => byId.get(id)!.span));
-	const expected = afterImports(collapse(marked(before, moved, !!after.info.importRegion)));
+	const expected = afterImports(collapse(marked(before, moved, !!after.info.importRegion), input.blankLines));
 	const actual = afterImports(marked(after, [], true).map(item => item ?? ''));
 	if (expected.length !== actual.length || expected.some((line, i) => line !== actual[i])) {
 		const at = expected.findIndex((line, i) => line !== actual[i]);
@@ -115,20 +118,24 @@ function afterImports(items: readonly string[]): string[] {
 	return out;
 }
 
-/** Each run of blank lines and gaps that holds a gap becomes one blank line if it held a blank line, else nothing; at the end, nothing. */
-function collapse(items: readonly (string | undefined)[]): string[] {
+/**
+ * Each run of blank lines and gaps that holds a gap becomes one blank line if it held a blank line, else nothing; with
+ * `longest`, as many blank lines as its longest unbroken stretch of them, at most two. At the end, nothing.
+ */
+export function collapse(items: readonly (string | undefined)[], mode: 'one' | 'longest' = 'one'): string[] {
 	const out: string[] = [];
 	for (let i = 0; i < items.length;) {
 		if (items[i] !== undefined && items[i]!.trim() !== '') { out.push(items[i]!); i++; continue; }
 		let j = i;
 		let gap = false;
-		let blank = false;
-		while (j < items.length && (items[j] === undefined || items[j]!.trim() === '')) {
-			if (items[j] === undefined) { gap = true; } else { blank = true; }
-			j++;
+		let longest = 0;
+		for (let stretch = 0; j < items.length && (items[j] === undefined || items[j]!.trim() === ''); j++) {
+			stretch = items[j] === undefined ? 0 : stretch + 1;
+			gap ||= items[j] === undefined;
+			longest = Math.max(longest, stretch);
 		}
 		if (!gap) { out.push(...(items.slice(i, j) as string[])); }
-		else if (blank && j < items.length) { out.push(''); }
+		else if (longest && j < items.length) { out.push(...Array<string>(mode === 'longest' ? Math.min(longest, 2) : 1).fill('')); }
 		i = j;
 	}
 	return out;

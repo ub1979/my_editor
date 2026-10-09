@@ -23,9 +23,12 @@ export interface CheckResult {
 	readonly timedOut?: boolean;
 }
 
-const POSITION = /^(?:\.{0,2}\/)?[^\s:(]+\.\w+(?::\d+(?::\d+)?:|\(\d+,\d+\):)\s*/;
+const POSITION = /^(?:\.{0,2}\/)?[^\s:(]+\.\w+(?::\d+:\d+ -|:\d+(?::\d+)?:|\(\d+,\d+\):)\s*/;
 
-/** Non-empty output lines with leading `file:line:col:` (Go) or `file(line,col):` (tsc) positions removed, sorted and unique. */
+/**
+ * Non-empty output lines with leading `file:line:col:` (Go, mypy), `file:line:col -` (pyright) or `file(line,col):` (tsc)
+ * positions removed, sorted and unique.
+ */
 export function failureLines(output: string): string[] {
 	return [...new Set(output.split(/\r?\n/).map(line => line.trim().replace(POSITION, '')).filter(Boolean))].sort();
 }
@@ -154,7 +157,8 @@ export function noVerifyingCheck(checks: readonly CheckCommand[], baseline: Base
 
 /** What recording a baseline needs from the run. */
 export interface BaselineRunner {
-	readonly check: (command: string, label: string) => Promise<CheckResult>;
+	/** `env` is the check's own `CheckCommand.env`, set over the adapter's `commandEnv`. */
+	readonly check: (command: string, label: string, env?: Readonly<Record<string, string>>) => Promise<CheckResult>;
 	readonly cancelled: () => boolean;
 	readonly progress: (text: string) => void;
 }
@@ -162,12 +166,12 @@ export interface BaselineRunner {
 /**
  * Runs the adapter's setup commands (an install) once in the new worktree. Undefined when it is ready; else a plain
  * message (a command failed, tracked files changed, or `ready` names a problem), or 'stopped'. With `installed`, what
- * the commands made is still in place (Continue): they do not run again, and only `ready` is asked.
+ * the commands made is still in place (Continue): they do not run again, and only `ready` is asked; so it is with no
+ * commands at all (Python installs nothing but still checks where imports resolve).
  */
 export async function runSetup(commands: readonly CheckCommand[], runner: BaselineRunner, changed: () => Promise<string[]>,
 	ready: () => string | undefined, installed = false): Promise<string | 'stopped' | undefined> {
-	if (!commands.length) { return undefined; }
-	if (installed) { return ready(); }
+	if (!commands.length || installed) { return ready(); }
 	for (const { command, label } of commands) {
 		runner.progress(`Preparing the working copy: \`${command}\`…`);
 		const result = await runner.check(command, label);
@@ -193,11 +197,11 @@ export type BaselineOutcome =
  */
 export async function runBaseline(checks: readonly CheckCommand[], runner: BaselineRunner): Promise<BaselineOutcome> {
 	const baseline: Record<string, readonly [CheckResult, CheckResult]> = {};
-	for (const { command, label } of checks) {
+	for (const { command, label, env } of checks) {
 		const runs: CheckResult[] = [];
 		for (const round of [1, 2]) {
 			runner.progress(`Baseline ${round} of 2: \`${command}\`…`);
-			const result = await runner.check(command, label);
+			const result = await runner.check(command, label, env);
 			if (runner.cancelled()) { return { stopped: true }; }
 			if (result.code === undefined) {
 				return {

@@ -82,6 +82,8 @@ export interface CheckCommand {
 	readonly command: string;
 	/** Compiles the file's unit on its own; a split needs at least one of these to pass before the run. */
 	readonly verifies?: boolean;
+	/** Set for this command only, over the adapter's `commandEnv` (Python: the import check's helper folder on PYTHONPATH). */
+	readonly env?: Readonly<Record<string, string>>;
 }
 
 export interface Prompt {
@@ -109,6 +111,12 @@ export interface LanguageAdapter {
 	readonly extensions: readonly string[];
 	/** Set for every approved command (Go: `GOTOOLCHAIN=local`, no GOFLAGS). */
 	readonly commandEnv?: Readonly<Record<string, string>>;
+	/** How blank lines around a removed span collapse: to one (the default), or to the longer bordering run, at most two (Python). */
+	readonly blankLines?: 'one' | 'longest';
+	/** Said in the approval modal before anything runs (Python: the interpreter, its version and `sys.prefix`). */
+	readonly approvalNote?: string;
+	/** Which output `parseTests` reads: stdout (the default), or stdout and stderr together (Python: unittest reports on stderr). */
+	readonly testOutput?: 'stdout' | 'both';
 	/** Parse one file, with each declaration's movability and the file's skip reason. */
 	parse(file: string): Promise<FileInfo>;
 	/** The fix kinds it offers; both when absent. */

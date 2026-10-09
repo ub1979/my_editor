@@ -89,7 +89,7 @@ async function runFixes(env: CommandEnv, state: RunState, adapter: LanguageAdapt
 	const worktree = state.worktree.path;
 	const ctx: StepContext = {
 		adapter, worktree, ask: askModel, baseline: state.baseline, flaky: runFlaky(state),
-		check: (command, label) => runCheck(env, adapter, worktree, state.approved, command, label),
+		check: (command, label, extra) => runCheck(env, adapter, worktree, state.approved, command, label, extra),
 		cancelled: () => token.isCancellationRequested,
 		progress: text => sink.progress(text),
 	};

@@ -25,10 +25,12 @@ const GRACE_MS = 5_000;
 
 /**
  * Finds a tool without a shell: PATH first, then the usual install folders, because apps started from the Dock get a
- * shorter PATH than the user's terminal. Language adapters pass their own install folders.
+ * shorter PATH than the user's terminal. Language adapters pass their own install folders; `firstPath` (a command env's
+ * PATH) is searched before the process's.
  */
-export function findTool(name: string, extraDirs: readonly string[] = []): string | undefined {
-	const dirs = [...(process.env.PATH ?? '').split(path.delimiter).filter(Boolean), '/opt/homebrew/bin', '/usr/local/bin', '/usr/bin', ...extraDirs];
+export function findTool(name: string, extraDirs: readonly string[] = [], firstPath = ''): string | undefined {
+	const dirs = [...`${firstPath}${path.delimiter}${process.env.PATH ?? ''}`.split(path.delimiter).filter(Boolean), '/opt/homebrew/bin', '/usr/local/bin',
+		'/usr/bin', ...extraDirs];
 	return dirs.map(dir => path.join(dir, name)).find(file => {
 		try { accessSync(file, constants.X_OK); return true; } catch { return false; }
 	});
@@ -74,7 +76,7 @@ export function runCommand(text: string, options: RunOptions): Promise<CommandOu
 	if (!options.approved.includes(text) || !parts) {
 		return Promise.resolve({ code: undefined, stdout: '', output: '', timedOut: false, error: `Refused a command that was not approved: ${text}` });
 	}
-	const bin = path.isAbsolute(parts.bin) ? parts.bin : findTool(parts.bin);
+	const bin = path.isAbsolute(parts.bin) ? parts.bin : findTool(parts.bin, [], options.env?.PATH);
 	if (!bin) { return Promise.resolve({ code: undefined, stdout: '', output: '', timedOut: false, error: `${parts.bin} was not found.` }); }
 	try { mkdirSync(path.dirname(options.logFile), { recursive: true }); }
 	catch (error) {

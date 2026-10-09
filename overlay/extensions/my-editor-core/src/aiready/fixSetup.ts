@@ -25,15 +25,17 @@ function timeoutMs(): number {
 	return timeoutMinutes(vscode.workspace.getConfiguration('myEditor').get<unknown>('aiReady.commandTimeoutMinutes')) * 60_000;
 }
 
-/** Runs one approved command in the worktree, logs its full output in run state, and parses it. */
+/** Runs one approved command in the worktree (with its own `extra` env over the adapter's), logs its full output in run state, and parses it. */
 export async function runCheck(env: CommandEnv, adapter: LanguageAdapter, worktree: string, approved: readonly string[],
-	command: string, label: string): Promise<CheckResult> {
+	command: string, label: string, extra?: Readonly<Record<string, string>>): Promise<CheckResult> {
 	const log = path.join(logDir(env.storage, env.root), `${Date.now()}-${label}.log`);
-	const output = await runCommand(command, { cwd: worktree, approved, timeoutMs: timeoutMs(), logFile: log, cancel: env.token, env: adapter.commandEnv });
+	const output = await runCommand(command, {
+		cwd: worktree, approved, timeoutMs: timeoutMs(), logFile: log, cancel: env.token, env: { ...adapter.commandEnv, ...extra },
+	});
 	return {
 		command, label, code: output.code, timedOut: output.timedOut, log,
 		failures: label === 'test' ? [] : failureLines(output.error ?? output.output).slice(0, MAX_FAILURE_LINES),
-		tests: label === 'test' && output.code !== undefined ? adapter.parseTests(output.stdout) : undefined,
+		tests: label === 'test' && output.code !== undefined ? adapter.parseTests(adapter.testOutput === 'both' ? output.output : output.stdout) : undefined,
 		tail: tail(output.error ?? output.output),
 	};
 }
@@ -98,7 +100,7 @@ export async function startRun(env: CommandEnv, adapter: (root: string, tracked:
 	const approved = [...setup, ...checks].map(check => check.command);
 	const folder = freeFolder(root);
 	const answer = await vscode.window.showWarningMessage('Run these commands on a new local branch?',
-		{ modal: true, detail: approvalDetail(folder, approved, local.label, picked.length, setup.length > 0) }, 'Run them');
+		{ modal: true, detail: approvalDetail(folder, approved, local.label, picked.length, setup.length > 0, local.approvalNote) }, 'Run them');
 	if (answer !== 'Run them') { sink.text('The commands were not approved, so nothing changed.'); return undefined; }
 	const limits = [...new Set(picked.filter(fix => fix.kind === 'split' && fix.narrowed).map(fix => fix.narrowed!))];
 	const worktree = await prepare(root, folder);
@@ -110,7 +112,7 @@ export async function startRun(env: CommandEnv, adapter: (root: string, tracked:
 		const ready = await prepareWorktree(env, inWorktree, worktree.path, approved, sink);
 		if (ready) { return await discardUnstarted(root, worktree, sink, ready === 'stopped' ? 'Stopped before any fix.' : ready); }
 		const outcome = await runBaseline(checks, {
-			check: (command, label) => runCheck(env, inWorktree, worktree.path, approved, command, label),
+			check: (command, label, extra) => runCheck(env, inWorktree, worktree.path, approved, command, label, extra),
 			cancelled: () => token.isCancellationRequested,
 			progress: text => sink.progress(text),
 		});
