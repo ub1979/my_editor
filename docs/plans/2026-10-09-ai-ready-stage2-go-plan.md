@@ -3840,7 +3840,7 @@ const lines = p => fs.readFileSync(path.join(root, p), 'utf8').split('\n').lengt
 	result.files.forEach((f, i) => fs.writeFileSync(path.join(root, newPaths[i]), f.text));
 	const read = async p => ({ text: fs.readFileSync(path.join(root, p)), info: await go.parse(p) });
 	const unitAfter = await Promise.all((await go.unitFiles(file)).map(f => go.parse(f)));
-	const moveProblems = [...checkMove({ before: { text: source, info }, after: await read(file), files: await Promise.all(newPaths.map(read)), plan: ids }),
+	const moveProblems = [...checkMove({ before: { text: source, info }, after: await read(file), files: await Promise.all(newPaths.map(read)), plan: ids, header: go.splitHeader(file) }),
 		...go.sameDeclarations(unitBefore, unitAfter)];
 	console.log('move check:', moveProblems.length ? moveProblems : 'pass');
 	console.log(`gofmt-clean before: ${formatted}; files gofmt would change after: ${JSON.stringify(await go.unformatted([file, ...newPaths]))}`);
@@ -3882,7 +3882,7 @@ const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8'
 	const approved = checks.map(c => c.command);
 	let n = 0;
 	const check = async (command, label) => {
-		const out = await runCommand(command, { cwd: wt.path, approved, timeoutMs: 600_000, logFile: path.join(__dirname, 'logs', `${n++}-${label}.log`) });
+		const out = await runCommand(command, { cwd: wt.path, approved, timeoutMs: 600_000, env: adapter.commandEnv, logFile: path.join(__dirname, 'logs', `${n++}-${label}.log`) });
 		return { command, code: out.code, failures: label === 'test' ? [] : failureLines(out.output), tests: label === 'test' ? adapter.parseTests(out.stdout) : undefined, tail: tail(out.output), log: '' };
 	};
 	const baseline = {};
@@ -3960,8 +3960,10 @@ Expected:
 ```text
 worktree …/dialer.ai-ready on my_editor/ai-ready
 baseline `go build ./...`: exit 1
+baseline `go build -o /dev/null ./internal/store`: exit 0
 baseline `go vet ./internal/store`: exit 1
 baseline `go test -count=1 -json ./internal/store`: exit 1, 0 tests, packages {"github.com/lucky-ali/go-dialer/internal/store":"fail"}
+baseline `go build -o /dev/null ./internal/dncstate`: exit 0
 baseline `go vet ./internal/dncstate`: exit 0
 baseline `go test -count=1 -json ./internal/dncstate`: exit 0, 0 tests, packages {"github.com/lucky-ali/go-dialer/internal/dncstate":"skip"}
 split internal/store/placements.go: committed <sha>
