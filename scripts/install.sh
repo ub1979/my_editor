@@ -17,7 +17,7 @@ case "${1:-}" in
       fi
       dest="${APP}/Contents/Resources/app/extensions/${name}"
       mkdir -p "${dest}"
-      rsync -a --delete --exclude node_modules --exclude src --exclude '*.map' --exclude tsconfig.json "${ext}" "${dest}/"
+      rsync -a --delete --exclude node_modules --exclude __pycache__ --exclude src --exclude '*.map' --exclude tsconfig.json "${ext}" "${dest}/"
     done
     echo "Updated built-in extensions. Editor core patches require scripts/install.sh --full."
     ;;

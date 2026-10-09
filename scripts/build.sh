@@ -20,7 +20,7 @@ for ext in "${ROOT}"/overlay/extensions/*/; do
   fi
   dest="${ROOT}/vscodium/src/stable/extensions/${name}"
   mkdir -p "${dest}"
-  rsync -a --delete --exclude node_modules --exclude src --exclude '*.map' --exclude tsconfig.json "${ext}" "${dest}/"
+  rsync -a --delete --exclude node_modules --exclude __pycache__ --exclude src --exclude '*.map' --exclude tsconfig.json "${ext}" "${dest}/"
 done
 
 # --- 2. Resource overrides (app icon, empty-editor mark): overlay/src mirrors vscodium/src/stable
