@@ -1,8 +1,9 @@
-import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'fs';
+import { readdirSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import * as path from 'path';
 import { fileFromReply } from '../pair/codeBlock';
 import { sourceLines } from '../quality/sourcePolicy';
-import { CheckResult, checkSummary, compareWithBaseline, noVerifyingCheck, unverified } from './baseline';
+import { CheckResult, checkSummary, compareWithBaseline, unverified } from './baseline';
+import { screenParsed } from './fixScreen';
 import type { FixChoice, StepRecord } from './fixState';
 import type { FileInfo, LanguageAdapter, SplitPlan } from './language';
 import { checkMove } from './moveCheck';
@@ -66,11 +67,9 @@ export async function runSplit(ctx: StepContext, fix: FixChoice): Promise<StepOu
 	const done = (status: StepRecord['status'], reason: string): StepRecord =>
 		({ file: fix.file, kind: 'split', status, reason, ...(asked ? { plan: { attempts: asked, rejected } } : {}) });
 	const info = await adapter.parse(fix.file);
-	if (info.skip) { return done('skipped', `Never split: ${info.skip}.`); }
-	if (!info.declarations.some(d => d.movable)) { return done('refused', 'Nothing in it may move.'); }
+	const early = screenParsed(adapter, worktree, ctx.baseline, fix, info);
+	if (early) { return early.step; }
 	const dir = path.posix.dirname(fix.file);
-	const blocked = noVerifyingCheck(adapter.checks(fix.file), ctx.baseline, dir === '.' ? '.' : `./${dir}`);
-	if (blocked) { return done('skipped', blocked); }
 	const source = readFileSync(abs(fix.file));
 	const input = { source, info, existing: readdirSync(path.dirname(abs(fix.file))) };
 	const prompt = adapter.splitPrompt(info, sourceLines(source.toString('utf8')));
@@ -173,8 +172,8 @@ export async function runAddTests(ctx: StepContext, fix: FixChoice): Promise<Ste
 	const abs = (file: string) => path.join(worktree, file);
 	const done = (status: StepRecord['status'], reason: string): StepRecord => ({ file: fix.file, kind: 'tests', status, reason, testFile });
 	const info = await adapter.parse(fix.file);
-	if (info.skip) { return done('skipped', `No tests added: ${info.skip}.`); }
-	if (existsSync(abs(testFile))) { return done('skipped', `${testFile} already exists.`); }
+	const early = screenParsed(adapter, worktree, ctx.baseline, fix, info);
+	if (early) { return early.step; }
 	const prompt = adapter.testPrompt(fix.file, readFileSync(abs(fix.file), 'utf8'), info);
 	let feedback = '';
 	for (let attempt = 0; attempt < 2; attempt++) {

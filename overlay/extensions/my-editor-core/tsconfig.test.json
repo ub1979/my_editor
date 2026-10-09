@@ -65,6 +65,8 @@
     "src/aiready/worktree.ts",
     "src/aiready/fixState.ts",
     "src/aiready/fixPicker.ts",
+    "src/aiready/fixScreen.ts",
+    "src/aiready/fixQueue.ts",
     "src/aiready/changeNote.ts",
     "src/aiready/fixText.ts",
     "src/aiready/steps.ts",

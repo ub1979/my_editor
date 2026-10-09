@@ -4,8 +4,9 @@ import * as vscode from 'vscode';
 import type { Sink } from '../chat/engine';
 import { CheckResult, failureLines, runBaseline, runSetup } from './baseline';
 import { fixChoices, pickFixes, skippedWithLines } from './fixPicker';
+import { screenFix, screenQueue } from './fixScreen';
 import { logDir, RunState, saveState } from './fixState';
-import { alreadyFailingText, approvalDetail, timeoutMinutes } from './fixText';
+import { alreadyFailingText, approvalDetail, earlyText, timeoutMinutes } from './fixText';
 import { fileStats, scanHealth } from './health';
 import type { LanguageAdapter } from './language';
 import { runCommand, tail } from './projectCommands';
@@ -120,8 +121,13 @@ export async function startRun(env: CommandEnv, adapter: (root: string, tracked:
 		if ('problem' in outcome) { return await discardUnstarted(root, worktree, sink, outcome.problem); }
 		const failing = Object.entries(outcome.baseline).filter(([, [first]]) => first.code !== 0).map(([command]) => command);
 		if (failing.length) { sink.text(alreadyFailingText(failing)); }
+		sink.progress('Finding fixes nothing here can check…');
+		const queue = await screenQueue(picked, fix => screenFix(inWorktree, worktree.path, outcome.baseline, fix), () => token.isCancellationRequested);
+		if (queue === 'stopped') { return await discardUnstarted(root, worktree, sink, 'Stopped before any fix.'); }
+		sink.text(earlyText(queue.early));
 		const state: RunState = {
-			version: 1, root, language: local.label, worktree, startedAt: new Date().toISOString(), approved, fixes: picked, next: 0, steps: [],
+			version: 1, root, language: local.label, worktree, startedAt: new Date().toISOString(), approved,
+			fixes: queue.fixes, next: queue.early.length, steps: queue.early.map(early => early.step),
 			baseline: outcome.baseline, skippedFiles: skippedWithLines(skipped, stats), setupStamp: inWorktree.setupStamp?.(),
 		};
 		saveState(env.storage, state);

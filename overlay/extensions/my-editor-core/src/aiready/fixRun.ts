@@ -7,6 +7,7 @@ import { loadCatalog, pickDefault } from '../models/catalog';
 import { ApiKeys } from '../models/secrets';
 import { noteFileName, renderChangeNote, reportPath, runFlaky, writeRunReport } from './changeNote';
 import { CommandEnv, prepareWorktree, runCheck, startRun } from './fixSetup';
+import { runQueue } from './fixQueue';
 import { clearState, discardRest, loadState, MAX_FIXES_PER_RUN, RunState, saveState, StepRecord } from './fixState';
 import { closingText } from './fixText';
 import type { LanguageAdapter } from './language';
@@ -95,23 +96,12 @@ async function runFixes(env: CommandEnv, state: RunState, adapter: LanguageAdapt
 		cancelled: () => token.isCancellationRequested,
 		progress: text => sink.progress(text),
 	};
-	let done = 0;
-	while (state.next < state.fixes.length && done < MAX_FIXES_PER_RUN && !token.isCancellationRequested) {
-		const fix = state.fixes[state.next];
-		sink.progress(`Fix ${state.next + 1} of ${state.fixes.length}: ${fix.file}`);
-		let outcome: StepRecord | 'stopped';
-		try { outcome = fix.kind === 'split' ? await runSplit(ctx, fix) : await runAddTests(ctx, fix); }
-		catch (error) {
-			if (token.isCancellationRequested) { break; }
-			outcome = { file: fix.file, kind: fix.kind, status: 'skipped', reason: error instanceof Error ? error.message : String(error) };
-		}
-		if (outcome === 'stopped') { break; }
-		state.steps.push(outcome);
-		state.next++;
-		done++;
-		saveState(storage, state);
-		sink.text(`${stepLine(outcome)}\n`);
-	}
+	await runQueue(state, {
+		run: fix => (fix.kind === 'split' ? runSplit(ctx, fix) : runAddTests(ctx, fix)),
+		cancelled: () => token.isCancellationRequested,
+		progress: text => sink.progress(text),
+		record: step => { saveState(storage, state); sink.text(`${stepLine(step)}\n`); },
+	});
 	sink.progress('');
 	if (state.next < state.fixes.length) {
 		saveState(storage, state);

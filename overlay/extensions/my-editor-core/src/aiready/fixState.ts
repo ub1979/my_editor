@@ -31,6 +31,8 @@ export interface StepRecord {
 	readonly notes?: readonly string[];
 	/** For a split: model plan attempts and why each rejected one was rejected. */
 	readonly plan?: { readonly attempts: number; readonly rejected: readonly string[] };
+	/** Settled before any model call or edit, so it does not count toward the fixes per run. */
+	readonly early?: boolean;
 }
 
 /** A run's saved state, in global storage, keyed by project path. Nothing is written to the project during a run. */

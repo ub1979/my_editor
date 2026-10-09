@@ -148,11 +148,18 @@ function errorLine(run: CheckResult): string {
  * why the step must be skipped when none passed at baseline, else undefined.
  */
 export function noVerifyingCheck(checks: readonly CheckCommand[], baseline: Baseline, unit: string): string | undefined {
+	const blocker = buildBlocker(checks, baseline);
+	if (!blocker) { return undefined; }
+	if (!checks.some(check => check.verifies && baseline[check.command])) { return `No compile check of ${unit} was recorded for this run.`; }
+	return `Nothing here can compile ${unit} to check this split: ${blocker}. Fix the build, then run this again.`;
+}
+
+/** Why no verifying check passed at baseline, in a few words for grouping ("its build already fails (…)"), else undefined. */
+export function buildBlocker(checks: readonly CheckCommand[], baseline: Baseline): string | undefined {
 	const recorded = checks.filter(check => check.verifies && baseline[check.command]);
-	if (!recorded.length) { return `No compile check of ${unit} was recorded for this run.`; }
+	if (!recorded.length) { return 'no compile check of it was recorded'; }
 	if (recorded.some(check => baseline[check.command].every(run => run.code === 0))) { return undefined; }
-	const line = errorLine(baseline[recorded[0].command][0]);
-	return `Nothing here can compile ${unit} to check this split: its build already fails (${line}). Fix the build, then run this again.`;
+	return `its build already fails (${errorLine(baseline[recorded[0].command][0])})`;
 }
 
 /** What recording a baseline needs from the run. */

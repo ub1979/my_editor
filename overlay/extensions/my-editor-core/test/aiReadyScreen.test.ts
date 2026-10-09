@@ -1,0 +1,124 @@
+import { strict as assert } from 'node:assert';
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
+import { test } from 'node:test';
+import { buildBlocker, type CheckResult } from '../src/aiready/baseline';
+import { runQueue } from '../src/aiready/fixQueue';
+import { screenFix, screenQueue, type Screener } from '../src/aiready/fixScreen';
+import type { FixChoice, RunState, StepRecord } from '../src/aiready/fixState';
+import { earlyText } from '../src/aiready/fixText';
+import type { CheckCommand, FileInfo } from '../src/aiready/language';
+
+const run = (command: string, code: number, tail = ''): CheckResult => ({ command, code, failures: [], tail, log: '' });
+const fix = (file: string, kind: 'split' | 'tests' = 'split'): FixChoice => ({ file, kind, lines: 900 });
+
+/** `./engine` fails to build at baseline; `./store` builds. */
+const BASELINE = {
+	'build ./engine': [run('build ./engine', 1, '# vad\nsilero.c:6:10: fatal error: \'onnx.h\' file not found'),
+		run('build ./engine', 1, 'same')] as const,
+	'build ./store': [run('build ./store', 0), run('build ./store', 0)] as const,
+};
+
+function adapter(infos: Record<string, Partial<FileInfo>>): Screener {
+	return {
+		checks: (file: string): CheckCommand[] => [{ label: 'build', command: `build ./${path.posix.dirname(file)}`, verifies: true }],
+		parse: async (file: string) => {
+			if (!infos[file]) { throw new Error(`cannot parse ${file}`); }
+			return { path: file, declarations: [{ id: 0, movable: true }], ...infos[file] } as unknown as FileInfo;
+		},
+		testFileName: (file: string) => file.replace(/\.go$/, '_ai_test.go'),
+	};
+}
+
+test('the short build blocker names the first error line, or says no compile check was recorded', () => {
+	const checks: CheckCommand[] = [{ label: 'build', command: 'build ./engine', verifies: true }];
+	assert.equal(buildBlocker(checks, BASELINE), 'its build already fails (silero.c:6:10: fatal error: \'onnx.h\' file not found)');
+	assert.equal(buildBlocker([{ label: 'build', command: 'build ./store', verifies: true }], BASELINE), undefined);
+	assert.equal(buildBlocker([{ label: 'vet', command: 'vet ./x' }], BASELINE), 'no compile check of it was recorded');
+});
+
+test('screening settles fixes before any model call: no passing build, never split, nothing movable, test file there', async () => {
+	const root = mkdtempSync(path.join(os.tmpdir(), 'my-editor-screen-'));
+	writeFileSync(path.join(root, 'here_ai_test.go'), '');
+	const go = adapter({
+		'engine/engine.go': {}, 'store/a.go': {}, 'store/gen.go': { skip: 'generated code' },
+		'store/consts.go': { declarations: [{ id: 0, movable: false }] as unknown as FileInfo['declarations'] }, 'here.go': {},
+	});
+	const screen = (f: FixChoice) => screenFix(go, root, BASELINE, f);
+	const engine = await screen(fix('engine/engine.go'));
+	assert.equal(engine?.step.status, 'skipped');
+	assert.equal(engine?.step.early, true);
+	assert.equal(engine?.unchecked, true);
+	assert.match(engine?.step.reason ?? '', /^Nothing here can compile \.\/engine to check this split: its build already fails/);
+	assert.equal(await screen(fix('store/a.go')), undefined);
+	assert.equal((await screen(fix('store/gen.go')))?.step.reason, 'Never split: generated code.');
+	const stuck = await screen(fix('store/consts.go'));
+	assert.deepEqual([stuck?.step.status, stuck?.step.reason, stuck?.unchecked], ['skipped', 'Nothing in it may move.', false]);
+	assert.equal((await screen(fix('here.go', 'tests')))?.step.reason, 'here_ai_test.go already exists.');
+	assert.equal(await screen(fix('store/a.go', 'tests')), undefined);
+	assert.match((await screen(fix('gone.go')))?.step.reason ?? '', /cannot parse gone\.go/);
+});
+
+test('the up-front pass puts settled fixes first, in order, and keeps the order of the rest', async () => {
+	const fixes = ['a', 'b', 'c', 'd'].map(name => fix(`${name}.go`));
+	const settled = new Set(['b.go', 'd.go']);
+	const result = await screenQueue(fixes, async f => (settled.has(f.file)
+		? { step: { file: f.file, kind: 'split', status: 'skipped', reason: 'no', early: true }, brief: 'no', unchecked: true } : undefined),
+	() => false);
+	assert.ok(result !== 'stopped');
+	assert.deepEqual(result.fixes.map(f => f.file), ['b.go', 'd.go', 'a.go', 'c.go']);
+	assert.deepEqual(result.early.map(e => e.step.file), ['b.go', 'd.go']);
+	assert.equal(await screenQueue(fixes, async () => undefined, () => true), 'stopped');
+});
+
+test('the run text says up front which fixes cannot be checked here, grouped by package', () => {
+	const early = (file: string, brief: string, unchecked = true) =>
+		({ step: { file, kind: 'split' as const, status: 'skipped' as const, early: true }, brief, unchecked });
+	const text = earlyText([early('internal/engine/engine.go', 'its build already fails (x.c: fatal error)'),
+		early('internal/engine/runner.go', 'its build already fails (x.c: fatal error)'),
+		early('cmd/tool/main.go', 'no compile check of it was recorded'), early('store/consts.go', 'nothing in it may move', false)]);
+	assert.equal(text, '3 chosen fixes can\'t be checked here and are skipped: `./internal/engine` (2 files): its build already fails '
+		+ '(x.c: fatal error); `./cmd/tool` (1 file): no compile check of it was recorded.\n'
+		+ '1 more is skipped before any work: `store/consts.go`: nothing in it may move.\n');
+	assert.equal(earlyText([]), '');
+});
+
+function queueState(files: readonly string[]): RunState {
+	return {
+		version: 1, root: '/p', language: 'Go', worktree: { branch: 'b', path: '/p.w', base: '0123' }, startedAt: '', approved: [],
+		fixes: files.map(file => fix(file)), next: 0, steps: [], baseline: {}, skippedFiles: [],
+	};
+}
+
+test('the 25 per run count only attempted fixes; a fix settled before any work does not use the budget', async () => {
+	const files = Array.from({ length: 40 }, (_, i) => `f${i}.go`);
+	const state = queueState(files);
+	const shown: StepRecord[] = [];
+	const attempted = await runQueue(state, {
+		run: async f => (Number(f.file.slice(1, -3)) % 4 === 0
+			? { file: f.file, kind: 'split', status: 'skipped', reason: 'build fails', early: true }
+			: { file: f.file, kind: 'split', status: Number(f.file.slice(1, -3)) % 4 === 1 ? 'refused' : 'committed' }),
+		cancelled: () => false, progress: () => undefined, record: step => shown.push(step),
+	}, 25);
+	assert.equal(attempted, 25);
+	assert.equal(shown.filter(step => !step.early).length, 25);
+	assert.equal(state.next, 34, 'f0..f33: 25 attempted plus 9 settled early');
+	assert.equal(state.steps.length, 34);
+});
+
+test('the queue stops on Stop, and a thrown error counts as an attempted skip', async () => {
+	const state = queueState(['a.go', 'b.go', 'c.go']);
+	let stop = false;
+	const attempted = await runQueue(state, {
+		run: async f => {
+			if (f.file === 'a.go') { throw new Error('boom'); }
+			stop = true;
+			return 'stopped';
+		},
+		cancelled: () => stop, progress: () => undefined, record: () => undefined,
+	});
+	assert.equal(attempted, 1);
+	assert.deepEqual(state.steps, [{ file: 'a.go', kind: 'split', status: 'skipped', reason: 'boom' }]);
+	assert.equal(state.next, 1);
+});

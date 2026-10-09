@@ -1,3 +1,4 @@
+import { type EarlyOutcome, unitOf } from './fixScreen';
 import { MAX_FIXES_PER_RUN } from './fixState';
 
 /** The default and limits of `myEditor.aiReady.commandTimeoutMinutes`. */
@@ -30,6 +31,32 @@ export function approvalDetail(folder: string, approved: readonly string[], lang
 		+ `${installs ? 'The others' : 'They'} build the project and run its tests, which runs project code and tests written by the AI model. `
 		+ `my_editor also runs read-only ${language} tools (to list packages and check formatting) and local git commands there. ${note}`
 		+ 'Your files and your branch stay as they are until the end, when the health report in .my_editor/ai-ready/ is updated. Nothing is pushed.';
+}
+
+/** `./a` (2 files): reason; … — fixes grouped by their unit and short reason, in first-seen order. */
+function grouped(outcomes: readonly EarlyOutcome[]): string {
+	const groups = new Map<string, { unit: string; brief: string; count: number }>();
+	for (const { step, brief } of outcomes) {
+		const unit = unitOf(step.file);
+		const group = groups.get(`${unit}\n${brief}`) ?? { unit, brief, count: 0 };
+		group.count++;
+		groups.set(`${unit}\n${brief}`, group);
+	}
+	return [...groups.values()].map(g => `\`${g.unit}\` (${g.count} file${g.count === 1 ? '' : 's'}): ${g.brief}`).join('; ');
+}
+
+/** The run text said once, right after the baseline: which chosen fixes are skipped before any work, and why. */
+export function earlyText(outcomes: readonly EarlyOutcome[]): string {
+	const unchecked = outcomes.filter(outcome => outcome.unchecked);
+	const other = outcomes.filter(outcome => !outcome.unchecked);
+	const lines = [
+		...(unchecked.length ? [`${unchecked.length} chosen fix${unchecked.length === 1 ? '' : 'es'} can't be checked here and `
+			+ `${unchecked.length === 1 ? 'is' : 'are'} skipped: ${grouped(unchecked)}.`] : []),
+		...(other.length ? [`${other.length} ${unchecked.length ? 'more' : `chosen fix${other.length === 1 ? '' : 'es'}`} `
+			+ `${other.length === 1 ? 'is' : 'are'} skipped before any work: `
+			+ `${other.map(({ step, brief }) => `\`${step.file}\`: ${brief}`).join('; ')}.`] : []),
+	];
+	return lines.map(line => `${line}\n`).join('');
 }
 
 export interface Closing {
