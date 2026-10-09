@@ -57,6 +57,8 @@
     "src/aiready/goAdapter.ts",
     "src/aiready/languages.ts",
     "src/aiready/worktree.ts",
-    "src/aiready/fixState.ts"
+    "src/aiready/fixState.ts",
+    "src/aiready/fixPicker.ts",
+    "src/aiready/changeNote.ts"
   ]
 }
