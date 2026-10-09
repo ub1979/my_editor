@@ -89,12 +89,12 @@ All documentation is listed in [`docs/README.md`](docs/README.md). Start with:
   how AI-ready it is?* Yes runs Analyse, then writes `.my_editor/ai-ready/report.md`: files over 400 lines, files with more than
   one class or job, untested files, the project's build and test commands, design notes and possible bugs at checked
   lines. Nothing in the code changes, and Stop still writes a partial report. Run it again from **Project → Health**
-  or **my_editor: Check AI-Readiness**. For Go and TypeScript/JavaScript projects, **Fix on a local branch** (after the report, or **my_editor: Fix on a
+  or **my_editor: Check AI-Readiness**. For Go, TypeScript/JavaScript and Python projects, **Fix on a local branch** (after the report, or **my_editor: Fix on a
   Local Branch**) splits long files by moving whole declarations, one checked commit per fix, on a new branch in a
   working copy next to the project; Go files can also get new tests. TypeScript/JavaScript moves are narrower where a
   build tool could change behaviour (CommonJS, Babel, Vite, Next.js and similar move only types). Your folder is not
   touched apart from the health report, and nothing is pushed; a change note on the branch says how to review it.
-  Python, C#, Rust and C/C++ follow.
+  Python moves are refused wherever Python could notice the difference. C#, Rust and C/C++ follow.
 
 ## Build and run (macOS)
 

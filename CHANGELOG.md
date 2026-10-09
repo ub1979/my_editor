@@ -2,6 +2,11 @@
 
 my_editor uses the version in `overlay/extensions/my-editor-core/package.json` as its own release number. The Home page displays that version. The underlying editor shell keeps its upstream version independently.
 
+## 0.0.10 alpha — 2026-10-10 (installed; live check by the user pending)
+
+- Python projects can be fixed on a local branch too. Whole definitions move byte for byte into new modules in the same package and the original imports them back, in a layout that black and ruff accept. An import check with the project's own interpreter proves every copied import still gives the same objects. Moves are refused where Python could notice: code that runs on import, decorators that register, doctests, `mock.patch` strings and warning filters naming the module, and projects that pickle or use process pools (constants only).
+- Designs for C#, Rust and C/C++ are written and reviewed; they are next.
+
 ## 0.0.9 alpha — 2026-10-10 (installed; live check by the user pending)
 
 - TypeScript and JavaScript projects can be fixed on a local branch too. Whole declarations move byte for byte into new files in the same folder and the original re-exports them; analysis uses the editor's own TypeScript. Projects that run through CommonJS, Babel, Vite, Next.js, Vitest, esbuild, Bun, tsx, swc, webpack or Parcel move only types, which those tools erase. Each split must pass the project's `tsc` and tests against a baseline.
