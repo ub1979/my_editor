@@ -70,6 +70,11 @@
     "src/aiready/tsRefs.ts",
     "src/aiready/tsAst.ts",
     "src/aiready/tsRules.ts",
-    "src/aiready/tsSplit.ts"
+    "src/aiready/tsSplit.ts",
+    "src/aiready/tsUnit.ts",
+    "src/aiready/tsMoveCheck.ts",
+    "src/aiready/tsTests.ts",
+    "src/aiready/tsPrompts.ts",
+    "src/aiready/tsAdapter.ts"
   ]
 }
