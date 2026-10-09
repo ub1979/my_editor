@@ -23,7 +23,8 @@ export function parsePlan(reply: string): SplitPlan | undefined {
 
 /** Tells the model why its plan was rejected, for its one retry. */
 export function retryText(prompt: Prompt, reply: string, problems: readonly string[]): string {
-	return `${prompt.text}\n\nYour previous plan:\n${reply.slice(0, 4_000)}\n\nIt was rejected:\n${problems.map(p => `- ${p}`).join('\n')}\n\nReply with a corrected JSON array only.`;
+	const listed = problems.map(p => `- ${p}`).join('\n');
+	return `${prompt.text}\n\nYour previous plan:\n${reply.slice(0, 4_000)}\n\nIt was rejected:\n${listed}\n\nReply with a corrected JSON array only.`;
 }
 
 export interface PlanInput {
@@ -33,8 +34,21 @@ export interface PlanInput {
 	readonly existing: readonly string[];
 }
 
-/** Every reason the plan cannot be used; empty means the plan may be applied. */
+/** At most this many plan problems are reported (to the model's retry, the step's reason and the change note). */
+const MAX_PROBLEMS = 10;
+
+/** A file name the model wrote, as JSON (no line breaks or Markdown get through) and cut to 60 characters. */
+function shown(name: string): string {
+	return JSON.stringify(name).slice(0, 60);
+}
+
+/** Every reason the plan cannot be used, capped with a count of the rest; empty means the plan may be applied. */
 export function planProblems(adapter: LanguageAdapter, input: PlanInput, plan: SplitPlan): string[] {
+	const problems = allPlanProblems(adapter, input, plan);
+	return problems.length > MAX_PROBLEMS ? [...problems.slice(0, MAX_PROBLEMS), `and ${problems.length - MAX_PROBLEMS} more problems.`] : problems;
+}
+
+function allPlanProblems(adapter: LanguageAdapter, input: PlanInput, plan: SplitPlan): string[] {
 	const problems: string[] = [];
 	const byId = new Map(input.info.declarations.map(d => [d.id, d]));
 	const seen = new Set<number>();
@@ -42,7 +56,7 @@ export function planProblems(adapter: LanguageAdapter, input: PlanInput, plan: S
 	const existing = new Set(input.existing.map(name => name.toLowerCase()));
 	if (!plan.length) { problems.push('The plan moves nothing.'); }
 	for (const group of plan) {
-		if (!group.declarations.length) { problems.push(`${group.file} has no declarations.`); }
+		if (!group.declarations.length) { problems.push(`${shown(group.file)} has no declarations.`); }
 		for (const id of group.declarations) {
 			const declaration = byId.get(id);
 			if (!declaration) { problems.push(`Declaration ${id} does not exist.`); }
@@ -50,9 +64,9 @@ export function planProblems(adapter: LanguageAdapter, input: PlanInput, plan: S
 			else if (!declaration.movable) { problems.push(`Declaration ${id} (${label(declaration)}) may not move: ${declaration.reason ?? 'not movable'}.`); }
 			seen.add(id);
 		}
-		problems.push(...adapter.fileNameProblems(group.file, input.info.path).map(problem => `${group.file}: ${problem}`));
-		if (existing.has(group.file.toLowerCase())) { problems.push(`${group.file} already exists in the folder.`); }
-		if (names.has(group.file.toLowerCase())) { problems.push(`${group.file} appears twice in the plan.`); }
+		problems.push(...adapter.fileNameProblems(group.file, input.info.path).map(problem => `${shown(group.file)}: ${problem}`));
+		if (existing.has(group.file.toLowerCase())) { problems.push(`${shown(group.file)} already exists in the folder.`); }
+		if (names.has(group.file.toLowerCase())) { problems.push(`${shown(group.file)} appears twice in the plan.`); }
 		names.add(group.file.toLowerCase());
 	}
 	if (problems.length) { return problems; }
@@ -67,7 +81,7 @@ export function planProblems(adapter: LanguageAdapter, input: PlanInput, plan: S
 	for (const [index, file] of result.files.entries()) {
 		const group = plan[index].declarations.map(id => byId.get(id)!);
 		if (!lineLimitAllowed(file.text, group)) {
-			problems.push(`${file.name} would have ${lines(file.text)} lines; the limit is ${MAX_SOURCE_LINES}.`);
+			problems.push(`${shown(file.name)} would have ${lines(file.text)} lines; the limit is ${MAX_SOURCE_LINES}.`);
 		}
 	}
 	return problems;

@@ -15,12 +15,19 @@ export function alreadyFailingText(commands: readonly string[]): string {
 	return commands.length ? `Some checks already fail before any change:\n\n${commands.map(command => `- \`${command}\``).join('\n')}\n` : '';
 }
 
+/** What the install (the first approved command) does, in a few true sentences. */
+function installText(command: string): string {
+	return `my_editor chose \`${command}\` from the lockfile. It downloads packages from the registry this repository configures (or your `
+		+ 'default one) and runs the install scripts of the project and of its dependencies; the repository\'s .npmrc, .yarnrc.yml or '
+		+ '.pnpmfile.cjs can also run code during the install. ';
+}
+
 /** The approval modal's detail: where the commands run, the exact commands, and what they run. */
 export function approvalDetail(folder: string, approved: readonly string[], language: string, fixCount = 0, installs = false): string {
 	const over = fixCount > MAX_FIXES_PER_RUN ? `${fixCount} fixes chosen: ${MAX_FIXES_PER_RUN} now; Continue does the rest.\n\n` : '';
 	return `${over}In a new working copy at ${folder}, on a new branch:\n\n${approved.join('\n')}\n\n`
-		+ (installs ? `${approved[0]} installs the dependencies from the lockfile, which runs their install scripts. ` : '')
-		+ 'They build the project and run its tests, which runs project code and tests written by the AI model. '
+		+ (installs ? installText(approved[0]) : '')
+		+ `${installs ? 'The others' : 'They'} build the project and run its tests, which runs project code and tests written by the AI model. `
 		+ `my_editor also runs read-only ${language} tools (to list packages and check formatting) and local git commands there. `
 		+ 'Your files and your branch stay as they are until the end, when the health report in .my_editor/ai-ready/ is updated. Nothing is pushed.';
 }

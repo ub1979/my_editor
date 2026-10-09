@@ -1,6 +1,8 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
 import { CheckResult, checkSummary, compareWithBaseline } from '../src/aiready/baseline';
+import type { LanguageAdapter } from '../src/aiready/language';
+import { planProblems } from '../src/aiready/splitPlan';
 import { parseTsTests } from '../src/aiready/tsTests';
 
 const ROOTS = ['/w'];
@@ -31,4 +33,20 @@ test('node --test TAP keys take the file from the YAML location when Node prints
 		tests: { 'node:test same': 'pass', 'test/b_test.mjs same': 'fail', 'test/c.test.mjs g › inner': 'fail', 'test/c.test.mjs g': 'fail' },
 		packages: { 'node:test': 'pass', 'test/b_test.mjs': 'fail', 'test/c.test.mjs': 'fail' },
 	});
+});
+
+test('plan problems quote a model-written file name as JSON, cut to 60 characters, and are capped in number', () => {
+	const adapter = { fileNameProblems: () => ['use letters'] } as unknown as LanguageAdapter;
+	const declaration = { id: 0, kind: 'function', names: ['a'], span: { start: 0, end: 1 }, lines: 1, doc: '', docText: '', uses: [], movable: true };
+	const input = { source: Buffer.from('a'), info: { path: 'src/a.ts', declarations: [declaration], frame: [], imports: [] }, existing: [] };
+	const evil = `${'x'.repeat(100)}\n## Injected heading\n- [click](http://example.com)`;
+	const problems = planProblems(adapter, input, [{ file: evil, declarations: [] }]);
+	assert.ok(problems.length >= 2);
+	for (const problem of problems) {
+		assert.doesNotMatch(problem, /\n|Injected/);
+		assert.ok(problem.startsWith(JSON.stringify(evil).slice(0, 60)), problem);
+	}
+	const many = planProblems(adapter, input, Array.from({ length: 30 }, (_, i) => ({ file: `f${i}.ts`, declarations: [] })));
+	assert.equal(many.length, 11);
+	assert.match(many[10], /^and 50 more problems\.$/);
 });

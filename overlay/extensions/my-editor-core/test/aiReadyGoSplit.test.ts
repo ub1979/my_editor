@@ -79,7 +79,7 @@ test('plans refer to IDs: unknown, repeated, unmovable and over-long plans are r
 	assert.match(problems, /42 does not exist/);
 	assert.match(problems, /6 is listed twice/);
 	assert.match(problems, /2 \(var counter\) may not move: an initialized package variable/);
-	assert.match(problems, /shop_yaml.go already exists/);
+	assert.match(problems, /"shop_yaml.go" already exists/);
 	assert.match(problems, /_linux, which Go treats as a build constraint/);
 	const long = `package shop\n\n${Array.from({ length: 450 }, (_, i) => `func f${i}() {}`).join('\n')}\n`;
 	const big = (await goInfo('shop/big.go', long))!;
