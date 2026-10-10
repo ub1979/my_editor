@@ -105,7 +105,7 @@ async function runFixes(env: CommandEnv, state: RunState, adapter: LanguageAdapt
 		progress: text => sink.progress(text),
 	};
 	const attempted = await runQueue(state, {
-		run: fix => (fix.kind === 'split' ? runSplit(ctx, fix) : runAddTests(ctx, fix)),
+		run: (fix, progress) => (fix.kind === 'split' ? runSplit({ ...ctx, progress }, fix) : runAddTests({ ...ctx, progress }, fix)),
 		cancelled: () => token.isCancellationRequested,
 		progress: text => sink.progress(text),
 		record: step => { saveState(storage, state); sink.text(`${stepLine(step)}\n`); },

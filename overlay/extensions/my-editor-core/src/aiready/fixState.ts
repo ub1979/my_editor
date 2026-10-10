@@ -51,6 +51,8 @@ export interface RunState {
 	readonly fixes: readonly FixChoice[];
 	/** Index of the next fix to run. */
 	next: number;
+	/** How many fixes at the start of `fixes` were settled right after the baseline; progress counts the rest. */
+	readonly screened?: number;
 	readonly steps: StepRecord[];
 	/** Two baseline runs per command. */
 	readonly baseline: Record<string, readonly [CheckResult, CheckResult]>;

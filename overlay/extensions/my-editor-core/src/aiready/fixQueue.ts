@@ -2,7 +2,8 @@ import { type FixChoice, type RunState, RUNAWAY_LIMIT, type StepRecord } from '.
 
 /** What running the queue needs: one fix's step, Stop, progress, and a hook that saves and shows each record. */
 export interface QueueHooks {
-	readonly run: (fix: FixChoice) => Promise<StepRecord | 'stopped'>;
+	/** `progress` shows the step's own text after "Fix 7 of 26: ". */
+	readonly run: (fix: FixChoice, progress: (text: string) => void) => Promise<StepRecord | 'stopped'>;
 	readonly cancelled: () => boolean;
 	readonly progress: (text: string) => void;
 	readonly record: (step: StepRecord) => void;
@@ -17,9 +18,11 @@ export async function runQueue(state: RunState, hooks: QueueHooks, max = RUNAWAY
 	let attempted = 0;
 	while (state.next < state.fixes.length && attempted < max && !hooks.cancelled()) {
 		const fix = state.fixes[state.next];
-		hooks.progress(`Fix ${state.next + 1} of ${state.fixes.length}: ${fix.file}`);
+		const screened = state.screened ?? 0;
+		const label = `Fix ${state.next - screened + 1} of ${state.fixes.length - screened}`;
+		hooks.progress(`${label}: ${fix.file}…`);
 		let outcome: StepRecord | 'stopped';
-		try { outcome = await hooks.run(fix); } catch (error) {
+		try { outcome = await hooks.run(fix, text => hooks.progress(`${label}: ${text}`)); } catch (error) {
 			if (hooks.cancelled()) { break; }
 			outcome = { file: fix.file, kind: fix.kind, status: 'skipped', reason: error instanceof Error ? error.message : String(error) };
 		}

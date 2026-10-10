@@ -122,6 +122,16 @@ test('the runaway bound counts only attempted fixes; a fix settled before any wo
 	assert.equal(state.steps.length, 20);
 });
 
+test('progress counts the chosen fixes left after screening and prefixes what each step says', async () => {
+	const state = { ...queueState(['early.go', 'a.go', 'b.go']), next: 1, screened: 1 };
+	const seen: string[] = [];
+	await runQueue(state, {
+		run: async (f, progress) => { progress(`Planning how to split ${f.file}…`); return { file: f.file, kind: 'split', status: 'committed' }; },
+		cancelled: () => false, progress: text => seen.push(text), record: () => undefined,
+	});
+	assert.deepEqual(seen, ['Fix 1 of 2: a.go…', 'Fix 1 of 2: Planning how to split a.go…', 'Fix 2 of 2: b.go…', 'Fix 2 of 2: Planning how to split b.go…']);
+});
+
 test('the runaway bound is large', () => {
 	assert.ok(RUNAWAY_LIMIT >= 500);
 });

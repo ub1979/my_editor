@@ -118,7 +118,7 @@ export async function startRun(env: CommandEnv, adapter: (root: string, tracked:
 		sink.text(earlyText(queue.early));
 		const state: RunState = {
 			version: 1, root, language: local.label, worktree, startedAt: new Date().toISOString(), approved,
-			fixes: queue.fixes, next: queue.early.length, steps: queue.early.map(early => early.step),
+			fixes: queue.fixes, next: queue.early.length, screened: queue.early.length, steps: queue.early.map(early => early.step),
 			baseline: outcome.baseline, skippedFiles: skippedWithLines(skipped, stats), setupStamp: inWorktree.setupStamp?.(),
 		};
 		saveState(env.storage, state);
