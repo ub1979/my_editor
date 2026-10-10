@@ -2,7 +2,13 @@
 
 my_editor uses the version in `overlay/extensions/my-editor-core/package.json` as its own release number. The Home page displays that version. The underlying editor shell keeps its upstream version independently.
 
-## Unreleased
+## 0.0.11 alpha — 2026-10-10
+
+- The Project view matches Pair: an AI readiness card, a compact Git card, pill buttons and one-line rows; nothing scrolls sideways. The fix button shows its state (Running…, Continue, Fix remaining files) and how many files over 400 lines are left.
+- Fix on a local branch is in Project → Health and after Analyse. Finder `.DS_Store` files no longer block a run, and Pair knows the fixer instead of offering to split files by hand.
+- The picker reads the `ai_fix` branch, so later runs offer files no earlier run reached. A file over 400 lines only because of one long declaration is reported as needing a real refactor instead of being moved for nothing.
+- Fixed a run stalling for minutes after a check finished, when a background process kept its output open.
+- my_editor's own code follows its rules: the chat view split into focused files, a test file per module, no line over 160 characters.
 
 - Fixes on a local branch always go on one local branch, `ai_fix`; each run adds its commits on top of it (earlier work on `my_editor/ai-ready` is carried over once). If your branch has newer commits, the run says so and changes nothing else. my_editor never suggests merging `ai_fix`: review it with `git diff`, work on it with `git switch ai_fix`, or delete it.
 - One click fixes every chosen file: a run no longer stops after 25 fixes, so there is no pressing the button again and again. Stop still saves where it is and Continue picks up from there; each fix is still its own commit, with one change note at the end. Pair shows *Fix 7 of 26: …* while it works, and the Project button reads **Fix remaining files** (was **Next batch**). Only a runaway run stops, at 500 fixes, and then says so.
