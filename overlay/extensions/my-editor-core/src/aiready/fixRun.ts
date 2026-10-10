@@ -10,6 +10,7 @@ import { CommandEnv, prepareWorktree, runCheck, startRun } from './fixSetup';
 import { runQueue } from './fixQueue';
 import { clearState, discardRest, loadState, RUNAWAY_LIMIT, RunState, saveState, StepRecord } from './fixState';
 import { setFixRunning } from './fixStatus';
+import { rememberChecks } from './fixUnverifiable';
 import { closingText, pausedText } from './fixText';
 import type { LanguageAdapter } from './language';
 import { adapterFor, languageNote } from './languages';
@@ -130,6 +131,7 @@ async function closeRun(env: CommandEnv, state: RunState, sink: Sink, mayDiffer:
 	writeFileSync(path.join(worktree, note), renderChangeNote(state, at, mayDiffer, existsSync(reportPath(state.root))));
 	await commit(worktree, [note], 'my_editor: change note for the AI-ready fixes',
 		'What this run changed, how each change was checked, and what was left.');
+	await rememberChecks(env.storage, state.root, state.baseline);
 	let removed = true;
 	try { await remove(state.root, worktree); } catch { removed = false; }
 	const reportUpdated = writeRunReport(state.root, state, note);

@@ -26,18 +26,25 @@ export interface PickItem {
 	readonly label: string;
 	readonly description: string;
 	readonly picked: boolean;
+	/** Why the row is left unticked, shown under it. */
+	readonly detail?: string;
 	readonly choice: FixChoice;
 }
 
 /** Shows a multi-select list; `vscode.window.showQuickPick` with `canPickMany` fits. */
 export type ShowPicker = (items: PickItem[], options: { title: string; placeHolder: string }) => PromiseLike<readonly PickItem[] | undefined>;
 
-/** The multi-select list of fixes: every split pre-selected, add-tests not. Undefined when the user cancels. */
-export async function pickFixes(choices: readonly FixChoice[], show: ShowPicker): Promise<FixChoice[] | undefined> {
-	const items = choices.map(choice => ({
+/**
+ * The multi-select list of fixes: every split pre-selected but those in `blocked` (files nothing here can check, with
+ * the reason shown under the row), add-tests not. Undefined when the user cancels.
+ */
+export async function pickFixes(choices: readonly FixChoice[], show: ShowPicker, blocked: ReadonlyMap<string, string> = new Map()):
+	Promise<FixChoice[] | undefined> {
+	const items = choices.map((choice): PickItem => ({
 		label: choice.file,
 		description: `${choice.lines} lines · ${choice.kind === 'split' ? `split${choice.narrowed ? `: ${choice.narrowed}` : ' into focused files'}` : 'add tests'}`,
-		picked: choice.kind === 'split',
+		picked: choice.kind === 'split' && !blocked.has(choice.file),
+		...(blocked.has(choice.file) ? { detail: blocked.get(choice.file) } : {}),
 		choice,
 	}));
 	const picked = await show(items, {

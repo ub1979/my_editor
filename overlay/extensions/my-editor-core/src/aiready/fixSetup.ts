@@ -7,6 +7,7 @@ import { findCandidates } from './fixCandidates';
 import { pickFixes, skippedWithLines } from './fixPicker';
 import { needingRefactor, screenFix, screenQueue } from './fixScreen';
 import { type FixChoice, logDir, RunState, saveState } from './fixState';
+import { blockedFiles, loadChecks } from './fixUnverifiable';
 import { alreadyFailingText, approvalDetail, behindText, earlyText, timeoutMinutes } from './fixText';
 import type { LanguageAdapter } from './language';
 import { runCommand, tail } from './projectCommands';
@@ -78,7 +79,8 @@ export async function startRun(env: CommandEnv, adapter: (root: string, tracked:
 		sink.text(`Nothing here can be fixed on a branch yet: no long or untested ${local.label} files that may be split or tested.`);
 		return undefined;
 	}
-	const picked = await pickFixes(choices, (items, options) => vscode.window.showQuickPick(items, { ...options, canPickMany: true }));
+	const blocked = blockedFiles(choices, file => local.checks(file), loadChecks(env.storage, root), found.tip);
+	const picked = await pickFixes(choices, (items, options) => vscode.window.showQuickPick(items, { ...options, canPickMany: true }), blocked);
 	if (!picked?.length) { sink.text('No fixes were chosen, so nothing changed.'); return undefined; }
 	const checks = [...new Map(picked.flatMap(fix => local.checks(fix.file)).map(check => [check.command, check])).values()];
 	const setup = local.setup?.() ?? [];
