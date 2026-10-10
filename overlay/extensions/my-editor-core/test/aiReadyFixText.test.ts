@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import * as path from 'node:path';
 import { test } from 'node:test';
 import { pickFixes } from '../src/aiready/fixPicker';
-import { alreadyFailingText, approvalDetail, closingText, pausedText, timeoutMinutes } from '../src/aiready/fixText';
+import { alreadyFailingText, approvalDetail, closingText, nothingText, pausedText, timeoutMinutes } from '../src/aiready/fixText';
 
 test('the approval modal says the commands run project code and tests written by the AI model', () => {
 	const detail = approvalDetail('/p/shop.ai-ready', ['go build ./...', 'go test -count=1 -json ./a'], 'Go');
@@ -70,4 +70,14 @@ test('a types-only split row says so', async () => {
 		async items => { rows = items.map(item => item.description); return undefined; });
 	assert.equal(rows[0], '500 lines · split: only types may move (Vite compiles each file with esbuild)');
 	assert.equal(rows[1], '450 lines · split into focused files');
+});
+
+test('a run with no commit lists why, at most eight, and says the branch is unchanged', () => {
+	const steps = Array.from({ length: 10 }, (_, i) => ({ file: `f${i}.go`, kind: 'split' as const, status: 'skipped' as const, reason: `Reason ${i}.` }));
+	const text = nothingText({ steps, branch: 'ai_fix', kept: true, removed: true, worktree: '/p/w' });
+	assert.match(text, /`ai_fix` is unchanged and no change note was added\. Nothing was pushed\./);
+	assert.match(text, /- `f7\.go`: Reason 7\.\n- and 2 more\./);
+	assert.doesNotMatch(text, /f8\.go|Remove the working copy/);
+	assert.match(nothingText({ steps: [], branch: 'ai_fix', kept: false, removed: false, worktree: '/p/w' }),
+		/no branch was kept\. Nothing was pushed\. Remove the working copy `\/p\/w`/);
 });

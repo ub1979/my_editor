@@ -36,6 +36,11 @@ export interface StepRecord {
 	readonly plan?: { readonly attempts: number; readonly rejected: readonly string[] };
 	/** Settled before any model call or edit, so it does not count toward the runaway bound. */
 	readonly early?: boolean;
+	/**
+	 * Set for a split settled by the file's own content, which holds while the file is unchanged, so later pickers leave
+	 * it out: `skip` is why the file is never split or tested; unset, a split can't help (a real refactor, nothing may move).
+	 */
+	readonly lasting?: { readonly skip?: string };
 }
 
 /** A run's saved state, in global storage, keyed by project path. Nothing is written to the project during a run. */

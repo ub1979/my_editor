@@ -55,6 +55,9 @@ test('screening settles fixes before any model call: no passing build, never spl
 	assert.equal((await screen(fix('store/gen.go')))?.step.reason, 'Never split: generated code.');
 	const stuck = await screen(fix('store/consts.go'));
 	assert.deepEqual([stuck?.step.status, stuck?.step.reason, stuck?.unchecked], ['skipped', 'Nothing in it may move.', false]);
+	assert.deepEqual((await screen(fix('store/gen.go')))?.step.lasting, { skip: 'generated code' }, 'settled by content: kept for later runs');
+	assert.deepEqual(stuck?.step.lasting, {});
+	assert.equal(engine?.step.lasting, undefined, 'a failing build may be fixed, so it is not kept');
 	assert.equal((await screen(fix('here.go', 'tests')))?.step.reason, 'here_ai_test.go already exists.');
 	assert.equal(await screen(fix('store/a.go', 'tests')), undefined);
 	assert.match((await screen(fix('gone.go')))?.step.reason ?? '', /cannot parse gone\.go/);

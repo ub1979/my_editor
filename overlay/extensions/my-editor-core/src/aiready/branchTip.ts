@@ -21,6 +21,8 @@ export interface TreeSource {
 	/** Paths whose content at the tip differs from HEAD's, or that HEAD lacks: the user's folder can't parse them. */
 	readonly changed: ReadonlySet<string>;
 	text(file: string): Promise<string>;
+	/** The file's blob id as a run would start from it; undefined when it can't be read. */
+	blob(file: string): Promise<string | undefined>;
 }
 
 /** Blob ids by path in a commit's tree, from `git ls-tree -r -z` (submodules left out). */
@@ -43,11 +45,15 @@ async function blobs(root: string, commit: string): Promise<Map<string, string>>
 export async function treeSource(root: string): Promise<TreeSource> {
 	const fromFolder = async (file: string) => readFileSync(path.join(root, file), 'utf8');
 	const tip = await fixTip(root);
-	if (!tip) { return { tracked: await trackedFiles(root), changed: new Set(), text: fromFolder }; }
+	if (!tip) {
+		const hashed = async (file: string) => { try { return (await git(root, ['hash-object', '--', file])).trim(); } catch { return undefined; } };
+		return { tracked: await trackedFiles(root), changed: new Set(), text: fromFolder, blob: hashed };
+	}
 	const [atTip, atHead] = await Promise.all([blobs(root, tip), blobs(root, 'HEAD')]);
 	const changed = new Set([...atTip].filter(([file, id]) => atHead.get(file) !== id).map(([file]) => file));
 	return {
 		tip, tracked: [...atTip.keys()], changed,
 		text: file => (changed.has(file) ? git(root, ['cat-file', 'blob', atTip.get(file)!]) : fromFolder(file)),
+		blob: async file => atTip.get(file),
 	};
 }

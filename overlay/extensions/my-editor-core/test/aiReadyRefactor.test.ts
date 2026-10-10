@@ -47,7 +47,7 @@ test('screening settles a needs-refactor split before any model call or check, w
 		parse: async () => STEP, testFileName: file => file };
 	const early = await screenFix(adapter, root, {}, { file: STEP.path, kind: 'split', lines: 467 });
 	assert.deepEqual(early?.step, { file: STEP.path, kind: 'split', status: 'skipped', early: true,
-		reason: 'Needs a real refactor: `StepVerification` is 452 lines by itself.', over: [{ file: STEP.path, lines: 467, reason: STEP_REASON }] });
+		reason: 'Needs a real refactor: `StepVerification` is 452 lines by itself.', over: [{ file: STEP.path, lines: 467, reason: STEP_REASON }], lasting: {} });
 	assert.equal(early?.brief, STEP_REASON);
 	assert.equal(early?.unchecked, false);
 });

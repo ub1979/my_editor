@@ -38,12 +38,13 @@ export function screenParsed(adapter: Screener, worktree: string, baseline: Base
 		if (existsSync(path.join(worktree, testFile))) { return settle(`${testFile} already exists.`, `${testFile} already exists`, false, testFile); }
 		return undefined;
 	}
-	if (info.skip) { return settle(`Never split: ${info.skip}.`, `never split: ${info.skip}`); }
-	if (!info.declarations.some(d => d.movable)) { return settle('Nothing in it may move.', 'nothing in it may move'); }
+	const lasting = (outcome: EarlyOutcome, skip?: string): EarlyOutcome => ({ ...outcome, step: { ...outcome.step, lasting: skip ? { skip } : {} } });
+	if (info.skip) { return lasting(settle(`Never split: ${info.skip}.`, `never split: ${info.skip}`), info.skip); }
+	if (!info.declarations.some(d => d.movable)) { return lasting(settle('Nothing in it may move.', 'nothing in it may move')); }
 	const refactor = needsRefactor(info, fix.lines);
 	if (refactor) {
 		const outcome = settle(`${refactor.reason[0].toUpperCase()}${refactor.reason.slice(1)}.`, refactor.reason);
-		return { ...outcome, step: { ...outcome.step, over: [refactor] } };
+		return { ...outcome, step: { ...outcome.step, over: [refactor], lasting: {} } };
 	}
 	const checks = adapter.checks(fix.file);
 	const blocker = buildBlocker(checks, baseline);

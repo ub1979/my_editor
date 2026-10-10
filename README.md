@@ -97,7 +97,9 @@ All documentation is listed in [`docs/README.md`](docs/README.md). Start with:
   on it with `git switch ai_fix`, or delete it. my_editor never suggests merging it. One click works through every
   ticked fix; Pair shows *Fix 7 of 26: …* as it goes, **Stop** saves where it is and **Continue** picks up from there.
   The picker ticks every split it can do and leaves unticked, with the reason, files the last run could not check here
-  (their package's build already fails). Later runs start from **Project → Health → Fix remaining files**.
+  (their package's build already fails). Files a run settled by their content (never split, or needing a real
+  refactor) are not offered again, and a run that commits nothing leaves `ai_fix` unchanged. Later runs start from
+  **Project → Health → Fix remaining files**.
   Python moves are refused wherever Python could notice the difference. C#, Rust and C/C++ follow.
 
 ## Build and run (macOS)

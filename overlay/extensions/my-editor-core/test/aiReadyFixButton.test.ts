@@ -35,3 +35,11 @@ test('with nothing left the text says so and the button is secondary', () => {
 	assert.equal(view.primary, false);
 	assert.equal(view.disabled, false);
 });
+
+test('files no run here can split are named apart from the ones left, and nothing left is not called done', () => {
+	const view = fixButton({ ...idle, branchExists: true, left: 0, stuck: 4 });
+	assert.deepEqual([view.label, view.primary], ['Fix on a local branch', false]);
+	assert.match(view.text, /Nothing left to split here\. 4 files over 400 lines can't be split here; the change note says why\./);
+	assert.doesNotMatch(view.text, /All files are within/);
+	assert.match(fixButton({ ...idle, branchExists: true, left: 2, stuck: 1 }).text, /2 files over 400 lines left to split\. 1 file over 400 lines can't/);
+});

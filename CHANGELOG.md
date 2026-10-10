@@ -2,6 +2,12 @@
 
 my_editor uses the version in `overlay/extensions/my-editor-core/package.json` as its own release number. The Home page displays that version. The underlying editor shell keeps its upstream version independently.
 
+## 0.0.12 alpha — 2026-10-10
+
+- Fix remaining files no longer ticks the same files every time. When your branch had changed a file after `ai_fix` split off, the picker could not tell that it is a test file or needs a real refactor, so it ticked it and the run skipped it again. A run now remembers what it settled from a file's content, by that content, and later pickers leave those files out.
+- A run that commits no fix adds nothing to `ai_fix`: no empty change note. It says why each chosen fix was skipped.
+- The Project card counts only files a click would split, and names the ones no run here can split instead of asking for another run.
+
 ## 0.0.11 alpha — 2026-10-10
 
 - The Project view matches Pair: an AI readiness card, a compact Git card, pill buttons and one-line rows; nothing scrolls sideways. The fix button shows its state (Running…, Continue, Fix remaining files) and how many files over 400 lines are left.

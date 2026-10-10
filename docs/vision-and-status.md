@@ -1,7 +1,7 @@
 # my_editor: vision, mission, and current status
 
 - **As of:** 5 October 2026
-- **Current version:** 0.0.11 alpha (AI-ready health report, one-click Go, TS/JS and Python fixes on a local `ai_fix` branch, web research in Pair), installed on 10 October; live checks pending
+- **Current version:** 0.0.12 alpha (AI-ready health report, one-click Go, TS/JS and Python fixes on a local `ai_fix` branch, web research in Pair), built on 10 October; install and live checks pending
 - **Stage:** Working macOS alpha; still being validated on real projects
 
 ## Vision

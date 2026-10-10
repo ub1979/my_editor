@@ -1,5 +1,6 @@
 import { MAX_SOURCE_LINES } from '../quality/sourcePolicy';
 import { type EarlyOutcome, unitOf } from './fixScreen';
+import type { StepRecord } from './fixState';
 import { FIX_BRANCH, type Worktree } from './worktree';
 
 /** The default and limits of `myEditor.aiReady.commandTimeoutMinutes`. */
@@ -124,4 +125,28 @@ export function closingText(close: Closing): string {
 		+ `Nothing was pushed; \`${branch}\` exists only in this repository on your machine.`
 		+ `${close.removed ? '' : ` Remove the working copy \`${close.worktree}\` when you are done with it.`}\n\n`
 		+ reviewText(branch, userRef);
+}
+
+/** A run that committed nothing, as it closes. */
+export interface Empty {
+	readonly steps: readonly StepRecord[];
+	readonly branch: string;
+	/** Whether the branch existed before this run (and so stays); a branch this run made is deleted. */
+	readonly kept: boolean;
+	/** Whether the worktree was removed. */
+	readonly removed: boolean;
+	readonly worktree: string;
+}
+
+const LISTED = 8;
+
+/** The closing message when no fix was committed: nothing changed on the branch, and why, one line per fix. */
+export function nothingText({ steps, branch, kept, removed, worktree }: Empty): string {
+	const lines = steps.slice(0, LISTED).map(step => `- \`${step.file}\`: ${step.reason ?? step.status}`);
+	const more = steps.length > LISTED ? [`- and ${steps.length - LISTED} more.`] : [];
+	const where = kept ? `\`${branch}\` is unchanged and no change note was added` : 'no branch was kept';
+	return `\n**Done.** No fix was committed this time, so ${where}. Nothing was pushed.`
+		+ `${removed ? '' : ` Remove the working copy \`${worktree}\` when you are done with it.`}\n\n`
+		+ `${[...lines, ...more].join('\n')}${lines.length ? '\n\n' : ''}`
+		+ 'The next run leaves out files settled by their own content, and leaves unticked the ones nothing here can check.\n';
 }

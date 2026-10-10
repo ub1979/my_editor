@@ -4,6 +4,7 @@ import type { Sink } from '../chat/engine';
 import { CheckResult, failureLines, runBaseline, runSetup } from './baseline';
 import { fixTip } from './branchTip';
 import { findCandidates } from './fixCandidates';
+import { loadSettled, remembered } from './fixSettled';
 import { pickFixes, skippedWithLines } from './fixPicker';
 import { needingRefactor, screenFix, screenQueue } from './fixScreen';
 import { type FixChoice, logDir, RunState, saveState } from './fixState';
@@ -20,6 +21,8 @@ export interface CommandEnv {
 	readonly storage: string;
 	readonly root: string;
 	readonly token: vscode.CancellationToken;
+	/** my_editor's version, which the settled-splits record is kept for. */
+	readonly version: string;
 }
 
 /** The per-command timeout from settings (minutes, default 10, clamped to 1–240). */
@@ -71,9 +74,10 @@ export async function startRun(env: CommandEnv, adapter: (root: string, tracked:
 	const { root, token } = env;
 	if (!await checkPrerequisites(root, sink)) { return undefined; }
 	sink.progress(`Finding files to fix${await fixTip(root) ? ` on ${FIX_BRANCH}, with the earlier runs' fixes` : ''}…`);
-	const found = await findCandidates(root, adapter, () => token.isCancellationRequested);
+	const known = remembered(loadSettled(env.storage, root), env.version);
+	const found = await findCandidates(root, adapter, () => token.isCancellationRequested, known);
 	if (!found) { return undefined; }
-	const { local, choices, refactor, skipped, stats } = found;
+	const { local, choices, unsplittable, skipped, stats } = found;
 	sink.progress('');
 	if (!choices.length) {
 		sink.text(`Nothing here can be fixed on a branch yet: no long or untested ${local.label} files that may be split or tested.`);
@@ -111,9 +115,9 @@ export async function startRun(env: CommandEnv, adapter: (root: string, tracked:
 		sink.progress('Finding fixes nothing here can check…');
 		const screen = (fix: FixChoice) => screenFix(inWorktree, worktree.path, outcome.baseline, fix);
 		const cancelled = () => token.isCancellationRequested;
-		// Splits that need a real refactor are settled here too, picked or not, so the change note lists them; they use none of the budget.
+		// Splits that can't help are settled here too, picked or not, so the change note lists them.
 		const later = await needingRefactor(found.unparsed.filter(fix => !picked.some(p => p.file === fix.file && p.kind === fix.kind)), screen, cancelled);
-		const queue = await screenQueue([...refactor, ...later, ...picked], screen, cancelled);
+		const queue = await screenQueue([...unsplittable, ...later, ...picked], screen, cancelled);
 		if (queue === 'stopped') { return await discardUnstarted(root, worktree, sink, 'Stopped before any fix.'); }
 		sink.text(earlyText(queue.early));
 		const state: RunState = {

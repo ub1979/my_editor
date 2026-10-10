@@ -84,9 +84,10 @@ export class ProjectView implements vscode.WebviewViewProvider {
 	private async fixCard(): Promise<unknown> {
 		const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 		if (!root) { return fixButton({ running: false, saved: false, branchExists: false, left: undefined }); }
+		const count = cachedLeft(this.context, root);
 		return fixButton({
 			running: fixRunning(), saved: !!loadState(this.context.globalStorageUri.fsPath, root),
-			branchExists: await fixBranchExists(root), left: cachedLeft(this.context, root),
+			branchExists: await fixBranchExists(root), left: count?.left, stuck: count?.stuck,
 		});
 	}
 
