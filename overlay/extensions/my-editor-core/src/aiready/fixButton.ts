@@ -21,7 +21,8 @@ const INTRO = 'Split long files and add tests on a local branch. Each fix is che
 export function fixButton({ running, saved, branchExists, left }: FixButtonInput): FixButton {
 	if (running) { return { label: 'Running…', primary: true, disabled: true, text: `${INTRO} A fix run is in progress.` }; }
 	if (saved) { return { label: 'Continue', primary: true, disabled: false, text: `${INTRO} A fix run is not finished.` }; }
-	const label = branchExists ? 'Next batch' : 'Fix on a local branch';
+	// After a first run, one click fixes everything still left; with nothing left, the button reads as at the start.
+	const label = branchExists && left !== 0 ? 'Fix remaining files' : 'Fix on a local branch';
 	if (left === undefined) { return { label, primary: true, disabled: false, text: INTRO }; }
 	if (left === 0) { return { label, primary: false, disabled: false, text: `${INTRO} All files are within 400 lines.` }; }
 	return { label, primary: true, disabled: false, text: `${INTRO} ${left} file${left === 1 ? '' : 's'} over 400 lines left.` };
