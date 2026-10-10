@@ -149,6 +149,7 @@ section > .actions { margin-top: 0; }
 .pill:hover { background: var(--surface-2); }
 .pill.primary { border-color: transparent; background: var(--accent); color: var(--on-accent); }
 .pill.primary:hover { filter: brightness(1.08); }
+.pill:disabled { opacity: 0.6; cursor: default; filter: none; }
 
 button.link {
 	padding: 0;

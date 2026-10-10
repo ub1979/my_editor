@@ -1,5 +1,9 @@
 import { randomBytes } from 'crypto';
 import * as vscode from 'vscode';
+import { fixButton } from '../aiready/fixButton';
+import { cachedLeft, fixBranchExists, refreshLeft } from '../aiready/fixLeft';
+import { fixRunning, onFixStatus } from '../aiready/fixStatus';
+import { loadState } from '../aiready/fixState';
 import { loadCatalog, pickDefault } from '../models/catalog';
 import { ApiKeys } from '../models/secrets';
 import { GitSyncState, inspectGitSync, updateGitProject } from './gitSync';
@@ -44,6 +48,7 @@ export class ProjectView implements vscode.WebviewViewProvider {
 			watcher.onDidDelete(() => this.refresh()),
 			vscode.workspace.onDidChangeConfiguration(e => e.affectsConfiguration('myEditor') && this.refresh()),
 			context.secrets.onDidChange(() => this.refresh()),
+			onFixStatus(() => void this.fixStatusChanged()),
 		);
 	}
 
@@ -61,14 +66,36 @@ export class ProjectView implements vscode.WebviewViewProvider {
 		view.webview.onDidReceiveMessage(message => this.onMessage(message));
 		view.onDidChangeVisibility(() => view.visible && this.checkRemote()),
 		void this.refresh();
+		const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+		if (root && cachedLeft(this.context, root) === undefined) { void this.recount(root); }
+	}
+
+	/** A run started or ended: show it, and after a run closes count again what is left. */
+	private async fixStatusChanged(): Promise<void> {
+		await this.refresh();
+		const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+		if (root && !fixRunning() && !loadState(this.context.globalStorageUri.fsPath, root)) { await this.recount(root); }
+	}
+
+	private async recount(root: string): Promise<void> {
+		if (await refreshLeft(this.context, root) !== undefined) { await this.refresh(); }
+	}
+
+	private async fixCard(): Promise<unknown> {
+		const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+		if (!root) { return fixButton({ running: false, saved: false, branchExists: false, left: undefined }); }
+		return fixButton({
+			running: fixRunning(), saved: !!loadState(this.context.globalStorageUri.fsPath, root),
+			branchExists: await fixBranchExists(root), left: cachedLeft(this.context, root),
+		});
 	}
 
 	async refresh(): Promise<void> {
 		if (!this.view) {
 			return;
 		}
-		const [state, entries, project] = await Promise.all([readProjectState(), loadCatalog(this.keys), currentProjectStatus()]);
-		void this.view.webview.postMessage({ type: 'state', state, model: pickDefault(entries)?.label, sync: this.sync, project });
+		const [state, entries, project, fix] = await Promise.all([readProjectState(), loadCatalog(this.keys), currentProjectStatus(), this.fixCard()]);
+		void this.view.webview.postMessage({ type: 'state', state, model: pickDefault(entries)?.label, sync: this.sync, project, fix });
 	}
 
 	private checkRemote(): Promise<void> {

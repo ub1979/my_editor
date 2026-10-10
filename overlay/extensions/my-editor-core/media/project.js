@@ -56,12 +56,14 @@ function mapsSection() {
 	]));
 }
 
-function readinessCard() {
+function readinessCard(fix) {
+	const button = action(fix.label, { type: 'aiReadyFix' }, fix.primary ? 'pill primary' : 'pill');
+	button.disabled = !!fix.disabled;
 	return el('div', { class: 'card' }, [
 		el('p', { class: 'card-title' }, ['AI readiness']),
-		el('p', { class: 'card-text' }, ['Split long files and add tests on a local branch. Each fix is checked before it is committed.']),
+		el('p', { class: 'card-text' }, [fix.text]),
 		el('div', { class: 'actions' }, [
-			action('Fix on a local branch', { type: 'aiReadyFix' }, 'pill primary'),
+			button,
 			action('Check', { type: 'aiReady' }, 'pill', 'Write the health report without changing code'),
 		]),
 	]);
@@ -117,7 +119,9 @@ function memorySection(memory, project) {
 	])] : []));
 }
 
-function render(state, model, sync, project) {
+const PLAIN_FIX = { label: 'Fix on a local branch', primary: true, text: 'Split long files and add tests on a local branch.' };
+
+function render(state, model, sync, project, fix = PLAIN_FIX) {
 	root.replaceChildren();
 	root.append(
 		el('div', { class: 'top' }, [el('p', { class: 'eyebrow' }, ['Project']), action('All projects', { type: 'home' }, 'link')]),
@@ -127,7 +131,7 @@ function render(state, model, sync, project) {
 	if (!state.hasWorkspace) {
 		return;
 	}
-	root.append(stagesSection(state.stages), section('Health', readinessCard()));
+	root.append(stagesSection(state.stages), section('Health', readinessCard(fix)));
 	if (sync?.kind !== 'not-git') root.append(section('Git', gitCard(sync, project)));
 	root.append(mapsSection(), memorySection(state.memory, project), el('section', { class: 'model' }, [
 		el('span', { class: 'model-name' }, [el('span', { class: 'status' }, ['Model ']), model ?? 'none set up']),
@@ -137,7 +141,7 @@ function render(state, model, sync, project) {
 
 window.addEventListener('message', event => {
 	if (event.data?.type === 'state') {
-		render(event.data.state, event.data.model, event.data.sync, event.data.project);
+		render(event.data.state, event.data.model, event.data.sync, event.data.project, event.data.fix);
 	}
 });
 vscode.postMessage({ type: 'ready' });

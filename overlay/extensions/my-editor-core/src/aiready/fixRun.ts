@@ -9,6 +9,7 @@ import { noteFileName, renderChangeNote, reportPath, runFlaky, writeRunReport } 
 import { CommandEnv, prepareWorktree, runCheck, startRun } from './fixSetup';
 import { runQueue } from './fixQueue';
 import { clearState, discardRest, loadState, MAX_FIXES_PER_RUN, RunState, saveState, StepRecord } from './fixState';
+import { setFixRunning } from './fixStatus';
 import { closingText } from './fixText';
 import type { LanguageAdapter } from './language';
 import { adapterFor, languageNote } from './languages';
@@ -26,6 +27,12 @@ export interface FixOptions {
 /** "Fix on a local branch": pick fixes, prepare the safety net, run up to 25 fixes, and close when all are done. */
 export async function fixOnBranch(context: vscode.ExtensionContext, keys: ApiKeys, sink: Sink, token: vscode.CancellationToken,
 	options: FixOptions = {}): Promise<void> {
+	setFixRunning(true);
+	try { await fixRun(context, keys, sink, token, options); } finally { setFixRunning(false); }
+}
+
+async function fixRun(context: vscode.ExtensionContext, keys: ApiKeys, sink: Sink, token: vscode.CancellationToken,
+	options: FixOptions): Promise<void> {
 	const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 	if (!root) { sink.text('Open a project folder first.'); return; }
 	const storage = context.globalStorageUri.fsPath;
