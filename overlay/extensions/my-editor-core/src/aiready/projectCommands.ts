@@ -22,6 +22,8 @@ const SHELL_CHARACTERS = /[;&|<>`$(){}[\]*?!~"'\\\n]/;
 const MAX_OUTPUT = 64 * 1024 * 1024;
 /** How long a stopped process group gets between SIGTERM and SIGKILL. */
 const GRACE_MS = 5_000;
+/** How long output may still arrive after the command exits, before its pipes are closed. */
+const EXIT_GRACE_MS = 1_000;
 
 /**
  * Finds a tool without a shell: PATH first, then the usual install folders, because apps started from the Dock get a
@@ -129,6 +131,13 @@ export function runCommand(text: string, options: RunOptions): Promise<CommandOu
 		};
 		child.on('error', error => finish(undefined, `Could not start ${parts.bin}: ${error.message}`));
 		child.on('close', code => finish(code ?? undefined));
+		// A process the command left in another process group (Go's telemetry child, say) can hold the pipes open for many
+		// minutes after the command exits, so 'close' would not come: shortly after the exit, stop waiting for it.
+		child.on('exit', code => setTimeout(() => {
+			child.stdout.destroy();
+			child.stderr.destroy();
+			finish(code ?? undefined);
+		}, EXIT_GRACE_MS));
 	});
 }
 

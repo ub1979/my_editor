@@ -57,6 +57,23 @@ test('a log that cannot be written does not crash the run, and a given PATH is k
 	assert.equal(kept.stdout.trim(), '/only/this');
 });
 
+test('runCommand ends when the command exits, even if a process it left in another group keeps its output open', async () => {
+	const dir = mkdtempSync(path.join(os.tmpdir(), 'my-editor-escape-'));
+	const script = path.join(dir, 'escape.js');
+	const pidFile = path.join(dir, 'pid');
+	writeFileSync(script, "const c = require('child_process').spawn(process.execPath, ['-e', 'setTimeout(() => {}, 20000)'], "
+		+ `{ detached: true, stdio: 'inherit' }); require('fs').writeFileSync(${JSON.stringify(pidFile)}, String(c.pid)); c.unref(); console.log('done');\n`);
+	const command = `node ${script}`;
+	try {
+		const result = await within(6_000, runCommand(command, { cwd: dir, approved: [command], timeoutMs: 15_000, logFile: path.join(dir, 'a.log') }));
+		assert.equal(result.code, 0);
+		assert.equal(result.timedOut, false);
+		assert.match(result.stdout, /done/);
+	} finally {
+		try { process.kill(Number(readFileSync(pidFile, 'utf8'))); } catch { /* Gone. */ }
+	}
+});
+
 test('findTool searches only PATH and generic folders unless the caller passes more', () => {
 	const dir = mkdtempSync(path.join(os.tmpdir(), 'my-editor-find-'));
 	writeFileSync(path.join(dir, 'my-editor-fake-tool'), '#!/bin/sh\n');
