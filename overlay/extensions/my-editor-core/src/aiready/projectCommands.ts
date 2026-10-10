@@ -72,6 +72,18 @@ function stopper(child: ChildProcess, graceMs: number): () => void {
 	};
 }
 
+/**
+ * A process the child left in another process group (Go's telemetry child, say) can hold the pipes open for many
+ * minutes after the child exits, so 'close' would not come: shortly after the exit, close the pipes and finish.
+ */
+function endAfterExit(child: ChildProcess, finish: (code: number | null) => void): void {
+	child.on('exit', code => setTimeout(() => {
+		child.stdout?.destroy();
+		child.stderr?.destroy();
+		finish(code);
+	}, EXIT_GRACE_MS));
+}
+
 /** Runs one approved command without a shell, in its own process group so Stop and the timeout end its children too. */
 export function runCommand(text: string, options: RunOptions): Promise<CommandOutput> {
 	const parts = splitCommand(text);
@@ -131,13 +143,7 @@ export function runCommand(text: string, options: RunOptions): Promise<CommandOu
 		};
 		child.on('error', error => finish(undefined, `Could not start ${parts.bin}: ${error.message}`));
 		child.on('close', code => finish(code ?? undefined));
-		// A process the command left in another process group (Go's telemetry child, say) can hold the pipes open for many
-		// minutes after the command exits, so 'close' would not come: shortly after the exit, stop waiting for it.
-		child.on('exit', code => setTimeout(() => {
-			child.stdout.destroy();
-			child.stderr.destroy();
-			finish(code ?? undefined);
-		}, EXIT_GRACE_MS));
+		endAfterExit(child, code => finish(code ?? undefined));
 	});
 }
 
@@ -187,5 +193,6 @@ export function runTool(bin: string, args: readonly string[], cwd: string, env?:
 		};
 		child.on('error', error => finish(1, error.message));
 		child.on('close', code => finish(code ?? 1));
+		endAfterExit(child, code => finish(code ?? 1));
 	});
 }

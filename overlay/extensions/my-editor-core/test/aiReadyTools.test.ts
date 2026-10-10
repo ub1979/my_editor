@@ -57,21 +57,38 @@ test('a log that cannot be written does not crash the run, and a given PATH is k
 	assert.equal(kept.stdout.trim(), '/only/this');
 });
 
-test('runCommand ends when the command exits, even if a process it left in another group keeps its output open', async () => {
+/** A node script that leaves a sleeping process in its own group holding stdout, prints "done" and exits 0. */
+function escapeScript(): { dir: string; script: string; pidFile: string } {
 	const dir = mkdtempSync(path.join(os.tmpdir(), 'my-editor-escape-'));
 	const script = path.join(dir, 'escape.js');
 	const pidFile = path.join(dir, 'pid');
 	writeFileSync(script, "const c = require('child_process').spawn(process.execPath, ['-e', 'setTimeout(() => {}, 20000)'], "
 		+ `{ detached: true, stdio: 'inherit' }); require('fs').writeFileSync(${JSON.stringify(pidFile)}, String(c.pid)); c.unref(); console.log('done');\n`);
+	return { dir, script, pidFile };
+}
+
+function killEscaped(pidFile: string): void {
+	try { process.kill(Number(readFileSync(pidFile, 'utf8'))); } catch { /* Gone. */ }
+}
+
+test('runCommand ends when the command exits, even if a process it left in another group keeps its output open', async () => {
+	const { dir, script, pidFile } = escapeScript();
 	const command = `node ${script}`;
 	try {
 		const result = await within(6_000, runCommand(command, { cwd: dir, approved: [command], timeoutMs: 15_000, logFile: path.join(dir, 'a.log') }));
 		assert.equal(result.code, 0);
 		assert.equal(result.timedOut, false);
 		assert.match(result.stdout, /done/);
-	} finally {
-		try { process.kill(Number(readFileSync(pidFile, 'utf8'))); } catch { /* Gone. */ }
-	}
+	} finally { killEscaped(pidFile); }
+});
+
+test('runTool ends when the tool exits, even if a process it left in another group keeps its output open', async () => {
+	const { dir, script, pidFile } = escapeScript();
+	try {
+		const result = await within(6_000, runTool(process.execPath, [script], dir, undefined, { timeoutMs: 15_000 }));
+		assert.equal(result.code, 0);
+		assert.match(result.stdout, /done/);
+	} finally { killEscaped(pidFile); }
 });
 
 test('findTool searches only PATH and generic folders unless the caller passes more', () => {
