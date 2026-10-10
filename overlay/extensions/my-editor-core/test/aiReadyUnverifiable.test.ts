@@ -37,6 +37,16 @@ test('the cache counts only for the ai_fix tip it was saved at', () => {
 	assert.equal(blockedFiles([split('internal/engine/a.go')], goChecks, undefined, 'tip1').size, 0);
 });
 
+test('a run that does not recheck a blocked package carries it over; it drops out only when a baseline shows it compiling', () => {
+	const first = checkCache('tip1', baseline);
+	const storeOnly = { 'go build -o /dev/null ./internal/store': twice('go build -o /dev/null ./internal/store', 0) };
+	const second = checkCache('tip2', storeOnly, first);
+	const files = [split('internal/engine/a.go'), split('internal/store/b.go')];
+	assert.deepEqual([...blockedFiles(files, goChecks, second, 'tip2').keys()], ['internal/engine/a.go']);
+	const fixedEngine = { 'go build -o /dev/null ./internal/engine': twice('go build -o /dev/null ./internal/engine', 0) };
+	assert.equal(blockedFiles(files, goChecks, checkCache('tip3', fixedEngine, second), 'tip3').size, 0);
+});
+
 test('the cache is saved per project and read back', () => {
 	const storage = mkdtempSync(path.join(os.tmpdir(), 'unverifiable-'));
 	assert.equal(loadChecks(storage, '/p/shop'), undefined);

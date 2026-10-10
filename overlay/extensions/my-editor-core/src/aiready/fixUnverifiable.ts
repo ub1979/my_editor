@@ -20,8 +20,13 @@ type Baseline = Readonly<Record<string, readonly [CheckResult, CheckResult]>>;
 
 const FILE = 'checks.json';
 
-export function checkCache(tip: string, baseline: Baseline): CheckCache {
-	return { tip, passed: Object.fromEntries(Object.entries(baseline).map(([command, runs]) => [command, runs.every(r => r.code === 0)])) };
+/**
+ * The cache after a run that left `tip`: its baseline over the earlier record, so a package this run did not recheck
+ * keeps its entry, and one drops out only when a baseline shows it compiling.
+ */
+export function checkCache(tip: string, baseline: Baseline, previous?: CheckCache): CheckCache {
+	const now = Object.fromEntries(Object.entries(baseline).map(([command, runs]) => [command, runs.every(r => r.code === 0)]));
+	return { tip, passed: { ...previous?.passed, ...now } };
 }
 
 export function saveChecks(storageDir: string, root: string, cache: CheckCache): void {
@@ -40,11 +45,11 @@ export function loadChecks(storageDir: string, root: string): CheckCache | undef
 	}
 }
 
-/** When a run closes: records its baseline under the `ai_fix` tip it left. Never fails the close. */
+/** When a run closes: records its baseline over the earlier record, under the `ai_fix` tip it left. Never fails the close. */
 export async function rememberChecks(storageDir: string, root: string, baseline: Baseline): Promise<void> {
 	try {
 		const tip = await fixTip(root);
-		if (tip) { saveChecks(storageDir, root, checkCache(tip, baseline)); }
+		if (tip) { saveChecks(storageDir, root, checkCache(tip, baseline, loadChecks(storageDir, root))); }
 	} catch { /* Only a hint for the next picker. */ }
 }
 
