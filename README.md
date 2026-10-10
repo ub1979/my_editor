@@ -94,7 +94,10 @@ All documentation is listed in [`docs/README.md`](docs/README.md). Start with:
   `ai_fix` (each run adds on top of it) in a working copy next to the project; Go files can also get new tests. TypeScript/JavaScript moves are narrower where a
   build tool could change behaviour (CommonJS, Babel, Vite, Next.js and similar move only types). Your folder is not
   touched apart from the health report, and nothing is pushed; a change note on `ai_fix` says how to review it, work
-  on it with `git switch ai_fix`, or delete it. my_editor never suggests merging it.
+  on it with `git switch ai_fix`, or delete it. my_editor never suggests merging it. One click works through every
+  ticked fix; Pair shows *Fix 7 of 26: …* as it goes, **Stop** saves where it is and **Continue** picks up from there.
+  The picker ticks every split it can do and leaves unticked, with the reason, files the last run could not check here
+  (their package's build already fails). Later runs start from **Project → Health → Fix remaining files**.
   Python moves are refused wherever Python could notice the difference. C#, Rust and C/C++ follow.
 
 ## Build and run (macOS)

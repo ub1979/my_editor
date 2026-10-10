@@ -5,7 +5,9 @@ my_editor uses the version in `overlay/extensions/my-editor-core/package.json` a
 ## Unreleased
 
 - Fixes on a local branch always go on one local branch, `ai_fix`; each run adds its commits on top of it (earlier work on `my_editor/ai-ready` is carried over once). If your branch has newer commits, the run says so and changes nothing else. my_editor never suggests merging `ai_fix`: review it with `git diff`, work on it with `git switch ai_fix`, or delete it.
-- Chosen fixes that nothing here can check (their package's build already fails) are skipped right after the baseline, said once grouped by package, and no longer use up the 25 fixes per run.
+- One click fixes every chosen file: a run no longer stops after 25 fixes, so there is no pressing the button again and again. Stop still saves where it is and Continue picks up from there; each fix is still its own commit, with one change note at the end. Pair shows *Fix 7 of 26: …* while it works, and the Project button reads **Fix remaining files** (was **Next batch**). Only a runaway run stops, at 500 fixes, and then says so.
+- The picker ticks every split it can do. Files the last run could not check here (their package's build already failed at baseline) are left unticked, with the reason under the row; add-tests choices stay unticked as before.
+- Chosen fixes that nothing here can check (their package's build already fails) are skipped right after the baseline and said once grouped by package.
 - The change note lists files a split left over 400 lines and why, and groups the files never split by reason.
 
 ## 0.0.10 alpha — 2026-10-10 (installed; live check by the user pending)
