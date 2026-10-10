@@ -37,7 +37,7 @@ export async function refreshLeft(context: vscode.ExtensionContext, root: string
 		const version = String(context.extension.packageJSON.version ?? 'dev');
 		const language = await adapterFor(root, { extensionPath: context.extensionUri.fsPath, storageDir: storage, version, appRoot: vscode.env.appRoot });
 		if (typeof language === 'string') { return undefined; }
-		const found = await findCandidates(root, language, () => false, remembered(loadSettled(storage, root), version));
+		const found = await findCandidates(root, language, () => false, remembered(loadSettled(storage, root)));
 		if (!found) { return undefined; }
 		const splits = found.choices.filter(choice => choice.kind === 'split');
 		const blocked = blockedFiles(splits, file => found.local.checks(file), loadChecks(storage, root), found.tip);

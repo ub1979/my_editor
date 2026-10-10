@@ -14,9 +14,15 @@ export interface SettledSplit {
 	readonly skip?: string;
 }
 
-/** What earlier runs settled, for one my_editor version (a newer one may split files an older one would not). */
+/**
+ * The rules that settle a split by content (never split, nothing may move, a real refactor). Bump it when they change,
+ * so files an older rule settled are offered again; an install that leaves them alone keeps the record.
+ */
+export const SETTLED_RULES = 1;
+
+/** What earlier runs settled, under the rules of `rules`. */
 export interface SettledCache {
-	readonly version: string;
+	readonly rules: number;
 	readonly files: Readonly<Record<string, SettledSplit>>;
 }
 
@@ -25,22 +31,22 @@ export type Remembered = (file: string, blob: string | undefined) => SettledSpli
 
 const FILE = 'settled.json';
 
-/** The cache after a run: its lasting split outcomes over the earlier record (kept only when it is for this version). */
-export function settledCache(version: string, steps: readonly StepRecord[], blobs: ReadonlyMap<string, string>,
-	previous?: SettledCache): SettledCache {
-	const files: Record<string, SettledSplit> = { ...(previous?.version === version ? previous.files : {}) };
+/** The cache after a run: its lasting split outcomes over the earlier record (kept only when it has the same rules). */
+export function settledCache(steps: readonly StepRecord[], blobs: ReadonlyMap<string, string>, previous?: SettledCache,
+	rules = SETTLED_RULES): SettledCache {
+	const files: Record<string, SettledSplit> = { ...(previous?.rules === rules ? previous.files : {}) };
 	for (const step of steps) {
 		const blob = blobs.get(step.file);
 		if (step.kind !== 'split' || !step.lasting || !blob) { continue; }
 		files[step.file] = step.lasting.skip ? { blob, skip: step.lasting.skip } : { blob };
 	}
-	return { version, files };
+	return { rules, files };
 }
 
-/** The lookup for the picker: a hit only for the same version and the same file content. */
-export function remembered(cache: SettledCache | undefined, version: string): Remembered {
+/** The lookup for the picker: a hit only under the same rules and for the same file content. */
+export function remembered(cache: SettledCache | undefined, rules = SETTLED_RULES): Remembered {
 	return (file, blob) => {
-		const known = cache?.version === version ? cache.files[file] : undefined;
+		const known = cache?.rules === rules ? cache.files[file] : undefined;
 		return known && blob && known.blob === blob ? known : undefined;
 	};
 }
@@ -55,20 +61,19 @@ export function saveSettled(storageDir: string, root: string, cache: SettledCach
 export function loadSettled(storageDir: string, root: string): SettledCache | undefined {
 	try {
 		const cache = JSON.parse(readFileSync(path.join(runDir(storageDir, root), FILE), 'utf8')) as SettledCache;
-		return typeof cache.version === 'string' && cache.files && typeof cache.files === 'object' ? cache : undefined;
+		return typeof cache.rules === 'number' && cache.files && typeof cache.files === 'object' ? cache : undefined;
 	} catch {
 		return undefined;
 	}
 }
 
 /** When a run closes: records its lasting split outcomes, with blob ids read in its worktree. Never fails the close. */
-export async function rememberSettled(storageDir: string, root: string, worktree: string, version: string,
-	steps: readonly StepRecord[]): Promise<void> {
+export async function rememberSettled(storageDir: string, root: string, worktree: string, steps: readonly StepRecord[]): Promise<void> {
 	try {
 		const blobs = new Map<string, string>();
 		for (const file of new Set(steps.filter(step => step.kind === 'split' && step.lasting).map(step => step.file))) {
 			try { blobs.set(file, (await git(worktree, ['rev-parse', `HEAD:${file}`])).trim()); } catch { /* Not on the branch. */ }
 		}
-		saveSettled(storageDir, root, settledCache(version, steps, blobs, loadSettled(storageDir, root)));
+		saveSettled(storageDir, root, settledCache(steps, blobs, loadSettled(storageDir, root)));
 	} catch { /* Only a hint for the next picker. */ }
 }

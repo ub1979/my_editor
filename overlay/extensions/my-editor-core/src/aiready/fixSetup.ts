@@ -21,8 +21,6 @@ export interface CommandEnv {
 	readonly storage: string;
 	readonly root: string;
 	readonly token: vscode.CancellationToken;
-	/** my_editor's version, which the settled-splits record is kept for. */
-	readonly version: string;
 }
 
 /** The per-command timeout from settings (minutes, default 10, clamped to 1–240). */
@@ -74,7 +72,7 @@ export async function startRun(env: CommandEnv, adapter: (root: string, tracked:
 	const { root, token } = env;
 	if (!await checkPrerequisites(root, sink)) { return undefined; }
 	sink.progress(`Finding files to fix${await fixTip(root) ? ` on ${FIX_BRANCH}, with the earlier runs' fixes` : ''}…`);
-	const known = remembered(loadSettled(env.storage, root), env.version);
+	const known = remembered(loadSettled(env.storage, root));
 	const found = await findCandidates(root, adapter, () => token.isCancellationRequested, known);
 	if (!found) { return undefined; }
 	const { local, choices, unsplittable, skipped, stats } = found;

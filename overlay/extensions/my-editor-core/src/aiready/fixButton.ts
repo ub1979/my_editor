@@ -24,7 +24,7 @@ const files = (n: number) => `${n} file${n === 1 ? '' : 's'}`;
 
 /** The card's words for files the fixer can't split here, after the main count. */
 function stuckText(stuck: number): string {
-	return `${files(stuck)} over 400 lines can't be split here; the change note says why.`;
+	return `${files(stuck)} over 400 lines can't be split here: a split can't help, or the build fails on this machine.`;
 }
 
 export function fixButton({ running, saved, branchExists, left, stuck = 0 }: FixButtonInput): FixButton {

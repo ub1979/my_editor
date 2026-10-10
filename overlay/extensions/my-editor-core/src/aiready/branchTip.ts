@@ -46,8 +46,9 @@ export async function treeSource(root: string): Promise<TreeSource> {
 	const fromFolder = async (file: string) => readFileSync(path.join(root, file), 'utf8');
 	const tip = await fixTip(root);
 	if (!tip) {
-		const hashed = async (file: string) => { try { return (await git(root, ['hash-object', '--', file])).trim(); } catch { return undefined; } };
-		return { tracked: await trackedFiles(root), changed: new Set(), text: fromFolder, blob: hashed };
+		// HEAD's ids: a run starts only with no edits to tracked files, so they match the folder whenever it matters.
+		const atHead = await blobs(root, 'HEAD').catch(() => new Map<string, string>());
+		return { tracked: await trackedFiles(root), changed: new Set(), text: fromFolder, blob: async file => atHead.get(file) };
 	}
 	const [atTip, atHead] = await Promise.all([blobs(root, tip), blobs(root, 'HEAD')]);
 	const changed = new Set([...atTip].filter(([file, id]) => atHead.get(file) !== id).map(([file]) => file));

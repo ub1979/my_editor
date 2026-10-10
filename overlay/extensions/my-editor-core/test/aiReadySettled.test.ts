@@ -6,7 +6,7 @@ import * as path from 'node:path';
 import { test } from 'node:test';
 import { findCandidates } from '../src/aiready/fixCandidates';
 import { closeEmpty } from '../src/aiready/fixEmpty';
-import { loadSettled, rememberSettled, remembered, saveSettled, settledCache } from '../src/aiready/fixSettled';
+import { loadSettled, rememberSettled, remembered, saveSettled, SETTLED_RULES, settledCache } from '../src/aiready/fixSettled';
 import type { RunState, StepRecord } from '../src/aiready/fixState';
 import type { Declaration, FileInfo, LanguageAdapter } from '../src/aiready/language';
 import { prepare } from '../src/aiready/worktree';
@@ -53,21 +53,21 @@ function factory(parsed: string[]) {
 }
 
 test('a run keeps its lasting split outcomes by blob id, never the ones a build blocked', () => {
-	const cache = settledCache('0.0.11', [never, refactor, unchecked], new Map([['big_test.go', 'b1'], ['solo.go', 's1'], ['engine.go', 'e1']]));
-	assert.deepEqual(cache, { version: '0.0.11', files: { 'big_test.go': { blob: 'b1', skip: 'test files are not split' }, 'solo.go': { blob: 's1' } } });
-	const known = remembered(cache, '0.0.11');
+	const cache = settledCache([never, refactor, unchecked], new Map([['big_test.go', 'b1'], ['solo.go', 's1'], ['engine.go', 'e1']]));
+	assert.deepEqual(cache, { rules: SETTLED_RULES, files: { 'big_test.go': { blob: 'b1', skip: 'test files are not split' }, 'solo.go': { blob: 's1' } } });
+	const known = remembered(cache);
 	assert.deepEqual(known('solo.go', 's1'), { blob: 's1' });
 	assert.equal(known('solo.go', 's2'), undefined, 'the file changed since');
 	assert.equal(known('solo.go', undefined), undefined);
-	assert.equal(remembered(cache, '0.0.12')('solo.go', 's1'), undefined, 'a newer version may split it');
-	assert.deepEqual(Object.keys(settledCache('0.0.11', [], new Map(), cache).files).sort(), ['big_test.go', 'solo.go'], 'earlier entries stay');
-	assert.deepEqual(settledCache('0.0.12', [], new Map(), cache).files, {}, 'another version starts afresh');
+	assert.equal(remembered(cache, SETTLED_RULES + 1)('solo.go', 's1'), undefined, 'new rules may split it');
+	assert.deepEqual(Object.keys(settledCache([], new Map(), cache).files).sort(), ['big_test.go', 'solo.go'], 'earlier entries stay');
+	assert.deepEqual(settledCache([], new Map(), cache, SETTLED_RULES + 1).files, {}, 'new rules start afresh');
 });
 
 test('the record is saved per project and read back', () => {
 	const storage = mkdtempSync(path.join(os.tmpdir(), 'settled-'));
 	assert.equal(loadSettled(storage, '/p/shop'), undefined);
-	const cache = settledCache('1', [refactor], new Map([['solo.go', 's1']]));
+	const cache = settledCache([refactor], new Map([['solo.go', 's1']]));
 	saveSettled(storage, '/p/shop', cache);
 	assert.deepEqual(loadSettled(storage, '/p/shop'), cache);
 	assert.equal(loadSettled(storage, '/p/other'), undefined);
@@ -80,10 +80,10 @@ test('files the user changed after ai_fix parted are ticked once, then left out 
 	const storage = mkdtempSync(path.join(os.tmpdir(), 'settled-'));
 	const folder = `${root}.ai-ready`;
 	await prepare(root, folder);
-	await rememberSettled(storage, root, folder, '1', [never, refactor]);
+	await rememberSettled(storage, root, folder, [never, refactor]);
 	assert.equal(loadSettled(storage, root)?.files['solo.go']?.blob, git('rev-parse', 'ai_fix:solo.go'));
 	const parsed: string[] = [];
-	const found = await findCandidates(root, factory(parsed), () => false, remembered(loadSettled(storage, root), '1'));
+	const found = await findCandidates(root, factory(parsed), () => false, remembered(loadSettled(storage, root)));
 	assert.deepEqual(found?.choices.map(c => c.file), ['c.go']);
 	assert.deepEqual(found?.unsplittable.map(c => c.file), ['solo.go']);
 	assert.equal(found?.skipped.get('big_test.go'), 'test files are not split');
@@ -147,5 +147,15 @@ test('a first run that committed nothing leaves no ai_fix branch behind', async 
 	await closeEmpty(mkdtempSync(path.join(os.tmpdir(), 'settled-')), emptyRun(root, worktree), { text: text => said.push(text) });
 	assert.equal(git('branch', '--list', 'ai_fix'), '');
 	assert.match(said.join(''), /no branch was kept/);
+	rmSync(root, { recursive: true, force: true });
+});
+
+test('without ai_fix the picker reads blob ids from HEAD, so a remembered file in the folder is left out too', async () => {
+	const { root, git } = diverged();
+	git('branch', '-D', 'ai_fix');
+	const known = remembered(settledCache([refactor], new Map([['solo.go', git('rev-parse', 'HEAD:solo.go')]])));
+	const found = await findCandidates(root, factory([]), () => false, known);
+	assert.deepEqual(found?.unsplittable.map(c => c.file), ['solo.go']);
+	assert.equal(found?.choices.some(c => c.file === 'solo.go'), false);
 	rmSync(root, { recursive: true, force: true });
 });

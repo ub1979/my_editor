@@ -39,14 +39,13 @@ async function fixRun(context: vscode.ExtensionContext, keys: ApiKeys, sink: Sin
 	const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 	if (!root) { sink.text('Open a project folder first.'); return; }
 	const storage = context.globalStorageUri.fsPath;
-	const version = String(context.extension.packageJSON.version ?? 'dev');
-	const env: CommandEnv = { storage, root, token, version };
+	const env: CommandEnv = { storage, root, token };
 	let state = loadState(storage, root);
 	if (!state && options.continue) { sink.text('That fix run has already finished.'); return; }
 	const model = pickDefault(await loadCatalog(keys));
 	if (!model) { sink.text('No model is available. Choose one with **my_editor: Choose Default Model** first.'); return; }
 	const language = await adapterFor(root, {
-		extensionPath: context.extensionUri.fsPath, storageDir: storage, version, appRoot: vscode.env.appRoot,
+		extensionPath: context.extensionUri.fsPath, storageDir: storage, version: String(context.extension.packageJSON.version ?? 'dev'), appRoot: vscode.env.appRoot,
 		choosePython,
 	});
 	if (typeof language === 'string') { sink.text(language); return; }
@@ -127,7 +126,7 @@ async function runFixes(env: CommandEnv, state: RunState, adapter: LanguageAdapt
 
 /** Commits the change note on the branch, removes the worktree (the branch stays), and updates the report. */
 async function closeRun(env: CommandEnv, state: RunState, sink: Sink, mayDiffer: string | undefined): Promise<void> {
-	await rememberSettled(env.storage, state.root, state.worktree.path, env.version, state.steps);
+	await rememberSettled(env.storage, state.root, state.worktree.path, state.steps);
 	if (!state.steps.some(step => step.status === 'committed')) { return closeEmpty(env.storage, state, sink); }
 	const at = new Date();
 	const note = noteFileName(at);
