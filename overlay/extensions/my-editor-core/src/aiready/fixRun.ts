@@ -8,9 +8,9 @@ import { ApiKeys } from '../models/secrets';
 import { noteFileName, renderChangeNote, reportPath, runFlaky, writeRunReport } from './changeNote';
 import { CommandEnv, prepareWorktree, runCheck, startRun } from './fixSetup';
 import { runQueue } from './fixQueue';
-import { clearState, discardRest, loadState, MAX_FIXES_PER_RUN, RunState, saveState, StepRecord } from './fixState';
+import { clearState, discardRest, loadState, RUNAWAY_LIMIT, RunState, saveState, StepRecord } from './fixState';
 import { setFixRunning } from './fixStatus';
-import { closingText } from './fixText';
+import { closingText, pausedText } from './fixText';
 import type { LanguageAdapter } from './language';
 import { adapterFor, languageNote } from './languages';
 import { choosePython } from './pyPick';
@@ -24,7 +24,7 @@ export interface FixOptions {
 	readonly continue?: boolean;
 }
 
-/** "Fix on a local branch": pick fixes, prepare the safety net, run up to 25 fixes, and close when all are done. */
+/** "Fix on a local branch": pick fixes, prepare the safety net, run every chosen fix, and close when all are done. */
 export async function fixOnBranch(context: vscode.ExtensionContext, keys: ApiKeys, sink: Sink, token: vscode.CancellationToken,
 	options: FixOptions = {}): Promise<void> {
 	setFixRunning(true);
@@ -103,7 +103,7 @@ async function runFixes(env: CommandEnv, state: RunState, adapter: LanguageAdapt
 		cancelled: () => token.isCancellationRequested,
 		progress: text => sink.progress(text),
 	};
-	await runQueue(state, {
+	const attempted = await runQueue(state, {
 		run: fix => (fix.kind === 'split' ? runSplit(ctx, fix) : runAddTests(ctx, fix)),
 		cancelled: () => token.isCancellationRequested,
 		progress: text => sink.progress(text),
@@ -113,8 +113,8 @@ async function runFixes(env: CommandEnv, state: RunState, adapter: LanguageAdapt
 	if (state.next < state.fixes.length) {
 		saveState(storage, state);
 		const left = state.fixes.length - state.next;
-		sink.text(`\n${token.isCancellationRequested ? 'Stopped.' : `That is ${MAX_FIXES_PER_RUN} fixes for this run.`} `
-			+ `${left} fix${left === 1 ? ' is' : 'es are'} left on \`${state.worktree.branch}\`; Continue picks up from \`${state.fixes[state.next].file}\`.`);
+		const bound = !token.isCancellationRequested && attempted >= RUNAWAY_LIMIT ? RUNAWAY_LIMIT : undefined;
+		sink.text(pausedText({ left, branch: state.worktree.branch, next: state.fixes[state.next].file, bound }));
 		sink.action('Continue', 'myEditor.aiReadyFix', [{ continue: true }]);
 		return;
 	}

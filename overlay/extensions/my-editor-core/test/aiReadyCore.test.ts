@@ -97,7 +97,7 @@ test('setup runs once before the baseline: a failed install or a changed tracked
 });
 
 test('the approval modal says what an install does: registry, install scripts, repository config, and a command chosen by my_editor', () => {
-	const detail = approvalDetail('/p/w', ['npm ci', 'npm test'], 'TypeScript/JavaScript', 1, true);
+	const detail = approvalDetail('/p/w', ['npm ci', 'npm test'], 'TypeScript/JavaScript', true);
 	assert.match(detail, /my_editor chose `npm ci` from the lockfile\. It downloads packages from the registry this repository configures/);
 	assert.match(detail, /\(or your default one\)/);
 	assert.match(detail, /runs the install scripts of the project and of its dependencies/);

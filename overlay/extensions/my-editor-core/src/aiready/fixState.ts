@@ -34,7 +34,7 @@ export interface StepRecord {
 	readonly over?: readonly StillOver[];
 	/** For a split: model plan attempts and why each rejected one was rejected. */
 	readonly plan?: { readonly attempts: number; readonly rejected: readonly string[] };
-	/** Settled before any model call or edit, so it does not count toward the fixes per run. */
+	/** Settled before any model call or edit, so it does not count toward the runaway bound. */
 	readonly early?: boolean;
 }
 
@@ -66,8 +66,8 @@ export function discardRest(state: RunState): void {
 	state.next = state.fixes.length;
 }
 
-/** At most this many fixes per run; Continue picks up the rest. */
-export const MAX_FIXES_PER_RUN = 25;
+/** A safety bound for runaway runs only: a run works through every chosen fix, and stops here only if something loops. */
+export const RUNAWAY_LIMIT = 500;
 
 /** The folder holding a project's run state and command logs. */
 export function runDir(storageDir: string, root: string): string {

@@ -1,6 +1,5 @@
 import { MAX_SOURCE_LINES } from '../quality/sourcePolicy';
 import { type EarlyOutcome, unitOf } from './fixScreen';
-import { MAX_FIXES_PER_RUN } from './fixState';
 import { FIX_BRANCH, type Worktree } from './worktree';
 
 /** The default and limits of `myEditor.aiReady.commandTimeoutMinutes`. */
@@ -26,9 +25,8 @@ function installText(command: string): string {
 }
 
 /** The approval modal's detail: where the commands run, the exact commands, what they run, and the adapter's note. */
-export function approvalDetail(folder: string, approved: readonly string[], language: string, fixCount = 0, installs = false, note = ''): string {
-	const over = fixCount > MAX_FIXES_PER_RUN ? `${fixCount} fixes chosen: ${MAX_FIXES_PER_RUN} now; Continue does the rest.\n\n` : '';
-	return `${over}In a new working copy at ${folder}, on the local branch ${FIX_BRANCH} (made from your branch the first time; later runs add `
+export function approvalDetail(folder: string, approved: readonly string[], language: string, installs = false, note = ''): string {
+	return `In a new working copy at ${folder}, on the local branch ${FIX_BRANCH} (made from your branch the first time; later runs add `
 		+ `on top):\n\n${approved.join('\n')}\n\n`
 		+ (installs ? installText(approved[0]) : '')
 		+ `${installs ? 'The others' : 'They'} build the project and run its tests, which runs project code and tests written by the AI model. `
@@ -64,6 +62,20 @@ export function earlyText(outcomes: readonly EarlyOutcome[]): string {
 			+ `${refactor.map(({ step, brief }) => `\`${step.file}\`: ${brief}`).join('; ')}.`] : []),
 	];
 	return lines.map(line => `${line}\n`).join('');
+}
+
+/** Where a paused run stands: fixes left, the branch, the file Continue starts from, and the runaway bound when it was hit. */
+export interface Paused {
+	readonly left: number;
+	readonly branch: string;
+	readonly next: string;
+	readonly bound?: number;
+}
+
+/** Said when a run pauses with fixes left: on Stop, or (only when it was hit) at the runaway bound. */
+export function pausedText({ left, branch, next, bound }: Paused): string {
+	const why = bound === undefined ? 'Stopped.' : `This run stopped after ${bound} fixes, a safety limit for runaway runs.`;
+	return `\n${why} ${left} fix${left === 1 ? ' is' : 'es are'} left on \`${branch}\`; Continue picks up from \`${next}\`.`;
 }
 
 export interface Closing {

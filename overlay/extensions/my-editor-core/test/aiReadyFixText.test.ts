@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import * as path from 'node:path';
 import { test } from 'node:test';
 import { pickFixes } from '../src/aiready/fixPicker';
-import { alreadyFailingText, approvalDetail, closingText, timeoutMinutes } from '../src/aiready/fixText';
+import { alreadyFailingText, approvalDetail, closingText, pausedText, timeoutMinutes } from '../src/aiready/fixText';
 
 test('the approval modal says the commands run project code and tests written by the AI model', () => {
 	const detail = approvalDetail('/p/shop.ai-ready', ['go build ./...', 'go test -count=1 -json ./a'], 'Go');
@@ -53,9 +53,15 @@ test('already-failing checks are one short line and a bullet list', () => {
 	assert.equal(alreadyFailingText([]), '');
 });
 
-test('the approval modal says when more fixes are chosen than one run does', () => {
-	assert.match(approvalDetail('/p/w', ['go build ./...'], 'Go', 40), /^40 fixes chosen: 25 now; Continue does the rest\./);
-	assert.doesNotMatch(approvalDetail('/p/w', ['go build ./...'], 'Go', 25), /Continue does the rest/);
+test('the approval modal names no per-run limit', () => {
+	assert.doesNotMatch(approvalDetail('/p/w', ['go build ./...'], 'Go'), /Continue does the rest|fixes chosen|25/);
+});
+
+test('a paused run says Stopped, or names the runaway bound only when it was hit', () => {
+	assert.equal(pausedText({ left: 3, branch: 'ai_fix', next: 'a.go' }),
+		'\nStopped. 3 fixes are left on `ai_fix`; Continue picks up from `a.go`.');
+	assert.equal(pausedText({ left: 1, branch: 'ai_fix', next: 'a.go', bound: 500 }),
+		'\nThis run stopped after 500 fixes, a safety limit for runaway runs. 1 fix is left on `ai_fix`; Continue picks up from `a.go`.');
 });
 
 test('a types-only split row says so', async () => {

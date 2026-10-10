@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import { buildBlocker, type CheckResult } from '../src/aiready/baseline';
 import { runQueue } from '../src/aiready/fixQueue';
 import { screenFix, screenQueue, type Screener } from '../src/aiready/fixScreen';
-import type { FixChoice, RunState, StepRecord } from '../src/aiready/fixState';
+import { type FixChoice, type RunState, RUNAWAY_LIMIT, type StepRecord } from '../src/aiready/fixState';
 import { earlyText } from '../src/aiready/fixText';
 import type { CheckCommand, FileInfo } from '../src/aiready/language';
 
@@ -97,7 +97,16 @@ function queueState(files: readonly string[]): RunState {
 	};
 }
 
-test('the 25 per run count only attempted fixes; a fix settled before any work does not use the budget', async () => {
+test('the queue runs every fix until it is empty, well past 25', async () => {
+	const state = queueState(Array.from({ length: 60 }, (_, i) => `f${i}.go`));
+	const attempted = await runQueue(state, {
+		run: async f => ({ file: f.file, kind: 'split', status: 'committed' }), cancelled: () => false, progress: () => undefined, record: () => undefined,
+	});
+	assert.equal(attempted, 60);
+	assert.equal(state.next, 60);
+});
+
+test('the runaway bound counts only attempted fixes; a fix settled before any work does not use it', async () => {
 	const files = Array.from({ length: 40 }, (_, i) => `f${i}.go`);
 	const state = queueState(files);
 	const shown: StepRecord[] = [];
@@ -106,11 +115,15 @@ test('the 25 per run count only attempted fixes; a fix settled before any work d
 			? { file: f.file, kind: 'split', status: 'skipped', reason: 'build fails', early: true }
 			: { file: f.file, kind: 'split', status: Number(f.file.slice(1, -3)) % 4 === 1 ? 'refused' : 'committed' }),
 		cancelled: () => false, progress: () => undefined, record: step => shown.push(step),
-	}, 25);
-	assert.equal(attempted, 25);
-	assert.equal(shown.filter(step => !step.early).length, 25);
-	assert.equal(state.next, 34, 'f0..f33: 25 attempted plus 9 settled early');
-	assert.equal(state.steps.length, 34);
+	}, 15);
+	assert.equal(attempted, 15);
+	assert.equal(shown.filter(step => !step.early).length, 15);
+	assert.equal(state.next, 20, 'f0..f19: 15 attempted plus 5 settled early');
+	assert.equal(state.steps.length, 20);
+});
+
+test('the runaway bound is large', () => {
+	assert.ok(RUNAWAY_LIMIT >= 500);
 });
 
 test('the queue stops on Stop, and a thrown error counts as an attempted skip', async () => {

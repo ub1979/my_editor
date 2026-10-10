@@ -85,7 +85,7 @@ export async function startRun(env: CommandEnv, adapter: (root: string, tracked:
 	const approved = [...setup, ...checks].map(check => check.command);
 	const folder = freeFolder(root);
 	const answer = await vscode.window.showWarningMessage('Run these commands on a new local branch?',
-		{ modal: true, detail: approvalDetail(folder, approved, local.label, picked.length, setup.length > 0, local.approvalNote?.(folder)) }, 'Run them');
+		{ modal: true, detail: approvalDetail(folder, approved, local.label, setup.length > 0, local.approvalNote?.(folder)) }, 'Run them');
 	if (answer !== 'Run them') { sink.text('The commands were not approved, so nothing changed.'); return undefined; }
 	const limits = [...new Set(picked.filter(fix => fix.kind === 'split' && fix.narrowed).map(fix => fix.narrowed!))];
 	const worktree = await prepare(root, folder);

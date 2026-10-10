@@ -1,4 +1,4 @@
-import { type FixChoice, MAX_FIXES_PER_RUN, type RunState, type StepRecord } from './fixState';
+import { type FixChoice, type RunState, RUNAWAY_LIMIT, type StepRecord } from './fixState';
 
 /** What running the queue needs: one fix's step, Stop, progress, and a hook that saves and shows each record. */
 export interface QueueHooks {
@@ -9,11 +9,11 @@ export interface QueueHooks {
 }
 
 /**
- * Runs fixes from `state.next` until the queue ends, `max` fixes were attempted, or Stop. A fix settled before any
+ * Runs fixes from `state.next` until the queue is empty or Stop; `max` attempted fixes only bound a runaway run. A fix settled before any
  * model call or edit (`early`) does not count. A stopped step is not recorded, so Continue runs it again. Returns how
  * many fixes were attempted.
  */
-export async function runQueue(state: RunState, hooks: QueueHooks, max = MAX_FIXES_PER_RUN): Promise<number> {
+export async function runQueue(state: RunState, hooks: QueueHooks, max = RUNAWAY_LIMIT): Promise<number> {
 	let attempted = 0;
 	while (state.next < state.fixes.length && attempted < max && !hooks.cancelled()) {
 		const fix = state.fixes[state.next];

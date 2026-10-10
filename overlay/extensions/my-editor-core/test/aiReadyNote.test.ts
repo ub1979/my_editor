@@ -30,14 +30,13 @@ test('fix choices: Go files only, never-split files left out, biggest first, spl
 	assert.equal(await pickFixes(choices, async () => undefined), undefined);
 });
 
-test('the picker pre-selects at most 25 splits, biggest first, and says 25 per run in the title', async () => {
+test('the picker pre-selects every split, however many, and names no per-run limit', async () => {
 	const many = Array.from({ length: 60 }, (_, i) => fix(`f${i}.go`, 'split', 1000 - i));
 	let shown: { picked: boolean }[] = [];
 	let options = { title: '', placeHolder: '' };
 	await pickFixes(many, async (items, shownOptions) => { shown = items; options = shownOptions; return undefined; });
-	assert.equal(shown.filter(item => item.picked).length, 25);
-	assert.ok(shown.slice(0, 25).every(item => item.picked) && shown.slice(25).every(item => !item.picked));
-	assert.match(options.title, /25 fixes per run/);
+	assert.equal(shown.filter(item => item.picked).length, 60);
+	assert.doesNotMatch(options.title, /\d|per run/);
 	assert.ok(options.placeHolder.length <= 50, options.placeHolder);
 });
 
