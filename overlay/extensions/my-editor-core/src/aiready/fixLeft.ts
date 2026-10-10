@@ -11,14 +11,17 @@ const key = (root: string) => `myEditor.fixLeft:${root}`;
 export interface FixLeft {
 	/** Splits a run would start with ticked. */
 	readonly left: number;
-	/** Files still over the limit that no run here can split: a real refactor, nothing may move, or a build that fails here. */
-	readonly stuck: number;
+	/** Files still over the limit a split can't help (a real refactor, or nothing in them may move). */
+	readonly refactor: number;
+	/** Files over the limit in packages whose build already failed here. */
+	readonly unbuildable: number;
 }
 
-/** The cached count for this project; undefined when never computed (or saved by an older version as a bare number). */
+/** The cached count for this project; undefined when never computed (or saved by an older version in another shape). */
 export function cachedLeft(context: vscode.ExtensionContext, root: string): FixLeft | undefined {
 	const saved = context.workspaceState.get<unknown>(key(root));
-	return saved && typeof saved === 'object' && typeof (saved as FixLeft).left === 'number' ? saved as FixLeft : undefined;
+	const count = saved as FixLeft | undefined;
+	return count && typeof count === 'object' && typeof count.left === 'number' && typeof count.unbuildable === 'number' ? count : undefined;
 }
 
 /** Whether the `ai_fix` branch exists. */
@@ -41,7 +44,7 @@ export async function refreshLeft(context: vscode.ExtensionContext, root: string
 		if (!found) { return undefined; }
 		const splits = found.choices.filter(choice => choice.kind === 'split');
 		const blocked = blockedFiles(splits, file => found.local.checks(file), loadChecks(storage, root), found.tip);
-		const count: FixLeft = { left: splits.length - blocked.size, stuck: found.unsplittable.length + blocked.size };
+		const count: FixLeft = { left: splits.length - blocked.size, refactor: found.unsplittable.length, unbuildable: blocked.size };
 		await context.workspaceState.update(key(root), count);
 		return count;
 	} catch {

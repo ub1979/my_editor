@@ -2,6 +2,10 @@
 
 my_editor uses the version in `overlay/extensions/my-editor-core/package.json` as its own release number. The Home page displays that version. The underlying editor shell keeps its upstream version independently.
 
+## 0.0.13 alpha — 2026-10-11
+
+- The AI readiness card says why files over 400 lines are left, by reason: how many need a real refactor (which the fixer doesn't do) and how many are in packages that don't build on this computer.
+
 ## 0.0.12 alpha — 2026-10-10
 
 - Fix remaining files no longer ticks the same files every time. When your branch had changed a file after `ai_fix` split off, the picker could not tell that it is a test file or needs a real refactor, so it ticked it and the run skipped it again. A run now remembers what it settled from a file's content, by that content, and later pickers leave those files out.
