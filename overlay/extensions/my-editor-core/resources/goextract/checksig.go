@@ -119,7 +119,7 @@ func (ck *checker) readResults(i int, sig *helperSig, problem func(string, ...an
 // results when it returns; or just the function's results when its call is `return h(…)`.
 func (ck *checker) resultTypes(sig *helperSig, ret bool, problem func(string, ...any)) {
 	fn := ck.bt.Func.Name.Name
-	fres := ck.funcResults()
+	fres := funcResults(ck.at)
 	want := len(sig.Outputs)
 	switch {
 	case sig.Tail && ret:
@@ -179,10 +179,10 @@ func (ck *checker) receiver() types.Object {
 	return ck.bt.L.Info.Defs[r.List[0].Names[0]]
 }
 
-// funcResults are the function's result types (after-load).
-func (ck *checker) funcResults() []types.Type {
+// funcResults are the result types of a load's function: ck.bt's or ck.at's.
+func funcResults(t *Target) []types.Type {
 	var out []types.Type
-	sig := ck.at.L.Info.Defs[ck.at.Func.Name].Type().(*types.Signature)
+	sig := t.L.Info.Defs[t.Func.Name].Type().(*types.Signature)
 	for k := 0; k < sig.Results().Len(); k++ {
 		out = append(out, sig.Results().At(k).Type())
 	}

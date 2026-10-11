@@ -264,14 +264,7 @@ func (w *bodyWriter) namedResults() []types.Object {
 	return out
 }
 
-func (w *bodyWriter) funcResults() []types.Type {
-	var out []types.Type
-	sig := w.ck.bt.L.Info.Defs[w.ck.bt.Func.Name].Type().(*types.Signature)
-	for k := 0; k < sig.Results().Len(); k++ {
-		out = append(out, sig.Results().At(k).Type())
-	}
-	return out
-}
+func (w *bodyWriter) funcResults() []types.Type { return funcResults(w.ck.bt) }
 
 func returnPieces(parts [][]piece) []piece {
 	out := []piece{gen("return")}
