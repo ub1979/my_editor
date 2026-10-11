@@ -2,10 +2,11 @@ import { createHash } from 'crypto';
 import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'fs';
 import * as path from 'path';
 import type { CheckResult } from './baseline';
+import type { FixKind, HelperSummary, RefactorTarget } from './language';
 import type { StillOver } from './stillOver';
 import type { Worktree } from './worktree';
 
-export type FixKind = 'split' | 'tests';
+export type { FixKind };
 
 /** One fix the user picked. */
 export interface FixChoice {
@@ -14,6 +15,8 @@ export interface FixChoice {
 	readonly lines: number;
 	/** Set when the file's scope is narrower than usual, e.g. "only types may move (why)". */
 	readonly narrowed?: string;
+	/** For a refactor: the function it shortens. */
+	readonly target?: RefactorTarget;
 }
 
 /** What happened to one fix. */
@@ -36,11 +39,16 @@ export interface StepRecord {
 	readonly plan?: { readonly attempts: number; readonly rejected: readonly string[] };
 	/** Settled before any model call or edit, so it does not count toward the runaway bound. */
 	readonly early?: boolean;
+	/** For a refactor: the function, its helpers, its lines afterwards, and whether the package's tests ran it at baseline. */
+	readonly refactor?: { readonly target: string; readonly helpers: readonly HelperSummary[]; readonly lines: number; readonly ran?: boolean };
+	/** A fix the run adds right after this one (the split that follows a refactor commit). */
+	readonly followUp?: FixChoice;
 	/**
 	 * Set for a split settled by the file's own content, which holds while the file is unchanged, so later pickers leave
 	 * it out: `skip` is why the file is never split or tested; unset, a split can't help (a real refactor, nothing may move).
+	 * `big` is the declaration that makes a split useless, kept so a later picker can offer its refactor.
 	 */
-	readonly lasting?: { readonly skip?: string };
+	readonly lasting?: { readonly skip?: string; readonly big?: RefactorTarget };
 }
 
 /** A run's saved state, in global storage, keyed by project path. Nothing is written to the project during a run. */
@@ -53,7 +61,10 @@ export interface RunState {
 	readonly startedAt: string;
 	/** The exact commands the user approved. */
 	readonly approved: readonly string[];
-	readonly fixes: readonly FixChoice[];
+	/** Not readonly: a follow-up fix is spliced in after the fix that asked for it. */
+	fixes: FixChoice[];
+	/** Whether the package's tests ran each refactor offer's function, from this run's coverage pass. */
+	readonly coverage?: Readonly<Record<string, boolean>>;
 	/** Index of the next fix to run. */
 	next: number;
 	/** How many fixes at the start of `fixes` were settled right after the baseline; progress counts the rest. */

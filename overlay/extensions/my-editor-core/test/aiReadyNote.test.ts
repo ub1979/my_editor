@@ -110,3 +110,14 @@ test('the change note names what may differ in the run\'s language, as its adapt
 	assert.doesNotMatch(ts, /runtime\.Caller/);
 	assert.match(renderChangeNote(state('/p/shop'), new Date('2026-10-09T12:34:00Z'), GO_LANGUAGE.mayDiffer), /runtime\.Caller/);
 });
+
+test('a refactor fix reads as a refactor in the refused, not run and discarded lists', () => {
+	const run: RunState = { ...state('/p/shop'), next: 1,
+		fixes: [{ file: 'a.go', kind: 'refactor', lines: 450 }, { file: 'b.go', kind: 'refactor', lines: 430 }],
+		steps: [{ file: 'a.go', kind: 'refactor', status: 'refused', reason: 'The extract check failed: x.' },
+			{ file: 'c.go', kind: 'refactor', status: 'discarded' }] };
+	const note = renderChangeNote(run, new Date('2026-10-09T12:34:00Z'));
+	assert.ok(note.includes('- `a.go` (refactor): refused. The extract check failed: x.'), note);
+	assert.ok(note.includes('## Not run yet\n\n- `b.go` (refactor)'), note);
+	assert.ok(note.includes('## Discarded by you\n\n- `c.go` (refactor)'), note);
+});

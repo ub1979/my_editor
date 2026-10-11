@@ -50,7 +50,7 @@ function commitLines(step: StepRecord): string[] {
 }
 
 function notDoneLine(step: StepRecord): string {
-	return `- \`${step.file}\` (${step.kind === 'split' ? 'split' : 'tests'}): ${step.status}. ${step.reason ?? ''} ${planText(step)}`.trimEnd();
+	return `- \`${step.file}\` (${step.kind}): ${step.status}. ${step.reason ?? ''} ${planText(step)}`.trimEnd();
 }
 
 /** The change note committed on the branch at close (pure); `mayDiffer` comes from the language adapter. */
@@ -80,8 +80,8 @@ export function renderChangeNote(state: RunState, at: Date, mayDiffer = MAY_DIFF
 		...(committed.length ? committed.flatMap(commitLines) : ['No fix was committed.']), '',
 		...(over.length ? [`## ${STILL_OVER_HEADING}`, '', ...stillOverLines(over), ''] : []),
 		...(notDone.length ? ['## Skipped or refused', '', ...notDone.map(notDoneLine), ''] : []),
-		...(pending.length ? ['## Not run yet', '', ...pending.map(fix => `- \`${fix.file}\` (${fix.kind === 'split' ? 'split' : 'tests'})`), ''] : []),
-		...(discarded.length ? ['## Discarded by you', '', ...discarded.map(step => `- \`${step.file}\` (${step.kind === 'split' ? 'split' : 'tests'})`), ''] : []),
+		...(pending.length ? ['## Not run yet', '', ...pending.map(fix => `- \`${fix.file}\` (${fix.kind})`), ''] : []),
+		...(discarded.length ? ['## Discarded by you', '', ...discarded.map(step => `- \`${step.file}\` (${step.kind})`), ''] : []),
 		...(state.skippedFiles.length ? ['## Files never split', '', ...neverSplitLines(state.skippedFiles), ''] : []),
 		...(flaky.length ? ['## Flaky tests excluded from comparison', '', ...flaky.map(name => `- ${name}`), ''] : []),
 		...(failing.length ? ['## Checks that already failed before the run', '',

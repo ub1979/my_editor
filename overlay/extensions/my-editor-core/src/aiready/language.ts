@@ -1,5 +1,8 @@
 import type { TestRun } from './baseline';
 
+/** The kinds of fix a run can make. */
+export type FixKind = 'split' | 'tests' | 'refactor';
+
 /**
  * A UTF-8 byte range. A declaration's span starts at the beginning of its first line (its doc comment, if any) and
  * ends at the newline that ends its last line; that newline is not part of the span.
@@ -91,12 +94,67 @@ export interface Prompt {
 	readonly text: string;
 }
 
+/** A function a refactor would shorten. */
+export interface RefactorTarget {
+	readonly name: string;
+	/** The receiver's base type name (`Store` for `func (s *Store)`), as the Go helper prints it, when it is a method. */
+	readonly receiver?: string;
+	readonly lines: number;
+}
+
+/** One run of whole statements the model wants as a helper: its name, and its first and last line in the file. */
+export interface ExtractChunk {
+	readonly name: string;
+	readonly from: number;
+	readonly to: number;
+}
+
+/** One helper, as the commit and the change note describe it. */
+export interface HelperSummary {
+	readonly name: string;
+	/** Parameter names in order; pointer-passed ones start with `*`. */
+	readonly params: readonly string[];
+	readonly outputs: readonly string[];
+	/** Whether it carries the function's returns. */
+	readonly returns: boolean;
+}
+
+/** A built refactor: the new file, or the problems to show the model. */
+export interface RefactorBuild {
+	readonly problems: readonly string[];
+	readonly text?: Buffer;
+	readonly helpers?: readonly HelperSummary[];
+	/** The function's lines afterwards, doc comment included. */
+	readonly functionLines?: number;
+	/** What `check` needs from the build, opaque to the core. */
+	readonly facts?: string;
+}
+
+/** A language's mechanical refactor (Go: extract function), checked by the language's own code. */
+export interface RefactorHooks {
+	/** The function a refactor would shorten in a parsed file, or why there is none. */
+	target(info: FileInfo): RefactorTarget | string;
+	/** The extra approved command that records which code of the file's unit its tests run, and the profile it writes (relative to the worktree). */
+	coverage(file: string, index: number): { readonly command: CheckCommand; readonly profile: string };
+	/** Whether a profile's text shows the target's lines executed. */
+	ran(profile: string, file: string, target: RefactorTarget): Promise<boolean>;
+	/** The model's input, or why this function can't be refactored. */
+	prompt(file: string, target: RefactorTarget): Promise<Prompt | string>;
+	build(file: string, target: RefactorTarget, chunks: readonly ExtractChunk[]): Promise<RefactorBuild>;
+	/** The extract check on the written file; empty means it passed. */
+	check(file: string, before: Buffer, target: RefactorTarget, built: RefactorBuild): Promise<string[]>;
+	/** For the change note's "What may differ" when a refactor was committed. */
+	readonly mayDiffer: string;
+	/** Added to the approval modal when a refactor is picked; ends with a space. */
+	readonly approvalNote: string;
+}
+
 /** What the core knows about a language without creating its adapter. */
 export interface LanguageInfo {
 	readonly label: string;
 	readonly extensions: readonly string[];
 	/** The fix kinds it offers. */
-	readonly fixes: readonly ('split' | 'tests')[];
+	readonly fixes: readonly FixKind[];
 	/** For the change note: what may still differ for moved code, and what does not. */
 	readonly mayDiffer: string;
 }
@@ -124,8 +182,10 @@ export interface LanguageAdapter {
 	readonly codeFence?: string;
 	/** Parse one file, with each declaration's movability and the file's skip reason. */
 	parse(file: string): Promise<FileInfo>;
-	/** The fix kinds it offers; both when absent. */
-	readonly fixes?: readonly ('split' | 'tests')[];
+	/** The fix kinds it offers; split and tests when absent. */
+	readonly fixes?: readonly FixKind[];
+	/** The language's mechanical refactor, when it has one. */
+	readonly refactor?: RefactorHooks;
 	/** For the change note: what may still differ for moved code; the note stays neutral without it. */
 	readonly mayDiffer?: string;
 	/** Why a new file split from `original` (relative) may not have this name. */

@@ -44,7 +44,7 @@ export async function findCandidates(root: string, factory: AdapterFactory, canc
 	const stats: FileStats[] = [];
 	for (const file of sources) { stats.push(fileStats(file, await source.text(file))); }
 	const findings = scanHealth(stats, source.tracked, { languages: [local.label], checks: [], tests: [] }, []);
-	const offers = (kind: 'split' | 'tests') => !local.fixes || local.fixes.includes(kind);
+	const offers = (kind: FixChoice['kind']) => !local.fixes || local.fixes.includes(kind);
 	const fixable = (f: (typeof findings)[number]) => (f.kind === 'too-long' && offers('split')) || (f.kind === 'untested' && offers('tests'));
 	const candidates = [...new Set(findings.filter(f => f.file && fixable(f)).map(f => f.file!))].filter(file => sources.includes(file));
 	const lines = new Map(stats.map(s => [s.path, s.lines]));
