@@ -12,19 +12,11 @@ import (
 	"unicode/utf8"
 )
 
-// NameProblems applies rule 8 to the plan's helper names: each must be a lower-case Go identifier that is not `_`,
-// `init` or `main`, unique in the plan, and fresh: declared in no scope of the function, not by the package or its
-// test files, not predeclared, not a field or method of the receiver's type, and not a method of an interface of
-// the package (a new method could make a type satisfy it), nor used as an identifier anywhere in the package.
-func NameProblems(t *Target, names []string) []string {
-	var out []string
-	for _, problems := range NameProblemsEach(t, names) {
-		out = append(out, problems...)
-	}
-	return out
-}
-
-// NameProblemsEach is NameProblems per name, in plan order; a repeated name's problem goes to its second use.
+// NameProblemsEach applies rule 8 to the plan's helper names, per name in plan order: each must be a lower-case Go
+// identifier that is not `_`, `init` or `main`, unique in the plan (a repeated name's problem goes to its second
+// use), and fresh: declared in no scope of the function, not by the package, its imports or its test files, not
+// predeclared, not a field or method of the receiver's type, not a method of an interface of the package (a new
+// method could make a type satisfy it), nor used as an identifier anywhere in the package.
 func NameProblemsEach(t *Target, names []string) [][]string {
 	out := make([][]string, len(names))
 	seen := map[string]int{}

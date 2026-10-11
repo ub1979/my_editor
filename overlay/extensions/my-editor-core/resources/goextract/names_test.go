@@ -5,10 +5,13 @@ import (
 	"testing"
 )
 
-// wantNames wants NameProblems over names to be exactly want.
+// wantNames wants NameProblemsEach over names, flattened, to be exactly want.
 func wantNames(t *testing.T, tg *Target, names []string, want ...string) {
 	t.Helper()
-	got := NameProblems(tg, names)
+	var got []string
+	for _, problems := range NameProblemsEach(tg, names) {
+		got = append(got, problems...)
+	}
 	if strings.Join(got, "\n") != strings.Join(want, "\n") {
 		t.Fatalf("%v:\ngot  %q\nwant %q", names, got, want)
 	}
