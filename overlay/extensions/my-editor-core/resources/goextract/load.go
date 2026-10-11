@@ -32,6 +32,7 @@ type Loaded struct {
 	Pkg        *types.Package
 	Info       *types.Info
 	Listed     Listed
+	ListFile   string          // the `go list` output it was loaded from
 	TestNames  map[string]bool // top-level names the package's _test.go files declare
 	TestIdents map[string]bool // every identifier those files use
 }
@@ -90,7 +91,7 @@ func Load(listFile, pkg string, overlay map[string][]byte) (*Loaded, error) {
 	if len(target.CgoFiles) > 0 {
 		return nil, errors.New("the package uses cgo, which this check cannot type-check")
 	}
-	l := &Loaded{Fset: token.NewFileSet(), Src: map[string][]byte{}, Listed: target}
+	l := &Loaded{Fset: token.NewFileSet(), Src: map[string][]byte{}, Listed: target, ListFile: listFile}
 	for _, name := range target.GoFiles {
 		path := filepath.Clean(filepath.Join(target.Dir, name))
 		src, ok := overlay[path]

@@ -97,7 +97,27 @@ func Build(t *Target, plan []PlanChunk) (BuildResult, []byte) {
 		res.Problems = problems
 		return res, nil
 	}
-	return measure(t, helpers, src)
+	res, out := measure(t, helpers, src)
+	if out != nil {
+		if problem := selfCheck(t, out); problem != "" {
+			return BuildResult{Problems: []string{problem}}, nil
+		}
+	}
+	return res, out
+}
+
+// selfCheck type-checks the package with the built file in place of the original, so that a file that does not
+// compile is never written; it says why, or "".
+func selfCheck(t *Target, out []byte) string {
+	overlay := map[string][]byte{}
+	for path, src := range t.L.Src {
+		overlay[path] = src
+	}
+	overlay[t.Path] = out
+	if _, err := Load(t.L.ListFile, t.L.Listed.ImportPath, overlay); err != nil {
+		return "the built file " + strings.TrimPrefix(err.Error(), "the package ")
+	}
+	return ""
 }
 
 // splice writes each chunk's call block in its place and the helpers after the function.

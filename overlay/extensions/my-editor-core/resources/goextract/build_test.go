@@ -140,3 +140,14 @@ func TestBuildTwoChunks(t *testing.T) {
 	}
 	loadCase(t, "basic", out)
 }
+
+func TestBuildSelfCheck(t *testing.T) {
+	tg := target(t, "basic", "Report", "")
+	broken := strings.Replace(string(readCase(t, "basic")), "return fmt.Sprintf(\"[%s]\", text)", "return 1", 1)
+	if got := selfCheck(tg, []byte(broken)); !strings.HasPrefix(got, "the built file does not type-check: ") || !strings.Contains(got, "a.go:19") {
+		t.Fatalf("%q", got)
+	}
+	if got := selfCheck(tg, readCase(t, "basic")); got != "" {
+		t.Fatal(got)
+	}
+}
