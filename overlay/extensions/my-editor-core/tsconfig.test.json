@@ -54,6 +54,8 @@
     "src/aiready/baseline.ts",
     "src/aiready/projectCommands.ts",
     "src/aiready/goAst.ts",
+    "src/aiready/goBuildTool.ts",
+    "src/aiready/goExtract.ts",
     "src/aiready/goRules.ts",
     "src/aiready/goSplit.ts",
     "src/aiready/splitPlan.ts",

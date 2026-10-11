@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { buildGoHelper, GO_ENV, GO_READ_ENV, goFileInfo } from './goAst';
+import { buildGoHelper, GO_ENV, GO_READ_ENV, goFileInfo, goPackage } from './goAst';
 import { goSplitPrompt, goTestPrompt } from './goPrompts';
 import { directiveLines, goFileInfoView, GoFileInfo, goFileNameProblems, GoModuleFacts, goSkipReason, Platforms, platforms } from './goRules';
 import { buildGoSplit, goSplitHeader } from './goSplit';
@@ -9,6 +9,8 @@ import { goTestNames, goTestProblems, parseGoTest } from './goTests';
 import type { LanguageAdapter, LanguageInfo } from './language';
 import { declarationProblems } from './moveCheck';
 import { findTool, runTool } from './projectCommands';
+
+export { goPackage };
 
 /** The Go tools a run needs, found and built once. */
 export interface GoTools {
@@ -50,12 +52,6 @@ export async function goTools(mainGo: string, storageDir: string, version: strin
 	const goroot = (await runTool(go, ['env', 'GOROOT'], storageDir, GO_READ_ENV)).stdout.trim();
 	const bundled = goroot && path.join(goroot, 'bin', 'gofmt');
 	return { go, helper, platforms: platforms(dist.stdout), gofmt: bundled && existsSync(bundled) ? bundled : findTool('gofmt', goInstallDirs()) };
-}
-
-/** The `./dir` form `go` wants for a file's package. */
-export function goPackage(file: string): string {
-	const dir = path.posix.dirname(file);
-	return dir === '.' ? '.' : `./${dir}`;
 }
 
 /** Go as the core sees it before an adapter exists. */

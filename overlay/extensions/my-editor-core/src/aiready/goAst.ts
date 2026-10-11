@@ -66,6 +66,12 @@ export const GO_ENV: Readonly<Record<string, string>> = { GOTOOLCHAIN: 'local', 
 /** Read-only go tools (`go list`, the helper) also never reach the module proxy. */
 export const GO_READ_ENV: Readonly<Record<string, string>> = { ...GO_ENV, GOPROXY: 'off' };
 
+/** The `./dir` form `go` wants for a file's package. */
+export function goPackage(file: string): string {
+	const dir = path.posix.dirname(file);
+	return dir === '.' ? '.' : `./${dir}`;
+}
+
 /**
  * Builds the parser helper once per extension version, helper source and `go version`, with the user's own Go, in an
  * empty folder outside any module, for this machine whatever GOOS, GOARCH or the go env file say. The binary is run
