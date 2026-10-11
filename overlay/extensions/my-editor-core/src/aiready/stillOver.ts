@@ -32,13 +32,18 @@ export function stillOver(result: SplitResult, info: FileInfo, plan: SplitPlan, 
 		.map(({ file, lines, declarations }) => ({ file, lines, reason: why(declarations) }));
 }
 
+/** The file's declaration with the most lines (the first of equals); undefined when it has none. */
+export function largestDeclaration(info: FileInfo): Declaration | undefined {
+	return info.declarations.reduce<Declaration | undefined>((most, d) => (!most || d.lines > most.lines ? d : most), undefined);
+}
+
 /**
  * A file a split can't help, before any model call: its largest declaration is over the limit by itself and at least
  * as much over it as everything else that could move out (the other movable declarations up to the limit). Moving
  * those out, or the big one, leaves one file over the limit as before. A big declaration with plenty around it splits.
  */
 export function needsRefactor(info: FileInfo, lines: number): StillOver | undefined {
-	const big = info.declarations.reduce<Declaration | undefined>((most, d) => (!most || d.lines > most.lines ? d : most), undefined);
+	const big = largestDeclaration(info);
 	if (lines <= MAX_SOURCE_LINES || !(big && big.lines > MAX_SOURCE_LINES)) { return undefined; }
 	const rest = info.declarations.filter(d => d !== big && d.movable && d.lines <= MAX_SOURCE_LINES).reduce((sum, d) => sum + d.lines, 0);
 	if (big.lines - MAX_SOURCE_LINES < rest) { return undefined; }

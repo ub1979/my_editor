@@ -6,7 +6,8 @@ import * as path from 'node:path';
 import { test } from 'node:test';
 import { fixTip, treeSource } from '../src/aiready/branchTip';
 import { findCandidates } from '../src/aiready/fixCandidates';
-import type { Declaration, FileInfo, LanguageAdapter } from '../src/aiready/language';
+import type { Remembered } from '../src/aiready/fixSettled';
+import type { Declaration, FileInfo, LanguageAdapter, RefactorHooks } from '../src/aiready/language';
 
 const lines = (n: number) => 'x\n'.repeat(n);
 
@@ -91,5 +92,47 @@ test('without an earlier run, candidates come from the folder as before', async 
 	const found = await findCandidates(root, factory([]), () => false);
 	assert.deepEqual(found?.choices.map(c => c.file), ['a.go', 'b.go', 'c.go', 'd.go']);
 	assert.equal(found?.tip, undefined);
+	rmSync(root, { recursive: true, force: true });
+});
+
+/** The same adapter with a refactor whose target is the file's largest declaration, named as `target` says. */
+function refactoring(parsed: string[], target: RefactorHooks['target'] = info => ({ name: info.declarations[0].names[0], lines: 425 })) {
+	return (root: string): LanguageAdapter => ({ ...factory(parsed)(root), fixes: ['split', 'refactor'], refactor: { target } as RefactorHooks }) as LanguageAdapter;
+}
+
+test('a file only a refactor can help is offered as a refactor when the adapter has one, and stays unsplittable without it', async () => {
+	const { root, git } = repository();
+	const found = await findCandidates(root, refactoring([]), () => false);
+	assert.deepEqual(found?.choices.map(c => `${c.file} ${c.kind} ${c.lines}`),
+		['a.go split 600', 'b.go split 500', 'c.go split 450', 'solo.go refactor 430', 'd.go split 420']);
+	assert.deepEqual(found?.choices.find(c => c.kind === 'refactor')?.target, { name: 'f0', lines: 425 });
+	assert.deepEqual(found?.unsplittable.map(c => c.file), ['solo.go']);
+	assert.deepEqual([...found?.blobs ?? []], [['solo.go', git('rev-parse', 'HEAD:solo.go')]]);
+	const plain = await findCandidates(root, factory([]), () => false);
+	assert.equal(plain?.choices.some(c => c.kind === 'refactor'), false);
+	assert.deepEqual(plain?.unsplittable.map(c => c.file), ['solo.go']);
+	const notFunction = await findCandidates(root, refactoring([], () => '`f0` is a var, not a function'), () => false);
+	assert.equal(notFunction?.choices.some(c => c.kind === 'refactor'), false);
+	assert.deepEqual(notFunction?.unsplittable.map(c => c.file), ['solo.go']);
+	rmSync(root, { recursive: true, force: true });
+});
+
+test('a settled file with its big function is offered without parsing; an older record without it is screened once more', async () => {
+	const { root, git } = repository();
+	firstRun(root, git, 'ai_fix');
+	const big = { name: 'Big', receiver: 'Store', lines: 405 };
+	const known: Remembered = (file, blob) => (file === 'b_big.go' ? { blob: blob!, big } : file === 'solo.go' ? { blob: blob! } : undefined);
+	const parsed: string[] = [];
+	const found = await findCandidates(root, refactoring(parsed), () => false, known);
+	assert.deepEqual(found?.choices.map(c => `${c.file} ${c.kind}`), ['c.go split', 'solo.go refactor', 'd.go split', 'b_big.go refactor']);
+	assert.deepEqual(found?.choices.find(c => c.file === 'b_big.go')?.target, big);
+	assert.deepEqual(found?.unsplittable.map(c => c.file).sort(), ['b_big.go', 'solo.go']);
+	assert.deepEqual(parsed.sort(), ['c.go', 'd.go', 'solo.go'], 'the record without its big function is parsed again');
+	assert.equal(found?.blobs.get('b_big.go'), git('rev-parse', 'ai_fix:b_big.go'));
+	const older: Remembered = (file, blob) => (file === 'b_big.go' ? { blob: blob! } : undefined);
+	const again = await findCandidates(root, refactoring([]), () => false, older);
+	assert.deepEqual(again?.unparsed.map(c => `${c.file} ${c.kind}`), ['b_big.go split'], 'a changed file is screened in the run\'s working copy');
+	const plain = await findCandidates(root, factory([]), () => false, older);
+	assert.deepEqual(plain?.unsplittable.map(c => c.file).sort(), ['b_big.go', 'solo.go'], 'without a refactor the old record still holds');
 	rmSync(root, { recursive: true, force: true });
 });

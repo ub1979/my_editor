@@ -1,6 +1,7 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'fs';
 import * as path from 'path';
 import { runDir, type StepRecord } from './fixState';
+import type { RefactorTarget } from './language';
 import { git } from './worktree';
 
 /**
@@ -12,6 +13,8 @@ export interface SettledSplit {
 	readonly blob: string;
 	/** Why it is never split or tested; unset when a split can't help it (a real refactor, nothing may move). */
 	readonly skip?: string;
+	/** For a split a real refactor would help: the declaration over the limit, so a later picker can offer its refactor unparsed. */
+	readonly big?: RefactorTarget;
 }
 
 /**
@@ -38,7 +41,8 @@ export function settledCache(steps: readonly StepRecord[], blobs: ReadonlyMap<st
 	for (const step of steps) {
 		const blob = blobs.get(step.file);
 		if (step.kind !== 'split' || !step.lasting || !blob) { continue; }
-		files[step.file] = step.lasting.skip ? { blob, skip: step.lasting.skip } : { blob };
+		const { skip, big } = step.lasting;
+		files[step.file] = skip ? { blob, skip } : { blob, ...(big ? { big } : {}) };
 	}
 	return { rules, files };
 }

@@ -159,3 +159,12 @@ test('without ai_fix the picker reads blob ids from HEAD, so a remembered file i
 	assert.equal(found?.choices.some(c => c.file === 'solo.go'), false);
 	rmSync(root, { recursive: true, force: true });
 });
+
+test('a split settled as needing a refactor keeps its big function by blob', () => {
+	const big = { name: 'Step', receiver: 'Store', lines: 425 };
+	const cache = settledCache([{ ...refactor, lasting: { big } }, never], new Map([['solo.go', 's1'], ['big_test.go', 'b1']]));
+	assert.deepEqual(cache.files['solo.go'], { blob: 's1', big });
+	assert.deepEqual(cache.files['big_test.go'], { blob: 'b1', skip: 'test files are not split' });
+	assert.deepEqual(remembered(cache)('solo.go', 's1')?.big, big);
+	assert.equal(remembered(cache)('solo.go', 's2'), undefined);
+});

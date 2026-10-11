@@ -61,6 +61,7 @@
     "src/aiready/refusedRecord.ts",
     "src/aiready/refactorPlan.ts",
     "src/aiready/goRefactorPrompt.ts",
+    "src/aiready/refactorOffers.ts",
     "src/aiready/goRules.ts",
     "src/aiready/goSplit.ts",
     "src/aiready/splitPlan.ts",

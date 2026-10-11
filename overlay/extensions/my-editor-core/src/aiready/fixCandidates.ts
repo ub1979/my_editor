@@ -1,10 +1,10 @@
 import * as path from 'path';
 import { treeSource } from './branchTip';
-import { fixChoices } from './fixPicker';
+import { biggestFirst, fixChoices } from './fixPicker';
 import type { Remembered } from './fixSettled';
 import type { FixChoice } from './fixState';
 import { type FileStats, fileStats, scanHealth } from './health';
-import type { LanguageAdapter } from './language';
+import type { LanguageAdapter, RefactorTarget } from './language';
 import type { AdapterFactory } from './languages';
 import { needsRefactor } from './stillOver';
 import { trackedFiles } from './worktree';
@@ -24,6 +24,8 @@ export interface Candidates {
 	readonly unsplittable: FixChoice[];
 	/** Offered splits of files new or changed on the branch, which only its working copy can parse. */
 	readonly unparsed: FixChoice[];
+	/** Blob ids of the refactor offers' files at the tip, for the records kept by content. */
+	readonly blobs: ReadonlyMap<string, string>;
 	/** Files never split, with the reason. */
 	readonly skipped: Map<string, string>;
 	readonly stats: FileStats[];
@@ -51,11 +53,21 @@ export async function findCandidates(root: string, factory: AdapterFactory, canc
 	const skipped = new Map<string, string>();
 	const narrowed = new Map<string, string>();
 	const unsplittable = new Set<string>();
+	const refactor = local.refactor && offers('refactor') ? local.refactor : undefined;
+	const refactors: FixChoice[] = [];
+	const blobs = new Map<string, string>();
+	const offer = (file: string, target: RefactorTarget, blob: string | undefined) => {
+		refactors.push({ file, kind: 'refactor', lines: lines.get(file) ?? 0, target });
+		if (blob) { blobs.set(file, blob); }
+	};
 	for (const file of candidates) {
 		if (cancelled()) { return undefined; }
-		const settled = known(file, await source.blob(file));
-		if (settled) {
+		const blob = await source.blob(file);
+		const settled = known(file, blob);
+		// A record from before refactors kept no big function: with a refactor to offer, the file is screened once more.
+		if (settled && (settled.skip || settled.big || !refactor)) {
 			if (settled.skip) { skipped.set(file, settled.skip); } else { unsplittable.add(file); }
+			if (refactor && settled.big) { offer(file, settled.big, blob); }
 			continue;
 		}
 		if (source.changed.has(file)) { continue; }
@@ -63,12 +75,15 @@ export async function findCandidates(root: string, factory: AdapterFactory, canc
 			const info = await local.parse(file);
 			if (info.skip) { skipped.set(file, info.skip); continue; }
 			if (info.narrowed) { narrowed.set(file, info.narrowed); }
-			if (!info.declarations.some(d => d.movable) || needsRefactor(info, lines.get(file) ?? 0)) { unsplittable.add(file); }
+			const big = needsRefactor(info, lines.get(file) ?? 0);
+			if (!info.declarations.some(d => d.movable) || big) { unsplittable.add(file); }
+			const target = big && refactor?.target(info);
+			if (target && typeof target === 'object') { offer(file, target, blob); }
 		} catch (error) { skipped.set(file, error instanceof Error ? error.message : String(error)); }
 	}
 	const all = fixChoices(findings, stats, local.extensions, skipped, narrowed).filter(choice => offers(choice.kind));
 	const cannot = (choice: FixChoice) => choice.kind === 'split' && unsplittable.has(choice.file);
-	const choices = all.filter(c => !cannot(c));
+	const choices = [...all.filter(c => !cannot(c)), ...refactors].sort(biggestFirst);
 	const unparsed = choices.filter(c => c.kind === 'split' && source.changed.has(c.file));
-	return { local, tip: source.tip, choices, unsplittable: all.filter(cannot), unparsed, skipped, stats };
+	return { local, tip: source.tip, choices, unsplittable: all.filter(cannot), unparsed, blobs, skipped, stats };
 }

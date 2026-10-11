@@ -19,7 +19,18 @@ export function fixChoices(findings: readonly HealthFinding[], stats: readonly F
 		}
 		if (finding.kind === 'untested') { choices.push({ file, kind: 'tests', lines: lines.get(file) ?? 0 }); }
 	}
-	return choices.sort((a, b) => b.lines - a.lines || a.file.localeCompare(b.file) || a.kind.localeCompare(b.kind));
+	return choices.sort(biggestFirst);
+}
+
+/** The picker's order: biggest file first, then by path and kind. */
+export function biggestFirst(a: FixChoice, b: FixChoice): number {
+	return b.lines - a.lines || a.file.localeCompare(b.file) || a.kind.localeCompare(b.kind);
+}
+
+/** A row's words after the line count. */
+function rowText(choice: FixChoice): string {
+	if (choice.kind === 'refactor') { return `refactor \`${choice.target?.name}\` (${choice.target?.lines} lines) into helpers, then split`; }
+	return choice.kind === 'split' ? `split${choice.narrowed ? `: ${choice.narrowed}` : ' into focused files'}` : 'add tests';
 }
 
 export interface PickItem {
@@ -36,17 +47,21 @@ export type ShowPicker = (items: PickItem[], options: { title: string; placeHold
 
 /**
  * The multi-select list of fixes: every split pre-selected but those in `blocked` (files nothing here can check, with
- * the reason shown under the row), add-tests not. Undefined when the user cancels.
+ * the reason shown under the row), every refactor but those in `blocked` or `unticked` (with that reason), add-tests
+ * not. Undefined when the user cancels.
  */
-export async function pickFixes(choices: readonly FixChoice[], show: ShowPicker, blocked: ReadonlyMap<string, string> = new Map()):
-	Promise<FixChoice[] | undefined> {
-	const items = choices.map((choice): PickItem => ({
-		label: choice.file,
-		description: `${choice.lines} lines · ${choice.kind === 'split' ? `split${choice.narrowed ? `: ${choice.narrowed}` : ' into focused files'}` : 'add tests'}`,
-		picked: choice.kind === 'split' && !blocked.has(choice.file),
-		...(blocked.has(choice.file) ? { detail: blocked.get(choice.file) } : {}),
-		choice,
-	}));
+export async function pickFixes(choices: readonly FixChoice[], show: ShowPicker, blocked: ReadonlyMap<string, string> = new Map(),
+	unticked: ReadonlyMap<string, string> = new Map()): Promise<FixChoice[] | undefined> {
+	const items = choices.map((choice): PickItem => {
+		const why = blocked.get(choice.file) ?? (choice.kind === 'refactor' ? unticked.get(choice.file) : undefined);
+		return {
+			label: choice.file,
+			description: `${choice.lines} lines · ${rowText(choice)}`,
+			picked: (choice.kind === 'split' || choice.kind === 'refactor') && why === undefined,
+			...(why !== undefined ? { detail: why } : {}),
+			choice,
+		};
+	});
 	const picked = await show(items, {
 		title: 'Fix on a local branch',
 		placeHolder: 'Each fix is checked and committed alone',

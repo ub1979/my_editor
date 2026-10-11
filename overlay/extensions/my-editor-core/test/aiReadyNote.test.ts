@@ -121,3 +121,17 @@ test('a refactor fix reads as a refactor in the refused, not run and discarded l
 	assert.ok(note.includes('## Not run yet\n\n- `b.go` (refactor)'), note);
 	assert.ok(note.includes('## Discarded by you\n\n- `c.go` (refactor)'), note);
 });
+
+test('refactor rows say what they do and are ticked only when allowed', async () => {
+	const target = (name: string) => ({ name, lines: 425 });
+	const choices = [{ file: 'a.go', kind: 'refactor' as const, lines: 430, target: target('Run') }, fix('a.go', 'tests', 430),
+		{ file: 'b.go', kind: 'refactor' as const, lines: 420, target: target('Step') }, { file: 'c.go', kind: 'refactor' as const, lines: 410, target: target('Big') }];
+	const unticked = new Map([['a.go', 'no test here runs `Run` yet']]);
+	const blocked = new Map([['c.go', 'can\'t be checked here']]);
+	let shown: { picked: boolean; description: string; detail?: string }[] = [];
+	const picked = await pickFixes(choices, async items => { shown = items; return items.filter(item => item.picked); }, blocked, unticked);
+	assert.equal(shown[0].description, '430 lines · refactor `Run` (425 lines) into helpers, then split');
+	assert.deepEqual(shown.map(item => item.picked), [false, false, true, false]);
+	assert.deepEqual(shown.map(item => item.detail), ['no test here runs `Run` yet', undefined, undefined, 'can\'t be checked here']);
+	assert.deepEqual(picked, [choices[2]]);
+});
