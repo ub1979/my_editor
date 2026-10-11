@@ -90,7 +90,14 @@ func (ck *checker) readResults(i int, sig *helperSig, problem func(string, ...an
 		sig.Results = append(sig.Results, fsig.Results().At(k))
 	}
 	_, isExpr := site.Stmt.(*ast.ExprStmt)
-	sig.Tail = site.Return || (isExpr && site.Last)
+	sig.Tail = site.Last && (site.Return || isExpr)
+	fn := ck.bt.Func.Name.Name
+	if site.Return && !site.Last {
+		problem("its call returns in the middle of %s.", fn)
+	}
+	if tail := c.Block.Owner == ast.Node(ck.bt.Func.Body) && c.Last == len(c.Block.List)-1; sig.Tail && !tail {
+		problem("its call ends %s, but its chunk does not.", fn)
+	}
 	lhs := site.Lhs
 	if site.Done >= 0 {
 		sig.Returns, lhs = true, lhs[:site.Done]

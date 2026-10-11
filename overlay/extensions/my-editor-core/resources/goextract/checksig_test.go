@@ -48,6 +48,18 @@ func TestCheckNamedResultIsNoInput(t *testing.T) {
 	wantProblem(t, checkAfter(t, "ptailin", "F", "", after, fact("finish", 8, 11)), "finish: its result n is named like F's n, but the call does not assign it to n.")
 }
 
+func TestCheckTailOnlyAtTheEnd(t *testing.T) {
+	// `return early(m)` in the middle of F would skip the rest of F.
+	problems := checkGolden(t, goldenRow(t, "multireturn"), tampers(t, "if done, r0, r1 := early(m); done {\n\t\treturn r0, r1\n\t}\n", "return early(m)\n",
+		"func early(m int) (bool, int, error) {\n\tif m > 10 {\n\t\tr0, r1 := f(m)\n\t\treturn true, r0, r1\n\t}\n\treturn false, 0, nil\n}",
+		"func early(m int) (r0 int, r1 error) {\n\tif m > 10 {\n\t\treturn f(m)\n\t}\n\treturn\n}"))
+	wantProblem(t, problems, "early: its call returns in the middle of F.")
+	g := goldenRow(t, "tailvoid")
+	_, out := buildOne(t, target(t, g.name, g.fn, g.recv), g.helper, g.from, g.to)
+	after := tampers(t, "\t*out = append(*out, \"small\")\n", "")(string(out))
+	wantProblem(t, checkAfter(t, g.name, g.fn, "", after, fact(g.helper, 10, 12)), "finishG: its call ends G, but its chunk does not.")
+}
+
 func TestReadSig(t *testing.T) {
 	cases := map[string]string{
 		"names":       `[n:n:true] [] returns=false tail=false results=0 named=0 recv=false []`,
