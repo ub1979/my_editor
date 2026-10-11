@@ -63,6 +63,31 @@ func checkGolden(t *testing.T, g golden, tamper func(string) string) []string {
 	return Check(list, pkg, caseFile(t, g.name), g.fn, g.recv, readCase(t, g.name), []byte(after), res)
 }
 
+func TestCheckRefusesOverlap(t *testing.T) {
+	// b would run line 8 a second time.
+	after := "package poverlap\n\nvar log []string\n\n// F logs.\nfunc F() {\n\ta()\n\tb()\n}\n\n// a is part of F, extracted by my_editor.\nfunc a() {\n" +
+		"\tlog = append(log, \"1\")\n\tlog = append(log, \"2\")\n}\n\n// b is part of F, extracted by my_editor.\nfunc b() {\n\tlog = append(log, \"2\")\n" +
+		"\tlog = append(log, \"3\")\n}\n"
+	wantProblem(t, checkAfter(t, "poverlap", "F", "", after, fact("b", 8, 9), fact("a", 7, 8)), "a (lines 7–8) overlaps b (lines 8–9).")
+	g := goldenRow(t, "breakswitch")
+	_, out := buildOne(t, target(t, g.name, g.fn, g.recv), g.helper, g.from, g.to)
+	wantProblem(t, checkAfter(t, g.name, g.fn, "", string(out), fact(g.helper, 9, 13), fact("inner", 10, 12)), "pickOne (lines 9–13) overlaps inner (lines 10–12).")
+	wantProblem(t, checkAfter(t, "poverlap", "F", "", after, fact("a", 7, 7), fact("a", 9, 9)), "a is named twice.")
+}
+
+func TestCheckTwoHelpers(t *testing.T) {
+	for _, plan := range [][]PlanChunk{{{"collectItems", 11, 14}, {"upperIt", 16, 18}}, {{"upperIt", 16, 18}, {"collectItems", 11, 14}}} {
+		res, out := Build(target(t, "basic", "Report", ""), plan)
+		if len(res.Problems) > 0 {
+			t.Fatal(res.Problems)
+		}
+		list, pkg := listCase(t, "basic")
+		if problems := Check(list, pkg, caseFile(t, "basic"), "Report", "", readCase(t, "basic"), out, res); len(problems) > 0 {
+			t.Fatalf("%v: %q\n%s", plan, problems, out)
+		}
+	}
+}
+
 // checkAfter checks a hand-written new file of a case against its original, the build having reported helpers.
 func checkAfter(t *testing.T, name, fn, recv, after string, helpers ...HelperFact) []string {
 	t.Helper()

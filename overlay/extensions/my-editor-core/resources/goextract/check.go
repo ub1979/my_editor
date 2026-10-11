@@ -7,6 +7,7 @@ import (
 	"go/format"
 	"go/token"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -69,10 +70,24 @@ func (ck *checker) helperProblems(i int) []string {
 	return append(problems, ck.safeCheck(i, sig, pairs)...)
 }
 
-// locate resolves each chunk in the original and finds each helper and its call block in the new file.
+// locate resolves each chunk in the original, in line order, and finds each helper and its call block in the new
+// file. Chunks may not overlap or nest, and helpers may not share a name.
 func (ck *checker) locate(built BuildResult) []string {
+	helpers := append([]HelperFact{}, built.Helpers...)
+	sort.SliceStable(helpers, func(a, b int) bool { return helpers[a].From < helpers[b].From })
 	var problems []string
-	for _, h := range built.Helpers {
+	named := map[string]int{}
+	for k, h := range helpers {
+		if named[h.Name]++; named[h.Name] == 2 {
+			problems = append(problems, h.Name+" is named twice.")
+		}
+		for _, later := range helpers[k+1:] {
+			if later.From <= h.To {
+				problems = append(problems, fmt.Sprintf("%s (lines %d–%d) overlaps %s (lines %d–%d).", h.Name, h.From, h.To, later.Name, later.From, later.To))
+			}
+		}
+	}
+	for _, h := range helpers {
 		c, problem := ck.bt.ResolveChunk(h.Name, h.From, h.To)
 		if problem != "" {
 			problems = append(problems, h.Name+": "+problem)

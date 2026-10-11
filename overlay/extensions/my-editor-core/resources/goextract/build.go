@@ -96,6 +96,8 @@ func Build(t *Target, plan []PlanChunk) (BuildResult, []byte) {
 	if len(res.Problems) > 0 {
 		return res, nil
 	}
+	// Helpers go after the function in chunk order (rule 11), whatever the plan's order.
+	sort.SliceStable(helpers, func(a, b int) bool { return helpers[a].c.Start < helpers[b].c.Start })
 	src, problems := splice(t, helpers, names)
 	if len(problems) > 0 {
 		res.Problems = problems
