@@ -1,6 +1,9 @@
 package main
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 // jumps runs Jumps on a chunk with its Shared set.
 func jumps(t *testing.T, tg *Target, from, to int) (int, []string) {
@@ -132,4 +135,14 @@ func TestJumpsBackwardGotoOverChunk(t *testing.T) {
 
 func TestJumpsRangeAssignsReceiver(t *testing.T) {
 	wantJumpProblem(t, target(t, "recvrange", "Last", "S"), 11, 13, "assigns the receiver s at line 11.")
+}
+
+func TestJumpsLabeledNaturalEnd(t *testing.T) {
+	wantBuildProblems(t, target(t, "labeljump", "F", ""), "body", 9, 12,
+		"body: continue outer at line 10 is the only use of the label outer, which the helper would leave unused.")
+	res, out := buildOne(t, target(t, "labeljump", "G", ""), "pick", 23, 26)
+	if len(res.Problems) > 0 || !strings.Contains(string(out), "\t\treturn total\n") {
+		t.Fatal(res.Problems, string(out))
+	}
+	loadCase(t, "labeljump", out)
 }

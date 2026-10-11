@@ -22,6 +22,10 @@ func Jumps(t *Target, c Chunk, shared map[types.Object]string) (natural []*ast.B
 			case *ast.BranchStmt:
 				if target := BranchTarget(t, n); !c.Contains(target) {
 					ok, problem := naturalEnd(t, c, n, target)
+					if ok && n.Label != nil && !labelKept(t, c, n.Label) {
+						ok, problem = false, fmt.Sprintf("%s %s at line %d is the only use of the label %s, which the helper would leave unused.",
+							n.Tok, n.Label.Name, t.Line(n.Pos()), n.Label.Name)
+					}
 					if ok {
 						natural = append(natural, n)
 					} else {
@@ -80,6 +84,20 @@ func naturalEnd(t *Target, c Chunk, b *ast.BranchStmt, target ast.Node) (bool, s
 		return false, fmt.Sprintf("%s at line %d skips the rest of the loop body, which the chunk does not end.", word, line)
 	}
 	return false, fmt.Sprintf("%s at line %d leaves the chunk.", word, line)
+}
+
+// labelKept reports a jump outside the chunk to the label a jump in it names; without one, rewriting that
+// jump to a return leaves the label unused, which does not compile.
+func labelKept(t *Target, c Chunk, label *ast.Ident) bool {
+	obj := t.L.Info.Uses[label]
+	used := false
+	ast.Inspect(t.Func.Body, func(n ast.Node) bool {
+		if b, ok := n.(*ast.BranchStmt); ok && b.Label != nil && t.L.Info.Uses[b.Label] == obj && !c.Contains(b) {
+			used = true
+		}
+		return !used
+	})
+	return used
 }
 
 // loopBody is a for or range statement's body, or nil.
