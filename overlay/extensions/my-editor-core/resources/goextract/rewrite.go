@@ -192,8 +192,8 @@ func (r *rewriter) returns() error {
 	return err
 }
 
-// ret rewrites one return: a tail chunk keeps it (a bare one names the results); otherwise the outputs and done
-// come first, and a single multi-value call is first assigned to fresh names on a line of its own.
+// ret rewrites one return: a tail chunk keeps it (a bare one names the results); otherwise the outputs' zero values
+// and done come first, and a single multi-value call is first assigned to fresh names on a line of its own.
 func (r *rewriter) ret(s *ast.ReturnStmt) error {
 	bare := len(s.Results) == 0 && len(r.named) > 0
 	if r.f.Tail && !bare {
@@ -219,14 +219,15 @@ func (r *rewriter) ret(s *ast.ReturnStmt) error {
 	}
 	var parts []string
 	if !r.f.Tail {
-		outs, err := r.outputs(s.Pos())
-		if err != nil {
-			return err
+		// The caller returns at once, so the outputs are dead here: zero values, whatever their names mean here.
+		for _, o := range r.f.Outputs {
+			zero, err := r.t.ZeroText(o.Obj.Type(), s.Pos())
+			if err != nil {
+				return err
+			}
+			parts = append(parts, zero)
 		}
-		parts = outs
-		if r.f.Returns {
-			parts = append(parts, "true")
-		}
+		parts = append(parts, "true")
 	}
 	text := prefix + returnText(append(parts, vals...))
 	r.edits = append(r.edits, edit{r.t.Offset(s.Pos()), r.t.Offset(s.End()), text})

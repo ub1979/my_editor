@@ -31,6 +31,7 @@ var goldens = []golden{
 	{"loopout", "F", "", "step", 10, 11},
 	{"names", "F", "", "double", 13, 13},
 	{"typestr", "F", "", "check", 19, 22},
+	{"doneout", "F", "", "thenStep", 24, 27},
 }
 
 // goldenRow is the row of a case.

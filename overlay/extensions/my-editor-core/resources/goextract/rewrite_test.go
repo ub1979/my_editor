@@ -91,7 +91,7 @@ func TestRewriteBareReturn(t *testing.T) {
 	tg := basicWith(t, "F", "", bareReturns)
 	f := Iface{Params: []Param{param(t, tg, "a", false), param(t, tg, "n", false), param(t, tg, "err", false)},
 		Outputs: []Output{output(t, tg, "n", false)}, Returns: true}
-	wantBody(t, tg, 24, 28, f, "\tif a > 1 {\n\t\tn++\n\t\treturn n, true, n, err\n\t}\n\tn += 2\n\treturn n, false, 0, nil\n", 0)
+	wantBody(t, tg, 24, 28, f, "\tif a > 1 {\n\t\tn++\n\t\treturn 0, true, n, err\n\t}\n\tn += 2\n\treturn n, false, 0, nil\n", 0)
 	g, err := FindFunc(tg.L, tg.Path, "G", "")
 	if err != nil {
 		t.Fatal(err)
@@ -145,6 +145,21 @@ func K(c bool) (int, error) {
 	x++
 	return x, nil
 }
+
+func L(c bool, k int) int {
+	x := 1
+	switch k {
+	case 1:
+		x = 2
+		if c {
+			x := 3
+			_ = x
+			break
+		}
+		x++
+	}
+	return x
+}
 `
 
 func TestRewriteZeroForUndeclaredOutput(t *testing.T) {
@@ -154,9 +169,17 @@ func TestRewriteZeroForUndeclaredOutput(t *testing.T) {
 }
 
 func TestRewriteShadowedOutput(t *testing.T) {
+	// At an early return of the function the outputs are dead: zero values, whatever x means there.
 	tg := basicWith(t, "K", "", undeclaredOutput)
 	f := Iface{Params: []Param{param(t, tg, "c", false), param(t, tg, "x", false)}, Outputs: []Output{output(t, tg, "x", false)}, Returns: true}
-	if _, _, err := body(t, tg, 33, 37, f); err == nil || err.Error() != "x is shadowed at line 34." {
+	wantBody(t, tg, 33, 37, f, "\tif c {\n\t\tx := 2\n\t\treturn 0, true, x, nil\n\t}\n\tx++\n\treturn x, false, 0, nil\n", 0)
+	// At a jump to the natural end the output is live, so x must still mean it.
+	l, err := FindFunc(tg.L, tg.Path, "L", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	f = Iface{Params: []Param{param(t, l, "c", false), param(t, l, "x", false)}, Outputs: []Output{output(t, l, "x", false)}}
+	if _, _, err := body(t, l, 45, 51, f); err == nil || err.Error() != "x is shadowed at line 47." {
 		t.Fatal(err)
 	}
 }

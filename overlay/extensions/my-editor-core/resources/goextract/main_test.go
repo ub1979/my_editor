@@ -127,7 +127,7 @@ func goIn(t *testing.T, dir string, args ...string) []byte {
 
 func TestEndToEndPins(t *testing.T) {
 	names := []string{"deferrecover", "buildercopy", "valuepath", "multireturn", "tail", "tailvoid", "breakswitch", "ptrselector",
-		"rangearrayptr", "addrderef", "loopout", "names"}
+		"rangearrayptr", "addrderef", "loopout", "names", "doneout"}
 	dir := t.TempDir()
 	copyTree(t, casesDir(t), dir)
 	var pkgs []string

@@ -126,7 +126,7 @@ func (ck *checker) branchTarget(s *ast.BranchStmt) ast.Node {
 	return nil
 }
 
-// ret is one rewritten return: the outputs and true before the values when the helper returns, the named results
+// ret is one rewritten return: the outputs' zero values and true before the values when the helper returns, the named results
 // for a bare return, and a multi-value call first assigned to the helper's temporaries.
 func (w *bodyWriter) ret(r *ast.ReturnStmt, actual *ast.ReturnStmt) []piece {
 	var vals [][]piece
@@ -162,7 +162,14 @@ func (w *bodyWriter) ret(r *ast.ReturnStmt, actual *ast.ReturnStmt) []piece {
 	}
 	var parts [][]piece
 	if !w.sig.Tail {
-		parts = w.slots(r.Pos())
+		// The caller returns at once: the outputs are dead, so zero values.
+		for _, o := range w.sig.Outputs {
+			if o.Local == nil {
+				parts = append(parts, []piece{genIdent(o.Name, origin{kind: standsFor})})
+				continue
+			}
+			parts = append(parts, []piece{gen(w.zero(o.Local.Type(), r.Pos()))})
+		}
 		if w.sig.Returns {
 			parts = append(parts, []piece{gen("true")})
 		}
