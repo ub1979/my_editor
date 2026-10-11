@@ -106,6 +106,9 @@ func TestBuildProblems(t *testing.T) {
 	wantBuildProblems(t, target(t, "ptrdefine", "F", ""), "fetch", 15, 16,
 		"fetch: err is passed by pointer but assigned with := at line 15. It would need 2 (*x) sites.")
 	wantBuildProblems(t, target(t, "gotoover", "F", ""), "bump", 10, 11, "bump: goto done at line 8 would jump over the call at line 10.")
+	wantBuildProblems(t, target(t, "localconst", "F", ""), "clamp", 16, 19,
+		"clamp: the chunk uses the const limit, which F declares outside it (line 13).",
+		"clamp: the chunk uses the type item, which F declares outside it (line 14).")
 	wantBuildProblems(t, target(t, "shadowerr", "F", ""), "inspect", 14, 20, "inspect: err is declared in the chunk (line 17) and also names an input.")
 }
 

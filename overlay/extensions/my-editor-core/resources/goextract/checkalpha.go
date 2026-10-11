@@ -59,7 +59,7 @@ func (ck *checker) alphaCheck(i int, sig helperSig, pairs []aligned) []string {
 			ok = a != nil && sameObject(b, a)
 		}
 		if !ok {
-			problems = append(problems, ck.rebound(h, p.id, a, ck.expected(b, sig)))
+			problems = append(problems, ck.rebound(h, p.id, a, ck.expected(i, b, sig)))
 		}
 	}
 	return problems
@@ -169,7 +169,7 @@ func (ck *checker) describe(a types.Object) string {
 }
 
 // expected names what an identifier should resolve to, given the original's object.
-func (ck *checker) expected(b types.Object, sig helperSig) string {
+func (ck *checker) expected(i int, b types.Object, sig helperSig) string {
 	fn := ck.bt.Func.Name.Name
 	switch {
 	case b == nil:
@@ -183,6 +183,12 @@ func (ck *checker) expected(b types.Object, sig helperSig) string {
 		return fmt.Sprintf("a variable standing for %s's %s", fn, b.Name())
 	case global(b):
 		return "the same " + b.Name()
+	case ck.declaredInChunk(i, b):
+		return fmt.Sprintf("the helper's own %s for the chunk's (line %d)", b.Name(), ck.bt.Line(b.Pos()))
 	}
-	return fmt.Sprintf("the variable for the chunk's %s (line %d)", b.Name(), ck.bt.Line(b.Pos()))
+	kind := "const"
+	if _, ok := b.(*types.TypeName); ok {
+		kind = "type"
+	}
+	return fmt.Sprintf("%s's %s %s (line %d)", fn, kind, b.Name(), ck.bt.Line(b.Pos()))
 }

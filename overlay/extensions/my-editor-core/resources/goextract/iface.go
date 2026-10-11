@@ -18,6 +18,7 @@ func Decide(t *Target, c Chunk, name string) (Iface, []*ast.BranchStmt, []string
 	natural, problems := Jumps(t, c, shared)
 	flow, more := Analyze(t, c, shared)
 	problems = append(problems, more...)
+	problems = append(problems, localDecls(t, c)...)
 	f := Iface{Name: name, Tail: c.Block.Owner == ast.Node(t.Func.Body) && c.Last == len(c.Block.List)-1}
 	f.Returns = !f.Tail && hasReturn(c)
 	used := usedIn(t, c, flow)
@@ -62,6 +63,31 @@ func Decide(t *Target, c Chunk, name string) (Iface, []*ast.BranchStmt, []string
 	order(f.Outputs, func(o Output) (types.Object, bool) { return o.Obj, false }, flow.FirstUse)
 	problems = append(problems, writeTypes(t, c, &f)...)
 	return f, natural, append(problems, limits(f)...)
+}
+
+// localDecls refuses a const or type the function declares outside the chunk and the chunk uses: in a helper the
+// name would mean the package's declaration of it, or nothing.
+func localDecls(t *Target, c Chunk) []string {
+	var out []string
+	seen := map[types.Object]bool{}
+	for _, r := range append(t.Refs(c), t.LitRefs(c)...) {
+		obj := r.Obj
+		kind := ""
+		switch obj.(type) {
+		case *types.Const:
+			kind = "const"
+		case *types.TypeName:
+			kind = "type"
+		}
+		inFunc := t.Func.Pos() <= obj.Pos() && obj.Pos() < t.Func.End()
+		if kind == "" || seen[obj] || !inFunc || c.ContainsPos(obj.Pos()) {
+			continue
+		}
+		seen[obj] = true
+		out = append(out, fmt.Sprintf("the chunk uses the %s %s, which %s declares outside it (line %d).", kind, obj.Name(), t.Func.Name.Name,
+			t.Line(obj.Pos())))
+	}
+	return out
 }
 
 // usedIn marks what the chunk uses: every object it references, and the named results a bare return in it reads.
