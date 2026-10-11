@@ -98,7 +98,7 @@ export function createGoRefactor(root: string, tools: GoTools): RefactorHooks {
 		abandon: end,
 		mayDiffer: 'Helper functions add frames to stack traces and to runtime.Caller, log.Lshortfile and slog source lookups; inlining and escape '
 			+ 'analysis may differ (a variable passed by pointer may move to the heap), which changes speed and allocations, not results.',
-		approvalNote: 'For refactors, my_editor also runs `go list -export` on those packages, which compiles their dependencies as `go build` does, '
+		approvalNote: 'For refactors, my_editor also runs go list -export on those packages, which compiles their dependencies as go build does, '
 			+ 'and type-checks them with its own helper. ',
 	};
 }

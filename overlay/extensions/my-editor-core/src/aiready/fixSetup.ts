@@ -3,6 +3,8 @@ import * as vscode from 'vscode';
 import type { Sink } from '../chat/engine';
 import { CheckResult, failureLines, runBaseline, runSetup } from './baseline';
 import { fixTip } from './branchTip';
+import { coverageCommands, runCoverage } from './coverageRun';
+import { coverageCache, loadCoverage, saveCoverage } from './coverRecord';
 import { findCandidates } from './fixCandidates';
 import { loadSettled, remembered } from './fixSettled';
 import { pickFixes, skippedWithLines } from './fixPicker';
@@ -12,6 +14,8 @@ import { blockedFiles, loadChecks } from './fixUnverifiable';
 import { alreadyFailingText, approvalDetail, behindText, earlyText, timeoutMinutes } from './fixText';
 import type { LanguageAdapter } from './language';
 import { runCommand, tail } from './projectCommands';
+import { refactorUnticked } from './refactorOffers';
+import { loadRefused } from './refusedRecord';
 import { changedFiles, discard, FIX_BRANCH, freeFolder, initRepository, prepare, prerequisites, trackedFiles, Worktree } from './worktree';
 
 const MAX_FAILURE_LINES = 200;
@@ -82,14 +86,20 @@ export async function startRun(env: CommandEnv, adapter: (root: string, tracked:
 		return undefined;
 	}
 	const blocked = blockedFiles(choices, file => local.checks(file), loadChecks(env.storage, root), found.tip);
-	const picked = await pickFixes(choices, (items, options) => vscode.window.showQuickPick(items, { ...options, canPickMany: true }), blocked);
+	const offers = choices.filter(choice => choice.kind === 'refactor');
+	const unticked = refactorUnticked(offers, found.blobs, loadCoverage(env.storage, root), loadRefused(env.storage, root), blocked);
+	const picked = await pickFixes(choices, (items, options) => vscode.window.showQuickPick(items, { ...options, canPickMany: true }), blocked, unticked);
 	if (!picked?.length) { sink.text('No fixes were chosen, so nothing changed.'); return undefined; }
 	const checks = [...new Map(picked.flatMap(fix => local.checks(fix.file)).map(check => [check.command, check])).values()];
 	const setup = local.setup?.() ?? [];
-	const approved = [...setup, ...checks].map(check => check.command);
+	// Every offer is measured, picked or not, so the next picker can tick the ones whose tests run the function.
+	const coverage = local.refactor && offers.length ? coverageCommands(offers, local.refactor) : [];
+	const approved = [...setup, ...checks, ...coverage.map(c => c.command)].map(check => check.command);
+	const refactors = new Set(picked.filter(fix => fix.kind === 'refactor').map(fix => fix.file));
 	const folder = freeFolder(root);
+	const note = `${local.approvalNote?.(folder) ?? ''}${refactors.size ? local.refactor?.approvalNote ?? '' : ''}`;
 	const answer = await vscode.window.showWarningMessage('Run these commands on a new local branch?',
-		{ modal: true, detail: approvalDetail(folder, approved, local.label, setup.length > 0, local.approvalNote?.(folder)) }, 'Run them');
+		{ modal: true, detail: approvalDetail(folder, approved, local.label, setup.length > 0, note) }, 'Run them');
 	if (answer !== 'Run them') { sink.text('The commands were not approved, so nothing changed.'); return undefined; }
 	const limits = [...new Set(picked.filter(fix => fix.kind === 'split' && fix.narrowed).map(fix => fix.narrowed!))];
 	const worktree = await prepare(root, folder);
@@ -108,6 +118,12 @@ export async function startRun(env: CommandEnv, adapter: (root: string, tracked:
 		});
 		if ('stopped' in outcome) { return await discardUnstarted(root, worktree, sink, 'Stopped before any fix.'); }
 		if ('problem' in outcome) { return await discardUnstarted(root, worktree, sink, outcome.problem); }
+		const measured = coverage.length > 0 && inWorktree.refactor ? await runCoverage(coverage, offers, inWorktree.refactor, {
+			worktree: worktree.path, run: (command, label) => runCheck(env, inWorktree, worktree.path, approved, command, label),
+			blob: async file => found.blobs.get(file), cancelled: () => token.isCancellationRequested, progress: text => sink.progress(text),
+		}) : undefined;
+		if (measured === 'stopped') { return await discardUnstarted(root, worktree, sink, 'Stopped before any fix.'); }
+		if (measured) { saveCoverage(env.storage, root, coverageCache(measured.entries, loadCoverage(env.storage, root))); }
 		const failing = Object.entries(outcome.baseline).filter(([, [first]]) => first.code !== 0).map(([command]) => command);
 		if (failing.length) { sink.text(alreadyFailingText(failing)); }
 		sink.progress('Finding fixes nothing here can check…');
@@ -115,13 +131,16 @@ export async function startRun(env: CommandEnv, adapter: (root: string, tracked:
 		const cancelled = () => token.isCancellationRequested;
 		// Splits that can't help are settled here too, picked or not, so the change note lists them.
 		const later = await needingRefactor(found.unparsed.filter(fix => !picked.some(p => p.file === fix.file && p.kind === fix.kind)), screen, cancelled);
-		const queue = await screenQueue([...unsplittable, ...later, ...picked], screen, cancelled);
+		// A file whose refactor was picked is not listed as one a split can't help: the refactor's split follows it.
+		const stuck = unsplittable.filter(fix => !refactors.has(fix.file));
+		const queue = await screenQueue([...stuck, ...later, ...picked], screen, cancelled);
 		if (queue === 'stopped') { return await discardUnstarted(root, worktree, sink, 'Stopped before any fix.'); }
 		sink.text(earlyText(queue.early));
 		const state: RunState = {
 			version: 1, root, language: local.label, worktree, startedAt: new Date().toISOString(), approved,
 			fixes: queue.fixes, next: queue.early.length, screened: queue.early.length, steps: queue.early.map(early => early.step),
 			baseline: outcome.baseline, skippedFiles: skippedWithLines(skipped, stats), setupStamp: inWorktree.setupStamp?.(),
+			...(measured ? { coverage: measured.ran } : {}),
 		};
 		saveState(env.storage, state);
 		sink.progress('');

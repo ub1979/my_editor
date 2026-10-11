@@ -29,6 +29,8 @@ export async function runQueue(state: RunState, hooks: QueueHooks, max = RUNAWAY
 		if (outcome === 'stopped') { break; }
 		state.steps.push(outcome);
 		state.next++;
+		// The split that follows a committed refactor runs right after it.
+		if (outcome.followUp) { state.fixes.splice(state.next, 0, outcome.followUp); }
 		if (!outcome.early) { attempted++; }
 		hooks.record(outcome);
 	}

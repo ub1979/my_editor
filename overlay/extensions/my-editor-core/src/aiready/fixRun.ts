@@ -12,6 +12,9 @@ import { clearState, discardRest, loadState, RUNAWAY_LIMIT, RunState, saveState,
 import { setFixRunning } from './fixStatus';
 import { closeEmpty } from './fixEmpty';
 import { rememberSettled } from './fixSettled';
+import { refactorRunLine } from './refactorText';
+import { runRefactor } from './refactorStep';
+import { rememberRefused } from './refusedRecord';
 import { rememberChecks } from './fixUnverifiable';
 import { closingText, pausedText } from './fixText';
 import type { LanguageAdapter } from './language';
@@ -88,6 +91,7 @@ async function forgetRun(storage: string, state: RunState, sink: Sink, error: un
 }
 
 function stepLine(step: StepRecord): string {
+	if (step.kind === 'refactor') { return refactorRunLine(step); }
 	const what = step.kind === 'split' ? `Split \`${step.file}\`` : `Tests for \`${step.file}\``;
 	if (step.status === 'committed') {
 		const detail = step.kind === 'split' ? ` into ${(step.moved ?? []).map(m => `\`${m.file}\``).join(', ')}` : ` in \`${step.testFile}\``;
@@ -105,9 +109,11 @@ async function runFixes(env: CommandEnv, state: RunState, adapter: LanguageAdapt
 		check: (command, label, extra) => runCheck(env, adapter, worktree, state.approved, command, label, extra),
 		cancelled: () => token.isCancellationRequested,
 		progress: text => sink.progress(text),
+		coverage: state.coverage,
 	};
+	const steps = { split: runSplit, tests: runAddTests, refactor: runRefactor };
 	const attempted = await runQueue(state, {
-		run: (fix, progress) => (fix.kind === 'split' ? runSplit({ ...ctx, progress }, fix) : runAddTests({ ...ctx, progress }, fix)),
+		run: (fix, progress) => steps[fix.kind]({ ...ctx, progress }, fix),
 		cancelled: () => token.isCancellationRequested,
 		progress: text => sink.progress(text),
 		record: step => { saveState(storage, state); sink.text(`${stepLine(step)}\n`); },
@@ -127,6 +133,8 @@ async function runFixes(env: CommandEnv, state: RunState, adapter: LanguageAdapt
 /** Commits the change note on the branch, removes the worktree (the branch stays), and updates the report. */
 async function closeRun(env: CommandEnv, state: RunState, sink: Sink, mayDiffer: string | undefined): Promise<void> {
 	await rememberSettled(env.storage, state.root, state.worktree.path, state.steps);
+	// Before an empty close removes the worktree the blob ids are read in: a refused refactor must not be ticked again.
+	await rememberRefused(env.storage, state.root, state.worktree.path, state.steps);
 	if (!state.steps.some(step => step.status === 'committed')) { return closeEmpty(env.storage, state, sink); }
 	const at = new Date();
 	const note = noteFileName(at);

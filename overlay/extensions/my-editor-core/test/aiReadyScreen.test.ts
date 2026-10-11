@@ -172,3 +172,22 @@ test('a refactor is settled early when nothing needs one now or its build is blo
 	writeFileSync(path.join(root, 'store', 'big.go'), 'x\n'.repeat(380));
 	assert.equal((await screen('store/big.go'))?.step.reason, 'Already 380 lines on this branch (the limit is 400).');
 });
+
+test('a step\'s follow-up fix runs next and counts in the progress', async () => {
+	const state = { ...queueState(['early.go', 'r.go', 'b.go']), next: 1, screened: 1 };
+	state.fixes[1] = { file: 'r.go', kind: 'refactor', lines: 460, target: { name: 'Big', lines: 452 } };
+	const seen: string[] = [];
+	const ran: string[] = [];
+	await runQueue(state, {
+		run: async f => {
+			ran.push(`${f.file} ${f.kind}`);
+			return f.kind === 'refactor'
+				? { file: f.file, kind: 'refactor', status: 'committed', followUp: { file: f.file, kind: 'split', lines: 470 } }
+				: { file: f.file, kind: f.kind, status: 'committed' };
+		},
+		cancelled: () => false, progress: text => seen.push(text), record: () => undefined,
+	});
+	assert.deepEqual(ran, ['r.go refactor', 'r.go split', 'b.go split']);
+	assert.deepEqual(seen, ['Fix 1 of 2: r.go…', 'Fix 2 of 3: r.go…', 'Fix 3 of 3: b.go…']);
+	assert.equal(state.next, 4);
+});

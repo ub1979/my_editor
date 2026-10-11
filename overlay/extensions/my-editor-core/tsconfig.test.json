@@ -83,6 +83,7 @@
     "src/aiready/steps.ts",
     "src/aiready/refactorText.ts",
     "src/aiready/refactorStep.ts",
+    "src/aiready/coverageRun.ts",
     "src/aiready/tsLoad.ts",
     "src/aiready/tsConfig.ts",
     "src/aiready/tsProject.ts",

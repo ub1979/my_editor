@@ -48,7 +48,8 @@ test('coverage runs go test with a dot-file profile in the worktree root, one pe
 		command: { label: 'test', command: 'go test -count=1 -coverprofile=.my_editor-cover-2.out ./internal/store' }, profile: '.my_editor-cover-2.out' });
 	assert.equal(hooks.coverage('main.go', 0).command.command, 'go test -count=1 -coverprofile=.my_editor-cover-0.out .');
 	assert.match(hooks.mayDiffer, /runtime\.Caller/);
-	assert.match(hooks.approvalNote, /`go list -export`[\s\S]*`go build`[\s\S]* $/);
+	assert.match(hooks.approvalNote, /go list -export[\s\S]*go build[\s\S]* $/);
+	assert.doesNotMatch(hooks.approvalNote, /`/, 'the approval modal is plain text');
 });
 
 test('ran reads the profile by the function\'s lines in the file', async t => {
