@@ -124,3 +124,10 @@ func Report(items []string, upper bool) string {
 		t.Error("HoldsLock")
 	}
 }
+
+func TestSharedTypeSwitchVariable(t *testing.T) {
+	tg := target(t, "typeswitch", "F", "")
+	if why := sharedReason(Shared(tg, chunk(t, tg, 9, 9)), "t"); why != "address-taken at line 8" {
+		t.Fatalf("t: %q", why)
+	}
+}

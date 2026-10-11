@@ -43,11 +43,17 @@ func (t *Target) Outer(c Chunk, obj types.Object) bool {
 	return false
 }
 
-// OuterLocals lists every outer local of the chunk, referenced or not, in declaration order.
+// OuterLocals lists every outer local of the chunk, referenced or not, in declaration order: declared by an
+// identifier, or implicitly as a type switch clause's variable.
 func (t *Target) OuterLocals(c Chunk) []types.Object {
 	var out []types.Object
 	for id, obj := range t.L.Info.Defs {
 		if obj != nil && id.Pos() >= t.Func.Pos() && id.End() <= t.Func.End() && t.Outer(c, obj) {
+			out = append(out, obj)
+		}
+	}
+	for node, obj := range t.L.Info.Implicits {
+		if _, ok := node.(*ast.CaseClause); ok && node.Pos() >= t.Func.Pos() && node.End() <= t.Func.End() && t.Outer(c, obj) {
 			out = append(out, obj)
 		}
 	}
