@@ -115,10 +115,11 @@ func TestBuildProblems(t *testing.T) {
 
 func TestBuildPlanProblems(t *testing.T) {
 	tg := target(t, "basic", "Report", "")
-	res, out := Build(tg, []PlanChunk{{"a", 11, 14}, {"a", 13, 13}, {"b", 30, 31}})
+	res, out := Build(tg, []PlanChunk{{"a", 11, 14}, {"a", 13, 13}, {"main", 30, 31}})
 	want := []string{
 		"a: a is named twice.",
-		"b: Lines 30–31 are not whole statements of one block of Report: no statement of Report starts at line 30.",
+		"main: Lines 30–31 are not whole statements of one block of Report: no statement of Report starts at line 30.",
+		`main: "main" cannot name a helper.`,
 		"a (11–14) overlaps a (13–13).",
 	}
 	if strings.Join(res.Problems, "\n") != strings.Join(want, "\n") || out != nil {

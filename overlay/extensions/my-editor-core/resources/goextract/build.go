@@ -72,6 +72,9 @@ func Build(t *Target, plan []PlanChunk) (BuildResult, []byte) {
 		c, problem := t.ResolveChunk(pc.Name, pc.From, pc.To)
 		if problem != "" {
 			res.Problems = append(res.Problems, pc.Name+": "+problem)
+			for _, p := range nameProblems[i] {
+				res.Problems = append(res.Problems, pc.Name+": "+p)
+			}
 			continue
 		}
 		chunks = append(chunks, c)
