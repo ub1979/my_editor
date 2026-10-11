@@ -175,13 +175,6 @@ func checkCmd(args []string) (any, error) {
 	if err := json.Unmarshal(files[1], &built); err != nil {
 		return nil, fmt.Errorf("reading the build result: %v", err)
 	}
-	l, err := Load(tg.list, tg.pkg, map[string][]byte{tg.file: files[0]})
-	if err != nil {
-		return checkResult{[]string{"the original does not load: " + err.Error()}}, nil
-	}
-	if t, err := FindFunc(l, tg.file, tg.fn, tg.recv); err == nil && ScopeProblem(t) != "" {
-		return checkResult{[]string{ScopeProblem(t)}}, nil
-	}
 	problems := Check(tg.list, tg.pkg, tg.file, tg.fn, tg.recv, files[0], files[2], built)
 	if problems == nil {
 		problems = []string{}

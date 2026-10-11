@@ -85,6 +85,14 @@ func TestCLIBuildAndCheck(t *testing.T) {
 	if _, err := os.Stat(out); code != 0 || !strings.Contains(stdout, `"problems":["queryRows: Lines 38–47`) || err == nil {
 		t.Fatalf("%d %q %v", code, stdout, err)
 	}
+	if err := os.WriteFile(build, []byte(stdout), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	args = append(append([]string{"check"}, caseFlags(t, "onboarding", "Plan")...), "-before", caseFile(t, "onboarding"), "-build", build,
+		"-after", caseFile(t, "onboarding"))
+	if _, stdout, _ = runCLI(args...); !strings.Contains(stdout, `"problems":["The build reported problems, so there is nothing to check: queryRows: Lines`) {
+		t.Fatal(stdout)
+	}
 	_, stdout, _ = runCLI(append(append([]string{"build"}, caseFlags(t, "generic", "Sum")...), "-plan", plan, "-out", out)...)
 	if !strings.Contains(stdout, `"problems":["Sum is generic."]`) {
 		t.Fatal(stdout)

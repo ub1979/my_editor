@@ -24,24 +24,16 @@ type checker struct {
 // Check verifies the written file against the original. Empty means it passed. It uses only where the chunks are
 // (built's names and lines); everything else is read from the file as written.
 func Check(list, pkg, path, fn, recv string, before, after []byte, built BuildResult) []string {
+	switch {
+	case len(built.Problems) > 0:
+		return []string{"The build reported problems, so there is nothing to check: " + strings.Join(built.Problems, " ")}
+	case len(built.Helpers) == 0:
+		return []string{"The build reported no helpers, so there is nothing to check."}
+	}
 	path = filepath.Clean(path)
-	bl, err := Load(list, pkg, map[string][]byte{path: before})
-	if err != nil {
-		return []string{"the original does not load: " + err.Error()}
-	}
-	al, err := Load(list, pkg, map[string][]byte{path: after})
-	if err != nil {
-		if msg := err.Error(); !strings.HasPrefix(msg, "the package does not type-check") {
-			return []string{"the package does not type-check: " + msg}
-		}
-		return []string{err.Error()}
-	}
 	ck := &checker{file: filepath.Base(path)}
-	if ck.bt, err = FindFunc(bl, path, fn, recv); err != nil {
-		return []string{err.Error()}
-	}
-	if ck.at, err = FindFunc(al, path, fn, recv); err != nil {
-		return []string{err.Error()}
+	if problem := ck.load(list, pkg, path, fn, recv, before, after); problem != "" {
+		return []string{problem}
 	}
 	problems := []string{}
 	if out, err := format.Source(after); err != nil || !bytes.Equal(out, after) {
@@ -56,6 +48,35 @@ func Check(list, pkg, path, fn, recv string, before, after []byte, built BuildRe
 		problems = append(problems, ck.helperProblems(i)...)
 	}
 	return problems
+}
+
+// load type-checks the package with the original file, then with the written one, and finds the function in each; it
+// says why it cannot, or that the function is out of scope (generic, or with a //go: line).
+func (ck *checker) load(list, pkg, path, fn, recv string, before, after []byte) string {
+	bl, err := Load(list, pkg, map[string][]byte{path: before})
+	if err != nil {
+		return "the original does not load: " + err.Error()
+	}
+	if ck.bt, err = FindFunc(bl, path, fn, recv); err != nil {
+		return err.Error()
+	}
+	if ck.bt.Generic() {
+		return fn + " is generic."
+	}
+	if d := ck.bt.Directive(); d != "" {
+		return fmt.Sprintf("%s has a %s line.", fn, d)
+	}
+	al, err := Load(list, pkg, map[string][]byte{path: after})
+	if err != nil {
+		if msg := err.Error(); !strings.HasPrefix(msg, "the package does not type-check") {
+			return "the package does not type-check: " + msg
+		}
+		return err.Error()
+	}
+	if ck.at, err = FindFunc(al, path, fn, recv); err != nil {
+		return err.Error()
+	}
+	return ""
 }
 
 // helperProblems are the name and statement checks, and checks 2, 3 and 4, for one helper, read from its signature

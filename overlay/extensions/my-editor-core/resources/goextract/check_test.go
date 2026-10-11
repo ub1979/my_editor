@@ -92,6 +92,34 @@ func TestCheckTwoHelpers(t *testing.T) {
 	}
 }
 
+func TestCheckRefusesOutOfScope(t *testing.T) {
+	sum := readCase(t, "generic")
+	list, pkg := listCase(t, "generic")
+	problems := Check(list, pkg, caseFile(t, "generic"), "Sum", "", sum, sum, BuildResult{Helpers: []HelperFact{fact("h", 6, 6)}})
+	if strings.Join(problems, "\n") != "Sum is generic." {
+		t.Fatalf("%q", problems)
+	}
+	before := append(readCase(t, "basic"), "\n//go:noinline\nfunc N() int {\n\tn := 1\n\treturn n\n}\n"...)
+	list, pkg = listCase(t, "basic")
+	problems = Check(list, pkg, caseFile(t, "basic"), "N", "", before, before, BuildResult{Helpers: []HelperFact{fact("h", 24, 24)}})
+	if strings.Join(problems, "\n") != "N has a //go:noinline line." {
+		t.Fatalf("%q", problems)
+	}
+}
+
+func TestCheckRefusesBuildWithProblems(t *testing.T) {
+	src := readCase(t, "basic")
+	list, pkg := listCase(t, "basic")
+	for built, want := range map[*BuildResult]string{
+		{Problems: []string{"x: refused."}}: "The build reported problems, so there is nothing to check: x: refused.",
+		{}:                                  "The build reported no helpers, so there is nothing to check.",
+	} {
+		if problems := Check(list, pkg, caseFile(t, "basic"), "Report", "", src, src, *built); strings.Join(problems, "\n") != want {
+			t.Fatalf("%q", problems)
+		}
+	}
+}
+
 // checkAfter checks a hand-written new file of a case against its original, the build having reported helpers.
 func checkAfter(t *testing.T, name, fn, recv, after string, helpers ...HelperFact) []string {
 	t.Helper()
