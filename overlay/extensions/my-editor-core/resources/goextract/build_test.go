@@ -40,6 +40,7 @@ func TestBuildGoldens(t *testing.T) {
 		{"doneout", "F", "", "thenStep", 24, 27},
 		{"pfound", "F", "", "scan", 7, 11},
 		{"pvar", "F", "", "addAll", 6, 8},
+		{"promoname", "Run", "S", "grow", 24, 25},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

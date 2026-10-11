@@ -127,10 +127,15 @@ func goIn(t *testing.T, dir string, args ...string) []byte {
 
 func TestEndToEndPins(t *testing.T) {
 	names := []string{"deferrecover", "buildercopy", "valuepath", "multireturn", "tail", "tailvoid", "breakswitch", "ptrselector",
-		"rangearrayptr", "addrderef", "loopout", "names", "doneout"}
+		"rangearrayptr", "addrderef", "loopout", "names", "doneout", "promoname", "pfound", "pvar"}
 	dir := t.TempDir()
 	copyTree(t, casesDir(t), dir)
 	var pkgs []string
+	for _, name := range names {
+		pkgs = append(pkgs, "./"+name)
+	}
+	// The pins hold on the originals, so that their holding on the built files means something.
+	goIn(t, dir, append([]string{"test", "-count=1"}, pkgs...)...)
 	for _, name := range names {
 		g := goldenRow(t, name)
 		file, list := filepath.Join(dir, name, "a.go"), filepath.Join(dir, name+".json")
@@ -144,7 +149,7 @@ func TestEndToEndPins(t *testing.T) {
 		os.WriteFile(list, listOut.Bytes(), 0o644)
 		planJSON, _ := json.Marshal([]PlanChunk{{g.helper, g.from, g.to}})
 		os.WriteFile(plan, planJSON, 0o644)
-		flags := []string{"-list", list, "-pkg", "cases/" + name, "-file", file, "-func", g.fn}
+		flags := []string{"-list", list, "-pkg", "cases/" + name, "-file", file, "-func", g.fn, "-recv", g.recv}
 		code, stdout, errOut := runCLI(append(append([]string{"build"}, flags...), "-plan", plan, "-out", out)...)
 		built, err := os.ReadFile(out)
 		if code != 0 || err != nil {
@@ -158,7 +163,6 @@ func TestEndToEndPins(t *testing.T) {
 		if code, stdout, errOut = runCLI(args...); code != 0 || strings.TrimSpace(stdout) != `{"problems":[]}` {
 			t.Fatalf("%s: %d %q %q", name, code, stdout, errOut)
 		}
-		pkgs = append(pkgs, "./"+name)
 	}
 	goIn(t, dir, append([]string{"vet"}, pkgs...)...)
 	goIn(t, dir, append([]string{"test", "-count=1"}, pkgs...)...)
