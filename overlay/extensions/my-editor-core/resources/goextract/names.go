@@ -2,8 +2,10 @@ package main
 
 import (
 	"fmt"
+	"go/ast"
 	"go/token"
 	"go/types"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"unicode"
@@ -13,7 +15,7 @@ import (
 // NameProblems applies rule 8 to the plan's helper names: each must be a lower-case Go identifier that is not `_`,
 // `init` or `main`, unique in the plan, and fresh: declared in no scope of the function, not by the package or its
 // test files, not predeclared, not a field or method of the receiver's type, and not a method of an interface of
-// the package (a new method could make a type satisfy it).
+// the package (a new method could make a type satisfy it), nor used as an identifier anywhere in the package.
 func NameProblems(t *Target, names []string) []string {
 	var out []string
 	for _, problems := range NameProblemsEach(t, names) {
@@ -78,7 +80,32 @@ func takenBy(t *Target, name string) string {
 	if why := receiverMember(t, name); why != "" {
 		return why
 	}
-	return interfaceMethod(t, name)
+	if why := interfaceMethod(t, name); why != "" {
+		return why
+	}
+	return usedAnywhere(t, name)
+}
+
+// usedAnywhere says where the package's files first use an identifier called name (a selector, a field, a method
+// of an anonymous interface…), or "": a new method so named could be promoted into another type or satisfy an
+// interface it does not satisfy now.
+func usedAnywhere(t *Target, name string) string {
+	for i, file := range t.L.Files {
+		var at *ast.Ident
+		ast.Inspect(file, func(n ast.Node) bool {
+			if id, ok := n.(*ast.Ident); ok && id.Name == name && at == nil {
+				at = id
+			}
+			return at == nil
+		})
+		if at != nil {
+			return fmt.Sprintf("the package uses it (%s line %d)", filepath.Base(t.L.Paths[i]), t.L.Fset.Position(at.Pos()).Line)
+		}
+	}
+	if t.L.TestIdents[name] {
+		return "a test file of the package uses it"
+	}
+	return ""
 }
 
 // funcScopesLookup is the earliest object called name in any scope of the function, function literals included.

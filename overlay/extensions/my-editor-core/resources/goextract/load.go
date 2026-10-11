@@ -25,14 +25,15 @@ type Listed struct {
 
 // Loaded is the target package parsed from source and type-checked against its dependencies' export data.
 type Loaded struct {
-	Fset      *token.FileSet
-	Files     []*ast.File
-	Paths     []string
-	Src       map[string][]byte
-	Pkg       *types.Package
-	Info      *types.Info
-	Listed    Listed
-	TestNames map[string]bool
+	Fset       *token.FileSet
+	Files      []*ast.File
+	Paths      []string
+	Src        map[string][]byte
+	Pkg        *types.Package
+	Info       *types.Info
+	Listed     Listed
+	TestNames  map[string]bool // top-level names the package's _test.go files declare
+	TestIdents map[string]bool // every identifier those files use
 }
 
 // File is the parsed file at an absolute path, or nil.
@@ -107,7 +108,7 @@ func Load(listFile, pkg string, overlay map[string][]byte) (*Loaded, error) {
 	if err := l.check(target, exports); err != nil {
 		return nil, err
 	}
-	if l.TestNames, err = testNames(target); err != nil {
+	if l.TestNames, l.TestIdents, err = testNames(target); err != nil {
 		return nil, err
 	}
 	return l, nil
@@ -160,15 +161,22 @@ func (i mappedImporter) Import(path string) (*types.Package, error) {
 	return i.base.Import(path)
 }
 
-// testNames collects the top-level names the package's own _test.go files declare (methods excluded).
-func testNames(target Listed) (map[string]bool, error) {
-	names := map[string]bool{}
+// testNames collects the top-level names the package's own _test.go files declare (methods excluded), and every
+// identifier they use.
+func testNames(target Listed) (map[string]bool, map[string]bool, error) {
+	names, idents := map[string]bool{}, map[string]bool{}
 	fset := token.NewFileSet()
 	for _, name := range target.TestGoFiles {
 		file, err := parser.ParseFile(fset, filepath.Join(target.Dir, name), nil, parser.SkipObjectResolution)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
+		ast.Inspect(file, func(n ast.Node) bool {
+			if id, ok := n.(*ast.Ident); ok {
+				idents[id.Name] = true
+			}
+			return true
+		})
 		for _, decl := range file.Decls {
 			switch d := decl.(type) {
 			case *ast.FuncDecl:
@@ -189,5 +197,5 @@ func testNames(target Listed) (map[string]bool, error) {
 			}
 		}
 	}
-	return names, nil
+	return names, idents, nil
 }

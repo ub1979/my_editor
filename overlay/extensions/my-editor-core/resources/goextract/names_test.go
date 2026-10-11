@@ -42,6 +42,14 @@ func TestNamesMethodSet(t *testing.T) {
 	wantNames(t, tg, []string{"addRows"})
 }
 
+func TestNamesUsedAnywhere(t *testing.T) {
+	tg := target(t, "promoname", "Run", "S")
+	wantNames(t, tg, []string{"tally"}, "tally is not a fresh name: the package uses it (a.go line 8).")
+	wantNames(t, tg, []string{"count"}, "count is not a fresh name: the package uses it (a.go line 32).")
+	wantNames(t, tg, []string{"probed"}, "probed is not a fresh name: a test file of the package uses it.")
+	wantNames(t, tg, []string{"doubled"})
+}
+
 func TestNamesPlumbing(t *testing.T) {
 	tg := target(t, "basic", "Report", "")
 	if got := Plumbing(tg, nil, "done"); got != "done" {
