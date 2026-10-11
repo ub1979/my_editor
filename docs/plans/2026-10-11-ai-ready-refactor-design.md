@@ -1,6 +1,6 @@
 # AI-ready: refactor long functions (design, Go first)
 
-Status: revised after one adversarial review, 2026-10-11. Awaiting the user's go-ahead.
+Status: revised after one adversarial review; approved by the user 2026-10-11 (refactors ticked only when tests run the function).
 
 ## Why
 
@@ -130,8 +130,12 @@ database, so build, vet and the extract check are the whole net there, and the n
 - `FixKind` gains `'refactor'`; the Go adapter lists it. `Candidates.unsplittable` keeps meaning "a split alone
   can't help"; when the adapter offers `refactor`, those files become refactor offers ("refactor `main` (961 lines)
   into helpers, then split"). `SETTLED_RULES` is unchanged.
-- **Ticked** only when baseline coverage shows a passing test executing the function; otherwise **unticked** with
-  "no test here runs `F`; build, vet and the extract check still apply". (Recommended by the review; the user decides.)
+- **Ticked** only when the last baseline's coverage shows the package's tests executing the function (the user's
+  choice); otherwise **unticked** with "no test here runs `F` yet; build, vet and the extract check still apply". The
+  picker runs before the baseline, so it reads the coverage the previous run recorded (like `checks.json`); with no
+  record yet the refactor is unticked. Coverage comes from one extra approved command per package with a refactor
+  offer, `go test -count=1 -coverprofile=<run dir>/cover-<n>.out <pkg>`, run in the baseline; the split checks stay
+  as they are.
 - A refused refactor is remembered by blob with its reason, so the next picker shows it unticked with "an earlier run
   could not refactor it: …", never ticked again and again.
 - After a refactor commit the same run screens the file again and, when splittable, runs the split next.
