@@ -65,9 +65,14 @@ func firstUses(t *Target, c Chunk) map[types.Object]token.Pos {
 // readAfter marks every object used after the chunk anywhere in the function (function literals included) or
 // anywhere in a loop that encloses the chunk. A bare return of the function there reads every named result.
 func readAfter(t *Target, c Chunk) map[types.Object]bool {
-	loops := EnclosingLoops(t, c)
+	return ReadFrom(t, c.EndPos(), EnclosingLoops(t, c))
+}
+
+// ReadFrom marks every object used at or after position from anywhere in the function (function literals included)
+// or anywhere in one of the loops. A bare return of the function there reads every named result.
+func ReadFrom(t *Target, from token.Pos, loops []ast.Stmt) map[types.Object]bool {
 	isAfter := func(p token.Pos) bool {
-		if p >= c.EndPos() {
+		if p >= from {
 			return true
 		}
 		for _, l := range loops {
