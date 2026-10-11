@@ -135,3 +135,38 @@ test('refactor rows say what they do and are ticked only when allowed', async ()
 	assert.deepEqual(shown.map(item => item.detail), ['no test here runs `Run` yet', undefined, undefined, 'can\'t be checked here']);
 	assert.deepEqual(picked, [choices[2]]);
 });
+
+/** A run that committed a refactor of `store/step.go` and the split that followed it. */
+function refactored(ran?: boolean): RunState {
+	const helpers = [
+		{ name: 'queryRows', params: ['ctx', 'tx', 'req'], outputs: ['rows', 'err'], returns: false },
+		{ name: 'stepSource', params: ['stepCtx', '*p', 'err'], outputs: ['err'], returns: true },
+	];
+	return { ...state('/p/shop'), next: 2, fixes: [{ file: 'store/step.go', kind: 'refactor', lines: 467 }, fix('store/step.go', 'split', 470)],
+		steps: [{ file: 'store/step.go', kind: 'refactor', status: 'committed', commit: 'abc1234567', checks: '`go build ./store`: passed.',
+			refactor: { target: 'Step', helpers, lines: 283, ...(ran === undefined ? {} : { ran }) } },
+		{ file: 'store/step.go', kind: 'split', status: 'committed', commit: 'def7654321', moved: [{ file: 'store/step_source.go', names: ['stepSource'] }] }] };
+}
+
+test('the change note has a Refactored section with helpers, pointer parameters, the extract check and coverage', () => {
+	const note = renderChangeNote(refactored(false), new Date('2026-10-09T12:34:00Z'), GO_LANGUAGE.mayDiffer);
+	assert.match(note, /Each commit moves code into new files, extracts helpers from a long function, or adds tests;/);
+	assert.ok(note.includes('- `abc1234` Refactored `Step` in `store/step.go` into 2 helpers.\n  Checks: `go build ./store`: passed.'), note);
+	assert.ok(note.includes('## Refactored\n\n### `Step` (`store/step.go`)\n\n- queryRows(ctx, tx, req) → rows, err\n'
+		+ '- stepSource(stepCtx, *p, err) → err; carries returns\n\nNow 283 lines. Extract check: passed. '
+		+ 'Coverage: no passing test ran Step at baseline; build, vet and the extract check are the net.\n'), note);
+	assert.ok(note.indexOf('## Commits') < note.indexOf('## Refactored'));
+	assert.match(renderChangeNote(refactored(true), new Date(), undefined), /Coverage: the package's tests ran Step at baseline\./);
+	assert.match(renderChangeNote(refactored(), new Date(), undefined), /Extract check: passed\. Coverage: not recorded\./);
+	assert.doesNotMatch(renderChangeNote(state('/p/shop'), new Date()), /## Refactored/);
+});
+
+test('what may differ adds helper frames and inlining only when a refactor was committed', () => {
+	const differ = 'Helper functions add frames to stack traces.';
+	const note = renderChangeNote(refactored(true), new Date(), GO_LANGUAGE.mayDiffer, false, differ);
+	assert.ok(note.includes(`- ${differ}\n`), note);
+	assert.ok(note.indexOf(differ) > note.indexOf('## Left for you'));
+	assert.doesNotMatch(renderChangeNote(state('/p/shop'), new Date(), GO_LANGUAGE.mayDiffer, false, differ), /Helper functions/);
+	const refused: RunState = { ...state('/p/shop'), steps: [{ file: 'a.go', kind: 'refactor', status: 'refused', reason: 'x' }] };
+	assert.doesNotMatch(renderChangeNote(refused, new Date(), undefined, false, differ), /Helper functions/);
+});

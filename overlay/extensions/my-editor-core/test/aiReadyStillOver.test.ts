@@ -11,7 +11,7 @@ function decl(id: number, name: string, lines: number, movable = true, reason?: 
 }
 
 const BIG_REASON = 'one declaration (`buildOnboardingPlanTx`, 401 lines) is longer than the limit; '
-	+ 'it needs a real refactor, which this fixer doesn\'t do';
+	+ 'it needs a real refactor, which a split can\'t do';
 
 test('a split that leaves one declaration over 400 lines names the file, its size and why, with repository paths', () => {
 	const info: FileInfo = { path: 'internal/store/onboarding.go', frame: [], imports: [],

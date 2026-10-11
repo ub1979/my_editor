@@ -40,3 +40,14 @@ export function refactorRunLine(step: StepRecord): string {
 	}
 	return `- ${what}: ${step.status}. ${step.reason ?? ''}`.trimEnd();
 }
+
+/** The change note's `## Refactored` section: each committed refactor's helpers, its size now, the extract check and coverage. */
+export function refactoredLines(steps: readonly StepRecord[]): string[] {
+	const done = steps.filter(step => step.status === 'committed' && step.refactor);
+	if (!done.length) { return []; }
+	return ['## Refactored', '', ...done.flatMap(({ file, refactor }) => [
+		`### \`${refactor!.target}\` (\`${file}\`)`, '',
+		...refactor!.helpers.map(helper => `- ${helperLine(helper)}`), '',
+		`Now ${refactor!.lines} lines. Extract check: passed. ${coverageSentence(refactor!.target, refactor!.ran)}`, '',
+	])];
+}

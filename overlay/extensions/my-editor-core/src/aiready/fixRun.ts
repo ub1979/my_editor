@@ -127,11 +127,11 @@ async function runFixes(env: CommandEnv, state: RunState, adapter: LanguageAdapt
 		sink.action('Continue', 'myEditor.aiReadyFix', [{ continue: true }]);
 		return;
 	}
-	await closeRun(env, state, sink, adapter.mayDiffer);
+	await closeRun(env, state, sink, adapter);
 }
 
 /** Commits the change note on the branch, removes the worktree (the branch stays), and updates the report. */
-async function closeRun(env: CommandEnv, state: RunState, sink: Sink, mayDiffer: string | undefined): Promise<void> {
+async function closeRun(env: CommandEnv, state: RunState, sink: Sink, adapter: LanguageAdapter): Promise<void> {
 	await rememberSettled(env.storage, state.root, state.worktree.path, state.steps);
 	// Before an empty close removes the worktree the blob ids are read in: a refused refactor must not be ticked again.
 	await rememberRefused(env.storage, state.root, state.worktree.path, state.steps);
@@ -140,7 +140,7 @@ async function closeRun(env: CommandEnv, state: RunState, sink: Sink, mayDiffer:
 	const note = noteFileName(at);
 	const worktree = state.worktree.path;
 	mkdirSync(path.dirname(path.join(worktree, note)), { recursive: true });
-	writeFileSync(path.join(worktree, note), renderChangeNote(state, at, mayDiffer, existsSync(reportPath(state.root))));
+	writeFileSync(path.join(worktree, note), renderChangeNote(state, at, adapter.mayDiffer, existsSync(reportPath(state.root)), adapter.refactor?.mayDiffer));
 	await commit(worktree, [note], 'my_editor: change note for the AI-ready fixes',
 		'What this run changed, how each change was checked, and what was left.');
 	await rememberChecks(env.storage, state.root, state.baseline);

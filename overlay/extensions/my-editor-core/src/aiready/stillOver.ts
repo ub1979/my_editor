@@ -13,7 +13,7 @@ function why(declarations: readonly Declaration[]): string {
 	const big = declarations.find(d => d.lines > MAX_SOURCE_LINES);
 	if (big) {
 		return `one declaration (\`${big.names.join(', ') || big.kind}\`, ${big.lines} lines) is longer than the limit; `
-			+ 'it needs a real refactor, which this fixer doesn\'t do';
+			+ 'it needs a real refactor, which a split can\'t do';
 	}
 	const stuck = declarations.find(d => !d.movable && d.reason);
 	return stuck ? `the rest may not move (${stuck.reason})` : 'nothing more in it could move out';

@@ -4,6 +4,7 @@ import { flakyTests } from './baseline';
 import type { RunState, StepRecord } from './fixState';
 import { behindText } from './fixText';
 import { neverSplitLines } from './neverSplit';
+import { refactoredLines } from './refactorText';
 import { STILL_OVER_HEADING, stillOverLines } from './stillOver';
 
 const RUN_SECTION = '## Fixes on a local branch';
@@ -31,6 +32,10 @@ function planText(step: StepRecord): string {
 
 function stepLine(step: StepRecord): string {
 	const short = step.commit?.slice(0, 7);
+	if (step.kind === 'refactor') {
+		const count = step.refactor?.helpers.length ?? 0;
+		return `- \`${short}\` Refactored \`${step.refactor?.target}\` in \`${step.file}\` into ${count} helper${count === 1 ? '' : 's'}.`;
+	}
 	if (step.kind === 'split') {
 		const moved = (step.moved ?? []).map(m => `\`${m.file}\` (${m.names.join(', ')})`).join('; ');
 		return `- \`${short}\` Split \`${step.file}\` into ${moved}.`;
@@ -53,8 +58,11 @@ function notDoneLine(step: StepRecord): string {
 	return `- \`${step.file}\` (${step.kind}): ${step.status}. ${step.reason ?? ''} ${planText(step)}`.trimEnd();
 }
 
-/** The change note committed on the branch at close (pure); `mayDiffer` comes from the language adapter. */
-export function renderChangeNote(state: RunState, at: Date, mayDiffer = MAY_DIFFER, hasReport = false): string {
+/**
+ * The change note committed on the branch at close (pure); `mayDiffer` comes from the language adapter, and
+ * `refactorMayDiffer` from its refactor, said only when a refactor was committed.
+ */
+export function renderChangeNote(state: RunState, at: Date, mayDiffer = MAY_DIFFER, hasReport = false, refactorMayDiffer?: string): string {
 	const committed = state.steps.filter(step => step.status === 'committed');
 	// A split settled as needing a real refactor is listed once, under Still over.
 	const notDone = state.steps.filter(step => (step.status === 'skipped' || step.status === 'refused') && !step.over?.length);
@@ -67,17 +75,23 @@ export function renderChangeNote(state: RunState, at: Date, mayDiffer = MAY_DIFF
 	const { branch, base } = state.worktree;
 	const userRef = state.worktree.userRef ?? base.slice(0, 12);
 	const behind = behindText(state.worktree);
+	const refactored = committed.some(step => step.kind === 'refactor');
 	const narrowed = committed.some(step => step.kind === 'split' && state.fixes.some(fix => fix.file === step.file && fix.narrowed));
 	const lines = [
 		`# AI-ready changes: ${path.basename(state.root)}`, '',
 		`${at.toISOString().slice(0, 16).replace('T', ' ')} UTC · branch \`${branch}\` from \`${base.slice(0, 7)}\` · ${state.language}`, '',
 		...(behind ? [behind, ''] : []),
-		'Each commit moves code into new files or adds tests; none is meant to change what the program does. Every split passed the move check '
+		'Each commit moves code into new files, extracts helpers from a long function, or adds tests; none is meant to change what the program '
+		+ 'does. Every split passed the move check '
 		+ '(each moved declaration copied byte for byte, nothing else changed, the same declarations and doc comments in the package), '
-		+ 'then the checks of its package, with the same results as before the run. A check that already failed before the run is marked '
+		+ 'then the checks of its package, with the same results as before the run. '
+		+ (refactored ? 'Every refactor passed the extract check (each helper holds its statements byte for byte apart from the extract rewrites), '
+			+ 'then the same checks. ' : '')
+		+ 'A check that already failed before the run is marked '
 		+ '"not a check" on its commit: it proves nothing about that commit.', '',
 		'## Commits', '',
 		...(committed.length ? committed.flatMap(commitLines) : ['No fix was committed.']), '',
+		...refactoredLines(committed),
 		...(over.length ? [`## ${STILL_OVER_HEADING}`, '', ...stillOverLines(over), ''] : []),
 		...(notDone.length ? ['## Skipped or refused', '', ...notDone.map(notDoneLine), ''] : []),
 		...(pending.length ? ['## Not run yet', '', ...pending.map(fix => `- \`${fix.file}\` (${fix.kind})`), ''] : []),
@@ -90,6 +104,7 @@ export function renderChangeNote(state: RunState, at: Date, mayDiffer = MAY_DIFF
 		'## Left for you', '',
 		...notes.map(note => `- ${note}`),
 		`- ${mayDiffer}${narrowed ? ` ${TYPES_ONLY}` : ''}`,
+		...(refactored && refactorMayDiffer ? [`- ${refactorMayDiffer}`] : []),
 		'- Git hooks did not run for these commits. Run your usual checks when you review.',
 		...(hasReport ? ['- Bugs and design problems from the health report are suggestions; ask Pair about them.'] : []), '',
 		'## How to review', '',
