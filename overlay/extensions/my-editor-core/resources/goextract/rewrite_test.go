@@ -160,3 +160,7 @@ func TestRewriteShadowedOutput(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestRewriteZeroWhereWritten(t *testing.T) {
+	wantBuildProblems(t, target(t, "zeroshadow", "F", ""), "g", 13, 17, "g: T is shadowed at line 16.")
+}

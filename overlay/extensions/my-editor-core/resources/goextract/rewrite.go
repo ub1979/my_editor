@@ -242,7 +242,7 @@ func (r *rewriter) naturalReturn(at token.Pos) (string, error) {
 	if r.f.Returns {
 		parts = append(parts, "false")
 		for _, typ := range r.results {
-			zero, err := r.t.ZeroText(typ, r.c.FirstPos())
+			zero, err := r.t.ZeroText(typ, at)
 			if err != nil {
 				return "", err
 			}
@@ -270,7 +270,7 @@ func (r *rewriter) outputs(at token.Pos) ([]string, error) {
 	var out []string
 	for _, o := range r.f.Outputs {
 		if r.declaredAfter(o, at) {
-			zero, err := r.t.ZeroText(o.Obj.Type(), r.c.FirstPos())
+			zero, err := r.t.ZeroText(o.Obj.Type(), at)
 			if err != nil {
 				return nil, err
 			}
