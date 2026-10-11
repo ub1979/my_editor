@@ -65,6 +65,10 @@ func Build(t *Target, plan []PlanChunk) (BuildResult, []byte) {
 		res.Problems = append(res.Problems, problem)
 		return res, nil
 	}
+	if len(plan) == 0 {
+		res.Problems = append(res.Problems, "The plan names no chunks.")
+		return res, nil
+	}
 	var names []string
 	for _, pc := range plan {
 		names = append(names, pc.Name)

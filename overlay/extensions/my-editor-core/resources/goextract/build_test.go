@@ -130,6 +130,15 @@ func TestBuildPlanProblems(t *testing.T) {
 	}
 }
 
+func TestBuildEmptyPlan(t *testing.T) {
+	tg := target(t, "basic", "Report", "")
+	for _, plan := range [][]PlanChunk{nil, {}} {
+		if res, out := Build(tg, plan); strings.Join(res.Problems, "\n") != "The plan names no chunks." || out != nil {
+			t.Fatalf("%q", res.Problems)
+		}
+	}
+}
+
 func TestBuildTwoChunks(t *testing.T) {
 	tg := target(t, "basic", "Report", "")
 	res, out := Build(tg, []PlanChunk{{"collectItems", 11, 14}, {"shout", 16, 18}})
