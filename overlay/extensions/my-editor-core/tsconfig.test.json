@@ -68,6 +68,7 @@
     "src/aiready/moveCheck.ts",
     "src/aiready/goTests.ts",
     "src/aiready/goPrompts.ts",
+    "src/aiready/goRefactor.ts",
     "src/aiready/goAdapter.ts",
     "src/aiready/languages.ts",
     "src/aiready/worktree.ts",

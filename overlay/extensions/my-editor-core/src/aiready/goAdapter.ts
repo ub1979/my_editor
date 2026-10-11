@@ -2,7 +2,10 @@ import { existsSync, readdirSync, readFileSync } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { buildGoHelper, GO_ENV, GO_READ_ENV, goFileInfo, goPackage } from './goAst';
+import { buildGoTool } from './goBuildTool';
+import { probeExtract } from './goExtract';
 import { goSplitPrompt, goTestPrompt } from './goPrompts';
+import { createGoRefactor } from './goRefactor';
 import { directiveLines, goFileInfoView, GoFileInfo, goFileNameProblems, GoModuleFacts, goSkipReason, Platforms, platforms } from './goRules';
 import { buildGoSplit, goSplitHeader } from './goSplit';
 import { goTestNames, goTestProblems, parseGoTest } from './goTests';
@@ -18,6 +21,8 @@ export interface GoTools {
 	readonly gofmt?: string;
 	readonly helper: string;
 	readonly platforms: Platforms;
+	/** The extract helper (`resources/goextract`); unset when it does not build, and then no refactor is offered. */
+	readonly extract?: string;
 }
 
 /** Where `go build -o` writes nothing; not `os.devNull`, whose Windows form has backslashes that `splitCommand` refuses. */
@@ -41,22 +46,29 @@ export async function goVersionProblem(go: string, root: string): Promise<string
 		+ 'my_editor does not download Go toolchains. Install a newer Go, then try again.';
 }
 
-/** Finds Go and gofmt, builds the parser helper, and reads Go's platform list. Returns a plain message on failure. */
+/**
+ * Finds Go and gofmt, builds the parser helper and the extract helper (no refactors when that fails), and reads Go's platform
+ * list. Returns a plain message on failure.
+ */
 export async function goTools(mainGo: string, storageDir: string, version: string): Promise<GoTools | string> {
 	const go = findTool('go', goInstallDirs());
 	if (!go) { return 'Go was not found. Install Go or add it to your PATH, then try again.'; }
 	let helper: string;
 	try { helper = await buildGoHelper(mainGo, storageDir, version, go); }
 	catch (error) { return error instanceof Error ? error.message : String(error); }
+	const extract = await buildGoTool(path.join(path.dirname(path.dirname(mainGo)), 'goextract'), 'goextract', storageDir, version, go, probeExtract)
+		.catch(() => undefined);
 	const dist = await runTool(go, ['tool', 'dist', 'list'], storageDir, GO_READ_ENV);
 	const goroot = (await runTool(go, ['env', 'GOROOT'], storageDir, GO_READ_ENV)).stdout.trim();
 	const bundled = goroot && path.join(goroot, 'bin', 'gofmt');
-	return { go, helper, platforms: platforms(dist.stdout), gofmt: bundled && existsSync(bundled) ? bundled : findTool('gofmt', goInstallDirs()) };
+	return {
+		go, helper, extract, platforms: platforms(dist.stdout), gofmt: bundled && existsSync(bundled) ? bundled : findTool('gofmt', goInstallDirs()),
+	};
 }
 
 /** Go as the core sees it before an adapter exists. */
 export const GO_LANGUAGE: LanguageInfo = {
-	label: 'Go', extensions: ['.go'], fixes: ['split', 'tests'],
+	label: 'Go', extensions: ['.go'], fixes: ['split', 'tests', 'refactor'],
 	mayDiffer: 'File names and line numbers in panics, `runtime.Caller`, `log.Lshortfile`, `slog` source attributes and package-level closure names '
 		+ '(`glob..funcN`) may differ for moved code. The program’s behavior does not.',
 };
@@ -92,6 +104,8 @@ export function createGoAdapter(root: string, tools: GoTools, tracked: readonly 
 		id: 'go',
 		codeFence: 'go',
 		...GO_LANGUAGE,
+		fixes: tools.extract ? ['split', 'tests', 'refactor'] : ['split', 'tests'],
+		refactor: tools.extract ? createGoRefactor(root, tools) : undefined,
 		commandEnv: GO_ENV,
 		async parse(file) {
 			const ast = await goFileInfo(tools.helper, path.join(root, file));
