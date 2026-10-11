@@ -50,6 +50,18 @@ func TestNamesUsedAnywhere(t *testing.T) {
 	wantNames(t, tg, []string{"doubled"})
 }
 
+func TestNamesImports(t *testing.T) {
+	tg := target(t, "impname", "F", "")
+	wantNames(t, tg, []string{"done"}, "done is not a fresh name: a.go imports it.")
+	wantNames(t, tg, []string{"r0"}, "r0 is not a fresh name: b.go imports it.")
+	if got := Plumbing(tg, nil, "done"); got != "done1" {
+		t.Fatal(got)
+	}
+	if got := Plumbing(tg, nil, "r0"); got != "r01" {
+		t.Fatal(got)
+	}
+}
+
 func TestNamesPlumbing(t *testing.T) {
 	tg := target(t, "basic", "Report", "")
 	if got := Plumbing(tg, nil, "done"); got != "done" {

@@ -71,6 +71,9 @@ func takenBy(t *Target, name string) string {
 	if t.L.Pkg.Scope().Lookup(name) != nil {
 		return "the package declares it"
 	}
+	if file := importedBy(t, name); file != "" {
+		return file + " imports it"
+	}
 	if t.L.TestNames[name] {
 		return "a test file of the package declares it"
 	}
@@ -104,6 +107,16 @@ func usedAnywhere(t *Target, name string) string {
 	}
 	if t.L.TestIdents[name] {
 		return "a test file of the package uses it"
+	}
+	return ""
+}
+
+// importedBy is the first file of the package whose imports declare name, or "".
+func importedBy(t *Target, name string) string {
+	for i, f := range t.L.Files {
+		if s := t.L.Info.Scopes[f]; s != nil && s.Lookup(name) != nil {
+			return filepath.Base(t.L.Paths[i])
+		}
 	}
 	return ""
 }
@@ -195,12 +208,13 @@ func interfaceMethod(t *Target, name string) string {
 	return ""
 }
 
-// Plumbing is want, or want with the smallest digit suffix, such that no scope of the function, the package, the
-// universe or taken (parameters and chunk declarations) has it. Avoiding the package and the universe keeps a `var`
+// Plumbing is want, or want with the smallest digit suffix, such that no scope of the function, the package, a
+// file's imports, the universe or taken (parameters and chunk declarations) has it. Avoiding the package and the universe keeps a `var`
 // line of the call block from shadowing a name the rest of its block uses.
 func Plumbing(t *Target, taken map[string]bool, want string) string {
 	free := func(name string) bool {
-		return !taken[name] && funcScopesLookup(t, name) == nil && t.L.Pkg.Scope().Lookup(name) == nil && types.Universe.Lookup(name) == nil
+		return !taken[name] && funcScopesLookup(t, name) == nil && t.L.Pkg.Scope().Lookup(name) == nil && types.Universe.Lookup(name) == nil &&
+			importedBy(t, name) == ""
 	}
 	if free(want) {
 		return want
