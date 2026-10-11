@@ -131,3 +131,10 @@ func TestSharedTypeSwitchVariable(t *testing.T) {
 		t.Fatalf("t: %q", why)
 	}
 }
+
+func TestSharedNamedLock(t *testing.T) {
+	tg := target(t, "namedlock", "F", "")
+	if why := sharedReason(Shared(tg, chunk(t, tg, 14, 14)), "mu"); why != "its type holds a lock" {
+		t.Fatalf("mu: %q", why)
+	}
+}

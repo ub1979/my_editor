@@ -204,8 +204,9 @@ var locker = func() *types.Interface {
 	}, nil).Complete()
 }()
 
-// HoldsLock reports a type that must not be copied, as vet's copylocks decides: a struct whose pointer has Lock and
-// Unlock and whose value does not, found through struct fields and array elements, never through pointers.
+// HoldsLock reports a type that must not be copied, as vet's copylocks decides: a type (a struct, or any other named
+// type) whose pointer has Lock and Unlock and whose value does not, found through struct fields and array elements,
+// never through pointers.
 func HoldsLock(t types.Type) bool {
 	for {
 		a, ok := t.Underlying().(*types.Array)
@@ -214,12 +215,12 @@ func HoldsLock(t types.Type) bool {
 		}
 		t = a.Elem()
 	}
+	if _, isPtr := t.Underlying().(*types.Pointer); !isPtr && types.Implements(types.NewPointer(t), locker) && !types.Implements(t, locker) {
+		return true
+	}
 	st, ok := t.Underlying().(*types.Struct)
 	if !ok {
 		return false
-	}
-	if types.Implements(types.NewPointer(t), locker) && !types.Implements(t, locker) {
-		return true
 	}
 	for i := 0; i < st.NumFields(); i++ {
 		if HoldsLock(st.Field(i).Type()) {
