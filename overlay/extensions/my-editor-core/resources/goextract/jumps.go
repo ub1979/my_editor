@@ -14,14 +14,13 @@ import (
 // statement using an outer local, assigning a pointer receiver, and a shared variable on the left of `:=`.
 // Function literals are not entered, except for the go rule.
 func Jumps(t *Target, c Chunk, shared map[types.Object]string) (natural []*ast.BranchStmt, problems []string) {
-	inside := func(n ast.Node) bool { return n != nil && c.FirstPos() <= n.Pos() && n.End() <= c.EndPos() }
 	for _, s := range c.Stmts() {
 		ast.Inspect(s, func(n ast.Node) bool {
 			switch n := n.(type) {
 			case *ast.FuncLit:
 				return false
 			case *ast.BranchStmt:
-				if target := BranchTarget(t, n); !inside(target) {
+				if target := BranchTarget(t, n); !c.Contains(target) {
 					ok, problem := naturalEnd(t, c, n, target)
 					if ok {
 						natural = append(natural, n)
@@ -52,7 +51,7 @@ func Jumps(t *Target, c Chunk, shared map[types.Object]string) (natural []*ast.B
 			return true
 		})
 	}
-	return natural, append(problems, labelProblems(t, c, inside)...)
+	return natural, append(problems, labelProblems(t, c)...)
 }
 
 // naturalEnd decides a jump that leaves the chunk: allowed to the natural end, or the problem.
@@ -146,11 +145,11 @@ func assignProblems(t *Target, lhs []ast.Expr, tok token.Token, shared map[types
 }
 
 // labelProblems refuses labels inside the chunk used from outside it, and a goto across the chunk either way.
-func labelProblems(t *Target, c Chunk, inside func(ast.Node) bool) []string {
+func labelProblems(t *Target, c Chunk) []string {
 	var out []string
 	ast.Inspect(t.Func.Body, func(n ast.Node) bool {
 		b, ok := n.(*ast.BranchStmt)
-		if !ok || b.Label == nil || inside(b) {
+		if !ok || b.Label == nil || c.Contains(b) {
 			return true
 		}
 		target := BranchTarget(t, b)
@@ -162,7 +161,7 @@ func labelProblems(t *Target, c Chunk, inside func(ast.Node) bool) []string {
 			label = t.Parent(target)
 		}
 		switch {
-		case inside(label):
+		case c.Contains(label):
 			out = append(out, fmt.Sprintf("the label %s (line %d) is used from outside the chunk (line %d).",
 				b.Label.Name, t.Line(label.Pos()), t.Line(b.Pos())))
 		case b.Tok == token.GOTO:
@@ -186,4 +185,42 @@ func gotoOver(t *Target, c Chunk, b *ast.BranchStmt, label ast.Node) string {
 		return fmt.Sprintf("goto %s at line %d would jump back over the call at line %d.", b.Label.Name, t.Line(b.Pos()), c.From)
 	}
 	return ""
+}
+
+// BranchTarget is the statement a jump leaves to: the loop, switch or select a break or continue targets, the
+// labeled statement of a goto, the case clause a fallthrough leaves. Nil when it cannot be found.
+func BranchTarget(t *Target, s *ast.BranchStmt) ast.Node {
+	if s.Tok == token.FALLTHROUGH {
+		return t.Parent(s)
+	}
+	if s.Label != nil {
+		obj := t.L.Info.Uses[s.Label]
+		var found *ast.LabeledStmt
+		ast.Inspect(t.Func.Body, func(n ast.Node) bool {
+			if ls, ok := n.(*ast.LabeledStmt); ok && t.L.Info.Defs[ls.Label] == obj {
+				found = ls
+			}
+			return found == nil
+		})
+		switch {
+		case found == nil:
+			return nil
+		case s.Tok == token.GOTO:
+			return found
+		}
+		return found.Stmt
+	}
+	for n := t.Parent(s); n != nil; n = t.Parent(n) {
+		switch n.(type) {
+		case *ast.FuncLit:
+			return nil
+		case *ast.ForStmt, *ast.RangeStmt:
+			return n
+		case *ast.SwitchStmt, *ast.TypeSwitchStmt, *ast.SelectStmt:
+			if s.Tok == token.BREAK {
+				return n
+			}
+		}
+	}
+	return nil
 }

@@ -274,7 +274,7 @@ func (w *walker) ret(s *ast.ReturnStmt, d dset) dset {
 // that are not allowed); a break to a switch or select inside the chunk joins that statement's set.
 func (w *walker) branch(s *ast.BranchStmt, d dset) dset {
 	target := BranchTarget(w.t, s)
-	if target == nil || !(w.c.FirstPos() <= target.Pos() && target.End() <= w.c.EndPos()) {
+	if !w.c.Contains(target) {
 		w.ends = append(w.ends, d)
 		return ended
 	}
@@ -299,40 +299,21 @@ func (w *walker) isPanic(e ast.Expr) bool {
 	return ok && b.Name() == "panic"
 }
 
-// BranchTarget is the statement a jump leaves to: the loop, switch or select a break or continue targets, the
-// labeled statement of a goto, the case clause a fallthrough leaves. Nil when it cannot be found.
-func BranchTarget(t *Target, s *ast.BranchStmt) ast.Node {
-	if s.Tok == token.FALLTHROUGH {
-		return t.Parent(s)
-	}
-	if s.Label != nil {
-		obj := t.L.Info.Uses[s.Label]
-		var found *ast.LabeledStmt
-		ast.Inspect(t.Func.Body, func(n ast.Node) bool {
-			if ls, ok := n.(*ast.LabeledStmt); ok && t.L.Info.Defs[ls.Label] == obj {
-				found = ls
+// gotoLabels are the labels inside the chunk that a goto inside it jumps to.
+func gotoLabels(t *Target, c Chunk) map[types.Object]bool {
+	out := map[types.Object]bool{}
+	for _, s := range c.Stmts() {
+		ast.Inspect(s, func(n ast.Node) bool {
+			switch n := n.(type) {
+			case *ast.FuncLit:
+				return false
+			case *ast.BranchStmt:
+				if n.Tok == token.GOTO && c.Contains(BranchTarget(t, n)) {
+					out[t.L.Info.Uses[n.Label]] = true
+				}
 			}
-			return found == nil
+			return true
 		})
-		switch {
-		case found == nil:
-			return nil
-		case s.Tok == token.GOTO:
-			return found
-		}
-		return found.Stmt
 	}
-	for n := t.Parent(s); n != nil; n = t.Parent(n) {
-		switch n.(type) {
-		case *ast.FuncLit:
-			return nil
-		case *ast.ForStmt, *ast.RangeStmt:
-			return n
-		case *ast.SwitchStmt, *ast.TypeSwitchStmt, *ast.SelectStmt:
-			if s.Tok == token.BREAK {
-				return n
-			}
-		}
-	}
-	return nil
+	return out
 }

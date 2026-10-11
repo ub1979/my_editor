@@ -102,25 +102,6 @@ func readAfter(t *Target, c Chunk) map[types.Object]bool {
 	return out
 }
 
-// gotoLabels are the labels inside the chunk that a goto inside it jumps to.
-func gotoLabels(t *Target, c Chunk) map[types.Object]bool {
-	out := map[types.Object]bool{}
-	for _, s := range c.Stmts() {
-		ast.Inspect(s, func(n ast.Node) bool {
-			switch n := n.(type) {
-			case *ast.FuncLit:
-				return false
-			case *ast.BranchStmt:
-				if target := BranchTarget(t, n); n.Tok == token.GOTO && target != nil && c.FirstPos() <= target.Pos() && target.End() <= c.EndPos() {
-					out[t.L.Info.Uses[n.Label]] = true
-				}
-			}
-			return true
-		})
-	}
-	return out
-}
-
 // declaredByDefine marks outer outputs whose first reference in the chunk is on the left of a top-level `:=`.
 func declaredByDefine(t *Target, c Chunk, f Flow) map[types.Object]bool {
 	outer := map[types.Object]bool{}
@@ -152,7 +133,7 @@ func declaredByDefine(t *Target, c Chunk, f Flow) map[types.Object]bool {
 func declProblems(t *Target, c Chunk, f Flow, top []types.Object, after map[types.Object]bool, shared map[types.Object]string) []string {
 	inChunk := func(ps []token.Pos) int {
 		for _, p := range ps {
-			if c.FirstPos() <= p && p < c.EndPos() {
+			if c.ContainsPos(p) {
 				return t.Line(p)
 			}
 		}

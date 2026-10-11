@@ -182,6 +182,14 @@ func (c Chunk) FirstPos() token.Pos { return c.Block.List[c.First].Pos() }
 // EndPos is the end of the chunk's last statement.
 func (c Chunk) EndPos() token.Pos { return c.Block.List[c.Last].End() }
 
+// Contains reports a node that lies within the chunk's statements.
+func (c Chunk) Contains(n ast.Node) bool {
+	return n != nil && c.FirstPos() <= n.Pos() && n.End() <= c.EndPos()
+}
+
+// ContainsPos reports a position within the chunk's statements.
+func (c Chunk) ContainsPos(p token.Pos) bool { return c.FirstPos() <= p && p < c.EndPos() }
+
 // Stmts are the chunk's statements.
 func (c Chunk) Stmts() []ast.Stmt { return c.Block.List[c.First : c.Last+1] }
 

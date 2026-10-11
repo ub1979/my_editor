@@ -11,6 +11,8 @@ import (
 // Shared says which outer locals of the chunk a helper must take by pointer, and why. Reasons, first match wins:
 // a named result of a function that defers; captured by a function literal anywhere in the function; a type that
 // holds a lock; the earliest address-taking or slicing before or inside the chunk or anywhere in an enclosing loop.
+// It over-reports: it covers every outer local in scope, used by the chunk or not, so callers keep only the ones the
+// chunk uses (Decide filters by first use and by the named results a bare return reads).
 func Shared(t *Target, c Chunk) map[types.Object]string {
 	out := map[types.Object]string{}
 	defers := HasDefer(t.Func)

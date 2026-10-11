@@ -137,3 +137,15 @@ func TestOverlapProblems(t *testing.T) {
 		t.Fatal(got)
 	}
 }
+
+func TestChunkContains(t *testing.T) {
+	tg := target(t, "basic", "Report", "")
+	c := chunk(t, tg, 12, 14)
+	loop := c.Stmts()[0]
+	if !c.Contains(loop) || c.Contains(tg.Func.Body.List[0]) || c.Contains(nil) {
+		t.Fatal("Contains")
+	}
+	if !c.ContainsPos(loop.Pos()) || c.ContainsPos(loop.End()) {
+		t.Fatal("ContainsPos")
+	}
+}

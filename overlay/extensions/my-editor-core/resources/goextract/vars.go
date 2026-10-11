@@ -6,11 +6,10 @@ import (
 	"sort"
 )
 
-// Ref is one identifier and the object it denotes; Def is set where the identifier declares it.
+// Ref is one identifier and the object it denotes.
 type Ref struct {
 	Id  *ast.Ident
 	Obj types.Object
-	Def bool
 }
 
 // IsLocal reports a variable of the function, not a field: its receiver, a parameter or result, or declared in its
@@ -165,7 +164,7 @@ func (t *Target) refs(c Chunk, inLits bool) []Ref {
 					return true
 				}
 				if obj := t.L.Info.Defs[n]; obj != nil {
-					out = append(out, Ref{Id: n, Obj: obj, Def: true})
+					out = append(out, Ref{Id: n, Obj: obj})
 				} else if obj := t.L.Info.Uses[n]; obj != nil {
 					out = append(out, Ref{Id: n, Obj: obj})
 				}
