@@ -112,24 +112,44 @@ func (ck *checker) readResults(i int, sig *helperSig, problem func(string, ...an
 		sig.Outputs = append(sig.Outputs, sigOutput{Name: id.Name, Local: local, Chunk: chunk})
 	}
 	ck.namedStands(i, sig, problem)
+	ck.resultTypes(sig, site.Return, problem)
+}
+
+// resultTypes: the helper's results are, in order and by type, its outputs' locals; then done and the function's
+// results when it returns; or just the function's results when its call is `return h(…)`.
+func (ck *checker) resultTypes(sig *helperSig, ret bool, problem func(string, ...any)) {
+	fn := ck.bt.Func.Name.Name
 	fres := ck.funcResults()
 	want := len(sig.Outputs)
 	switch {
-	case sig.Tail && site.Return:
+	case sig.Tail && ret:
 		want = len(fres)
 	case sig.Returns:
 		want += 1 + len(fres)
 	}
-	ok := len(sig.Results) == want
-	if ok && sig.Returns {
-		b, isBasic := sig.Results[len(sig.Outputs)].Type().(*types.Basic)
-		ok = isBasic && b.Kind() == types.Bool
-		for k, r := range fres {
-			ok = ok && typeKey(sig.Results[len(sig.Outputs)+1+k].Type()) == typeKey(r)
+	if len(sig.Results) != want {
+		problem("its results are not what its call block assigns.")
+		return
+	}
+	is := func(k int, typ types.Type, what string) {
+		if got := typeKey(sig.Results[k].Type()); got != typeKey(typ) {
+			problem("its result %d has the type %s, but %s has the type %s.", k+1, got, what, typeKey(typ))
 		}
 	}
-	if !ok {
-		problem("its results are not what its call block assigns.")
+	for k, o := range sig.Outputs {
+		if o.Local != nil {
+			is(k, o.Local.Type(), fmt.Sprintf("%s's %s", fn, o.Name))
+		}
+	}
+	at := 0
+	if sig.Returns {
+		at = len(sig.Outputs) + 1
+		is(at-1, types.Typ[types.Bool], "done")
+	}
+	if sig.Returns || (sig.Tail && ret) {
+		for k, r := range fres {
+			is(at+k, r, fmt.Sprintf("%s's result %d", fn, k+1))
+		}
 	}
 }
 

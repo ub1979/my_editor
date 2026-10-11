@@ -60,6 +60,25 @@ func TestCheckTailOnlyAtTheEnd(t *testing.T) {
 	wantProblem(t, checkAfter(t, g.name, g.fn, "", after, fact(g.helper, 10, 12)), "finishG: its call ends G, but its chunk does not.")
 }
 
+func TestCheckResultTypes(t *testing.T) {
+	// A nil *E returned as error or any is a non-nil interface: e != nil would hold where it did not.
+	nilerr := func(typ string) string {
+		return "package pnilerr\n\n// E is an error.\ntype E struct{}\n\nfunc (*E) Error() string { return \"e\" }\n\nfunc find(n int) *E {\n" +
+			"\tif n > 0 {\n\t\treturn &E{}\n\t}\n\treturn nil\n}\n\n// F finds.\nfunc F(n int) string {\n\tn++\n\te := h(n)\n\tif e != nil {\n" +
+			"\t\treturn \"err\"\n\t}\n\treturn \"ok\"\n}\n\n// h is part of F, extracted by my_editor.\nfunc h(n int) " + typ + " {\n\te := find(n)\n\treturn e\n}\n"
+	}
+	if problems := checkAfter(t, "pnilerr", "F", "", nilerr("*E"), fact("h", 18, 18)); len(problems) > 0 {
+		t.Fatal(problems)
+	}
+	for _, typ := range []string{"error", "any"} {
+		wantProblem(t, checkAfter(t, "pnilerr", "F", "", nilerr(typ), fact("h", 18, 18)),
+			"h: its result 1 has the type "+typ+", but F's e has the type *cases/pnilerr.E.")
+	}
+	after := "package ptailerr\n\n// E is an error.\ntype E struct{}\n\nfunc (*E) Error() string { return \"e\" }\n\n// F checks.\nfunc F(n int) error {\n" +
+		"\tn++\n\treturn h(n)\n}\n\n// h is part of F, extracted by my_editor.\nfunc h(n int) *E {\n\tif n > 5 {\n\t\treturn &E{}\n\t}\n\treturn nil\n}\n"
+	wantProblem(t, checkAfter(t, "ptailerr", "F", "", after, fact("h", 11, 14)), "h: its result 1 has the type *cases/ptailerr.E, but F's result 1 has the type error.")
+}
+
 func TestReadSig(t *testing.T) {
 	cases := map[string]string{
 		"names":       `[n:n:true] [] returns=false tail=false results=0 named=0 recv=false []`,
