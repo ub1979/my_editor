@@ -29,7 +29,8 @@ type helperSig struct {
 	Returns  bool // the results are outputs, done and the function's results
 	Tail     bool // the call ends the function
 	Results  []*types.Var
-	Named    map[string]bool // the helper's named results
+	Named    map[string]bool               // the helper's named results
+	Stands   map[types.Object]types.Object // a named result standing for its output slot's local (before-load)
 	Problems []string
 }
 
@@ -39,7 +40,7 @@ type helperSig struct {
 func (ck *checker) readSig(i int) helperSig {
 	d, c, site := ck.decls[i], ck.chunks[i], ck.sites[i]
 	h, fn := d.Name.Name, ck.bt.Func.Name.Name
-	sig := helperSig{Named: map[string]bool{}}
+	sig := helperSig{Named: map[string]bool{}, Stands: map[types.Object]types.Object{}}
 	problem := func(format string, args ...any) {
 		sig.Problems = append(sig.Problems, h+": "+fmt.Sprintf(format, args...))
 	}
@@ -103,6 +104,7 @@ func (ck *checker) readResults(i int, sig *helperSig, problem func(string, ...an
 		local, chunk := ck.outputLocal(c, id.Name)
 		sig.Outputs = append(sig.Outputs, sigOutput{Name: id.Name, Local: local, Chunk: chunk})
 	}
+	ck.namedStands(i, sig, problem)
 	fres := ck.funcResults()
 	want := len(sig.Outputs)
 	switch {
@@ -121,6 +123,23 @@ func (ck *checker) readResults(i int, sig *helperSig, problem func(string, ...an
 	}
 	if !ok {
 		problem("its results are not what its call block assigns.")
+	}
+}
+
+// namedStands: a named result stands for an outer local only in output slot k of that local, which the call
+// assigns from it; any other named result named like an outer local would read zero where the chunk read the local.
+func (ck *checker) namedStands(i int, sig *helperSig, problem func(string, ...any)) {
+	c, fn := ck.chunks[i], ck.bt.Func.Name.Name
+	for k, r := range sig.Results {
+		local := ck.lookupLocal(c, r.Name())
+		if !sig.Named[r.Name()] || local == nil {
+			continue
+		}
+		if k < len(sig.Outputs) && sig.Outputs[k].Name == r.Name() && !sig.Outputs[k].Chunk && sig.Outputs[k].Local == local {
+			sig.Stands[r] = local
+			continue
+		}
+		problem("its result %s is named like %s's %s, but the call does not assign it to %s.", r.Name(), fn, r.Name(), r.Name())
 	}
 }
 

@@ -14,7 +14,7 @@ import (
 func (ck *checker) alphaCheck(i int, sig helperSig, pairs []aligned) []string {
 	d := ck.decls[i]
 	h := d.Name.Name
-	stand := ck.standIns(i, sig)
+	stand := ck.standIns(sig)
 	toHelper := map[types.Object]types.Object{}
 	fromHelper := map[types.Object]types.Object{}
 	inHelper := func(obj types.Object) bool {
@@ -66,7 +66,7 @@ func (ck *checker) alphaCheck(i int, sig helperSig, pairs []aligned) []string {
 }
 
 // standIns maps the helper's parameters, receiver and named results to the locals of the original they stand for.
-func (ck *checker) standIns(i int, sig helperSig) map[types.Object]types.Object {
+func (ck *checker) standIns(sig helperSig) map[types.Object]types.Object {
 	out := map[types.Object]types.Object{}
 	for _, p := range sig.Params {
 		if p.Local != nil {
@@ -76,12 +76,8 @@ func (ck *checker) standIns(i int, sig helperSig) map[types.Object]types.Object 
 	if sig.Recv != nil {
 		out[sig.Recv] = ck.receiver()
 	}
-	for _, r := range sig.Results {
-		if sig.Named[r.Name()] {
-			if local := ck.lookupLocal(ck.chunks[i], r.Name()); local != nil {
-				out[r] = local
-			}
-		}
+	for r, local := range sig.Stands {
+		out[r] = local
 	}
 	return out
 }

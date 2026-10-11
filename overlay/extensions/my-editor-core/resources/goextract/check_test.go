@@ -63,6 +63,16 @@ func checkGolden(t *testing.T, g golden, tamper func(string) string) []string {
 	return Check(list, pkg, caseFile(t, g.name), g.fn, g.recv, readCase(t, g.name), []byte(after), res)
 }
 
+// checkAfter checks a hand-written new file of a case against its original, the build having reported helpers.
+func checkAfter(t *testing.T, name, fn, recv, after string, helpers ...HelperFact) []string {
+	t.Helper()
+	list, pkg := listCase(t, name)
+	return Check(list, pkg, caseFile(t, name), fn, recv, readCase(t, name), []byte(after), BuildResult{Helpers: helpers})
+}
+
+// fact is a helper the build reported: its name and the lines of its chunk.
+func fact(name string, from, to int) HelperFact { return HelperFact{Name: name, From: from, To: to} }
+
 // replace is a tamper replacing the first old with new.
 func replace(old, new string) func(string) string {
 	return func(s string) string { return strings.Replace(s, old, new, 1) }

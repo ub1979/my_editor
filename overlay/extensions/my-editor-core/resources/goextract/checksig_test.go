@@ -37,6 +37,17 @@ func sigText(s helperSig) string {
 		s.Recv != nil, s.Problems)
 }
 
+func TestCheckNamedResultIsNoInput(t *testing.T) {
+	// m would start at zero in early: a named result stands for a local only in that local's output slot.
+	problems := checkGolden(t, goldenRow(t, "multireturn"), tampers(t, "func early(m int) (bool, int, error) {", "func early() (_ bool, m int, _ error) {",
+		"early(m); done", "early(); done"))
+	wantProblem(t, problems, "early: its result m is named like F's m, but the call does not assign it to m.")
+	after := "package ptailin\n\nimport \"errors\"\n\n// F doubles.\nfunc F(n int) (int, error) {\n\tn *= 2\n\treturn finish()\n}\n\n" +
+		"// finish is part of F, extracted by my_editor.\nfunc finish() (n int, _ error) {\n\tif n > 100 {\n\t\treturn 0, errors.New(\"big\")\n\t}\n" +
+		"\treturn n + 1, nil\n}\n"
+	wantProblem(t, checkAfter(t, "ptailin", "F", "", after, fact("finish", 8, 11)), "finish: its result n is named like F's n, but the call does not assign it to n.")
+}
+
 func TestReadSig(t *testing.T) {
 	cases := map[string]string{
 		"names":       `[n:n:true] [] returns=false tail=false results=0 named=0 recv=false []`,
