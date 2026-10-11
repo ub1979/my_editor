@@ -24,8 +24,8 @@ type CallSite struct {
 
 // FindCallSites finds the call block of each helper in the new function t. Each helper must be used exactly once in
 // the function, by a call that is a whole statement, an assignment's only value, a return's only result, or the
-// init of an if testing done.
-func FindCallSites(t *Target, helpers []*ast.FuncDecl) ([]CallSite, []string) {
+// init of an if testing done. role says what a name helper i's call assigns was at its chunk's start.
+func FindCallSites(t *Target, helpers []*ast.FuncDecl, role func(i int, name string) Role) ([]CallSite, []string) {
 	objs := map[types.Object]int{}
 	for i, d := range helpers {
 		objs[t.L.Info.Defs[d.Name]] = i
@@ -60,7 +60,7 @@ func FindCallSites(t *Target, helpers []*ast.FuncDecl) ([]CallSite, []string) {
 			if !ok {
 				continue
 			}
-			if problem := site.widen(t, b, j); problem != "" {
+			if problem := site.widen(t, b, j, func(name string) Role { return role(i, name) }); problem != "" {
 				problems = append(problems, fmt.Sprintf("the call to %s at line %d %s.", helpers[i].Name.Name, t.Line(s.Pos()), problem))
 			}
 			sites[i], found[i] = site, true
@@ -116,19 +116,21 @@ func calleeIdent(call *ast.CallExpr) *ast.Ident {
 	return nil
 }
 
+// Role is what a name a call block assigns was at its chunk's start in the original: a local the chunk could see,
+// a variable the chunk declares at its top level, or neither (done and the temporaries).
+type Role int
+
+const (
+	RolePlumbing Role = iota
+	RoleOuter
+	RoleChunk
+)
+
 // widen extends the site over its var lines and its if done, sets its whole lines, and says what is wrong with it.
-func (site *CallSite) widen(t *Target, b Block, j int) string {
+// The if after the call is the block's only when it tests plumbing that the block itself declares.
+// only when it tests plumbing that the block itself declares.
+func (site *CallSite) widen(t *Target, b Block, j int, role func(string) Role) string {
 	first, last := j, j
-	if site.DoneIf == nil && len(site.Lhs) > 0 && j+1 < len(b.List) {
-		if next, ok := b.List[j+1].(*ast.IfStmt); ok && next.Init == nil && next.Else == nil && site.lhsIndex(next.Cond) >= 0 {
-			site.DoneIf, last = next, j+1
-		}
-	}
-	if site.DoneIf != nil {
-		if site.Done = site.lhsIndex(site.DoneIf.Cond); site.Done < 0 || site.DoneIf.Else != nil {
-			return "is in an if that does not test done"
-		}
-	}
 	for !site.Define && first > 0 {
 		spec := varLine(b.List[first-1])
 		if spec == nil || site.lhsIndex(spec.Names[0]) < 0 {
@@ -136,6 +138,20 @@ func (site *CallSite) widen(t *Target, b Block, j int) string {
 		}
 		site.Vars = append([]*ast.ValueSpec{spec}, site.Vars...)
 		first--
+	}
+	if site.DoneIf == nil && len(site.Lhs) > 0 && j+1 < len(b.List) {
+		next, ok := b.List[j+1].(*ast.IfStmt)
+		if ok && next.Init == nil && next.Else == nil && site.lhsIndex(next.Cond) >= 0 && role(next.Cond.(*ast.Ident).Name) == RolePlumbing {
+			obj := t.L.Info.ObjectOf(next.Cond.(*ast.Ident))
+			if obj != nil && b.List[first].Pos() <= obj.Pos() && obj.Pos() < b.List[j].End() {
+				site.DoneIf, last = next, j+1
+			}
+		}
+	}
+	if site.DoneIf != nil {
+		if site.Done = site.lhsIndex(site.DoneIf.Cond); site.Done < 0 || site.DoneIf.Else != nil {
+			return "is in an if that does not test done"
+		}
 	}
 	site.Last = b.Owner == ast.Node(t.Func.Body) && last == len(b.List)-1
 	site.Start, site.End = WholeLines(t.Src, t.Offset(b.List[first].Pos()), t.Offset(b.List[last].End()))

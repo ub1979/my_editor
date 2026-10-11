@@ -1,0 +1,22 @@
+package pfound
+
+// F looks for 3.
+func F(xs []int) int {
+	n := 0
+	found := false
+	found = scan(xs, found)
+	if found {
+		n = 1
+	}
+	return n
+}
+
+// scan is part of F, extracted by my_editor.
+func scan(xs []int, found bool) bool {
+	for _, x := range xs {
+		if x == 3 {
+			found = true
+		}
+	}
+	return found
+}

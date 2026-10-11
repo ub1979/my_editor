@@ -104,8 +104,19 @@ func (ck *checker) locate(built BuildResult) []string {
 	if len(problems) > 0 {
 		return problems
 	}
-	ck.sites, problems = FindCallSites(ck.at, ck.decls)
+	ck.sites, problems = FindCallSites(ck.at, ck.decls, ck.role)
 	return problems
+}
+
+// role says what a name helper i's call block assigns was at the start of its chunk in the original.
+func (ck *checker) role(i int, name string) Role {
+	if _, chunk := ck.outputLocal(ck.chunks[i], name); chunk {
+		return RoleChunk
+	}
+	if ck.lookupLocal(ck.chunks[i], name) != nil {
+		return RoleOuter
+	}
+	return RolePlumbing
 }
 
 // helperDecl is the new file's function named name, or the method of that name on the function's receiver type.
