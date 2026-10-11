@@ -26,6 +26,11 @@ func (w *bodyWriter) returnEdits() {
 					temps = actual[site]
 				}
 				site++
+				if !w.sig.Tail && !w.sig.Returns {
+					w.problems = append(w.problems, fmt.Sprintf("%s: the chunk returns from %s at line %d, but its call block does not return.",
+						h, w.ck.bt.Func.Name.Name, w.ck.bt.Line(n.Pos())))
+					break
+				}
 				if r := n; !w.sig.Tail || (len(r.Results) == 0 && len(w.namedResults()) > 0) {
 					w.edit(r, func() []piece { return w.ret(r, temps) })
 				}

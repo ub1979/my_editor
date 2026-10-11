@@ -13,6 +13,13 @@ func TestCheckRefusesJumpOut(t *testing.T) {
 	wantProblem(t, problems, "pickOne: break at line 11 leaves the chunk.")
 }
 
+func TestCheckReturnWithoutDone(t *testing.T) {
+	// F's early return would only end h: F would go on to append "b".
+	after := "package pvoid\n\nvar out []string\n\n// F records.\nfunc F(n int) {\n\tout = append(out, \"a\")\n\th(n)\n\tout = append(out, \"b\")\n}\n\n" +
+		"// h is part of F, extracted by my_editor.\nfunc h(n int) {\n\tif n > 0 {\n\t\treturn\n\t}\n}\n"
+	wantProblem(t, checkAfter(t, "pvoid", "F", "", after, fact("h", 8, 10)), "h: the chunk returns from F at line 9, but its call block does not return.")
+}
+
 func TestCheckReadsTemporaryNames(t *testing.T) {
 	problems := checkGolden(t, goldenRow(t, "multireturn"), func(s string) string {
 		s = replace("r0, r1 := f(m)", "a0, a1 := f(m)")(s)
