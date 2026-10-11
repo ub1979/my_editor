@@ -75,3 +75,12 @@ func TestDecideLimits(t *testing.T) {
 		t.Fatal(problems)
 	}
 }
+
+func TestDecideOrderWithoutFirstUse(t *testing.T) {
+	src := "func B(c bool) (b, a int) {\n\tdefer func() {}()\n\tif c {\n\t\treturn\n\t}\n\treturn 1, 2\n}\n"
+	for i := 0; i < 20; i++ {
+		if got := signature(decide(t, basicWith(t, "B", "", src), 24, 26)); got != "c bool, b *int, a *int | " {
+			t.Fatal(got)
+		}
+	}
+}

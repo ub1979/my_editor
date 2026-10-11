@@ -35,8 +35,8 @@ func Decide(t *Target, c Chunk, name string) (Iface, []*ast.BranchStmt, []string
 		seen[obj] = true
 		f.Params = append(f.Params, Param{Obj: obj, Name: obj.Name(), Pointer: pointer})
 	}
-	for obj := range shared {
-		if used[obj] {
+	for _, obj := range t.OuterLocals(c) {
+		if shared[obj] != "" && used[obj] {
 			add(obj, true)
 		}
 	}
@@ -78,7 +78,8 @@ func usedIn(t *Target, c Chunk, flow Flow) map[types.Object]bool {
 	return used
 }
 
-// order sorts by kind (context.Context first, err last, by name) and then by first use in the chunk.
+// order sorts by kind (context.Context first, err last, by name), then by first use in the chunk, then by
+// declaration, so that variables the chunk reaches only through a bare return keep a stable order.
 func order[T any](list []T, at func(T) (types.Object, bool), first map[types.Object]token.Pos) {
 	key := func(e T) (int, token.Pos) {
 		obj, ctx := at(e)
@@ -97,7 +98,12 @@ func order[T any](list []T, at func(T) (types.Object, bool), first map[types.Obj
 	sort.SliceStable(list, func(i, j int) bool {
 		ki, pi := key(list[i])
 		kj, pj := key(list[j])
-		return ki < kj || (ki == kj && pi < pj)
+		if ki != kj || pi != pj {
+			return ki < kj || (ki == kj && pi < pj)
+		}
+		oi, _ := at(list[i])
+		oj, _ := at(list[j])
+		return oi.Pos() < oj.Pos()
 	})
 }
 
