@@ -57,15 +57,16 @@ func Check(list, pkg, path, fn, recv string, before, after []byte, built BuildRe
 	return problems
 }
 
-// helperProblems are checks 2 and 3 for one helper, read from its signature and call block as written.
+// helperProblems are checks 2, 3 and 4 for one helper, read from its signature and call block as written.
 func (ck *checker) helperProblems(i int) []string {
 	sig := ck.readSig(i)
 	problems := append(sig.Problems, ck.blockCheck(i, sig)...)
 	pairs, more := ck.bodyCheck(i, sig)
-	if len(more) > 0 {
-		return append(problems, more...)
+	problems = append(problems, more...)
+	if len(more) == 0 {
+		problems = append(problems, ck.alphaCheck(i, sig, pairs)...)
 	}
-	return append(problems, ck.alphaCheck(i, sig, pairs)...)
+	return append(problems, ck.safeCheck(i, sig, pairs)...)
 }
 
 // locate resolves each chunk in the original and finds each helper and its call block in the new file.
