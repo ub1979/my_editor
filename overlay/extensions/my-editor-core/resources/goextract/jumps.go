@@ -138,7 +138,7 @@ func assignProblems(t *Target, as *ast.AssignStmt, shared map[types.Object]strin
 	return out
 }
 
-// labelProblems refuses labels inside the chunk used from outside it, and a goto before the chunk to a label after it.
+// labelProblems refuses labels inside the chunk used from outside it, and a goto across the chunk either way.
 func labelProblems(t *Target, c Chunk, inside func(ast.Node) bool) []string {
 	var out []string
 	ast.Inspect(t.Func.Body, func(n ast.Node) bool {
@@ -158,10 +158,25 @@ func labelProblems(t *Target, c Chunk, inside func(ast.Node) bool) []string {
 		case inside(label):
 			out = append(out, fmt.Sprintf("the label %s (line %d) is used from outside the chunk (line %d).",
 				b.Label.Name, t.Line(label.Pos()), t.Line(b.Pos())))
-		case b.Tok == token.GOTO && b.Pos() < c.FirstPos() && label.Pos() >= c.EndPos():
-			out = append(out, fmt.Sprintf("goto %s at line %d would jump over the call at line %d.", b.Label.Name, t.Line(b.Pos()), c.From))
+		case b.Tok == token.GOTO:
+			if problem := gotoOver(t, c, b, label); problem != "" {
+				out = append(out, problem)
+			}
 		}
 		return true
 	})
 	return out
+}
+
+// gotoOver says why a goto outside the chunk jumps across it, or "": forward from before it to a label after it
+// (over the call block's declarations), or back from after it to a label before it (a loop around the chunk that
+// liveness and sharing do not see).
+func gotoOver(t *Target, c Chunk, b *ast.BranchStmt, label ast.Node) string {
+	switch {
+	case b.Pos() < c.FirstPos() && label.Pos() >= c.EndPos():
+		return fmt.Sprintf("goto %s at line %d would jump over the call at line %d.", b.Label.Name, t.Line(b.Pos()), c.From)
+	case b.Pos() >= c.EndPos() && label.Pos() < c.FirstPos():
+		return fmt.Sprintf("goto %s at line %d would jump back over the call at line %d.", b.Label.Name, t.Line(b.Pos()), c.From)
+	}
+	return ""
 }

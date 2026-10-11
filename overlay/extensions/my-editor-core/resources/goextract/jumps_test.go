@@ -124,3 +124,8 @@ func R() {
 		t.Fatal(problems)
 	}
 }
+
+func TestJumpsBackwardGotoOverChunk(t *testing.T) {
+	wantJumpProblem(t, target(t, "backgoto", "F", ""), 13, 13, "goto L at line 14 would jump back over the call at line 13.")
+	wantJumpProblem(t, target(t, "backgoto", "G", ""), 26, 26, "goto L at line 29 would jump back over the call at line 26.")
+}
