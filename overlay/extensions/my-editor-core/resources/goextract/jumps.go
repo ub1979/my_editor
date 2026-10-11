@@ -41,7 +41,13 @@ func Jumps(t *Target, c Chunk, shared map[types.Object]string) (natural []*ast.B
 				}
 				return false
 			case *ast.AssignStmt:
-				problems = append(problems, assignProblems(t, n, shared)...)
+				problems = append(problems, assignProblems(t, n.Lhs, n.Tok, shared)...)
+			case *ast.RangeStmt:
+				for _, l := range []ast.Expr{n.Key, n.Value} {
+					if l != nil {
+						problems = append(problems, assignProblems(t, []ast.Expr{l}, n.Tok, shared)...)
+					}
+				}
 			}
 			return true
 		})
@@ -112,14 +118,15 @@ func firstOuter(t *Target, c Chunk, n ast.Node) types.Object {
 	return found
 }
 
-// assignProblems refuses assigning a pointer receiver itself and a shared variable on the left of `:=`.
-func assignProblems(t *Target, as *ast.AssignStmt, shared map[types.Object]string) []string {
+// assignProblems refuses assigning a pointer receiver itself (by `=` or a range with `=`) and a shared variable on
+// the left of `:=`.
+func assignProblems(t *Target, lhs []ast.Expr, tok token.Token, shared map[types.Object]string) []string {
 	var recv types.Object
 	if t.Func.Recv != nil && len(t.Func.Recv.List[0].Names) == 1 {
 		recv = t.L.Info.Defs[t.Func.Recv.List[0].Names[0]]
 	}
 	var out []string
-	for _, l := range as.Lhs {
+	for _, l := range lhs {
 		id, ok := ast.Unparen(l).(*ast.Ident)
 		if !ok {
 			continue
@@ -131,7 +138,7 @@ func assignProblems(t *Target, as *ast.AssignStmt, shared map[types.Object]strin
 		if _, isPtr := obj.Type().Underlying().(*types.Pointer); obj == recv && isPtr {
 			out = append(out, fmt.Sprintf("assigns the receiver %s at line %d.", id.Name, t.Line(id.Pos())))
 		}
-		if as.Tok == token.DEFINE && shared[obj] != "" {
+		if tok == token.DEFINE && shared[obj] != "" {
 			out = append(out, fmt.Sprintf("%s is passed by pointer but assigned with := at line %d.", id.Name, t.Line(id.Pos())))
 		}
 	}
