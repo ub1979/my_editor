@@ -31,7 +31,8 @@ func Analyze(t *Target, c Chunk, shared map[types.Object]string) (Flow, []string
 	}
 	top, _ := t.ChunkDeclared(c)
 	for _, obj := range top {
-		if _, ok := obj.(*types.Var); ok && after[obj] {
+		// A chunk-level declaration is new on each run of the chunk, so only uses after its end read it.
+		if _, ok := obj.(*types.Var); ok && usedAfterEnd(t, c, obj) {
 			outputs = append(outputs, obj)
 		}
 	}
@@ -48,7 +49,7 @@ func Analyze(t *Target, c Chunk, shared map[types.Object]string) (Flow, []string
 		sort.Slice(list, func(i, j int) bool { return f.FirstUse[list[i]] < f.FirstUse[list[j]] })
 	}
 	f.Declared = declaredByDefine(t, c, f)
-	return f, declProblems(t, c, f, top, after, shared)
+	return f, declProblems(t, c, f, top, shared)
 }
 
 // firstUses is each object's first identifier in the chunk, function literals included.
@@ -135,7 +136,7 @@ func declaredByDefine(t *Target, c Chunk, f Flow) map[types.Object]bool {
 // declProblems are rule 6's refusals for the chunk's top-level declarations. A name clash counts every name the
 // helper's signature will carry: inputs, outputs, shared variables, the receiver, and assigned outer locals that are
 // not outputs (they become parameters).
-func declProblems(t *Target, c Chunk, f Flow, top []types.Object, after map[types.Object]bool, shared map[types.Object]string) []string {
+func declProblems(t *Target, c Chunk, f Flow, top []types.Object, shared map[types.Object]string) []string {
 	inChunk := func(ps []token.Pos) int {
 		for _, p := range ps {
 			if c.ContainsPos(p) {
@@ -174,7 +175,7 @@ func declProblems(t *Target, c Chunk, f Flow, top []types.Object, after map[type
 		line := t.Line(obj.Pos())
 		switch obj.(type) {
 		case *types.Var:
-			if !after[obj] {
+			if !usedAfterEnd(t, c, obj) {
 				break
 			}
 			if at := inChunk(CapturedAt(t, obj)); at > 0 {

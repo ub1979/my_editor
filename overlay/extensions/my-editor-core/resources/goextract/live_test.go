@@ -1,6 +1,9 @@
 package main
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 // oneProblem runs Analyze and wants exactly one problem.
 func oneProblem(t *testing.T, tg *Target, from, to int, want string) {
@@ -73,4 +76,17 @@ func TestLiveBareReturnReadsNamedResults(t *testing.T) {
 
 func TestFlowDeclarationNamesDeadParameter(t *testing.T) {
 	oneProblem(t, target(t, "deadname", "F", ""), 15, 17, "err is declared in the chunk (line 16) and also names a parameter.")
+}
+
+func TestLiveLoopDeclaration(t *testing.T) {
+	tg := target(t, "loopdecl", "F", "")
+	f, problems := analyze(t, tg, 9, 10)
+	if names(f.Outputs) != "total" || len(problems) > 0 {
+		t.Fatal(names(f.Outputs), problems)
+	}
+	res, out := buildOne(t, tg, "body", 9, 10)
+	if len(res.Problems) > 0 || !strings.Contains(string(out), "\t\ttotal = body(i, total)\n") {
+		t.Fatal(res.Problems, string(out))
+	}
+	loadCase(t, "loopdecl", out)
 }
