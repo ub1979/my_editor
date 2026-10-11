@@ -151,3 +151,13 @@ func TestBuildSelfCheck(t *testing.T) {
 		t.Fatal(got)
 	}
 }
+
+func TestBuildRefusesOutOfScope(t *testing.T) {
+	wantBuildProblems(t, target(t, "generic", "Sum", ""), "h", 6, 6, "Sum is generic.")
+	src := strings.Replace(string(readCase(t, "basic")), "// Report joins and prints.\n", "// Report joins and prints.\n//\n//go:noinline\n", 1)
+	tg, err := FindFunc(loadCase(t, "basic", []byte(src)), caseFile(t, "basic"), "Report", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantBuildProblems(t, tg, "collectItems", 13, 16, "Report has a //go:noinline line.")
+}

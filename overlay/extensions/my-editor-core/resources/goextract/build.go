@@ -61,6 +61,10 @@ type planned struct {
 // Build applies the plan to the target's file; the new file is returned only when there are no problems.
 func Build(t *Target, plan []PlanChunk) (BuildResult, []byte) {
 	res := BuildResult{Problems: []string{}}
+	if problem := ScopeProblem(t); problem != "" {
+		res.Problems = append(res.Problems, problem)
+		return res, nil
+	}
 	var names []string
 	for _, pc := range plan {
 		names = append(names, pc.Name)
