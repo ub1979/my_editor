@@ -1,0 +1,16 @@
+package pvar
+
+// F sums.
+func F(xs []int) int {
+	var total int
+	total = addAll(xs, total)
+	return total
+}
+
+// addAll is part of F, extracted by my_editor.
+func addAll(xs []int, total int) int {
+	for _, x := range xs {
+		total += x
+	}
+	return total
+}

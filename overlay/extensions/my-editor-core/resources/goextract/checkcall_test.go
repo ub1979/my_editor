@@ -52,6 +52,7 @@ func TestFindCallSites(t *testing.T) {
 		"breakswitch": "9-9 lhs=1 done=-1 vars=0 return=false last=false define=false",
 		"basic":       "11-11 lhs=1 done=-1 vars=0 return=false last=false define=true",
 		"pfound":      "7-7 lhs=1 done=-1 vars=0 return=false last=false define=false",
+		"pvar":        "6-6 lhs=1 done=-1 vars=0 return=false last=false define=false",
 	}
 	for name, want := range cases {
 		sites, problems, at := sitesOf(t, name)

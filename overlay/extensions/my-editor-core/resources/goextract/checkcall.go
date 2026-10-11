@@ -127,13 +127,13 @@ const (
 )
 
 // widen extends the site over its var lines and its if done, sets its whole lines, and says what is wrong with it.
-// The if after the call is the block's only when it tests plumbing that the block itself declares.
-// only when it tests plumbing that the block itself declares.
+// A var line is the block's unless it declares a local the chunk could see (the function's own `var x T`); the if
+// after the call is the block's only when it tests plumbing that the block itself declares.
 func (site *CallSite) widen(t *Target, b Block, j int, role func(string) Role) string {
 	first, last := j, j
 	for !site.Define && first > 0 {
 		spec := varLine(b.List[first-1])
-		if spec == nil || site.lhsIndex(spec.Names[0]) < 0 {
+		if spec == nil || site.lhsIndex(spec.Names[0]) < 0 || role(spec.Names[0].Name) == RoleOuter {
 			break
 		}
 		site.Vars = append([]*ast.ValueSpec{spec}, site.Vars...)
