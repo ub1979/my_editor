@@ -1,0 +1,15 @@
+// Package names: helper names must be fresh in every scope of the function, the package (test files too) and the universe.
+package names
+
+func helperTaken() {}
+
+// F has a function literal with its own locals.
+func F(n int) int {
+	inner := func() int {
+		innerOnly := n * 2
+		return innerOnly
+	}
+	n += inner()
+	n *= 2
+	return n
+}
