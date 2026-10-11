@@ -9,35 +9,6 @@ import (
 	"strings"
 )
 
-// Iface is a helper's interface as the builder decided it.
-type Iface struct {
-	Name    string
-	Method  bool // a method on the function's pointer receiver (the chunk uses the receiver)
-	Params  []Param
-	Outputs []Output
-	Returns bool // carries done and the function's results
-	Tail    bool // the chunk ends the function body
-	Named   bool // results are named (see Decisions)
-}
-
-// Param is one helper parameter; a pointer one is passed as &x and used as (*x).
-type Param struct {
-	Obj     types.Object
-	Name    string
-	Type    string
-	Pointer bool
-}
-
-// Output is one value the helper returns to the call block. Named marks an outer output that is a named result of
-// the helper (neither a parameter nor first written by a top-level `:=` of the chunk).
-type Output struct {
-	Obj           types.Object
-	Name          string
-	Type          string
-	ChunkDeclared bool
-	Named         bool
-}
-
 // edit replaces the file's bytes start..end with text.
 type edit struct {
 	start, end int
