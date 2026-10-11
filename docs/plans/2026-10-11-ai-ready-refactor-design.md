@@ -88,8 +88,9 @@ enclosing block of the function.
 10. **Call block.** With no outputs: `if done, r1, r2 := h(…); done { return r1, r2 }`. Otherwise fresh plumbing
     names; `:=` only when every output is declared in that same block, else `var` lines then `=`.
 11. **Layout.** Helpers go right after the function, in chunk order, each with `// name is part of F, extracted by
-    my_editor.`. Lines are re-indented only where the line's first byte is outside a multi-line raw string or
-    `/* */` comment. The original file must be gofmt-clean; the result must be too.
+    my_editor.`. Lines are re-indented only where the line's first byte is outside a multi-line raw string; lines
+    of a `/* */` comment are dedented like code (gofmt re-indents their continuation lines anyway). The original
+    file must be gofmt-clean; the result must be too.
 
 **Refused besides the above:** `defer` or `recover()` in a chunk; a `go` statement whose call or function literal
 uses an outer local; assigning a pointer receiver itself. `runtime.Caller`-style frame lookups are allowed and listed
