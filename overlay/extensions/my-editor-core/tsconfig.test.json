@@ -59,6 +59,8 @@
     "src/aiready/goCover.ts",
     "src/aiready/coverRecord.ts",
     "src/aiready/refusedRecord.ts",
+    "src/aiready/refactorPlan.ts",
+    "src/aiready/goRefactorPrompt.ts",
     "src/aiready/goRules.ts",
     "src/aiready/goSplit.ts",
     "src/aiready/splitPlan.ts",
