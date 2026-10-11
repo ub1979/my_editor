@@ -71,7 +71,8 @@ func TestCheckRefusesOverlap(t *testing.T) {
 	wantProblem(t, checkAfter(t, "poverlap", "F", "", after, fact("b", 8, 9), fact("a", 7, 8)), "a (lines 7–8) overlaps b (lines 8–9).")
 	g := goldenRow(t, "breakswitch")
 	_, out := buildOne(t, target(t, g.name, g.fn, g.recv), g.helper, g.from, g.to)
-	wantProblem(t, checkAfter(t, g.name, g.fn, "", string(out), fact(g.helper, 9, 13), fact("inner", 10, 12)), "pickOne (lines 9–13) overlaps inner (lines 10–12).")
+	wantProblem(t, checkAfter(t, g.name, g.fn, "", string(out), fact(g.helper, 9, 13), fact("inner", 10, 12)),
+		"pickOne (lines 9–13) overlaps inner (lines 10–12).")
 	wantProblem(t, checkAfter(t, "poverlap", "F", "", after, fact("a", 7, 7), fact("a", 9, 9)), "a is named twice.")
 }
 

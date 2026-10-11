@@ -45,7 +45,8 @@ func TestCheckNamedResultIsNoInput(t *testing.T) {
 	after := "package ptailin\n\nimport \"errors\"\n\n// F doubles.\nfunc F(n int) (int, error) {\n\tn *= 2\n\treturn finish()\n}\n\n" +
 		"// finish is part of F, extracted by my_editor.\nfunc finish() (n int, _ error) {\n\tif n > 100 {\n\t\treturn 0, errors.New(\"big\")\n\t}\n" +
 		"\treturn n + 1, nil\n}\n"
-	wantProblem(t, checkAfter(t, "ptailin", "F", "", after, fact("finish", 8, 11)), "finish: its result n is named like F's n, but the call does not assign it to n.")
+	wantProblem(t, checkAfter(t, "ptailin", "F", "", after, fact("finish", 8, 11)),
+		"finish: its result n is named like F's n, but the call does not assign it to n.")
 }
 
 func TestCheckTailOnlyAtTheEnd(t *testing.T) {
@@ -76,7 +77,8 @@ func TestCheckResultTypes(t *testing.T) {
 	}
 	after := "package ptailerr\n\n// E is an error.\ntype E struct{}\n\nfunc (*E) Error() string { return \"e\" }\n\n// F checks.\nfunc F(n int) error {\n" +
 		"\tn++\n\treturn h(n)\n}\n\n// h is part of F, extracted by my_editor.\nfunc h(n int) *E {\n\tif n > 5 {\n\t\treturn &E{}\n\t}\n\treturn nil\n}\n"
-	wantProblem(t, checkAfter(t, "ptailerr", "F", "", after, fact("h", 11, 14)), "h: its result 1 has the type *cases/ptailerr.E, but F's result 1 has the type error.")
+	wantProblem(t, checkAfter(t, "ptailerr", "F", "", after, fact("h", 11, 14)),
+		"h: its result 1 has the type *cases/ptailerr.E, but F's result 1 has the type error.")
 }
 
 func TestReadSig(t *testing.T) {

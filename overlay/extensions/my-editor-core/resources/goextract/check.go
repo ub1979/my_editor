@@ -58,11 +58,12 @@ func Check(list, pkg, path, fn, recv string, before, after []byte, built BuildRe
 	return problems
 }
 
-// helperProblems are the refused statements and checks 2, 3 and 4 for one helper, read from its signature and call
-// block as written.
+// helperProblems are the name and statement checks, and checks 2, 3 and 4, for one helper, read from its signature
+// and call block as written.
 func (ck *checker) helperProblems(i int) []string {
 	sig := ck.readSig(i)
-	problems := append(ck.stmtCheck(i), sig.Problems...)
+	problems := append(ck.nameCheck(i), ck.stmtCheck(i)...)
+	problems = append(problems, sig.Problems...)
 	problems = append(problems, ck.blockCheck(i, sig)...)
 	pairs, more := ck.bodyCheck(i, sig)
 	problems = append(problems, more...)
