@@ -61,3 +61,12 @@ func TestFlowAddressTakenDeclaration(t *testing.T) {
 func TestFlowTypeUsedAfter(t *testing.T) {
 	oneProblem(t, target(t, "typestr", "F", ""), 24, 24, "the type local is declared in the chunk (line 24) and used after it.")
 }
+
+func TestLiveBareReturnReadsNamedResults(t *testing.T) {
+	if f, _ := analyze(t, target(t, "barereturn", "F", ""), 6, 6); names(f.Outputs) != "n" {
+		t.Fatalf("F: outputs %q", names(f.Outputs))
+	}
+	if f, _ := analyze(t, target(t, "barereturn", "G", ""), 16, 16); names(f.Outputs) != "n" {
+		t.Fatalf("G: outputs %q", names(f.Outputs))
+	}
+}

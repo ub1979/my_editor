@@ -63,25 +63,38 @@ func firstUses(t *Target, c Chunk) map[types.Object]token.Pos {
 }
 
 // readAfter marks every object used after the chunk anywhere in the function (function literals included) or
-// anywhere in a loop that encloses the chunk.
+// anywhere in a loop that encloses the chunk. A bare return of the function there reads every named result.
 func readAfter(t *Target, c Chunk) map[types.Object]bool {
 	loops := EnclosingLoops(t, c)
-	out := map[types.Object]bool{}
-	ast.Inspect(t.Func.Body, func(n ast.Node) bool {
-		id, ok := n.(*ast.Ident)
-		if !ok {
+	isAfter := func(p token.Pos) bool {
+		if p >= c.EndPos() {
 			return true
-		}
-		obj := t.L.Info.Uses[id]
-		if obj == nil {
-			return true
-		}
-		if id.Pos() >= c.EndPos() {
-			out[obj] = true
 		}
 		for _, l := range loops {
-			if l.Pos() <= id.Pos() && id.Pos() < l.End() {
+			if l.Pos() <= p && p < l.End() {
+				return true
+			}
+		}
+		return false
+	}
+	out := map[types.Object]bool{}
+	ast.Inspect(t.Func.Body, func(n ast.Node) bool {
+		if id, ok := n.(*ast.Ident); ok {
+			if obj := t.L.Info.Uses[id]; obj != nil && isAfter(id.Pos()) {
 				out[obj] = true
+			}
+		}
+		return true
+	})
+	ast.Inspect(t.Func.Body, func(n ast.Node) bool {
+		switch n := n.(type) {
+		case *ast.FuncLit:
+			return false
+		case *ast.ReturnStmt:
+			if len(n.Results) == 0 && isAfter(n.Pos()) {
+				for obj := range namedResults(t) {
+					out[obj] = true
+				}
 			}
 		}
 		return true
