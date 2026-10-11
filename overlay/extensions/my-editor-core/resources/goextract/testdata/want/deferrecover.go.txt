@@ -1,0 +1,25 @@
+// Package deferrecover: named results, a defer with recover, and a chunk that may panic (★).
+package deferrecover
+
+import "fmt"
+
+// F sets n in steps; a panic in the middle is recovered into err with n as it was.
+func F(bad bool) (n int, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("recovered at n=%d: %v", n, r)
+		}
+	}()
+	n = 1
+	advance(&n, bad)
+	n = 3
+	return n, nil
+}
+
+// advance is part of F, extracted by my_editor.
+func advance(n *int, bad bool) {
+	(*n) = 2
+	if bad {
+		panic("boom")
+	}
+}

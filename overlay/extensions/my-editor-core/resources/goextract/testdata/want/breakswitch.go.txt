@@ -1,0 +1,24 @@
+// Package breakswitch: a break to the switch is the chunk's natural end only when the chunk ends its case (★).
+package breakswitch
+
+// F picks a value per kind.
+func F(k int, c bool) int {
+	x := 0
+	switch k {
+	case 1:
+		x = pickOne(c)
+	case 2:
+		x = 20
+	}
+	return x
+}
+
+// pickOne is part of F, extracted by my_editor.
+func pickOne(c bool) (x int) {
+	x = 1
+	if c {
+		return x
+	}
+	x = 2
+	return x
+}

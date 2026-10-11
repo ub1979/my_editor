@@ -28,12 +28,14 @@ type Param struct {
 	Pointer bool
 }
 
-// Output is one value the helper returns to the call block.
+// Output is one value the helper returns to the call block. Named marks an outer output that is a named result of
+// the helper (neither a parameter nor first written by a top-level `:=` of the chunk).
 type Output struct {
 	Obj           types.Object
 	Name          string
 	Type          string
 	ChunkDeclared bool
+	Named         bool
 }
 
 // edit replaces the file's bytes start..end with text.
@@ -284,12 +286,12 @@ func (r *rewriter) outputs(at token.Pos) ([]string, error) {
 }
 
 // declaredAfter reports an output the helper declares in its body after position at: a chunk-declared variable, or
-// an outer one first written by a top-level `:=` that is neither a parameter nor a named result.
+// an outer one that is neither a parameter nor a named result (so a top-level `:=` of the chunk declares it).
 func (r *rewriter) declaredAfter(o Output, at token.Pos) bool {
 	if o.ChunkDeclared {
 		return o.Obj.Pos() > at
 	}
-	if r.f.Named {
+	if o.Named {
 		return false
 	}
 	for _, p := range r.f.Params {

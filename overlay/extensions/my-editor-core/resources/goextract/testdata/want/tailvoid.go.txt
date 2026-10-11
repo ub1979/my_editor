@@ -1,0 +1,19 @@
+// Package tailvoid: the tail chunk of a function without results becomes a plain call.
+package tailvoid
+
+import "fmt"
+
+// G has no results.
+func G(n int, out *[]string) {
+	n++
+	*out = append(*out, fmt.Sprint(n))
+	finishG(n, out)
+}
+
+// finishG is part of G, extracted by my_editor.
+func finishG(n int, out *[]string) {
+	if n > 3 {
+		return
+	}
+	*out = append(*out, "small")
+}

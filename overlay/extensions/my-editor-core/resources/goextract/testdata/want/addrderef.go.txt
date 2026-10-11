@@ -1,0 +1,18 @@
+// Package addrderef: &x of a pointer-passed x is written x, never &(*x) (★).
+package addrderef
+
+func use(p *int) { *p += 5 }
+
+// F shares x with a closure, so x goes by pointer.
+func F() int {
+	x := 1
+	get := func() int { return x }
+	bump(&x)
+	return get()
+}
+
+// bump is part of F, extracted by my_editor.
+func bump(x *int) {
+	use(x)
+	(*x)++
+}

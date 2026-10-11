@@ -103,6 +103,7 @@ func TestRewriteBareReturn(t *testing.T) {
 func TestRewriteBreakToNaturalEnd(t *testing.T) {
 	tg := target(t, "breakswitch", "F", "")
 	f := Iface{Params: []Param{param(t, tg, "c", false)}, Outputs: []Output{output(t, tg, "x", false)}, Named: true}
+	f.Outputs[0].Named = true
 	wantBody(t, tg, 9, 13, f, "\tx = 1\n\tif c {\n\t\treturn x\n\t}\n\tx = 2\n\treturn x\n", 0)
 }
 
@@ -110,6 +111,7 @@ func TestRewriteDedentOutsideRawStrings(t *testing.T) {
 	tg := target(t, "rawstring", "F", "")
 	f := Iface{Params: []Param{param(t, tg, "total", false), param(t, tg, "reallyLongNameHere", false)},
 		Outputs: []Output{output(t, tg, "q", false), output(t, tg, "total", false)}, Named: true}
+	f.Outputs[0].Named = true
 	lines := strings.SplitAfter(string(tg.Src), "\n")[11:20]
 	var want strings.Builder
 	for i, line := range lines {

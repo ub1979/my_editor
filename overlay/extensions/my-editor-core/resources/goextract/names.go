@@ -16,21 +16,30 @@ import (
 // the package (a new method could make a type satisfy it).
 func NameProblems(t *Target, names []string) []string {
 	var out []string
+	for _, problems := range NameProblemsEach(t, names) {
+		out = append(out, problems...)
+	}
+	return out
+}
+
+// NameProblemsEach is NameProblems per name, in plan order; a repeated name's problem goes to its second use.
+func NameProblemsEach(t *Target, names []string) [][]string {
+	out := make([][]string, len(names))
 	seen := map[string]int{}
-	for _, name := range names {
+	for i, name := range names {
 		seen[name]++
 		if seen[name] == 2 {
-			out = append(out, fmt.Sprintf("%s is named twice.", name))
+			out[i] = append(out[i], fmt.Sprintf("%s is named twice.", name))
 		}
 		if seen[name] > 1 {
 			continue
 		}
 		if problem := nameShape(name); problem != "" {
-			out = append(out, problem)
+			out[i] = append(out[i], problem)
 		} else if why := takenBy(t, name); why != "" {
-			out = append(out, fmt.Sprintf("%s is not a fresh name: %s.", name, why))
+			out[i] = append(out[i], fmt.Sprintf("%s is not a fresh name: %s.", name, why))
 		} else if r, _ := utf8.DecodeRuneInString(name); !unicode.IsLower(r) {
-			out = append(out, strconv.Quote(name)+" must start with a lower-case letter.")
+			out[i] = append(out[i], strconv.Quote(name)+" must start with a lower-case letter.")
 		}
 	}
 	return out
