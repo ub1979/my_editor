@@ -124,8 +124,8 @@ test('a refactor fix reads as a refactor in the refused, not run and discarded l
 
 test('refactor rows say what they do and are ticked only when allowed', async () => {
 	const target = (name: string) => ({ name, lines: 425 });
-	const choices = [{ file: 'a.go', kind: 'refactor' as const, lines: 430, target: target('Run') }, fix('a.go', 'tests', 430),
-		{ file: 'b.go', kind: 'refactor' as const, lines: 420, target: target('Step') }, { file: 'c.go', kind: 'refactor' as const, lines: 410, target: target('Big') }];
+	const refactor = (file: string, lines: number, name: string) => ({ file, kind: 'refactor' as const, lines, target: target(name) });
+	const choices = [refactor('a.go', 430, 'Run'), fix('a.go', 'tests', 430), refactor('b.go', 420, 'Step'), refactor('c.go', 410, 'Big')];
 	const unticked = new Map([['a.go', 'no test here runs `Run` yet']]);
 	const blocked = new Map([['c.go', 'can\'t be checked here']]);
 	let shown: { picked: boolean; description: string; detail?: string }[] = [];

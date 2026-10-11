@@ -97,7 +97,8 @@ test('without an earlier run, candidates come from the folder as before', async 
 
 /** The same adapter with a refactor whose target is the file's largest declaration, named as `target` says. */
 function refactoring(parsed: string[], target: RefactorHooks['target'] = info => ({ name: info.declarations[0].names[0], lines: 425 })) {
-	return (root: string): LanguageAdapter => ({ ...factory(parsed)(root), fixes: ['split', 'refactor'], refactor: { target } as RefactorHooks }) as LanguageAdapter;
+	return (root: string): LanguageAdapter =>
+		({ ...factory(parsed)(root), fixes: ['split', 'refactor'], refactor: { target } as RefactorHooks }) as LanguageAdapter;
 }
 
 test('a file only a refactor can help is offered as a refactor when the adapter has one, and stays unsplittable without it', async () => {

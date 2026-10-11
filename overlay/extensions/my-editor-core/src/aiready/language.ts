@@ -143,6 +143,8 @@ export interface RefactorHooks {
 	build(file: string, target: RefactorTarget, chunks: readonly ExtractChunk[]): Promise<RefactorBuild>;
 	/** The extract check on the written file; empty means it passed. */
 	check(file: string, before: Buffer, target: RefactorTarget, built: RefactorBuild): Promise<string[]>;
+	/** Frees what `prompt` kept for the file when its refactor ends before `check` (a rejected plan, Stop, an error). */
+	abandon?(file: string): void;
 	/** For the change note's "What may differ" when a refactor was committed. */
 	readonly mayDiffer: string;
 	/** Added to the approval modal when a refactor is picked; ends with a space. */

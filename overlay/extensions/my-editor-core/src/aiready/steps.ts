@@ -23,12 +23,15 @@ export interface StepContext {
 	readonly flaky: readonly string[];
 	readonly cancelled: () => boolean;
 	readonly progress: (text: string) => void;
+	/** Whether the package's tests ran each refactor offer's function at baseline, by file. */
+	readonly coverage?: Readonly<Record<string, boolean>>;
 }
 
 /** A step either records an outcome or stops (Stop pressed); a stopped step is undone and runs again on Continue. */
 export type StepOutcome = StepRecord | 'stopped';
 
-interface ChecksOutcome {
+/** The file's checks compared with the baseline. */
+export interface ChecksOutcome {
 	readonly results: CheckResult[];
 	readonly problems: string[];
 	readonly newFailing: string[];
@@ -36,7 +39,7 @@ interface ChecksOutcome {
 }
 
 /** Runs the file's checks in order and compares each with the baseline; stops at the first that differs. */
-async function runChecks(ctx: StepContext, file: string, allowNew: readonly string[], only?: 'test'): Promise<ChecksOutcome> {
+export async function runChecks(ctx: StepContext, file: string, allowNew: readonly string[], only?: 'test'): Promise<ChecksOutcome> {
 	const results: CheckResult[] = [];
 	const newFailing: string[] = [];
 	for (const check of ctx.adapter.checks(file).filter(c => !only || c.label === only)) {

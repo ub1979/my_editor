@@ -38,6 +38,11 @@ export function screenParsed(adapter: Screener, worktree: string, baseline: Base
 		if (existsSync(path.join(worktree, testFile))) { return settle(`${testFile} already exists.`, `${testFile} already exists`, false, testFile); }
 		return undefined;
 	}
+	if (fix.kind === 'refactor') {
+		if (info.skip) { return settle(`Never refactored: ${info.skip}.`, `never refactored: ${info.skip}`); }
+		if (!needsRefactor(info, fix.lines)) { return settle('No function in it needs a refactor now.', 'no function in it needs a refactor now'); }
+		return blocked(adapter, baseline, fix, settle);
+	}
 	const lasting = (outcome: EarlyOutcome, skip?: string): EarlyOutcome => ({ ...outcome, step: { ...outcome.step, lasting: skip ? { skip } : {} } });
 	if (info.skip) { return lasting(settle(`Never split: ${info.skip}.`, `never split: ${info.skip}`), info.skip); }
 	if (!info.declarations.some(d => d.movable)) { return lasting(settle('Nothing in it may move.', 'nothing in it may move')); }
@@ -46,9 +51,15 @@ export function screenParsed(adapter: Screener, worktree: string, baseline: Base
 		const outcome = settle(`${refactor.reason[0].toUpperCase()}${refactor.reason.slice(1)}.`, refactor.reason);
 		return { ...outcome, step: { ...outcome.step, over: [refactor], lasting: { big: bigTarget(info) } } };
 	}
+	return blocked(adapter, baseline, fix, settle);
+}
+
+/** Settled as unchecked when no compile check of the file's unit passed at baseline. */
+function blocked(adapter: Screener, baseline: Baseline, fix: FixChoice, settle: (reason: string, brief: string, unchecked: boolean) => EarlyOutcome):
+	EarlyOutcome | undefined {
 	const checks = adapter.checks(fix.file);
 	const blocker = buildBlocker(checks, baseline);
-	return blocker ? settle(noVerifyingCheck(checks, baseline, unitOf(fix.file))!, blocker, true) : undefined;
+	return blocker ? settle(noVerifyingCheck(checks, baseline, unitOf(fix.file), fix.kind)!, blocker, true) : undefined;
 }
 
 /** The declaration that makes a split useless, as a refactor target (named as `needsRefactor` names it). */
@@ -70,7 +81,7 @@ export async function screenFix(adapter: Screener, worktree: string, baseline: B
 /** The picker sized files in the user's folder; the run's branch may already have split this one in an earlier run. */
 function alreadyShort(worktree: string, fix: FixChoice): EarlyOutcome | undefined {
 	const file = path.join(worktree, fix.file);
-	if (fix.kind !== 'split' || !existsSync(file)) { return undefined; }
+	if (fix.kind === 'tests' || !existsSync(file)) { return undefined; }
 	const lines = sourceLines(readFileSync(file, 'utf8'));
 	if (lines > MAX_SOURCE_LINES) { return undefined; }
 	const reason = `Already ${lines} lines on this branch (the limit is ${MAX_SOURCE_LINES}).`;

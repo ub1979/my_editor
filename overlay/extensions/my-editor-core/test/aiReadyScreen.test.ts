@@ -154,3 +154,21 @@ test('the queue stops on Stop, and a thrown error counts as an attempted skip', 
 	assert.deepEqual(state.steps, [{ file: 'a.go', kind: 'split', status: 'skipped', reason: 'boom' }]);
 	assert.equal(state.next, 1);
 });
+
+test('a refactor is settled early when nothing needs one now or its build is blocked', async () => {
+	const root = mkdtempSync(path.join(os.tmpdir(), 'my-editor-screen-'));
+	const big = { declarations: [{ id: 0, names: ['Big'], kind: 'func', lines: 452, movable: true }] } as unknown as Partial<FileInfo>;
+	const go = adapter({ 'engine/big.go': big, 'store/big.go': big, 'store/small.go': {}, 'store/gen.go': { ...big, skip: 'generated code' } });
+	const refactor = (file: string): FixChoice => ({ file, kind: 'refactor', lines: 460, target: { name: 'Big', lines: 452 } });
+	const screen = (file: string) => screenFix(go, root, BASELINE, refactor(file));
+	assert.equal(await screen('store/big.go'), undefined);
+	const small = await screen('store/small.go');
+	assert.deepEqual([small?.step.kind, small?.step.reason, small?.step.lasting], ['refactor', 'No function in it needs a refactor now.', undefined]);
+	assert.equal((await screen('store/gen.go'))?.step.reason, 'Never refactored: generated code.');
+	const blocked = await screen('engine/big.go');
+	assert.equal(blocked?.unchecked, true);
+	assert.match(blocked?.step.reason ?? '', /^Nothing here can compile \.\/engine to check this refactor: its build already fails/);
+	mkdirSync(path.join(root, 'store'));
+	writeFileSync(path.join(root, 'store', 'big.go'), 'x\n'.repeat(380));
+	assert.equal((await screen('store/big.go'))?.step.reason, 'Already 380 lines on this branch (the limit is 400).');
+});

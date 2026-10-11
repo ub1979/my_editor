@@ -147,11 +147,11 @@ function errorLine(run: CheckResult): string {
  * A step needs at least one passing verifying check (adapters mark them, say a compile check of the package). Returns
  * why the step must be skipped when none passed at baseline, else undefined.
  */
-export function noVerifyingCheck(checks: readonly CheckCommand[], baseline: Baseline, unit: string): string | undefined {
+export function noVerifyingCheck(checks: readonly CheckCommand[], baseline: Baseline, unit: string, what = 'split'): string | undefined {
 	const blocker = buildBlocker(checks, baseline);
 	if (!blocker) { return undefined; }
 	if (!checks.some(check => check.verifies && baseline[check.command])) { return `No compile check of ${unit} was recorded for this run.`; }
-	return `Nothing here can compile ${unit} to check this split: ${blocker}. Fix the build, then run this again.`;
+	return `Nothing here can compile ${unit} to check this ${what}: ${blocker}. Fix the build, then run this again.`;
 }
 
 /** Why no verifying check passed at baseline, in a few words for grouping ("its build already fails (…)"), else undefined. */
