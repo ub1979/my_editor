@@ -70,3 +70,7 @@ func TestLiveBareReturnReadsNamedResults(t *testing.T) {
 		t.Fatalf("G: outputs %q", names(f.Outputs))
 	}
 }
+
+func TestFlowDeclarationNamesDeadParameter(t *testing.T) {
+	oneProblem(t, target(t, "deadname", "F", ""), 15, 17, "err is declared in the chunk (line 16) and also names a parameter.")
+}

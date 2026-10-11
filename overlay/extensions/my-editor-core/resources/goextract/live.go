@@ -146,7 +146,9 @@ func declaredByDefine(t *Target, c Chunk, f Flow) map[types.Object]bool {
 	return out
 }
 
-// declProblems are rule 6's refusals for the chunk's top-level declarations.
+// declProblems are rule 6's refusals for the chunk's top-level declarations. A name clash counts every name the
+// helper's signature will carry: inputs, outputs, shared variables, the receiver, and assigned outer locals that are
+// not outputs (they become parameters).
 func declProblems(t *Target, c Chunk, f Flow, top []types.Object, after map[types.Object]bool, shared map[types.Object]string) []string {
 	inChunk := func(ps []token.Pos) int {
 		for _, p := range ps {
@@ -161,6 +163,11 @@ func declProblems(t *Target, c Chunk, f Flow, top []types.Object, after map[type
 	for obj := range shared {
 		if _, ok := used[obj]; ok {
 			names[obj.Name()] = "a variable passed by pointer"
+		}
+	}
+	for _, obj := range f.Assigned {
+		if shared[obj] == "" {
+			names[obj.Name()] = "a parameter"
 		}
 	}
 	for _, obj := range f.Outputs {
