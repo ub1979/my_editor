@@ -24,6 +24,8 @@ import { ProjectVisualView } from './project/visualView';
 import { checkFit } from './qa/checkFit';
 import { SourceWatch } from './quality/sourceWatch';
 import { DecisionDraft, saveDecision } from './records/decisions';
+import { pushBranch, type PushRequest } from './project/pushCommand';
+import { closeProject } from './project/closeProject';
 
 /** Entry point of the built-in core. */
 export function activate(context: vscode.ExtensionContext): void {
@@ -87,10 +89,12 @@ export function activate(context: vscode.ExtensionContext): void {
 		vscode.commands.registerCommand('myEditor.configureObservations', () => openObservationProfile()),
 		vscode.commands.registerCommand('myEditor.visualizeProject', (tab?: 'architecture' | 'tree') => visuals.show(tab)),
 		vscode.commands.registerCommand('myEditor.home', () => home.show()),
+		vscode.commands.registerCommand('myEditor.closeProject', () => closeProject()),
 		vscode.commands.registerCommand('myEditor.checkFit', (uri?: vscode.Uri, uris?: vscode.Uri[]) => checkFit(uri, uris)),
 		vscode.commands.registerCommand('myEditor.adaptFile', (path: string, change: string) => adaptFile(path, change)),
 		vscode.commands.registerCommand('myEditor.saveDecision', (draft: DecisionDraft) => saveDecision(draft)),
 		vscode.commands.registerCommand('myEditor.analyseProject', () => chat.analyse()),
+		vscode.commands.registerCommand('myEditor.pushBranch', (request?: PushRequest) => pushBranch(request)),
 		vscode.commands.registerCommand('myEditor.aiReady', () => chat.analyse(true)),
 		vscode.commands.registerCommand('myEditor.aiReadyFix', (options?: FixOptions) => chat.runTask(
 			options?.continue ? 'Continue fixing on the local branch' : 'Fix on a local branch',

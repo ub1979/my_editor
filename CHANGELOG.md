@@ -2,6 +2,11 @@
 
 my_editor uses the version in `overlay/extensions/my-editor-core/package.json` as its own release number. The Home page displays that version. The underlying editor shell keeps its upstream version independently.
 
+## 0.0.18 alpha — 2026-10-12
+
+- Push to GitHub from my_editor: a **Push…** button on the Project view's Git card, and under Pair's reply when you ask Pair to push. You pick the remote and the branch name there, see exactly which commit goes where and the git command, and confirm; it pushes with your own git login and never forces. A new branch pushed under its own name then follows its GitHub copy, so update notices work.
+- **Close project** at the top of the Project view (and the command my_editor: Close Project) closes the folder and goes back to Home. If a fix run is still working, it asks first.
+
 ## 0.0.17 alpha — 2026-10-12
 
 - Refactors are ticked like splits; one with no test that runs it says so under its row, and build, vet and the extract check still guard it. Only refactors whose package can't be checked here, or that an earlier run refused for the same content, start unticked.

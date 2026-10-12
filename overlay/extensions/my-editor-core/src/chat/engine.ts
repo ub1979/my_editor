@@ -28,6 +28,7 @@ import { characterPrompt } from './characters';
 import { usesProjectTools } from './projectToolPolicy';
 import { pairWebAccess, WEB_ACCESS_NOTE } from '../models/webAccess';
 import type { ActiveFile } from './activeFile';
+import { offerPush } from './pushOffer';
 
 const HISTORY_TURNS = 16;
 
@@ -220,6 +221,7 @@ export class PairEngine {
 			if (mode.id === 'brainstorm' && reply.trim() && !input.kickoff) {
 				sink.action('Save as decision', 'myEditor.saveDecision', [{ title: prompt, context: prompt, discussion: reply }]);
 			}
+			if (!input.kickoff) { offerPush(prompt, sink); }
 			void logExchange({ mode: mode.id, model: entry.label, file: file?.relativePath, prompt: input.kickoff ? '(started)' : prompt, reply });
 			return { mode: mode.id, reply, model: entry.label };
 		}
@@ -274,6 +276,7 @@ export class PairEngine {
 		if (mode.id === 'brainstorm' && reply.trim() && !input.kickoff) {
 			sink.action('Save as decision', 'myEditor.saveDecision', [{ title: prompt, context: prompt, discussion: reply }]);
 		}
+		if (!input.kickoff) { offerPush(prompt, sink); }
 		void logExchange({ mode: mode.id, model: entry.label, file: file?.relativePath, prompt: input.kickoff ? '(started)' : prompt, reply });
 		return { mode: mode.id, reply, model: entry.label };
 	}

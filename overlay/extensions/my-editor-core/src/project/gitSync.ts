@@ -1,5 +1,4 @@
-import { execFile } from 'child_process';
-import { redact } from '../records/redact';
+import { runGit } from './gitRun';
 
 export interface GitSyncState {
 	readonly kind: 'not-git' | 'no-upstream' | 'tracked';
@@ -20,20 +19,7 @@ export interface GitUpdateResult {
 	readonly reason?: string;
 }
 
-function git(cwd: string, args: readonly string[], timeout = 20_000): Promise<string> {
-	return new Promise((resolve, reject) => {
-		execFile('git', [...args], {
-			cwd, timeout, maxBuffer: 2_000_000,
-			env: { ...process.env, GIT_TERMINAL_PROMPT: '0', GCM_INTERACTIVE: 'Never' },
-		}, (error, stdout, stderr) => {
-			if (error) {
-				const detail = stderr.trim().split(/[\r\n]+/).slice(-2).join(' ') || error.message;
-				reject(new Error(redact(detail.replace(/https?:\/\/[^\s]+/g, '[remote URL]')).slice(0, 500)));
-			}
-			else { resolve(stdout.trim()); }
-		});
-	});
-}
+const git = runGit;
 
 /** Fetch only the current branch's remote, then compare local HEAD with its upstream. */
 export async function inspectGitSync(cwd: string, fetchRemote = false): Promise<GitSyncState> {

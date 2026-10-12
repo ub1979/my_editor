@@ -2,7 +2,7 @@
   "name": "my-editor-core",
   "displayName": "my_editor Core",
   "description": "Built-in core of my_editor: project brain, skills, pair mode.",
-  "version": "0.0.17-alpha.0",
+  "version": "0.0.18-alpha.0",
   "publisher": "my-editor",
   "license": "MIT",
   "private": true,
@@ -48,6 +48,16 @@
       {
         "command": "myEditor.aiReadyFix",
         "title": "Fix on a Local Branch",
+        "category": "my_editor"
+      },
+      {
+        "command": "myEditor.closeProject",
+        "title": "Close Project",
+        "category": "my_editor"
+      },
+      {
+        "command": "myEditor.pushBranch",
+        "title": "Push Branch to GitHub",
         "category": "my_editor"
       },
       {

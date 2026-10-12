@@ -85,13 +85,16 @@ function gitCard(sync, project) {
 				: behind ? ['new', `${behind} new commit${behind === 1 ? '' : 's'}`] : ['ok', 'Up to date'];
 	card.append(el('p', { class: `sync ${tone}` }, [el('span', { class: 'dot', 'aria-hidden': 'true' }), text]));
 	const notes = [];
-	if (sync?.ahead) notes.push(`${sync.ahead} local commit${sync.ahead === 1 ? '' : 's'} not pushed.`);
+	if (sync?.ahead) notes.push(`${sync.ahead} local commit${sync.ahead === 1 ? '' : 's'} not pushed yet.`);
 	if (sync?.localEdits && behind) notes.push('Commit or stash your edits before updating.');
-	if (sync?.kind === 'no-upstream') notes.push('Set an upstream in Source Control to get update notices.');
+	if (sync?.kind === 'no-upstream') notes.push('This branch is not on GitHub yet; Push… puts it there.');
 	if (sync?.fetchError) notes.push(sync.fetchError);
 	for (const note of notes) card.append(el('p', { class: 'card-text' }, [note]));
+	// Push is offered when there is something to send: local commits, or a branch with no remote branch yet.
+	const pushable = !!sync && (sync.kind === 'no-upstream' ? sync.branch !== 'detached HEAD' : !!sync.ahead);
 	card.append(el('div', { class: 'actions' }, [
 		...(behind ? [action('Update', { type: 'updateGit' }, 'pill primary', `Fast-forward from ${sync.upstream}`)] : []),
+		...(pushable ? [action('Push…', { type: 'pushGit' }, behind ? 'pill' : 'pill primary', 'Push to GitHub after you confirm where it goes')] : []),
 		action('Check now', { type: 'checkGit' }),
 	]));
 	return card;
@@ -124,7 +127,10 @@ const PLAIN_FIX = { label: 'Fix on a local branch', primary: true, text: 'Split 
 function render(state, model, sync, project, fix = PLAIN_FIX) {
 	root.replaceChildren();
 	root.append(
-		el('div', { class: 'top' }, [el('p', { class: 'eyebrow' }, ['Project']), action('All projects', { type: 'home' }, 'link')]),
+		el('div', { class: 'top' }, [el('p', { class: 'eyebrow' }, ['Project']), el('span', { class: 'links' }, [
+			action('All projects', { type: 'home' }, 'link'),
+			action('Close project', { type: 'closeProject' }, 'link', 'Close this project and go back to Home'),
+		])]),
 		el('h1', {}, [state.name]),
 		el('p', { class: 'summary' }, [state.summary]),
 	);

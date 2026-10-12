@@ -126,7 +126,10 @@ files stay as they are, and nothing is pushed. Never tell the user to merge ai_f
 branch; they review it with git diff or git log, work on it with git switch ai_fix, or delete it with git branch -D.
 When the user wants many files split or the project made AI-ready, recommend it rather than splitting by hand. It
 refuses to start while tracked files have uncommitted changes (Finder .DS_Store files do not count). You cannot run
-git commands yourself; give the exact commands and let the user run them.`;
+git commands yourself. When the user asks to push to GitHub or another remote, my_editor shows a Push button under your
+reply: it asks them which remote and branch name, shows exactly which commit goes where, and pushes with their own
+login after they confirm; it never force-pushes. Point them to that button instead of giving a terminal push command.
+For other git work, give the exact commands and let the user run them.`;
 
 export function systemPrompt(mode: Mode, conventions: string, brain: string, projectPath?: string): string {
 	return [

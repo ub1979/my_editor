@@ -160,6 +160,9 @@ export class ProjectView implements vscode.WebviewViewProvider {
 				return this.checkRemote();
 			case 'updateGit':
 				return this.updateProject();
+			case 'pushGit':
+				if (await vscode.commands.executeCommand<boolean>('myEditor.pushBranch')) { await this.checkRemote(); }
+				return;
 			case 'open':
 				return this.openOrStart(message.stage ?? '', message.path);
 			case 'conventions':
@@ -186,6 +189,9 @@ export class ProjectView implements vscode.WebviewViewProvider {
 				return;
 			case 'home':
 				await vscode.commands.executeCommand('myEditor.home');
+				return;
+			case 'closeProject':
+				await vscode.commands.executeCommand('myEditor.closeProject');
 				return;
 			case 'chat':
 				await vscode.commands.executeCommand('myEditor.chat.openLounge');
