@@ -9,9 +9,13 @@ function sources(dir: string): string[] {
 	return readdirSync(dir).filter(name => name === 'go.mod' || (name.endsWith('.go') && !name.endsWith('_test.go'))).sort();
 }
 
+/** Builds that failed in this session, by their folder (version, sources and `go version`): the Project card asks often. */
+const failed = new Map<string, Error>();
+
 /**
  * Builds the Go program in `dir` once per extension version, sources and `go version`, in an empty folder, for this
- * machine, with no cgo and no network. `probe` runs the new binary before it is kept. Returns the binary's path.
+ * machine, with no cgo and no network. `probe` runs the new binary before it is kept. Returns the binary's path. A
+ * failure removes the folder and is rethrown, without building again, for the rest of the session.
  */
 export async function buildGoTool(dir: string, name: string, storageDir: string, version: string, go: string,
 	probe: (binary: string) => Promise<boolean>): Promise<string> {
@@ -24,6 +28,8 @@ export async function buildGoTool(dir: string, name: string, storageDir: string,
 	const folder = path.join(storageDir, name, `${version}-${hash.update(goVersion.stdout.trim()).digest('hex').slice(0, 8)}`);
 	const binary = path.join(folder, name);
 	if (existsSync(binary)) { return binary; }
+	const known = failed.get(folder);
+	if (known) { throw known; }
 	mkdirSync(folder, { recursive: true });
 	const work = mkdtempSync(path.join(folder, 'build-'));
 	try {
@@ -33,6 +39,11 @@ export async function buildGoTool(dir: string, name: string, storageDir: string,
 		if (built.code !== 0) { throw new Error(`Could not build the Go helper \`${name}\`: ${built.stderr.trim().slice(0, 500)}`); }
 		if (!await probe(path.join(work, name)).catch(() => false)) { throw new Error(`The Go helper \`${name}\` was built but does not run.`); }
 		renameSync(path.join(work, name), binary);
+	} catch (error) {
+		const failure = error instanceof Error ? error : new Error(String(error));
+		failed.set(folder, failure);
+		rmSync(folder, { recursive: true, force: true });
+		throw failure;
 	} finally {
 		rmSync(work, { recursive: true, force: true });
 	}
