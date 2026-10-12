@@ -84,6 +84,12 @@ func Decide(t *Target, c Chunk, name string) (Iface, []*ast.BranchStmt, []string
 	}
 	for _, obj := range flow.Outputs {
 		outer := t.Outer(c, obj)
+		// A named result starts at its zero value. The extract check accepts that only when a top-level assignment of
+		// the chunk writes the variable before any other use of it, so any other such output also comes in as a parameter.
+		if outer && !isParam[obj] && !flow.Declared[obj] && !writtenFirst(t, c, obj) {
+			add(obj, false)
+			isParam[obj] = true
+		}
 		named := outer && !isParam[obj] && !flow.Declared[obj]
 		f.Outputs = append(f.Outputs, Output{Obj: obj, Name: obj.Name(), ChunkDeclared: !outer, Named: named})
 		f.Named = f.Named || named
@@ -265,4 +271,40 @@ func ResultTexts(t *Target) []string {
 		}
 	}
 	return out
+}
+
+// writtenFirst reports an outer local that a top-level assignment of the chunk writes whole before any other
+// reference to it in the chunk and before any jump out of the chunk.
+func writtenFirst(t *Target, c Chunk, obj types.Object) bool {
+	var first *ast.AssignStmt
+	var lhs *ast.Ident
+	for _, s := range c.Stmts() {
+		if as, ok := s.(*ast.AssignStmt); ok && first == nil && (as.Tok == token.ASSIGN || as.Tok == token.DEFINE) {
+			for _, l := range as.Lhs {
+				if id, ok := l.(*ast.Ident); ok && t.L.Info.Uses[id] == obj {
+					first, lhs = as, id
+				}
+			}
+		}
+	}
+	if first == nil {
+		return false
+	}
+	for _, r := range append(t.Refs(c), t.LitRefs(c)...) {
+		if r.Obj == obj && r.Id != lhs && r.Id.Pos() < first.End() {
+			return false
+		}
+	}
+	ok := true
+	for _, s := range c.Stmts() {
+		ast.Inspect(s, func(n ast.Node) bool {
+			if b, isJump := n.(*ast.BranchStmt); isJump && b.Pos() < first.End() {
+				if target := BranchTarget(t, b); target == nil || !c.Contains(target) {
+					ok = false
+				}
+			}
+			return ok
+		})
+	}
+	return ok
 }
