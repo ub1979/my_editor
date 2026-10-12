@@ -21,3 +21,10 @@ export function refactorUnticked(offers: readonly FixChoice[], blobs: ReadonlyMa
 	}
 	return unticked;
 }
+
+/** The offers a coverage run could still tick: not in a package that can't be checked here, not refused for this content. */
+export function measurable(offers: readonly FixChoice[], blobs: ReadonlyMap<string, string>, refused: RefusedCache | undefined,
+	blocked: ReadonlyMap<string, string>): FixChoice[] {
+	return offers.filter(offer => offer.kind === 'refactor' && !blocked.has(offer.file)
+		&& refusedBefore(refused, offer.file, blobs.get(offer.file)) === undefined);
+}

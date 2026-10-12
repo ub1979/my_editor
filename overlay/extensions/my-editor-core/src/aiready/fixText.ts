@@ -31,7 +31,7 @@ export function approvalDetail(folder: string, approved: readonly string[], lang
 		+ `on top):\n\n${approved.join('\n')}\n\n`
 		+ (installs ? installText(approved[0]) : '')
 		+ `${installs ? 'The others' : 'They'} build the project and run its tests, which runs project code and tests written by the AI model. `
-		+ `my_editor also runs read-only ${language} tools (to list packages and check formatting) and local git commands there. ${note}`
+		+ `my_editor also runs read-only ${language} tools (to list packages and check formatting) and local git commands there. ${note ? `${note} ` : ''}`
 		+ 'Your files and your branch stay as they are until the end, when the health report in .my_editor/ai-ready/ is updated. Nothing is pushed.';
 }
 

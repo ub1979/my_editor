@@ -2,7 +2,7 @@ import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
 import type { CoverageCache } from '../src/aiready/coverRecord';
 import type { FixChoice } from '../src/aiready/fixState';
-import { refactorUnticked } from '../src/aiready/refactorOffers';
+import { measurable, refactorUnticked } from '../src/aiready/refactorOffers';
 import type { RefusedCache } from '../src/aiready/refusedRecord';
 
 const offer = (file: string, name: string): FixChoice => ({ file, kind: 'refactor', lines: 460, target: { name, lines: 452 } });
@@ -40,4 +40,13 @@ test('with no coverage record yet a refactor is unticked and says why', () => {
 	const unticked = refactorUnticked(OFFERS, BLOBS, undefined, undefined, new Map());
 	assert.deepEqual([...unticked], [['store/plan.go', NO_TEST('buildPlan')], ['store/step.go', NO_TEST('Step')]]);
 	assert.deepEqual([...refactorUnticked([], BLOBS, undefined, undefined, new Map())], []);
+});
+
+test('coverage measures only offers it could tick: not refused for this content, not in a blocked package', () => {
+	const refused: RefusedCache = { files: { 'store/plan.go': { blob: 'p1', reason: 'x' } } };
+	assert.deepEqual(measurable(OFFERS, BLOBS, refused, new Map()).map(o => o.file), ['store/step.go']);
+	assert.deepEqual(measurable(OFFERS, BLOBS, undefined, new Map([['store/step.go', 'blocked']])).map(o => o.file), ['store/plan.go']);
+	assert.deepEqual(measurable(OFFERS, new Map([['store/plan.go', 'p2']]), refused, new Map()).map(o => o.file),
+		['store/plan.go', 'store/step.go'], 'a refusal of older content no longer holds');
+	assert.deepEqual(measurable([{ file: 'a.go', kind: 'split', lines: 500 }], BLOBS, undefined, new Map()), []);
 });

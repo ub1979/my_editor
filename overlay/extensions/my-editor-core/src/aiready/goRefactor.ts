@@ -55,12 +55,12 @@ export function createGoRefactor(root: string, tools: GoTools): RefactorHooks {
 			const profile = `.my_editor-cover-${index}.out`;
 			return { command: { label: 'test', command: `go test -count=1 -coverprofile=${profile} ${goPackage(file)}` }, profile };
 		},
-		async ran(profile, file, target) {
+		async ran(profileText, file, target) {
 			const text = readFileSync(path.join(root, file));
 			const ast = await goFileInfo(tools.helper, path.join(root, file));
 			const decl = ast.decls.find(d => (d.kind === 'func' || d.kind === 'method') && d.names[0] === target.name
 				&& (d.receiver || undefined) === target.receiver);
-			return !!decl && coverRan(profile, path.posix.basename(file), lineAt(text, decl.start), lineAt(text, decl.end));
+			return !!decl && coverRan(profileText, path.posix.basename(file), lineAt(text, decl.start), lineAt(text, decl.end));
 		},
 		async prompt(file, target) {
 			end(file);
@@ -107,6 +107,6 @@ export function createGoRefactor(root: string, tools: GoTools): RefactorHooks {
 		mayDiffer: 'Helper functions add frames to stack traces and to runtime.Caller, log.Lshortfile and slog source lookups; inlining and escape '
 			+ 'analysis may differ (a variable passed by pointer may move to the heap), which changes speed and allocations, not results.',
 		approvalNote: 'For refactors, my_editor also runs go list -export on those packages, which compiles their dependencies as go build does, '
-			+ 'and type-checks them with its own helper. ',
+			+ 'and type-checks them with its own helper.',
 	};
 }

@@ -1,4 +1,4 @@
-import type { CheckCommand } from './language';
+import type { CheckCommand, FixKind } from './language';
 
 export type Outcome = 'pass' | 'fail' | 'skip';
 
@@ -147,7 +147,7 @@ function errorLine(run: CheckResult): string {
  * A step needs at least one passing verifying check (adapters mark them, say a compile check of the package). Returns
  * why the step must be skipped when none passed at baseline, else undefined.
  */
-export function noVerifyingCheck(checks: readonly CheckCommand[], baseline: Baseline, unit: string, what = 'split'): string | undefined {
+export function noVerifyingCheck(checks: readonly CheckCommand[], baseline: Baseline, unit: string, what: FixKind = 'split'): string | undefined {
 	const blocker = buildBlocker(checks, baseline);
 	if (!blocker) { return undefined; }
 	if (!checks.some(check => check.verifies && baseline[check.command])) { return `No compile check of ${unit} was recorded for this run.`; }

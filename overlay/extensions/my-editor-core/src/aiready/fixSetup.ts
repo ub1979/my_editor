@@ -1,6 +1,7 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import type { Sink } from '../chat/engine';
+import { approvalNote } from './approvalNote';
 import { CheckResult, failureLines, runBaseline, runSetup } from './baseline';
 import { fixTip } from './branchTip';
 import { coverageCommands, runCoverage } from './coverageRun';
@@ -14,7 +15,7 @@ import { blockedFiles, loadChecks } from './fixUnverifiable';
 import { alreadyFailingText, approvalDetail, behindText, earlyText, timeoutMinutes } from './fixText';
 import type { LanguageAdapter } from './language';
 import { runCommand, tail } from './projectCommands';
-import { refactorUnticked } from './refactorOffers';
+import { measurable, refactorUnticked } from './refactorOffers';
 import { loadRefused } from './refusedRecord';
 import { changedFiles, discard, FIX_BRANCH, freeFolder, initRepository, prepare, prerequisites, trackedFiles, Worktree } from './worktree';
 
@@ -87,17 +88,19 @@ export async function startRun(env: CommandEnv, adapter: (root: string, tracked:
 	}
 	const blocked = blockedFiles(choices, file => local.checks(file), loadChecks(env.storage, root), found.tip);
 	const offers = choices.filter(choice => choice.kind === 'refactor');
-	const unticked = refactorUnticked(offers, found.blobs, loadCoverage(env.storage, root), loadRefused(env.storage, root), blocked);
+	const refused = loadRefused(env.storage, root);
+	const unticked = refactorUnticked(offers, found.blobs, loadCoverage(env.storage, root), refused, blocked);
 	const picked = await pickFixes(choices, (items, options) => vscode.window.showQuickPick(items, { ...options, canPickMany: true }), blocked, unticked);
 	if (!picked?.length) { sink.text('No fixes were chosen, so nothing changed.'); return undefined; }
 	const checks = [...new Map(picked.flatMap(fix => local.checks(fix.file)).map(check => [check.command, check])).values()];
 	const setup = local.setup?.() ?? [];
-	// Every offer is measured, picked or not, so the next picker can tick the ones whose tests run the function.
-	const coverage = local.refactor && offers.length ? coverageCommands(offers, local.refactor) : [];
+	// Every offer that could become ticked is measured, picked or not, so the next picker can tick the ones whose tests run the function.
+	const coverage = local.refactor ? coverageCommands(measurable(offers, found.blobs, refused, blocked), local.refactor) : [];
 	const approved = [...setup, ...checks, ...coverage.map(c => c.command)].map(check => check.command);
 	const refactors = new Set(picked.filter(fix => fix.kind === 'refactor').map(fix => fix.file));
 	const folder = freeFolder(root);
-	const note = `${local.approvalNote?.(folder) ?? ''}${refactors.size ? local.refactor?.approvalNote ?? '' : ''}`;
+	const refactorNote = refactors.size ? local.refactor?.approvalNote : undefined;
+	const note = approvalNote({ language: local.approvalNote?.(folder), refactor: refactorNote, coverage: coverage.length });
 	const answer = await vscode.window.showWarningMessage('Run these commands on a new local branch?',
 		{ modal: true, detail: approvalDetail(folder, approved, local.label, setup.length > 0, note) }, 'Run them');
 	if (answer !== 'Run them') { sink.text('The commands were not approved, so nothing changed.'); return undefined; }

@@ -137,7 +137,7 @@ export interface RefactorHooks {
 	/** The extra approved command that records which code of the file's unit its tests run, and the profile it writes (relative to the worktree). */
 	coverage(file: string, index: number): { readonly command: CheckCommand; readonly profile: string };
 	/** Whether a profile's text shows the target's lines executed. */
-	ran(profile: string, file: string, target: RefactorTarget): Promise<boolean>;
+	ran(profileText: string, file: string, target: RefactorTarget): Promise<boolean>;
 	/** The model's input, or why this function can't be refactored. */
 	prompt(file: string, target: RefactorTarget): Promise<Prompt | string>;
 	build(file: string, target: RefactorTarget, chunks: readonly ExtractChunk[]): Promise<RefactorBuild>;
@@ -147,7 +147,7 @@ export interface RefactorHooks {
 	abandon?(file: string): void;
 	/** For the change note's "What may differ" when a refactor was committed. */
 	readonly mayDiffer: string;
-	/** Added to the approval modal when a refactor is picked; ends with a space. */
+	/** Added to the approval modal when a refactor is picked; the core joins it with the other notes. */
 	readonly approvalNote: string;
 }
 

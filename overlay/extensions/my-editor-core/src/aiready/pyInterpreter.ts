@@ -211,5 +211,5 @@ export function pythonApprovalNote(python: PyInterpreter, requiresPython: string
 		? `**${version} does not satisfy requires-python ${requiresPython}**, so the checks may not show how the project runs. ` : '';
 	return `Python: ${python.path} (${version}, sys.prefix ${python.prefix}); the project asks for `
 		+ `${requiresPython ? `Python ${requiresPython}` : 'no Python version'}. ${unmet}`
-		+ `Commands run with ${shown.join(', ')}, the interpreter's folder first on PATH. `;
+		+ `Commands run with ${shown.join(', ')}, the interpreter's folder first on PATH.`;
 }
