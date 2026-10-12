@@ -265,8 +265,9 @@ func measure(t *Target, helpers []planned, src string) (BuildResult, []byte) {
 		}
 	}
 	res.FunctionLines = lines[funcKey(t.Func)]
-	if res.FunctionLines > 400 {
-		res.Problems = append(res.Problems, fmt.Sprintf("%s would still be %d lines; it must end at 400 or fewer.", t.Func.Name.Name, res.FunctionLines))
+	if budget := FunctionBudget(fset, file); res.FunctionLines > budget {
+		res.Problems = append(res.Problems, fmt.Sprintf("%s would still be %d lines; it must end at %d or fewer, so that with this file's package "+
+			"and imports it fits in a file of its own.", t.Func.Name.Name, res.FunctionLines, budget))
 	}
 	for _, h := range helpers {
 		key := h.f.Name
@@ -281,8 +282,8 @@ func measure(t *Target, helpers []planned, src string) (BuildResult, []byte) {
 		for _, o := range h.f.Outputs {
 			fact.Outputs = append(fact.Outputs, OutputFact{o.Name, o.Type})
 		}
-		if fact.Lines > 400 {
-			res.Problems = append(res.Problems, fmt.Sprintf("%s would be %d lines; at most 400.", h.f.Name, fact.Lines))
+		if fact.Lines > maxLines {
+			res.Problems = append(res.Problems, fmt.Sprintf("%s would be %d lines; at most %d.", h.f.Name, fact.Lines, maxLines))
 		}
 		res.Helpers = append(res.Helpers, fact)
 	}

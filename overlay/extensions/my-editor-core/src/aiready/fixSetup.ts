@@ -8,14 +8,14 @@ import { coverageCommands, runCoverage } from './coverageRun';
 import { coverageCache, loadCoverage, saveCoverage } from './coverRecord';
 import { findCandidates } from './fixCandidates';
 import { loadSettled, remembered } from './fixSettled';
-import { pickFixes, skippedWithLines } from './fixPicker';
+import { pickFixes, type ShowPicker, skippedWithLines } from './fixPicker';
 import { needingRefactor, screenFix, screenQueue } from './fixScreen';
 import { type FixChoice, logDir, RunState, saveState } from './fixState';
 import { blockedFiles, loadChecks } from './fixUnverifiable';
 import { alreadyFailingText, approvalDetail, behindText, earlyText, timeoutMinutes } from './fixText';
 import type { LanguageAdapter } from './language';
 import { runCommand, tail } from './projectCommands';
-import { measurable, refactorUnticked } from './refactorOffers';
+import { measurable, refactorNotes, refactorUnticked } from './refactorOffers';
 import { loadRefused } from './refusedRecord';
 import { changedFiles, discard, FIX_BRANCH, freeFolder, initRepository, prepare, prerequisites, trackedFiles, Worktree } from './worktree';
 
@@ -89,8 +89,10 @@ export async function startRun(env: CommandEnv, adapter: (root: string, tracked:
 	const blocked = blockedFiles(choices, file => local.checks(file), loadChecks(env.storage, root), found.tip);
 	const offers = choices.filter(choice => choice.kind === 'refactor');
 	const refused = loadRefused(env.storage, root);
-	const unticked = refactorUnticked(offers, found.blobs, loadCoverage(env.storage, root), refused, blocked);
-	const picked = await pickFixes(choices, (items, options) => vscode.window.showQuickPick(items, { ...options, canPickMany: true }), blocked, unticked);
+	const unticked = refactorUnticked(offers, found.blobs, refused, blocked);
+	const notes = refactorNotes(offers, found.blobs, loadCoverage(env.storage, root));
+	const show: ShowPicker = (items, options) => vscode.window.showQuickPick(items, { ...options, canPickMany: true });
+	const picked = await pickFixes(choices, show, blocked, unticked, notes);
 	if (!picked?.length) { sink.text('No fixes were chosen, so nothing changed.'); return undefined; }
 	const checks = [...new Map(picked.flatMap(fix => local.checks(fix.file)).map(check => [check.command, check])).values()];
 	const setup = local.setup?.() ?? [];

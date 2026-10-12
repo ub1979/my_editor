@@ -101,7 +101,8 @@ func TestBuildProblems(t *testing.T) {
 	wantBuildProblems(t, seven, "h", 23, 23, "h: 7 parameters (a, b, c, d, e, f, g); at most 6.")
 	long := "func Long() int {\n\tx := 0\n" + strings.Repeat("\tx++\n", 416) + "\treturn x\n}\n"
 	lines := strings.Count(long, "\n")
-	wantBuildProblems(t, basicWith(t, "Long", "", long), "h", 24, 28, fmt.Sprintf("Long would still be %d lines; it must end at 400 or fewer.", lines-4))
+	wantBuildProblems(t, basicWith(t, "Long", "", long), "h", 24, 28, fmt.Sprintf("Long would still be %d lines; it must end at 390 or fewer, "+
+		"so that with this file's package and imports it fits in a file of its own.", lines-4))
 	wantBuildProblems(t, target(t, "rangearrayptr", "F", ""), "len", 11, 14, "len: len is not a fresh name: it is predeclared. It would need 2 (*x) sites.")
 	wantBuildProblems(t, target(t, "methodset", "Run", "S"), "loadRows", 22, 23,
 		"loadRows: loadRows is not a fresh name: S has a method loadRows (promoted from Base).")

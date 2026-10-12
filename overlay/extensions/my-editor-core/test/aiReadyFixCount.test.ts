@@ -16,7 +16,7 @@ const local = {
 /** `engine` fails to build at this tip; `store` builds. */
 const CHECKS: CheckCache = { tip: 't1', passed: { 'build engine': false, 'build store': true } } as CheckCache;
 
-test('a click\'s refactors are only the ones the picker would tick; untested, refused and blocked ones are counted apart', () => {
+test('a click\'s refactors are every offer the picker ticks; refused and blocked ones are counted apart, untested ones noted', () => {
 	const choices = [split('store/a.go'), split('engine/b.go'), offer('store/ran.go', 'Ran'), offer('store/new.go', 'New'),
 		offer('store/old.go', 'Old'), offer('engine/big.go', 'Big')];
 	const blobs = new Map([['store/ran.go', 'r1'], ['store/new.go', 'n1'], ['store/old.go', 'o1'], ['engine/big.go', 'b1']]);
@@ -25,19 +25,20 @@ test('a click\'s refactors are only the ones the picker would tick; untested, re
 	const refused: RefusedCache = { files: { 'store/old.go': { blob: 'o1', reason: 'The extract check failed: x.' } } };
 	const unsplittable = [split('store/ran.go'), split('store/new.go'), split('store/old.go'), split('engine/big.go'), split('store/var.go')];
 	const count = countLeft({ local, tip: 't1', choices, unsplittable, blobs }, { checks: CHECKS, coverage, refused });
-	assert.deepEqual(count, { left: 1, offers: 1, untested: 1, unbuildable: 2, refactor: 2, refactors: true });
+	assert.deepEqual(count, { left: 1, offers: 2, uncovered: 1, unbuildable: 2, refactor: 2, refactors: true });
 });
 
-test('the dialer\'s case: both offers untested, so a click would refactor nothing', () => {
+test('the dialer\'s case: both offers have no test, and a click refactors both', () => {
 	const choices = [offer('a.go', 'A'), offer('b.go', 'B')];
 	const count = countLeft({ local, tip: 't1', choices, unsplittable: [split('a.go'), split('b.go')], blobs: new Map() }, {});
-	assert.deepEqual(count, { left: 0, offers: 0, untested: 2, unbuildable: 0, refactor: 0, refactors: true });
+	assert.deepEqual(count, { left: 0, offers: 2, uncovered: 2, unbuildable: 0, refactor: 0, refactors: true });
 	const plain = { ...local, refactor: undefined, fixes: ['split', 'tests'] } as unknown as LanguageAdapter;
 	assert.equal(countLeft({ local: plain, choices: [], unsplittable: [], blobs: new Map() }, {}).refactors, false);
 });
 
 test('a count saved by an older version is not trusted, so the card counts again', () => {
-	assert.equal(isFixLeft({ left: 0, offers: 2, refactor: 0, unbuildable: 0 }), false, 'offers then counted untested refactors');
+	assert.equal(isFixLeft({ left: 0, offers: 2, refactor: 0, unbuildable: 0 }), false, 'an older shape');
+	assert.equal(isFixLeft({ left: 0, offers: 0, untested: 2, refactor: 0, unbuildable: 0, refactors: true }), false, 'untested ones were unticked then');
 	assert.equal(isFixLeft(undefined), false);
-	assert.equal(isFixLeft({ left: 0, offers: 0, untested: 2, refactor: 0, unbuildable: 0, refactors: true }), true);
+	assert.equal(isFixLeft({ left: 0, offers: 2, uncovered: 2, refactor: 0, unbuildable: 0, refactors: true }), true);
 });

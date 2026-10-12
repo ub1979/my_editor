@@ -2,6 +2,11 @@
 
 my_editor uses the version in `overlay/extensions/my-editor-core/package.json` as its own release number. The Home page displays that version. The underlying editor shell keeps its upstream version independently.
 
+## 0.0.17 alpha — 2026-10-12
+
+- Refactors are ticked like splits; one with no test that runs it says so under its row, and build, vet and the extract check still guard it. Only refactors whose package can't be checked here, or that an earlier run refused for the same content, start unticked.
+- A refactor must leave the function small enough to fit in a file of its own with the file's package and imports, so the split that follows can always finish; the model is asked for a real improvement (the function under about 200 lines, helpers that each do one job), not the smallest change that fits.
+
 ## 0.0.16 alpha — 2026-10-12
 
 - The fix list puts refactors at the top under their own heading ("Refactors: 2 waiting for your OK"), with the splits and tests below; typing "refactor" in its search box finds them.

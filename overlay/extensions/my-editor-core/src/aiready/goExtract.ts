@@ -43,7 +43,11 @@ export interface ExtractBlock {
 
 /** What the model plans from. */
 export interface ExtractOutline {
-	readonly function: { readonly name: string; readonly receiver: string; readonly startLine: number; readonly endLine: number; readonly lines: number };
+	readonly function: {
+		readonly name: string; readonly receiver: string; readonly startLine: number; readonly endLine: number; readonly lines: number;
+		/** The most lines it may keep, so that a split can then give it a file of its own. */
+		readonly budget: number;
+	};
 	/** Why the function can't be refactored; then there are no blocks. */
 	readonly refused?: string;
 	readonly blocks: readonly ExtractBlock[];

@@ -4,7 +4,7 @@ import type { ExtractOutline } from '../src/aiready/goExtract';
 import { goRefactorPrompt, MAX_FUNCTION_CHARS } from '../src/aiready/goRefactorPrompt';
 
 const outline = (startLine: number, endLine: number, receiver = ''): ExtractOutline => ({
-	function: { name: 'build', receiver, startLine, endLine, lines: endLine - startLine + 1 },
+	function: { name: 'build', receiver, startLine, endLine, lines: endLine - startLine + 1, budget: 383 },
 	blocks: [{ line: 17, depth: 1, statements: [{ from: 18, to: 18, kind: 'define', declares: ['n'] },
 		{ from: 19, to: 19, kind: 'return', declares: [] }], live: [[], ['n'], []] }],
 });
@@ -15,10 +15,10 @@ test('the prompt numbers the function\'s lines and gives the outline, the limits
 	const prompt = goRefactorPrompt('internal/store/plan.go', SOURCE, outline(17, 20, '*Store'));
 	assert.ok(typeof prompt !== 'string');
 	if (typeof prompt === 'string') { return; }
-	for (const part of ['at most 6 parameters', '"from":177', 'at most 3', 'refused', 'lowerCamelCase', '400 lines']) {
+	for (const part of ['at most 6 parameters', '"from":177', 'at most 3', 'refused', 'lowerCamelCase', 'line budget', 'under 200 lines', '400 lines']) {
 		assert.ok(prompt.system.includes(part), part);
 	}
-	assert.ok(prompt.text.startsWith('File: internal/store/plan.go\nFunction: build (*Store), lines 17–20 (4 lines); it must end at 400 lines or fewer.\n'));
+	assert.ok(prompt.text.startsWith('File: internal/store/plan.go\nFunction: build (*Store), lines 17–20 (4 lines); it must end at 383 lines or fewer.\n'));
 	assert.ok(prompt.text.includes('\nOutline:\n{"line":17,"depth":1,"statements":[{"from":18'), prompt.text);
 	assert.ok(prompt.text.endsWith('Source with line numbers:\n17\tfunc build(token string) int {\n18\t\tn := 1\n19\t\treturn n\n20\t}'), prompt.text);
 	assert.doesNotMatch(prompt.text, /line 16/);

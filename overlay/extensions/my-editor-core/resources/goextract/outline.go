@@ -15,6 +15,7 @@ type FuncFacts struct {
 	StartLine int    `json:"startLine"` // the doc comment's first line, else the func line
 	EndLine   int    `json:"endLine"`
 	Lines     int    `json:"lines"`
+	Budget    int    `json:"budget"` // the most lines it may keep, so that a split can give it a file of its own
 }
 
 // StmtFacts is one statement of a block.
@@ -81,6 +82,7 @@ func funcFacts(t *Target) FuncFacts {
 	}
 	f := FuncFacts{Name: t.Func.Name.Name, StartLine: t.Line(start), EndLine: t.Line(t.Func.End())}
 	f.Lines = f.EndLine - f.StartLine + 1
+	f.Budget = FunctionBudget(t.L.Fset, t.File)
 	if t.Func.Recv != nil && len(t.Func.Recv.List) == 1 {
 		typ := t.Func.Recv.List[0].Type
 		f.Receiver = string(t.Src[t.Offset(typ.Pos()):t.Offset(typ.End())])

@@ -58,15 +58,13 @@ test('refactor offers count with the files left, and refused ones stay stuck', (
 	assert.equal(fixButton({ ...idle, branchExists: true, left: 0, offers: 0, refactor: 1 }).label, 'Fix on a local branch');
 });
 
-test('long functions no test runs are not counted as a click\'s work: the card says to tick them in the picker', () => {
-	const dialer = fixButton({ ...idle, branchExists: true, left: 0, offers: 0, untested: 2, refactors: true });
-	assert.deepEqual([dialer.label, dialer.primary], ['Fix on a local branch', false], 'nothing a click would do');
-	assert.match(dialer.text, new RegExp('Nothing left to split here\\. 2 long functions can be refactored, but no test runs them, so they wait '
-		+ 'for your OK: click the button and tick them under Refactors at the top of the list\\.$'));
-	assert.doesNotMatch(dialer.text, /to refactor into helpers|All files are within/);
-	const more = fixButton({ ...idle, branchExists: true, left: 0, offers: 1, untested: 1, refactors: true });
-	assert.deepEqual([more.label, more.primary], ['Fix remaining files', true]);
-	assert.match(more.text, /1 long function to refactor into helpers\. 1 more long function can be refactored, but no test runs it, so it waits for your OK/);
+test('refactors no test runs are still a click\'s work; the card says build, vet and the extract check guard them', () => {
+	const dialer = fixButton({ ...idle, branchExists: true, left: 0, offers: 2, uncovered: 2, refactors: true });
+	assert.deepEqual([dialer.label, dialer.primary], ['Fix remaining files', true]);
+	assert.match(dialer.text, /2 long functions to refactor into helpers\. No test here runs them, so build, vet and the extract check guard them\.$/);
+	const some = fixButton({ ...idle, branchExists: true, left: 1, offers: 3, uncovered: 1, refactors: true });
+	assert.match(some.text, /3 long functions to refactor into helpers\. No test here runs 1 of them, so build, vet and the extract check guard it\./);
+	assert.doesNotMatch(fixButton({ ...idle, branchExists: true, left: 0, offers: 1, uncovered: 0 }).text, /No test here/);
 });
 
 test('the intro names refactors only when the language offers them', () => {

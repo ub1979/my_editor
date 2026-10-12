@@ -15,7 +15,9 @@ const SYSTEM = [
 	'- Each helper takes at most 6 parameters (ctx counts, the receiver does not) and has at most 3 changed variables flowing out. '
 		+ 'The outline lists at each statement boundary the variables still needed after it: choose boundaries where few are live.',
 	'- Statements marked "refused" stay out of every run.',
-	'- The function must end at 400 lines or fewer, and each helper too.',
+	'- The function must end at or under the line budget given below, so the file can then be split; each helper at most 400 lines.',
+	'- Make it a real improvement, not the smallest change that fits: aim for the function under 200 lines (or half its size), '
+		+ 'with a few helpers of about 30–150 lines that each do one recognizable job.',
 	'- Names are new, unexported lowerCamelCase verbs (queryPlacementRows, applyLedgerPhase).',
 	'Reply with only a JSON array, for example: [{"name":"queryPlacementRows","from":177,"to":295}]',
 ].join('\n');
@@ -32,7 +34,7 @@ export function goRefactorPrompt(file: string, source: string, outline: ExtractO
 		system: SYSTEM,
 		text: `File: ${file}\n`
 			+ `Function: ${fn.name}${fn.receiver ? ` (${fn.receiver})` : ''}, lines ${fn.startLine}–${fn.endLine} (${fn.lines} lines); `
-			+ 'it must end at 400 lines or fewer.\n'
+			+ `it must end at ${fn.budget} lines or fewer.\n`
 			+ `Outline:\n${outline.blocks.map(block => JSON.stringify(block)).join('\n')}\n\n`
 			+ `Source with line numbers:\n${numbered}`,
 	};

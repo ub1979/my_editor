@@ -61,16 +61,12 @@ export interface PickOptions {
 /** Shows a multi-select list; `vscode.window.showQuickPick` with `canPickMany` fits. */
 export type ShowPicker = (items: (PickItem | PickHeading)[], options: PickOptions) => PromiseLike<readonly (PickItem | PickHeading)[] | undefined>;
 
-/** Refactors first under their own heading (saying how many wait for the user), then the splits and tests. */
-function grouped(rows: readonly PickItem[]): { items: (PickItem | PickHeading)[]; waiting: number } {
+/** Refactors first under their own heading, then the splits and tests. */
+function grouped(rows: readonly PickItem[]): (PickItem | PickHeading)[] {
 	const refactors = rows.filter(row => row.choice.kind === 'refactor');
-	if (!refactors.length) { return { items: [...rows], waiting: 0 }; }
-	const waiting = refactors.filter(row => !row.picked).length;
-	const heading = waiting ? `Refactors: ${waiting} waiting for your OK` : 'Refactors';
-	return {
-		items: [{ label: heading, kind: -1 }, ...refactors, { label: 'Splits and tests', kind: -1 }, ...rows.filter(row => row.choice.kind !== 'refactor')],
-		waiting,
-	};
+	if (!refactors.length) { return [...rows]; }
+	const rest = rows.filter(row => row.choice.kind !== 'refactor');
+	return [{ label: 'Refactors: long functions into helpers', kind: -1 }, ...refactors, { label: 'Splits and tests', kind: -1 }, ...rest];
 }
 
 /**
@@ -79,22 +75,21 @@ function grouped(rows: readonly PickItem[]): { items: (PickItem | PickHeading)[]
  * not. Undefined when the user cancels.
  */
 export async function pickFixes(choices: readonly FixChoice[], show: ShowPicker, blocked: ReadonlyMap<string, string> = new Map(),
-	unticked: ReadonlyMap<string, string> = new Map()): Promise<FixChoice[] | undefined> {
+	unticked: ReadonlyMap<string, string> = new Map(), notes: ReadonlyMap<string, string> = new Map()): Promise<FixChoice[] | undefined> {
 	const items = choices.map((choice): PickItem => {
 		const why = blocked.get(choice.file) ?? (choice.kind === 'refactor' ? unticked.get(choice.file) : undefined);
+		const detail = why ?? (choice.kind === 'refactor' ? notes.get(choice.file) : undefined);
 		return {
 			label: choice.file,
 			description: `${choice.lines} lines · ${rowText(choice)}`,
 			picked: (choice.kind === 'split' || choice.kind === 'refactor') && why === undefined,
-			...(why !== undefined ? { detail: why } : {}),
+			...(detail !== undefined ? { detail } : {}),
 			choice,
 		};
 	});
-	const { items: list, waiting } = grouped(items);
-	const picked = await show(list, {
+	const picked = await show(grouped(items), {
 		title: 'Fix on a local branch',
-		placeHolder: waiting ? 'Tick the refactors at the top that you want; each fix is checked and committed alone'
-			: 'Each fix is checked and committed alone',
+		placeHolder: 'Each fix is checked and committed alone',
 		matchOnDescription: true,
 	});
 	return picked?.filter(isPickItem).map(item => item.choice);

@@ -66,7 +66,7 @@ test('the picker leaves unverifiable splits unticked with the reason in the row 
 	]);
 });
 
-test('refactors come first under their own heading saying how many wait for the user, and the search matches the row text', async () => {
+test('refactors come first under their own heading, and the search matches the row text', async () => {
 	const refactor = { file: 'internal/store/plan.go', kind: 'refactor' as const, lines: 417, target: { name: 'buildPlan', lines: 401 } };
 	const unticked = new Map([['internal/store/plan.go', 'no test here runs `buildPlan` yet']]);
 	let labels: string[] = [];
@@ -76,10 +76,9 @@ test('refactors come first under their own heading saying how many wait for the 
 		options = shown;
 		return undefined;
 	}, new Map(), unticked);
-	assert.deepEqual(labels, ['# Refactors: 1 waiting for your OK', 'internal/store/plan.go refactor', '# Splits and tests',
+	assert.deepEqual(labels, ['# Refactors: long functions into helpers', 'internal/store/plan.go refactor', '# Splits and tests',
 		'internal/store/b.go split', 'c.go tests']);
 	assert.equal(options?.matchOnDescription, true);
-	assert.match(options?.placeHolder ?? '', /^Tick the refactors at the top/);
 	let plain: string[] = [];
 	await pickFixes([split('internal/store/b.go')], async items => { plain = items.map(item => item.label); return undefined; });
 	assert.deepEqual(plain, ['internal/store/b.go'], 'no headings without refactors');

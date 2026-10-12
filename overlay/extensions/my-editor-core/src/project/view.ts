@@ -87,7 +87,7 @@ export class ProjectView implements vscode.WebviewViewProvider {
 		const count = cachedLeft(this.context, root);
 		return fixButton({
 			running: fixRunning(), saved: !!loadState(this.context.globalStorageUri.fsPath, root),
-			branchExists: await fixBranchExists(root), left: count?.left, offers: count?.offers, untested: count?.untested,
+			branchExists: await fixBranchExists(root), left: count?.left, offers: count?.offers, uncovered: count?.uncovered,
 			refactor: count?.refactor, unbuildable: count?.unbuildable, refactors: count?.refactors,
 		});
 	}
