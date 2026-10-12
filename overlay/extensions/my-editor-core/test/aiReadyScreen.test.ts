@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import { buildBlocker, type CheckResult } from '../src/aiready/baseline';
 import { runQueue } from '../src/aiready/fixQueue';
 import { screenFix, screenQueue, type Screener } from '../src/aiready/fixScreen';
-import { type FixChoice, type RunState, RUNAWAY_LIMIT, type StepRecord } from '../src/aiready/fixState';
+import { type FixChoice, loadState, type RunState, RUNAWAY_LIMIT, saveState, type StepRecord } from '../src/aiready/fixState';
 import { earlyText } from '../src/aiready/fixText';
 import type { CheckCommand, FileInfo } from '../src/aiready/language';
 
@@ -132,7 +132,8 @@ test('progress counts the chosen fixes left after screening and prefixes what ea
 		run: async (f, progress) => { progress(`Planning how to split ${f.file}…`); return { file: f.file, kind: 'split', status: 'committed' }; },
 		cancelled: () => false, progress: text => seen.push(text), record: () => undefined,
 	});
-	assert.deepEqual(seen, ['Fix 1 of 2: a.go…', 'Fix 1 of 2: Planning how to split a.go…', 'Fix 2 of 2: b.go…', 'Fix 2 of 2: Planning how to split b.go…']);
+	assert.deepEqual(seen, ['Fix 1 of 2: a.go…', 'Fix 1 of 2: Planning how to split a.go…', 'Fix 2 of 2: b.go…',
+		'Fix 2 of 2: Planning how to split b.go…']);
 });
 
 test('the runaway bound is large', () => {
@@ -190,4 +191,26 @@ test('a step\'s follow-up fix runs next and counts in the progress', async () =>
 	assert.deepEqual(ran, ['r.go refactor', 'r.go split', 'b.go split']);
 	assert.deepEqual(seen, ['Fix 1 of 2: r.go…', 'Fix 2 of 3: r.go…', 'Fix 3 of 3: b.go…']);
 	assert.equal(state.next, 4);
+});
+
+test('Continue after a saved refactor commit runs its split next', async () => {
+	const storage = mkdtempSync(path.join(os.tmpdir(), 'my-editor-continue-'));
+	const state = { ...queueState(['r.go', 'b.go']), root: storage };
+	state.fixes[0] = { file: 'r.go', kind: 'refactor', lines: 460, target: { name: 'Big', lines: 452 } };
+	let stop = false;
+	await runQueue(state, {
+		run: async f => ({ file: f.file, kind: 'refactor', status: 'committed', followUp: { file: f.file, kind: 'split', lines: 470 } }),
+		cancelled: () => stop, progress: () => undefined, record: () => { saveState(storage, state); stop = true; },
+	});
+	const saved = loadState(storage, storage);
+	assert.ok(saved);
+	assert.equal(saved.next, 1);
+	assert.deepEqual(saved.fixes.map(f => `${f.file} ${f.kind}`), ['r.go refactor', 'r.go split', 'b.go split']);
+	const ran: string[] = [];
+	await runQueue(saved, {
+		run: async f => { ran.push(`${f.file} ${f.kind}`); return { file: f.file, kind: f.kind, status: 'committed' }; },
+		cancelled: () => false, progress: () => undefined, record: () => saveState(storage, saved),
+	});
+	assert.deepEqual(ran, ['r.go split', 'b.go split']);
+	assert.equal(loadState(storage, storage)?.next, 3);
 });
