@@ -2,6 +2,12 @@
 
 my_editor uses the version in `overlay/extensions/my-editor-core/package.json` as its own release number. The Home page displays that version. The underlying editor shell keeps its upstream version independently.
 
+## 0.0.14 alpha — 2026-10-12
+
+- Go: a long function can be refactored into helpers on the `ai_fix` branch, then its file split, in one click. The model only chooses which statements become helpers and their names; my_editor writes them byte for byte, with types from the compiler's own type checker, refuses anything it cannot prove behaves the same, checks the written file with separate code, and runs build, vet and tests against the baseline.
+- A refactor is ticked only when the package's tests ran that function in an earlier run; otherwise it is offered unticked with the reason, and you decide. Refused refactors are remembered for that file's content and are not ticked again.
+- The approval window explains the extra `go test -coverprofile` command, and the AI readiness card counts only what a click would do.
+
 ## 0.0.13 alpha — 2026-10-11
 
 - The AI readiness card says why files over 400 lines are left, by reason: how many need a real refactor (which the fixer doesn't do) and how many are in packages that don't build on this computer.

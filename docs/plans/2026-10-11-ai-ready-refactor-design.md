@@ -1,6 +1,6 @@
 # AI-ready: refactor long functions (design, Go first)
 
-Status: revised after one adversarial review; approved by the user 2026-10-11 (refactors ticked only when tests run the function).
+Status: approved 2026-10-11 (refactors ticked only when tests run the function); built 2026-10-12 (see the plan, whose Decisions correct rules 4, 8, 10 and 11 and the dialer expectations).
 
 ## Why
 

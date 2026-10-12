@@ -101,6 +101,10 @@ All documentation is listed in [`docs/README.md`](docs/README.md). Start with:
   refactor) are not offered again, and a run that commits nothing leaves `ai_fix` unchanged. Later runs start from
   **Project → Health → Fix remaining files**.
   Python moves are refused wherever Python could notice the difference. C#, Rust and C/C++ follow.
+  In Go, a file over 400 lines because of one long function can be refactored first: the model picks runs of
+  statements and names them, my_editor writes them as helpers byte for byte, refuses what it cannot prove equivalent,
+  checks the written file independently, runs build, vet and tests against the baseline, and splits the file in the
+  same run. A refactor is ticked only when the project's tests ran that function last time; otherwise you tick it.
 
 ## Build and run (macOS)
 
