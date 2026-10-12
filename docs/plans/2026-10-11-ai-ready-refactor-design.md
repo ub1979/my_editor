@@ -116,6 +116,13 @@ with the builder's classifier:
    dereferenced at every use.
 5. The package type-checks; its declarations other than the function and the new helpers are unchanged; gofmt
    leaves the file unchanged.
+6. **The interface as written**: chunks are in line order and never overlap, nest or share a name; each result slot
+   has its output local's type (the function's result types for `return h(…)`, which only a tail chunk may be); a
+   named result stands only for the local of its own output slot; a chunk that returns needs done plumbing or a
+   tail call. The scope and refusal rules are re-applied to the original (generic or `//go:` functions; `defer`,
+   `recover()` and a `go` statement using an outer local in a chunk), and rule 8 to the file: the only use of a
+   helper anywhere in the package is its call, and its name is lower-case, not predeclared, not used by the test
+   files, and not a method of any interface of the package, named or anonymous.
 
 Then the package's checks run against the baseline as for a split (`go build`, `go vet` with new lines compared,
 `go test` test by test). Any failure restores the worktree and records the step as refused, with the reason.
