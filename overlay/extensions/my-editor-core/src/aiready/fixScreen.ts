@@ -4,7 +4,7 @@ import { MAX_SOURCE_LINES, sourceLines } from '../quality/sourcePolicy';
 import { type CheckResult, buildBlocker, noVerifyingCheck } from './baseline';
 import type { FixChoice, StepRecord } from './fixState';
 import type { FileInfo, LanguageAdapter, RefactorTarget } from './language';
-import { largestDeclaration, needsRefactor } from './stillOver';
+import { needsRefactor } from './stillOver';
 
 /** A fix settled before any model call or edit: its step, a few words for grouping, and whether it is unchecked. */
 export interface EarlyOutcome {
@@ -15,7 +15,7 @@ export interface EarlyOutcome {
 }
 
 /** What screening needs from the language adapter. */
-export type Screener = Pick<LanguageAdapter, 'checks' | 'parse' | 'testFileName'>;
+export type Screener = Pick<LanguageAdapter, 'checks' | 'parse' | 'testFileName' | 'refactor'>;
 
 type Baseline = Readonly<Record<string, readonly [CheckResult, CheckResult]>>;
 
@@ -43,13 +43,14 @@ export function screenParsed(adapter: Screener, worktree: string, baseline: Base
 		if (!needsRefactor(info, fix.lines)) { return settle('No function in it needs a refactor now.', 'no function in it needs a refactor now'); }
 		return blocked(adapter, baseline, fix, settle);
 	}
-	const lasting = (outcome: EarlyOutcome, skip?: string): EarlyOutcome => ({ ...outcome, step: { ...outcome.step, lasting: skip ? { skip } : {} } });
-	if (info.skip) { return lasting(settle(`Never split: ${info.skip}.`, `never split: ${info.skip}`), info.skip); }
-	if (!info.declarations.some(d => d.movable)) { return lasting(settle('Nothing in it may move.', 'nothing in it may move')); }
+	if (info.skip) { return lasting(settle(`Never split: ${info.skip}.`, `never split: ${info.skip}`), { skip: info.skip }); }
 	const refactor = needsRefactor(info, fix.lines);
+	// Kept with the record so a later picker can offer the refactor without parsing: only a function the language can refactor.
+	const big = refactor ? bigTarget(adapter, info) : undefined;
+	if (!info.declarations.some(d => d.movable)) { return lasting(settle('Nothing in it may move.', 'nothing in it may move'), big ? { big } : {}); }
 	if (refactor) {
-		const outcome = settle(`${refactor.reason[0].toUpperCase()}${refactor.reason.slice(1)}.`, refactor.reason);
-		return { ...outcome, step: { ...outcome.step, over: [refactor], lasting: { big: bigTarget(info) } } };
+		const outcome = lasting(settle(`${refactor.reason[0].toUpperCase()}${refactor.reason.slice(1)}.`, refactor.reason), big ? { big } : {});
+		return { ...outcome, step: { ...outcome.step, over: [refactor] } };
 	}
 	return blocked(adapter, baseline, fix, settle);
 }
@@ -62,10 +63,15 @@ function blocked(adapter: Screener, baseline: Baseline, fix: FixChoice, settle: 
 	return blocker ? settle(noVerifyingCheck(checks, baseline, unitOf(fix.file), fix.kind)!, blocker, true) : undefined;
 }
 
-/** The declaration that makes a split useless, as a refactor target (named as `needsRefactor` names it). */
-function bigTarget(info: FileInfo): RefactorTarget {
-	const big = largestDeclaration(info)!;
-	return { name: big.names.join(', ') || big.kind, ...(big.receiver ? { receiver: big.receiver } : {}), lines: big.lines };
+/** A split settled by the file's own content, kept for later pickers while the file is unchanged. */
+function lasting(outcome: EarlyOutcome, kept: NonNullable<StepRecord['lasting']>): EarlyOutcome {
+	return { ...outcome, step: { ...outcome.step, lasting: kept } };
+}
+
+/** The function that makes a split useless, as the language's refactor names it; undefined when it has none or it is no function. */
+function bigTarget(adapter: Screener, info: FileInfo): RefactorTarget | undefined {
+	const target = adapter.refactor?.target(info);
+	return target && typeof target === 'object' ? target : undefined;
 }
 
 /** Parses and screens one fix; a file that cannot be parsed is settled too (nothing was asked or written). */

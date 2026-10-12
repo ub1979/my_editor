@@ -7,9 +7,9 @@ import { renderChangeNote } from '../src/aiready/changeNote';
 import { needingRefactor, screenFix, type Screener } from '../src/aiready/fixScreen';
 import type { RunState } from '../src/aiready/fixState';
 import { earlyText } from '../src/aiready/fixText';
-import type { Declaration, FileInfo, LanguageAdapter, SplitPlan } from '../src/aiready/language';
+import type { Declaration, FileInfo, LanguageAdapter, RefactorHooks, SplitPlan } from '../src/aiready/language';
 import { planProblems } from '../src/aiready/splitPlan';
-import { needsRefactor } from '../src/aiready/stillOver';
+import { largestDeclaration, needsRefactor } from '../src/aiready/stillOver';
 
 function decl(id: number, name: string, lines: number, movable = true): Declaration {
 	return { id, kind: 'function', names: [name], span: { start: 0, end: 0 }, lines, doc: '', docText: '', uses: [], movable };
@@ -43,14 +43,32 @@ test('a big declaration with plenty that can move out still splits; so does a fi
 
 test('screening settles a needs-refactor split before any model call or check, with its Still over entry', async () => {
 	const root = mkdtempSync(path.join(os.tmpdir(), 'my-editor-refactor-'));
+	const target = (info: FileInfo) => ({ name: largestDeclaration(info)!.names[0], lines: largestDeclaration(info)!.lines });
 	const adapter: Screener = { checks: () => [{ label: 'build', command: 'build ./internal/store', verifies: true }],
-		parse: async () => STEP, testFileName: file => file };
+		parse: async () => STEP, testFileName: file => file, refactor: { target } as RefactorHooks };
 	const early = await screenFix(adapter, root, {}, { file: STEP.path, kind: 'split', lines: 467 });
 	assert.deepEqual(early?.step, { file: STEP.path, kind: 'split', status: 'skipped', early: true,
 		reason: 'Needs a real refactor: `StepVerification` is 452 lines by itself.', over: [{ file: STEP.path, lines: 467, reason: STEP_REASON }],
 		lasting: { big: { name: 'StepVerification', lines: 452 } } });
 	assert.equal(early?.brief, STEP_REASON);
 	assert.equal(early?.unchecked, false);
+});
+
+test('a split settled for a big declaration keeps it for later pickers only when the language can refactor it', async () => {
+	const root = mkdtempSync(path.join(os.tmpdir(), 'my-editor-refactor-'));
+	const fix = { file: STEP.path, kind: 'split' as const, lines: 467 };
+	const screener = (target?: RefactorHooks['target'], info = STEP): Screener =>
+		({ checks: () => [], parse: async () => info, testFileName: file => file, ...(target ? { refactor: { target } as RefactorHooks } : {}) });
+	const notFunction = await screenFix(screener(() => '`a` is a var, not a function'), root, {}, fix);
+	assert.deepEqual([notFunction?.step.lasting, notFunction?.step.over?.length], [{}, 1], 'a var block is never offered as a refactor');
+	assert.deepEqual((await screenFix(screener(), root, {}, fix))?.step.lasting, {}, 'no refactor in this language');
+	const stuck: FileInfo = { ...STEP, declarations: STEP.declarations.map(d => ({ ...d, movable: false })) };
+	const big = { name: 'StepVerification', receiver: 'Store', lines: 452 };
+	const nothing = await screenFix(screener(() => big, stuck), root, {}, fix);
+	assert.deepEqual([nothing?.step.reason, nothing?.step.lasting], ['Nothing in it may move.', { big }], 'the target as the language names it');
+	const small: FileInfo = { ...STEP, declarations: [decl(0, 'a', 300, false)] };
+	assert.deepEqual((await screenFix(screener(() => big, small), root, {}, { ...fix, lines: 410 }))?.step.lasting, {},
+		'nothing over the limit, nothing to refactor');
 });
 
 test('of the fixes nobody picked, only the ones that need a real refactor are kept for the change note', async () => {

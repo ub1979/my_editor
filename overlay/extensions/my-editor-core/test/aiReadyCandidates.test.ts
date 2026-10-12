@@ -6,7 +6,8 @@ import * as path from 'node:path';
 import { test } from 'node:test';
 import { fixTip, treeSource } from '../src/aiready/branchTip';
 import { findCandidates } from '../src/aiready/fixCandidates';
-import type { Remembered } from '../src/aiready/fixSettled';
+import { screenParsed } from '../src/aiready/fixScreen';
+import { remembered, type Remembered, settledCache } from '../src/aiready/fixSettled';
 import type { Declaration, FileInfo, LanguageAdapter, RefactorHooks } from '../src/aiready/language';
 
 const lines = (n: number) => 'x\n'.repeat(n);
@@ -118,7 +119,7 @@ test('a file only a refactor can help is offered as a refactor when the adapter 
 	rmSync(root, { recursive: true, force: true });
 });
 
-test('a settled file with its big function is offered without parsing; an older record without it is screened once more', async () => {
+test('a settled file with its big function is offered without parsing; a record without it holds, parsed again only when unchanged', async () => {
 	const { root, git } = repository();
 	firstRun(root, git, 'ai_fix');
 	const big = { name: 'Big', receiver: 'Store', lines: 405 };
@@ -132,8 +133,31 @@ test('a settled file with its big function is offered without parsing; an older 
 	assert.equal(found?.blobs.get('b_big.go'), git('rev-parse', 'ai_fix:b_big.go'));
 	const older: Remembered = (file, blob) => (file === 'b_big.go' ? { blob: blob! } : undefined);
 	const again = await findCandidates(root, refactoring([]), () => false, older);
-	assert.deepEqual(again?.unparsed.map(c => `${c.file} ${c.kind}`), ['b_big.go split'], 'a changed file is screened in the run\'s working copy');
+	assert.deepEqual(again?.unparsed, [], 'a changed file a record settled is not screened again');
+	assert.equal(again?.choices.some(c => c.file === 'b_big.go'), false);
+	assert.deepEqual(again?.unsplittable.map(c => c.file).sort(), ['b_big.go', 'solo.go']);
 	const plain = await findCandidates(root, factory([]), () => false, older);
 	assert.deepEqual(plain?.unsplittable.map(c => c.file).sort(), ['b_big.go', 'solo.go'], 'without a refactor the old record still holds');
+	rmSync(root, { recursive: true, force: true });
+});
+
+test('a changed file where nothing may move is ticked once, then never again, run after run', async () => {
+	const { root, git } = repository();
+	firstRun(root, git, 'ai_fix');
+	const first = await findCandidates(root, refactoring([]), () => false);
+	assert.deepEqual(first?.unparsed.map(c => c.file), ['b_big.go'], 'unknown yet: the run\'s working copy screens it');
+	const fix = first!.unparsed[0];
+	const stuck: FileInfo = { path: 'b_big.go', frame: [], imports: [], declarations: [{ ...decl(0, 200), movable: false }] };
+	const screener = { checks: () => [], parse: async () => stuck, testFileName: (file: string) => file };
+	const outcome = screenParsed(screener, root, {}, fix, stuck);
+	assert.equal(outcome?.step.reason, 'Nothing in it may move.');
+	let cache = settledCache([outcome!.step], new Map([['b_big.go', git('rev-parse', 'ai_fix:b_big.go')]]));
+	for (const pass of [1, 2]) {
+		const found = await findCandidates(root, refactoring([]), () => false, remembered(cache));
+		assert.equal(found?.choices.some(c => c.file === 'b_big.go'), false, `pass ${pass}: not offered`);
+		assert.deepEqual(found?.unparsed, [], `pass ${pass}: not ticked`);
+		assert.ok(found?.unsplittable.some(c => c.file === 'b_big.go'), `pass ${pass}: listed as one a split can't help`);
+		cache = settledCache([], new Map(), cache);
+	}
 	rmSync(root, { recursive: true, force: true });
 });

@@ -64,12 +64,14 @@ export async function findCandidates(root: string, factory: AdapterFactory, canc
 		if (cancelled()) { return undefined; }
 		const blob = await source.blob(file);
 		const settled = known(file, blob);
-		// A record from before refactors kept no big function: with a refactor to offer, the file is screened once more.
-		if (settled && (settled.skip || settled.big || !refactor)) {
+		// Every record holds: a file it settled is never offered as a split again while its content is the same.
+		if (settled) {
 			if (settled.skip) { skipped.set(file, settled.skip); } else { unsplittable.add(file); }
 			if (refactor && settled.big) { offer(file, settled.big, blob); }
-			continue;
 		}
+		if (settled && (settled.skip || settled.big || !refactor)) { continue; }
+		// Only the run's working copy can parse a changed file; a record without a big function (nothing may move, or one
+		// from before refactors) stays unsplittable. An unchanged one is parsed here once more, for a refactor to offer.
 		if (source.changed.has(file)) { continue; }
 		try {
 			const info = await local.parse(file);
