@@ -41,7 +41,7 @@ test('runBaseline hands each check its own env', async () => {
 });
 
 test('the approval modal carries the adapter note (Python: the interpreter) before the closing sentence', () => {
-	const detail = approvalDetail('/p/w', ['python -m pytest'], 'Python', false, 'Python: /p/.venv/bin/python (3.12.2, sys.prefix /p/.venv). ');
+	const detail = approvalDetail('/p/w', ['python -m pytest'], 'Python', false, 'Python: /p/.venv/bin/python (3.12.2, sys.prefix /p/.venv).');
 	assert.match(detail, /local git commands there\. Python: \/p\/\.venv\/bin\/python \(3\.12\.2, sys\.prefix \/p\/\.venv\)\. Your files/);
 });
 
