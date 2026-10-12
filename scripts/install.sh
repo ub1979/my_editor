@@ -19,6 +19,9 @@ case "${1:-}" in
       mkdir -p "${dest}"
       rsync -a --delete --exclude node_modules --exclude __pycache__ --exclude src --exclude '*.map' --exclude tsconfig.json "${ext}" "${dest}/"
     done
+    # The editor reuses its cached list of built-in extensions while this folder's mtime is unchanged, so an update
+    # inside it would keep the old manifests (and versions) until the next change; touching it invalidates the cache.
+    touch "${APP}/Contents/Resources/app/extensions"
     echo "Updated built-in extensions. Editor core patches require scripts/install.sh --full."
     ;;
   --full)
