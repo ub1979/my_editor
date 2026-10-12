@@ -42,8 +42,36 @@ export interface PickItem {
 	readonly choice: FixChoice;
 }
 
+/** A heading between groups of rows (`QuickPickItemKind.Separator`). */
+export interface PickHeading {
+	readonly label: string;
+	readonly kind: -1;
+}
+
+/** Whether a row of the list is a fix rather than a heading. */
+export const isPickItem = (item: PickItem | PickHeading): item is PickItem => 'choice' in item;
+
+/** The list's options; the search also matches the row text, so typing "refactor" finds the refactors. */
+export interface PickOptions {
+	readonly title: string;
+	readonly placeHolder: string;
+	readonly matchOnDescription: true;
+}
+
 /** Shows a multi-select list; `vscode.window.showQuickPick` with `canPickMany` fits. */
-export type ShowPicker = (items: PickItem[], options: { title: string; placeHolder: string }) => PromiseLike<readonly PickItem[] | undefined>;
+export type ShowPicker = (items: (PickItem | PickHeading)[], options: PickOptions) => PromiseLike<readonly (PickItem | PickHeading)[] | undefined>;
+
+/** Refactors first under their own heading (saying how many wait for the user), then the splits and tests. */
+function grouped(rows: readonly PickItem[]): { items: (PickItem | PickHeading)[]; waiting: number } {
+	const refactors = rows.filter(row => row.choice.kind === 'refactor');
+	if (!refactors.length) { return { items: [...rows], waiting: 0 }; }
+	const waiting = refactors.filter(row => !row.picked).length;
+	const heading = waiting ? `Refactors: ${waiting} waiting for your OK` : 'Refactors';
+	return {
+		items: [{ label: heading, kind: -1 }, ...refactors, { label: 'Splits and tests', kind: -1 }, ...rows.filter(row => row.choice.kind !== 'refactor')],
+		waiting,
+	};
+}
 
 /**
  * The multi-select list of fixes: every split pre-selected but those in `blocked` (files nothing here can check, with
@@ -62,11 +90,14 @@ export async function pickFixes(choices: readonly FixChoice[], show: ShowPicker,
 			choice,
 		};
 	});
-	const picked = await show(items, {
+	const { items: list, waiting } = grouped(items);
+	const picked = await show(list, {
 		title: 'Fix on a local branch',
-		placeHolder: 'Each fix is checked and committed alone',
+		placeHolder: waiting ? 'Tick the refactors at the top that you want; each fix is checked and committed alone'
+			: 'Each fix is checked and committed alone',
+		matchOnDescription: true,
 	});
-	return picked?.map(item => item.choice);
+	return picked?.filter(isPickItem).map(item => item.choice);
 }
 
 /** The never-split files for the run state, each with its size so the change note can list only the long ones. */

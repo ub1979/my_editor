@@ -4,7 +4,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { test } from 'node:test';
 import type { CheckResult } from '../src/aiready/baseline';
-import { pickFixes } from '../src/aiready/fixPicker';
+import { isPickItem, pickFixes, type PickOptions } from '../src/aiready/fixPicker';
 import { blockedFiles, checkCache, loadChecks, saveChecks } from '../src/aiready/fixUnverifiable';
 import type { CheckCommand } from '../src/aiready/language';
 
@@ -59,9 +59,28 @@ test('the picker leaves unverifiable splits unticked with the reason in the row 
 	const blocked = new Map([['internal/engine/a.go', "can't be checked here: ./internal/engine build already fails"]]);
 	let rows: { label: string; picked: boolean; detail?: string }[] = [];
 	await pickFixes([split('internal/engine/a.go'), split('internal/store/b.go'), { file: 'c.go', kind: 'tests', lines: 300 }],
-		async items => { rows = items; return undefined; }, blocked);
+		async items => { rows = items.filter(isPickItem); return undefined; }, blocked);
 	assert.deepEqual(rows.map(row => [row.label, row.picked, row.detail]), [
 		['internal/engine/a.go', false, "can't be checked here: ./internal/engine build already fails"],
 		['internal/store/b.go', true, undefined], ['c.go', false, undefined],
 	]);
+});
+
+test('refactors come first under their own heading saying how many wait for the user, and the search matches the row text', async () => {
+	const refactor = { file: 'internal/store/plan.go', kind: 'refactor' as const, lines: 417, target: { name: 'buildPlan', lines: 401 } };
+	const unticked = new Map([['internal/store/plan.go', 'no test here runs `buildPlan` yet']]);
+	let labels: string[] = [];
+	let options: PickOptions | undefined;
+	await pickFixes([split('internal/store/b.go'), refactor, { file: 'c.go', kind: 'tests', lines: 300 }], async (items, shown) => {
+		labels = items.map(item => (isPickItem(item) ? `${item.label} ${item.choice.kind}` : `# ${item.label}`));
+		options = shown;
+		return undefined;
+	}, new Map(), unticked);
+	assert.deepEqual(labels, ['# Refactors: 1 waiting for your OK', 'internal/store/plan.go refactor', '# Splits and tests',
+		'internal/store/b.go split', 'c.go tests']);
+	assert.equal(options?.matchOnDescription, true);
+	assert.match(options?.placeHolder ?? '', /^Tick the refactors at the top/);
+	let plain: string[] = [];
+	await pickFixes([split('internal/store/b.go')], async items => { plain = items.map(item => item.label); return undefined; });
+	assert.deepEqual(plain, ['internal/store/b.go'], 'no headings without refactors');
 });

@@ -2,7 +2,7 @@ import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
 import type { CheckResult } from '../src/aiready/baseline';
 import { noteFileName, renderChangeNote, reportWithRun } from '../src/aiready/changeNote';
-import { fixChoices, pickFixes, skippedWithLines } from '../src/aiready/fixPicker';
+import { fixChoices, pickFixes, skippedWithLines, isPickItem, type PickHeading, type PickItem } from '../src/aiready/fixPicker';
 import { discardRest, type RunState } from '../src/aiready/fixState';
 import { GO_LANGUAGE } from '../src/aiready/goAdapter';
 import { fileStats } from '../src/aiready/health';
@@ -23,7 +23,7 @@ test('fix choices: Go files only, never-split files left out, biggest first, spl
 	const choices = fixChoices(findings, stats, ['.go'], new Map([['gen.go', 'generated code']]));
 	assert.deepEqual(choices, [fix('a.go', 'split', 900), fix('b.go', 'split', 500), fix('b.go', 'tests', 500)]);
 	let shown: { picked: boolean; description: string }[] = [];
-	const picked = await pickFixes(choices, async items => { shown = items; return items.filter(item => item.picked); });
+	const picked = await pickFixes(choices, async items => { shown = items.filter(isPickItem); return shown.filter(item => item.picked) as PickItem[]; });
 	assert.deepEqual(shown.map(item => item.picked), [true, true, false]);
 	assert.equal(shown[0].description, '900 lines · split into focused files');
 	assert.deepEqual(picked, choices.slice(0, 2));
@@ -34,7 +34,7 @@ test('the picker pre-selects every split, however many, and names no per-run lim
 	const many = Array.from({ length: 60 }, (_, i) => fix(`f${i}.go`, 'split', 1000 - i));
 	let shown: { picked: boolean }[] = [];
 	let options = { title: '', placeHolder: '' };
-	await pickFixes(many, async (items, shownOptions) => { shown = items; options = shownOptions; return undefined; });
+	await pickFixes(many, async (items, shownOptions) => { shown = items.filter(isPickItem); options = shownOptions; return undefined; });
 	assert.equal(shown.filter(item => item.picked).length, 60);
 	assert.doesNotMatch(options.title, /\d|per run/);
 	assert.ok(options.placeHolder.length <= 50, options.placeHolder);
@@ -129,10 +129,14 @@ test('refactor rows say what they do and are ticked only when allowed', async ()
 	const unticked = new Map([['a.go', 'no test here runs `Run` yet']]);
 	const blocked = new Map([['c.go', 'can\'t be checked here']]);
 	let shown: { picked: boolean; description: string; detail?: string }[] = [];
-	const picked = await pickFixes(choices, async items => { shown = items; return items.filter(item => item.picked); }, blocked, unticked);
+	const show = async (items: readonly (PickItem | PickHeading)[]) => {
+		shown = items.filter(isPickItem);
+		return shown.filter(item => item.picked) as PickItem[];
+	};
+	const picked = await pickFixes(choices, show, blocked, unticked);
 	assert.equal(shown[0].description, '430 lines · refactor `Run` (425 lines) into helpers, then split');
-	assert.deepEqual(shown.map(item => item.picked), [false, false, true, false]);
-	assert.deepEqual(shown.map(item => item.detail), ['no test here runs `Run` yet', undefined, undefined, 'can\'t be checked here']);
+	assert.deepEqual(shown.map(item => item.picked), [false, true, false, false], 'refactors first, then the tests row');
+	assert.deepEqual(shown.map(item => item.detail), ['no test here runs `Run` yet', undefined, 'can\'t be checked here', undefined]);
 	assert.deepEqual(picked, [choices[2]]);
 });
 

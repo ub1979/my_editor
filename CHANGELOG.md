@@ -2,6 +2,11 @@
 
 my_editor uses the version in `overlay/extensions/my-editor-core/package.json` as its own release number. The Home page displays that version. The underlying editor shell keeps its upstream version independently.
 
+## 0.0.16 alpha — 2026-10-12
+
+- The fix list puts refactors at the top under their own heading ("Refactors: 2 waiting for your OK"), with the splits and tests below; typing "refactor" in its search box finds them.
+- The AI readiness card says what to do with refactors no test runs: click the button and tick them under Refactors.
+
 ## 0.0.15 alpha — 2026-10-12
 
 - Go files your branch changed after `ai_fix` split off are now checked from the branch's own content before the picker opens, so test files are never ticked blindly and long functions in those files are offered as refactors in the first run.

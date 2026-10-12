@@ -45,8 +45,8 @@ function stuckText(refactor: number, unbuildable: number): string {
 function untestedText(untested: number, more: boolean): string {
 	if (!untested) { return ''; }
 	const one = untested === 1;
-	return `${untested}${more ? ' more' : ''} long function${one ? ' has' : 's have'} no test that runs ${one ? 'it' : 'them'}; `
-		+ `tick ${one ? 'it' : 'them'} yourself in the picker.`;
+	return `${untested}${more ? ' more' : ''} long function${one ? '' : 's'} can be refactored, but no test runs ${one ? 'it' : 'them'}, `
+		+ `so ${one ? 'it waits' : 'they wait'} for your OK: click the button and tick ${one ? 'it' : 'them'} under Refactors at the top of the list.`;
 }
 
 export function fixButton(input: FixButtonInput): FixButton {
