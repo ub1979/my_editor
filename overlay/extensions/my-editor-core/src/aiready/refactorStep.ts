@@ -12,6 +12,7 @@ import { runChecks, type StepContext, type StepOutcome } from './steps';
 import { changedFiles, commit, restore } from './worktree';
 
 const NOT_A_PLAN = 'The reply was not a JSON array of {"name", "from", "to"}.';
+const NO_HELPERS = 'The build reported no helpers.';
 
 /** The model's plan attempts and why each rejected one was rejected, as the step records them. */
 interface Attempts {
@@ -41,13 +42,14 @@ export async function runRefactor(ctx: StepContext, fix: FixChoice): Promise<Ste
 		({ file: fix.file, kind: 'refactor', status, reason, ...(attempts.asked ? { plan: { attempts: attempts.asked, rejected: attempts.rejected } } : {}) });
 	const hooks = ctx.adapter.refactor;
 	if (!hooks) { return done('skipped', 'This language has no refactor.'); }
-	const info = await ctx.adapter.parse(fix.file);
-	const early = screenParsed(ctx.adapter, ctx.worktree, ctx.baseline, fix, info);
-	if (early) { return early.step; }
-	const target = hooks.target(info);
-	if (typeof target === 'string') { return done('refused', `${target[0].toUpperCase()}${target.slice(1)}.`); }
-	const step: Refactor = { ctx, hooks, fix, target, attempts };
+	// Every throw from here is a refusal, which the next picker remembers for the file's content (a skip is ticked again).
 	try {
+		const info = await ctx.adapter.parse(fix.file);
+		const early = screenParsed(ctx.adapter, ctx.worktree, ctx.baseline, fix, info);
+		if (early) { return early.step; }
+		const target = hooks.target(info);
+		if (typeof target === 'string') { return done('refused', `${target.charAt(0).toUpperCase()}${target.slice(1)}.`); }
+		const step: Refactor = { ctx, hooks, fix, target, attempts };
 		const prompt = await hooks.prompt(fix.file, target);
 		if (typeof prompt === 'string') { return done('refused', prompt); }
 		const built = await plan(step, prompt);
@@ -73,7 +75,10 @@ async function plan({ ctx, hooks, fix, target, attempts }: Refactor, prompt: Pro
 		const chunks = parseChunks(reply);
 		if (!chunks) { return { problems: [NOT_A_PLAN] }; }
 		const shape = chunkShapeProblems(chunks);
-		return shape.length ? { problems: shape } : hooks.build(fix.file, target, chunks);
+		if (shape.length) { return { problems: shape }; }
+		const built = await hooks.build(fix.file, target, chunks);
+		// The extract check has nothing to check without a helper, so such a build is a rejected plan.
+		return built.problems.length || built.helpers?.length ? built : { problems: [NO_HELPERS] };
 	};
 	ctx.progress(`Planning how to refactor \`${target.name}\` in ${fix.file}…`);
 	let reply = await ctx.ask(prompt.system, prompt.text);

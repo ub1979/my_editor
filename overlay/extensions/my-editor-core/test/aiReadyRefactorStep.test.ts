@@ -117,3 +117,31 @@ test('Stop while planning leaves nothing behind', async () => {
 	assert.equal(readFileSync(path.join(root, 'big.txt'), 'utf8'), BEFORE);
 	assert.equal(git('status', '--porcelain'), '');
 });
+
+test('a throw while parsing or naming the target is a refused refactor, remembered for the file\'s content, not a skip', async () => {
+	const { seen, ctx } = setup();
+	const context = ctx([]);
+	const parse = async () => { throw new Error('cannot parse big.txt'); };
+	const step = await runRefactor({ ...context, adapter: { ...context.adapter, parse } }, FIX);
+	assert.ok(typeof step === 'object');
+	assert.deepEqual([step.status, step.reason], ['refused', 'cannot parse big.txt']);
+	const target = () => { throw new Error('no outline'); };
+	const named = await runRefactor({ ...context, adapter: { ...context.adapter, refactor: { ...context.adapter.refactor!, target } } }, FIX);
+	assert.ok(typeof named === 'object');
+	assert.deepEqual([named.status, named.reason], ['refused', 'no outline']);
+	const empty = await runRefactor({ ...context, adapter: { ...context.adapter, refactor: { ...context.adapter.refactor!, target: () => '' } } }, FIX);
+	assert.ok(typeof empty === 'object');
+	assert.equal(empty.status, 'refused');
+	assert.equal(seen.checked, 0);
+});
+
+test('a build with no helpers is a rejected plan: retried, then refused with the build\'s problem, and never extract-checked', async () => {
+	const { root, git, seen, ctx } = setup({ build: () => ({ problems: [], text: Buffer.from(AFTER), helpers: [], facts: '{}' }) });
+	const step = await runRefactor(ctx([plan('addMany'), plan('addMany')]), FIX);
+	assert.ok(typeof step === 'object');
+	assert.deepEqual([step.status, step.reason], ['refused', 'The refactor plan was rejected twice: The build reported no helpers.']);
+	assert.deepEqual(seen.built, ['addMany', 'addMany']);
+	assert.equal(seen.checked, 0);
+	assert.equal(readFileSync(path.join(root, 'big.txt'), 'utf8'), BEFORE);
+	assert.equal(git('status', '--porcelain'), '');
+});

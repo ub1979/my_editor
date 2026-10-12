@@ -65,13 +65,19 @@ export function createGoRefactor(root: string, tools: GoTools): RefactorHooks {
 		async prompt(file, target) {
 			end(file);
 			const dir = mkdtempSync(path.join(os.tmpdir(), 'my-editor-refactor-'));
-			const listed = await listPackage(tools.go, root, file, path.join(dir, 'list.json'));
-			if (typeof listed === 'string') { rmSync(dir, { recursive: true, force: true }); return listed; }
-			const extract: ExtractTarget = { ...listed, file: path.join(root, file), func: target.name, recv: target.receiver };
-			sessions.set(file, { dir, target: extract });
-			const outline = await extractOutline(helper(), extract).catch((error: unknown) => { end(file); throw error; });
-			if (outline.refused) { end(file); return outline.refused; }
-			return goRefactorPrompt(file, readFileSync(extract.file, 'utf8'), outline);
+			let kept = false;
+			try {
+				const listed = await listPackage(tools.go, root, file, path.join(dir, 'list.json'));
+				if (typeof listed === 'string') { return listed; }
+				const extract: ExtractTarget = { ...listed, file: path.join(root, file), func: target.name, recv: target.receiver };
+				const outline = await extractOutline(helper(), extract);
+				if (outline.refused) { return outline.refused; }
+				sessions.set(file, { dir, target: extract });
+				kept = true;
+				return goRefactorPrompt(file, readFileSync(extract.file, 'utf8'), outline);
+			} finally {
+				if (!kept) { rmSync(dir, { recursive: true, force: true }); }
+			}
 		},
 		async build(file, _target, chunks) {
 			const { dir, target } = session(file);
@@ -87,6 +93,8 @@ export function createGoRefactor(root: string, tools: GoTools): RefactorHooks {
 		},
 		async check(file, before, _target, built) {
 			try {
+				// Only a successful build with helpers has facts; the helper's check refuses anything else.
+				if (!built.facts) { return ['The build reported no helpers, so there is nothing to check.']; }
 				const { dir, target } = session(file);
 				writeFileSync(path.join(dir, 'before.go'), before);
 				writeFileSync(path.join(dir, 'build.json'), built.facts ?? '{}');

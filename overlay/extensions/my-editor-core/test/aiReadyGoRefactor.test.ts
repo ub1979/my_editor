@@ -1,6 +1,6 @@
 import { strict as assert } from 'node:assert';
 import { execFileSync } from 'node:child_process';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { test } from 'node:test';
@@ -84,4 +84,24 @@ test('end to end on a small module: the prompt, a plan, the build and the extrac
 	assert.deepEqual(await hooks.check('a.go', Buffer.from(source), target, built), []);
 	assert.match(readFileSync(path.join(root, 'a.go'), 'utf8'), /\tn := addMany\(i\)\n/);
 	execFileSync(found.go, ['build', './...'], { cwd: root, env: { ...process.env, GOTOOLCHAIN: 'local', GOFLAGS: '', GOPROXY: 'off' } });
+});
+
+test('the extract check is never run without a successful build\'s facts', async () => {
+	const hooks = createGoRefactor('/p', FAKE);
+	assert.deepEqual(await hooks.check('a.go', Buffer.from(''), { name: 'Big', lines: 420 }, { problems: [] }),
+		['The build reported no helpers, so there is nothing to check.']);
+});
+
+test('a prompt that throws leaves no temp folder behind', async () => {
+	const tmp = mkdtempSync(path.join(os.tmpdir(), 'my-editor-refactor-tmp-'));
+	const saved = process.env.TMPDIR;
+	process.env.TMPDIR = tmp;
+	try {
+		const hooks = createGoRefactor('/p', { ...FAKE, go: 'go\0' });
+		await assert.rejects(hooks.prompt('a.go', { name: 'Big', lines: 420 }));
+		hooks.abandon?.('a.go');
+	} finally {
+		process.env.TMPDIR = saved;
+	}
+	assert.deepEqual(readdirSync(tmp), []);
 });
