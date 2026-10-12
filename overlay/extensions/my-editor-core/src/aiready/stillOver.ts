@@ -49,7 +49,9 @@ export function needsRefactor(info: FileInfo, lines: number): StillOver | undefi
 	if (lines <= MAX_SOURCE_LINES || !big) { return undefined; }
 	const name = () => big.names?.join(', ') || big.kind;
 	if (!(big.lines > MAX_SOURCE_LINES)) {
-		const around = Math.max(0, lines - info.declarations.reduce((sum, d) => sum + d.lines, 0));
+		// The file's own lines: package, imports and comments, not the blank line between two declarations, which moves with them.
+		const between = Math.max(0, info.declarations.length - 1);
+		const around = Math.max(0, lines - info.declarations.reduce((sum, d) => sum + d.lines, 0) - between);
 		if (!(big.lines + around > MAX_SOURCE_LINES)) { return undefined; }
 		return { file: info.path, lines, reason: `needs a real refactor: \`${name()}\` is ${big.lines} lines, too long for a file with its ${around} other lines` };
 	}

@@ -37,7 +37,10 @@ test('a file over 400 lines only because of one declaration needs a real refacto
 test('a function under 400 lines that can\'t fit in a file with the other lines of its own needs a refactor', () => {
 	const after: FileInfo = { ...STEP, path: 'onboarding_plan.go', declarations: [decl(0, 'buildOnboardingPlanTx', 387), decl(1, 'appendWarnings', 20)] };
 	assert.equal(needsRefactor(after, 423)?.reason,
-		'needs a real refactor: `buildOnboardingPlanTx` is 387 lines, too long for a file with its 16 other lines');
+		'needs a real refactor: `buildOnboardingPlanTx` is 387 lines, too long for a file with its 15 other lines');
+	const small = Array.from({ length: 99 }, (_, i) => decl(i + 1, `f${i}`, 20));
+	const many: FileInfo = { ...STEP, path: 'engine.go', declarations: [decl(0, 'StartCampaign', 322), ...small] };
+	assert.equal(needsRefactor(many, 2322 + 99 + 20), undefined, 'blank lines between declarations move with them');
 	assert.equal(needsRefactor({ ...after, declarations: [decl(0, 'build', 300), decl(1, 'more', 110)] }, 426), undefined, 'room to split');
 });
 
