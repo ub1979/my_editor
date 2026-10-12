@@ -50,11 +50,17 @@ async function setup(): Promise<{ root: string; worktree: string; adapter: Langu
 	const approved = adapter.checks('shop.go').map(check => check.command);
 	const check = async (command: string, label: string): Promise<CheckResult> => {
 		const out = await runCommand(command, { cwd: wt.path, approved, timeoutMs: 120_000, logFile: path.join(parent, 'logs', `${Date.now()}.log`) });
-		return { command, code: out.code, failures: label === 'test' ? [] : failureLines(out.output), tests: label === 'test' ? adapter.parseTests(out.stdout) : undefined, tail: tail(out.output), log: '' };
+		return {
+			command, code: out.code, failures: label === 'test' ? [] : failureLines(out.output),
+			tests: label === 'test' ? adapter.parseTests(out.stdout) : undefined, tail: tail(out.output), log: '',
+		};
 	};
 	const baseline: Record<string, [CheckResult, CheckResult]> = {};
 	for (const { command, label } of adapter.checks('shop.go')) { baseline[command] = [await check(command, label), await check(command, label)]; }
-	return { root, worktree: wt.path, adapter, ctx: { adapter, worktree: wt.path, baseline, flaky: [], check, cancelled: () => false, progress: () => undefined } };
+	return {
+		root, worktree: wt.path, adapter,
+		ctx: { adapter, worktree: wt.path, baseline, flaky: [], check, cancelled: () => false, progress: () => undefined },
+	};
 }
 
 test('steps: a split is planned by ID, checked and committed; a bad plan is refused after one retry; new tests drop failures', async t => {
@@ -103,7 +109,8 @@ test('add-tests removes its file when the commit fails', async t => {
 		return result;
 	};
 	const good = 'package shop\n\nimport "testing"\n\nfunc TestAiDescribe(t *testing.T) {\n\tif Describe(2) != "2" {\n\t\tt.Fatal()\n\t}\n}\n';
-	await assert.rejects(runAddTests({ ...ctx, check, ask: async () => `\`\`\`go\n${good}\`\`\`` }, { file: 'shop.go', kind: 'tests', lines: 13 }), /index\.lock|git add failed/);
+	await assert.rejects(runAddTests({ ...ctx, check, ask: async () => `\`\`\`go\n${good}\`\`\`` }, { file: 'shop.go', kind: 'tests', lines: 13 }),
+		/index\.lock|git add failed/);
 	rmSync(lock, { force: true });
 	assert.ok(!existsSync(path.join(worktree, 'shop_ai_test.go')));
 	assert.equal(execFileSync('git', ['status', '--porcelain'], { cwd: worktree, encoding: 'utf8' }), '');
@@ -137,11 +144,15 @@ test('a split is skipped when no compile check of its package passed at baseline
 	if (!run) { t.skip('Go is not installed'); return; }
 	const { root, worktree, ctx } = run;
 	const baseline = Object.fromEntries(Object.entries(ctx.baseline).map(([command, pair]) =>
-		[command, command.startsWith('go build -o') || command.startsWith('go vet') ? pair.map(r => ({ ...r, code: 1, failures: ['fatal error: x.h: No such file'] })) : pair]));
+		[command, command.startsWith('go build -o') || command.startsWith('go vet')
+			? pair.map(r => ({ ...r, code: 1, failures: ['fatal error: x.h: No such file'] }))
+			: pair]));
 	let asked = 0;
-	const outcome = await runSplit({ ...ctx, baseline: baseline as typeof ctx.baseline, ask: async () => { asked++; return '[]'; } }, { file: 'shop.go', kind: 'split', lines: 13 });
+	const outcome = await runSplit({ ...ctx, baseline: baseline as typeof ctx.baseline, ask: async () => { asked++; return '[]'; } },
+		{ file: 'shop.go', kind: 'split', lines: 13 });
 	assert.ok(typeof outcome === 'object' && outcome.status === 'skipped');
-	assert.match(outcome.reason ?? '', /^Nothing here can compile \. to check this split: its build already fails \(fatal error: x\.h: No such file\)\. Fix the build, then run this again\.$/);
+	assert.match(outcome.reason ?? '',
+		/^Nothing here can compile \. to check this split: its build already fails \(fatal error: x\.h: No such file\)\. Fix the build, then run this again\.$/);
 	assert.equal(asked, 0);
 	await remove(root, worktree);
 });

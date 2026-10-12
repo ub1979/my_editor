@@ -13,13 +13,15 @@ function last(text: string, context: Partial<TsFileContext> = {}, file = 'src/a.
 
 test('spans: attached JSDoc and // comments, a trailing comment and @ts-expect-error move; a detached comment stays; overloads are one declaration', () => {
 	const text = "import { x } from './x.js';\n\n// detached\n\n/** Doc. */\n// eslint-disable-next-line\nexport function a() { return x; } // trailing\n\n"
-		+ "// @ts-expect-error old\nexport const b: number = 'x';\nexport function f(a: string): void;\nexport function f(a: number): void;\nexport function f(a: unknown) {}\n"
+		+ "// @ts-expect-error old\nexport const b: number = 'x';\n"
+		+ 'export function f(a: string): void;\nexport function f(a: number): void;\nexport function f(a: unknown) {}\n'
 		+ 'const k = 1; const m = 2;\n';
 	const info = tsInfo('src/a.ts', text);
 	const source = Buffer.from(text);
 	const spans = info.declarations.map(d => source.subarray(d.span.start, d.span.end).toString());
 	assert.deepEqual(spans.slice(0, 3), ['/** Doc. */\n// eslint-disable-next-line\nexport function a() { return x; } // trailing',
-		"// @ts-expect-error old\nexport const b: number = 'x';", 'export function f(a: string): void;\nexport function f(a: number): void;\nexport function f(a: unknown) {}']);
+		"// @ts-expect-error old\nexport const b: number = 'x';",
+		'export function f(a: string): void;\nexport function f(a: number): void;\nexport function f(a: unknown) {}']);
 	assert.equal(info.declarations[0].doc, 'Doc.');
 	assert.deepEqual(info.declarations.slice(3).map(d => d.reason), ['it shares a line with other code', 'it shares a line with other code']);
 	assert.deepEqual(info.declarations.map(d => d.names), [['a'], ['b'], ['f'], ['k'], ['m']]);
@@ -79,7 +81,8 @@ test('names: assigned elsewhere, merged, declare, namespace, destructuring and s
 	assert.match(last("import { o } from './o.js';\n\nconsole.log(o);\n"), /not a declaration/);
 });
 
-test('module-relative code: import.meta.url, __filename, top-level this, and this or arguments in top-level arrows refuse; __dirname and require(literal) in a function move', () => {
+test('module-relative code: import.meta.url, __filename, top-level this, and this or arguments in top-level arrows refuse; '
+	+ '__dirname and require(literal) in a function move', () => {
 	assert.match(last('export const u = () => import.meta.url;\n'), /import\.meta/);
 	assert.equal(last('export const d = () => import.meta.dirname;\n'), 'movable');
 	assert.match(last('export function f() { return __filename; }\n'), /__filename/);
@@ -108,7 +111,8 @@ test('scope: types-only files move only interfaces and type aliases; plain JS mo
 		['only function declarations may move in plain JavaScript', undefined]);
 });
 
-test('skipped files: module format, directives, tool comments, CRLF, parse errors, tests, generated code, decorators with metadata and imports after code', () => {
+test('skipped files: module format, directives, tool comments, CRLF, parse errors, tests, generated code, '
+	+ 'decorators with metadata and imports after code', () => {
 	const skip = (file: string, text: string, context: Partial<TsFileContext> = {}) => tsInfo(file, text, context).skip ?? 'none';
 	assert.equal(skip('src/a.ts', 'export const a = 1;\n'), 'none');
 	assert.match(skip('lib/a.js', "const x = require('x');\nmodule.exports = { x };\n", { scope: 'functions' }), /CommonJS module/);

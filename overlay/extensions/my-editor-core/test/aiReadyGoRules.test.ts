@@ -48,7 +48,8 @@ test('skipped files: directives, a directive after a blank line, CRLF, generated
 });
 
 test('embed vars, //go:generate in a doc comment, and an iota group move only as their rules allow', async t => {
-	const text = 'package shop\n\nimport _ "embed"\n\n//go:embed hello.txt\n\nvar hello string\n\n// Colour is generated.\n//\n//go:generate stringer -type=Colour\n'
+	const text = 'package shop\n\nimport _ "embed"\n\n//go:embed hello.txt\n\nvar hello string\n\n'
+		+ '// Colour is generated.\n//\n//go:generate stringer -type=Colour\n'
 		+ 'type Colour int\n\nconst (\n\tRed Colour = iota\n\tGreen\n)\n\nvar plain string\n';
 	const parsed = await goInfo('shop/embed.go', text);
 	if (!parsed) { t.skip('Go is not installed'); return; }

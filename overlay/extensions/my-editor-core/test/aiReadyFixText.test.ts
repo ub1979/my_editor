@@ -14,7 +14,9 @@ test('the approval modal says the commands run project code and tests written by
 });
 
 test('the closing message claims only that the health report was updated in the user folder', () => {
-	const text = closingText({ committed: 2, branch: 'ai_fix', base: 'abcdef1234567890', note: '.my_editor/changes/x.md', removed: true, worktree: '/p/w', reportUpdated: true });
+	const text = closingText({
+		committed: 2, branch: 'ai_fix', base: 'abcdef1234567890', note: '.my_editor/changes/x.md', removed: true, worktree: '/p/w', reportUpdated: true,
+	});
 	assert.doesNotMatch(text, /not touched|wasn.t touched/);
 	assert.match(text, /2 fixes committed on `ai_fix`/);
 	assert.match(text, /only the health report in `\.my_editor\/ai-ready\/` was updated/);
@@ -31,7 +33,8 @@ test('the command timeout is clamped to 1–240 minutes and is a machine setting
 	assert.equal(timeoutMinutes(0), 1);
 	assert.equal(timeoutMinutes(30), 30);
 	assert.equal(timeoutMinutes(10_000), 240);
-	const pkg = JSON.parse(readFileSync(path.resolve(__dirname, '../../package.json'), 'utf8')) as { contributes: { configuration: { properties: Record<string, Record<string, unknown>> } } };
+	const pkg = JSON.parse(readFileSync(path.resolve(__dirname, '../../package.json'), 'utf8')) as
+		{ contributes: { configuration: { properties: Record<string, Record<string, unknown>> } } };
 	const setting = pkg.contributes.configuration.properties['myEditor.aiReady.commandTimeoutMinutes'];
 	assert.equal(setting.scope, 'machine');
 	assert.equal(setting.minimum, 1);
@@ -66,8 +69,10 @@ test('a paused run says Stopped, or names the runaway bound only when it was hit
 
 test('a types-only split row says so', async () => {
 	let rows: string[] = [];
-	await pickFixes([{ file: 'a.ts', kind: 'split', lines: 500, narrowed: 'only types may move (Vite compiles each file with esbuild)' }, { file: 'b.ts', kind: 'split', lines: 450 }],
-		async items => { rows = items.map(item => item.description); return undefined; });
+	await pickFixes([
+		{ file: 'a.ts', kind: 'split', lines: 500, narrowed: 'only types may move (Vite compiles each file with esbuild)' },
+		{ file: 'b.ts', kind: 'split', lines: 450 },
+	], async items => { rows = items.map(item => item.description); return undefined; });
 	assert.equal(rows[0], '500 lines · split: only types may move (Vite compiles each file with esbuild)');
 	assert.equal(rows[1], '450 lines · split into focused files');
 });

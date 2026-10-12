@@ -50,7 +50,10 @@ test('steps: a TS split on a worktree is planned by ID, checked by tsc and node 
 		'.gitignore': 'node_modules\ndist\n', 'package-lock.json': '{}', 'src/shop.ts': SHOP, 'src/util.ts': "export function helper(): string { return '\\n'; }\n",
 		'test/shop.test.ts': TEST,
 		'package.json': JSON.stringify({ name: 'shop', type: 'module', scripts: { pretest: 'tsc -p .', test: 'node --test "dist/test/*.test.js"' } }),
-		'tsconfig.json': JSON.stringify({ compilerOptions: { module: 'nodenext', moduleResolution: 'nodenext', target: 'es2022', strict: true, outDir: 'dist', rootDir: '.', types: ['node'] }, include: ['src', 'test'] }),
+		'tsconfig.json': JSON.stringify({
+			compilerOptions: { module: 'nodenext', moduleResolution: 'nodenext', target: 'es2022', strict: true, outDir: 'dist', rootDir: '.', types: ['node'] },
+			include: ['src', 'test'],
+		}),
 	};
 	for (const [file, text] of Object.entries(files)) { writeFileSync(path.join(root, file), text); }
 	const git = (...args: string[]) => execFileSync('git', args, { cwd: root, encoding: 'utf8' });
@@ -69,17 +72,25 @@ test('steps: a TS split on a worktree is planned by ID, checked by tsc and node 
 		// Without NODE_TEST_CONTEXT: a `node --test` started inside a test file reports to this run instead of printing TAP.
 		const env = { ...adapter.commandEnv, NODE_TEST_CONTEXT: undefined };
 		const out = await runCommand(command, { cwd: wt.path, approved, timeoutMs: 120_000, env, logFile: path.join(parent, 'logs', `${Date.now()}.log`) });
-		return { command, code: out.code, failures: label === 'test' ? [] : failureLines(out.output), tests: label === 'test' ? adapter.parseTests(out.stdout) : undefined, tail: tail(out.output), log: '' };
+		return {
+			command, code: out.code, failures: label === 'test' ? [] : failureLines(out.output),
+			tests: label === 'test' ? adapter.parseTests(out.stdout) : undefined, tail: tail(out.output), log: '',
+		};
 	};
 	const baseline: Record<string, [CheckResult, CheckResult]> = {};
 	for (const { command, label } of checks) { baseline[command] = [await check(command, label), await check(command, label)]; }
 	assert.equal(baseline['npm test'][0].code, 0, baseline['npm test'][0].tail);
 	assert.deepEqual(Object.keys(baseline['npm test'][0].tests?.tests ?? {}), ['node:test report formats rows', 'node:test parseRow reads the size']);
 	let replies = ['[{"file":"rows.ts","declarations":[0,1,2]}]'];
-	const ctx: StepContext = { adapter, worktree: wt.path, baseline, flaky: [], check, cancelled: () => false, progress: () => undefined, ask: async () => replies.shift() ?? '[]' };
+	const ctx: StepContext = {
+		adapter, worktree: wt.path, baseline, flaky: [], check, cancelled: () => false, progress: () => undefined, ask: async () => replies.shift() ?? '[]',
+	};
 	const step = await runSplit(ctx, { file: 'src/shop.ts', kind: 'split', lines: 18 });
 	assert.equal(step === 'stopped' ? 'stopped' : step.status, 'committed', step === 'stopped' ? '' : step.reason);
-	assert.match(readFileSync(path.join(wt.path, 'src/shop.ts'), 'utf8'), /^import \{ helper \} from '\.\/util\.js';\nimport \{ parseRow, formatRow \} from '\.\/rows\.js';\nexport \{ parseRow, formatRow \} from '\.\/rows\.js';\nexport type \{ Row \} from '\.\/rows\.js';\n/);
+	assert.match(readFileSync(path.join(wt.path, 'src/shop.ts'), 'utf8'), new RegExp("^import \\{ helper \\} from '\\.\\/util\\.js';\\n"
+		+ "import \\{ parseRow, formatRow \\} from '\\.\\/rows\\.js';\\n"
+		+ "export \\{ parseRow, formatRow \\} from '\\.\\/rows\\.js';\\n"
+		+ "export type \\{ Row \\} from '\\.\\/rows\\.js';\\n"));
 	assert.match(execFileSync('git', ['log', '--format=%s', '-1'], { cwd: wt.path, encoding: 'utf8' }), /my_editor: split into 1 file \(src\/shop\.ts\)/);
 	replies = ['[{"file":"more.ts","declarations":[3]}]', '[{"file":"more.ts","declarations":[3]}]'];
 	const refused = await runSplit(ctx, { file: 'src/shop.ts', kind: 'split', lines: 8 });
@@ -99,5 +110,6 @@ test('a TS project needs the editor\'s TypeScript and a lockfile; mixed reposito
 	assert.match(lockfileProblem(project({ 'package-lock.json': '{}', 'yarn.lock': '' }).root) ?? '', /lockfiles of npm and yarn disagree/);
 	assert.match(String(await adapterFor(locked.root, { ...host, appRoot: '/nowhere' })), /needs the editor's TypeScript 5 or 6/);
 	assert.ok(!existsSync(path.join(locked.root, 'node_modules')));
-	assert.ok(fixableFinding('src/a.ts', 'too-long') && fixableFinding('a.go', 'untested') && !fixableFinding('src/a.ts', 'untested') && !fixableFinding('a.rs', 'too-long'));
+	assert.ok(fixableFinding('src/a.ts', 'too-long') && fixableFinding('a.go', 'untested')
+		&& !fixableFinding('src/a.ts', 'untested') && !fixableFinding('a.rs', 'too-long'));
 });

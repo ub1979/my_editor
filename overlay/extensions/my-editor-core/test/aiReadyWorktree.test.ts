@@ -153,7 +153,8 @@ test('worktree.ts runs checkout and clean only after checking the folder is the 
 	const cleans = [...source.matchAll(/git\((\w+), \['clean'/g)];
 	assert.equal(cleans.length, 1);
 	const body = source.slice(source.indexOf('async function cleanWorktree'));
-	assert.match(body.slice(0, body.indexOf('\n}\n')), /await assertRunWorktree\(root, folder, branch\);[\s\S]*git\(folder, \['checkout', 'HEAD', '--', '\.'\]\)[\s\S]*git\(folder, \['clean', '-fd'\]\)/);
+	assert.match(body.slice(0, body.indexOf('\n}\n')),
+		/await assertRunWorktree\(root, folder, branch\);[\s\S]*git\(folder, \['checkout', 'HEAD', '--', '\.'\]\)[\s\S]*git\(folder, \['clean', '-fd'\]\)/);
 });
 
 test('reattach prunes only when the saved worktree is gone, never the user\'s own missing worktrees', async () => {

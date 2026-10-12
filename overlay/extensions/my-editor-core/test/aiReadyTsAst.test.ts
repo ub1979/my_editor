@@ -8,7 +8,8 @@ const OPTIONS = analysisOptions(ts, { module: ts.ModuleKind.NodeNext, moduleReso
 const facts = (text: string, file = 'src/a.ts') => tsFileFacts(ts, file, text, OPTIONS);
 
 test('facts: statements with attached comments to the end of their line, overloads grouped, imports apart', () => {
-	const text = "import { x } from './x.js';\n\n// detached\n\n/** Doc. */\nexport function a(): number { return x; } // why\nexport function f(a: string): void;\nexport function f(a: unknown) {}\nconst k = 1; const m = 2;\n";
+	const text = "import { x } from './x.js';\n\n// detached\n\n/** Doc. */\nexport function a(): number { return x; } // why\n"
+		+ 'export function f(a: string): void;\nexport function f(a: unknown) {}\nconst k = 1; const m = 2;\n';
 	const f = facts(text);
 	assert.deepEqual(f.decls.map(d => [d.kind, d.names, text.slice(d.start, d.end), d.own]), [
 		['function', ['a'], '/** Doc. */\nexport function a(): number { return x; } // why', true],
@@ -29,7 +30,8 @@ test('UTF-16 offsets map to UTF-8 bytes through one table', () => {
 });
 
 test('an import is rebuilt from its own pieces, keeping as, type, default, quotes, layout and semicolons', () => {
-	const f = facts('import D, { a as b, type T, c } from "./m.js"\nimport {\n\tp,\n\tq,\n\tr,\n} from \'./n.js\';\nexport const z = [D, b, c, p, q, r] as T[];\n');
+	const f = facts('import D, { a as b, type T, c } from "./m.js"\nimport {\n\tp,\n\tq,\n\tr,\n} from \'./n.js\';\n'
+		+ 'export const z = [D, b, c, p, q, r] as T[];\n');
 	const [m, n] = f.imports;
 	assert.equal(keepBindings(m, new Set(['b', 'T'])), 'import { a as b, type T } from "./m.js"');
 	assert.equal(keepBindings(m, new Set(['D'])), 'import D from "./m.js"');

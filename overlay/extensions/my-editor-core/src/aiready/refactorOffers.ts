@@ -14,9 +14,10 @@ export function refactorUnticked(offers: readonly FixChoice[], blobs: ReadonlyMa
 		const blob = blobs.get(offer.file);
 		const earlier = refusedBefore(refused, offer.file, blob);
 		const name = offer.target?.name ?? offer.file;
+		const untested = `no test here runs \`${name}\` yet; build, vet and the extract check still apply`;
 		const reason = blocked.get(offer.file)
 			?? (earlier !== undefined ? `an earlier run could not refactor it: ${earlier}` : undefined)
-			?? (ranBefore(coverage, offer.file, blob, offer.target?.name) ? undefined : `no test here runs \`${name}\` yet; build, vet and the extract check still apply`);
+			?? (ranBefore(coverage, offer.file, blob, offer.target?.name) ? undefined : untested);
 		if (reason) { unticked.set(offer.file, reason); }
 	}
 	return unticked;
