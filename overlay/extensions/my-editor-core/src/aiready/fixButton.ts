@@ -6,8 +6,12 @@ export interface FixButtonInput {
 	/** The `ai_fix` branch exists. */
 	readonly branchExists: boolean;
 	readonly left: number | undefined;
-	/** Long functions a run can refactor into helpers (offers not refused for their content). */
+	/** Long functions a run would refactor into helpers: offers the picker starts ticked. */
 	readonly offers?: number;
+	/** Long functions offered unticked because no test is known to run them. */
+	readonly untested?: number;
+	/** Whether the language offers refactors. */
+	readonly refactors?: boolean;
 	/** Files over the limit a split can't help and no refactor here can: refactors not offered, or refused for their content. */
 	readonly refactor?: number;
 	/** Files over the limit in packages whose build fails here, so no split of them can be checked. */
@@ -22,7 +26,9 @@ export interface FixButton {
 	readonly text: string;
 }
 
-const INTRO = 'Split long files and add tests on a local branch. Each fix is checked before it is committed.';
+/** What the fixer does, refactors named only when the language offers them. */
+const intro = (refactors: boolean) => `Split long files${refactors ? ', refactor long functions' : ''} and add tests on a local branch. `
+	+ 'Each fix is checked before it is committed.';
 
 const files = (n: number) => `${n} file${n === 1 ? '' : 's'}`;
 
@@ -35,21 +41,34 @@ function stuckText(refactor: number, unbuildable: number): string {
 	return parts.length ? `${parts.join('; ')}.` : '';
 }
 
-export function fixButton({ running, saved, branchExists, left, offers = 0, refactor = 0, unbuildable = 0 }: FixButtonInput): FixButton {
-	if (running) { return { label: 'Running…', primary: true, disabled: true, text: `${INTRO} A fix run is in progress.` }; }
-	if (saved) { return { label: 'Continue', primary: true, disabled: false, text: `${INTRO} A fix run is not finished.` }; }
+/** The card's words for refactors offered unticked: the user may tick them, a click alone does not run them. */
+function untestedText(untested: number, more: boolean): string {
+	if (!untested) { return ''; }
+	const one = untested === 1;
+	return `${untested}${more ? ' more' : ''} long function${one ? ' has' : 's have'} no test that runs ${one ? 'it' : 'them'}; `
+		+ `tick ${one ? 'it' : 'them'} yourself in the picker.`;
+}
+
+export function fixButton(input: FixButtonInput): FixButton {
+	const { running, saved, branchExists, left, offers = 0, untested = 0, refactor = 0, unbuildable = 0 } = input;
+	const opening = intro(!!input.refactors);
+	if (running) { return { label: 'Running…', primary: true, disabled: true, text: `${opening} A fix run is in progress.` }; }
+	if (saved) { return { label: 'Continue', primary: true, disabled: false, text: `${opening} A fix run is not finished.` }; }
 	// After a first run, one click fixes everything still left; with nothing left, the button reads as at the start.
 	const label = branchExists && (left === undefined || left + offers > 0) ? 'Fix remaining files' : 'Fix on a local branch';
-	if (left === undefined) { return { label, primary: true, disabled: false, text: INTRO }; }
+	if (left === undefined) { return { label, primary: true, disabled: false, text: opening }; }
 	const stuck = stuckText(refactor, unbuildable);
+	const unticked = untestedText(untested, offers > 0);
 	if (left + offers === 0) {
-		const done = stuck ? `Nothing left to split here. ${stuck}` : 'All files are within 400 lines.';
-		return { label, primary: false, disabled: false, text: `${INTRO} ${done}` };
+		const rest = [unticked, stuck].filter(Boolean).join(' ');
+		const done = rest ? `Nothing left to split here. ${rest}` : 'All files are within 400 lines.';
+		return { label, primary: false, disabled: false, text: `${opening} ${done}` };
 	}
 	const parts = [
 		...(left ? [`${files(left)} over 400 lines left to split.`] : []),
 		...(offers ? [`${offers} long function${offers === 1 ? '' : 's'} to refactor into helpers.`] : []),
+		...(unticked ? [unticked] : []),
 		...(stuck ? [stuck] : []),
 	];
-	return { label, primary: true, disabled: false, text: `${INTRO} ${parts.join(' ')}` };
+	return { label, primary: true, disabled: false, text: `${opening} ${parts.join(' ')}` };
 }

@@ -39,7 +39,8 @@ test('with nothing left the text says so and the button is secondary', () => {
 test('files no run here can split are named by reason, apart from the ones left, and nothing left is not called done', () => {
 	const view = fixButton({ ...idle, branchExists: true, left: 0, refactor: 4, unbuildable: 26 });
 	assert.deepEqual([view.label, view.primary], ['Fix on a local branch', false]);
-	assert.match(view.text, /Nothing left to split here\. 4 files need a real refactor this fixer can't do here; 26 files are in packages that don't build on this computer\./);
+	assert.match(view.text, new RegExp('Nothing left to split here\\. 4 files need a real refactor this fixer can\'t do here; '
+		+ '26 files are in packages that don\'t build on this computer\\.'));
 	assert.doesNotMatch(view.text, /All files are within/);
 	assert.match(fixButton({ ...idle, left: 0, refactor: 1 }).text, /1 file needs a real refactor this fixer can't do here\.$/);
 	assert.match(fixButton({ ...idle, left: 0, unbuildable: 1 }).text, /Nothing left to split here\. 1 file is in packages that don't build on this computer\.$/);
@@ -55,4 +56,20 @@ test('refactor offers count with the files left, and refused ones stay stuck', (
 	const both = fixButton({ ...idle, branchExists: true, left: 3, offers: 1 });
 	assert.match(both.text, /3 files over 400 lines left to split\. 1 long function to refactor into helpers\.$/);
 	assert.equal(fixButton({ ...idle, branchExists: true, left: 0, offers: 0, refactor: 1 }).label, 'Fix on a local branch');
+});
+
+test('long functions no test runs are not counted as a click\'s work: the card says to tick them in the picker', () => {
+	const dialer = fixButton({ ...idle, branchExists: true, left: 0, offers: 0, untested: 2, refactors: true });
+	assert.deepEqual([dialer.label, dialer.primary], ['Fix on a local branch', false], 'nothing a click would do');
+	assert.match(dialer.text, /Nothing left to split here\. 2 long functions have no test that runs them; tick them yourself in the picker\.$/);
+	assert.doesNotMatch(dialer.text, /to refactor into helpers|All files are within/);
+	const more = fixButton({ ...idle, branchExists: true, left: 0, offers: 1, untested: 1, refactors: true });
+	assert.deepEqual([more.label, more.primary], ['Fix remaining files', true]);
+	assert.match(more.text, /1 long function to refactor into helpers\. 1 more long function has no test that runs it; tick it yourself in the picker\.$/);
+});
+
+test('the intro names refactors only when the language offers them', () => {
+	assert.match(fixButton({ ...idle, left: 2, refactors: true }).text,
+		/^Split long files, refactor long functions and add tests on a local branch\. Each fix is checked before it is committed\./);
+	assert.match(fixButton({ ...idle, left: 2 }).text, /^Split long files and add tests on a local branch\./);
 });
