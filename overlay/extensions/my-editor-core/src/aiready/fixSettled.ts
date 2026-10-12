@@ -1,6 +1,5 @@
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'fs';
-import * as path from 'path';
 import { runDir, type StepRecord } from './fixState';
+import { loadJson, saveJson } from './jsonStore';
 import type { RefactorTarget } from './language';
 import { git } from './worktree';
 
@@ -55,20 +54,15 @@ export function remembered(cache: SettledCache | undefined, rules = SETTLED_RULE
 	};
 }
 
+const isCache = (value: unknown): value is SettledCache => !!value && typeof value === 'object'
+	&& typeof (value as SettledCache).rules === 'number' && !!(value as SettledCache).files && typeof (value as SettledCache).files === 'object';
+
 export function saveSettled(storageDir: string, root: string, cache: SettledCache): void {
-	const dir = runDir(storageDir, root);
-	mkdirSync(dir, { recursive: true });
-	writeFileSync(path.join(dir, `${FILE}.tmp`), JSON.stringify(cache));
-	renameSync(path.join(dir, `${FILE}.tmp`), path.join(dir, FILE));
+	saveJson(runDir(storageDir, root), FILE, cache);
 }
 
 export function loadSettled(storageDir: string, root: string): SettledCache | undefined {
-	try {
-		const cache = JSON.parse(readFileSync(path.join(runDir(storageDir, root), FILE), 'utf8')) as SettledCache;
-		return typeof cache.rules === 'number' && cache.files && typeof cache.files === 'object' ? cache : undefined;
-	} catch {
-		return undefined;
-	}
+	return loadJson(runDir(storageDir, root), FILE, isCache);
 }
 
 /** When a run closes: records its lasting split outcomes, with blob ids read in its worktree. Never fails the close. */

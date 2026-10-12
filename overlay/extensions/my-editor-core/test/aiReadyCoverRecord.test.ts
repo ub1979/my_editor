@@ -16,18 +16,24 @@ test('coverage is kept by file and blob and read back per project', () => {
 	saveCoverage(storage, '/p/shop', cache);
 	assert.deepEqual(loadCoverage(storage, '/p/shop'), cache);
 	assert.equal(loadCoverage(storage, '/p/other'), undefined);
-	assert.equal(ranBefore(cache, 'solo.go', 's1'), true);
-	assert.equal(ranBefore(cache, 'plan.go', 'o1'), false);
+	assert.equal(ranBefore(cache, 'solo.go', 's1', 'StepVerification'), true);
+	assert.equal(ranBefore(cache, 'plan.go', 'o1', 'buildOnboardingPlanTx'), false);
 });
 
 test('a changed blob or another file is unknown, and a new run\'s entries replace older ones', () => {
 	const cache = coverageCache(new Map([['solo.go', ran], ['plan.go', notRan]]));
-	assert.equal(ranBefore(cache, 'solo.go', 's2'), undefined, 'the file changed since');
-	assert.equal(ranBefore(cache, 'solo.go', undefined), undefined);
-	assert.equal(ranBefore(cache, 'other.go', 's1'), undefined);
-	assert.equal(ranBefore(undefined, 'solo.go', 's1'), undefined);
+	assert.equal(ranBefore(cache, 'solo.go', 's2', 'StepVerification'), undefined, 'the file changed since');
+	assert.equal(ranBefore(cache, 'solo.go', undefined, 'StepVerification'), undefined);
+	assert.equal(ranBefore(cache, 'other.go', 's1', 'StepVerification'), undefined);
+	assert.equal(ranBefore(undefined, 'solo.go', 's1', 'StepVerification'), undefined);
 	const next = coverageCache(new Map([['plan.go', { ...notRan, blob: 'o2', ran: true }]]), cache);
 	assert.deepEqual(next.files, { 'solo.go': ran, 'plan.go': { blob: 'o2', function: 'buildOnboardingPlanTx', ran: true } });
-	assert.equal(ranBefore(next, 'plan.go', 'o1'), undefined);
-	assert.equal(ranBefore(next, 'plan.go', 'o2'), true);
+	assert.equal(ranBefore(next, 'plan.go', 'o1', 'buildOnboardingPlanTx'), undefined);
+	assert.equal(ranBefore(next, 'plan.go', 'o2', 'buildOnboardingPlanTx'), true);
+});
+
+test('coverage of another function in the same content is unknown for this offer', () => {
+	const cache = coverageCache(new Map([['solo.go', ran]]));
+	assert.equal(ranBefore(cache, 'solo.go', 's1', 'OtherBig'), undefined);
+	assert.equal(ranBefore(cache, 'solo.go', 's1', undefined), undefined);
 });

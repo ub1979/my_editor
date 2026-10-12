@@ -16,7 +16,7 @@ export function refactorUnticked(offers: readonly FixChoice[], blobs: ReadonlyMa
 		const name = offer.target?.name ?? offer.file;
 		const reason = blocked.get(offer.file)
 			?? (earlier !== undefined ? `an earlier run could not refactor it: ${earlier}` : undefined)
-			?? (ranBefore(coverage, offer.file, blob) ? undefined : `no test here runs \`${name}\` yet; build, vet and the extract check still apply`);
+			?? (ranBefore(coverage, offer.file, blob, offer.target?.name) ? undefined : `no test here runs \`${name}\` yet; build, vet and the extract check still apply`);
 		if (reason) { unticked.set(offer.file, reason); }
 	}
 	return unticked;

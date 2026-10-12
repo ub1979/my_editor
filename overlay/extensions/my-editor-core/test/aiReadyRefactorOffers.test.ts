@@ -50,3 +50,8 @@ test('coverage measures only offers it could tick: not refused for this content,
 		['store/plan.go', 'store/step.go'], 'a refusal of older content no longer holds');
 	assert.deepEqual(measurable([{ file: 'a.go', kind: 'split', lines: 500 }], BLOBS, undefined, new Map()), []);
 });
+
+test('coverage recorded for another function of the same content does not tick the offer', () => {
+	const coverage: CoverageCache = { files: { 'store/plan.go': { blob: 'p1', function: 'otherFunc', ran: true } } };
+	assert.equal(refactorUnticked(OFFERS, BLOBS, coverage, undefined, new Map()).get('store/plan.go'), NO_TEST('buildPlan'));
+});

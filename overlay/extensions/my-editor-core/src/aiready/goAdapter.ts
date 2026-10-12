@@ -13,8 +13,6 @@ import type { LanguageAdapter, LanguageInfo } from './language';
 import { declarationProblems } from './moveCheck';
 import { findTool, runTool } from './projectCommands';
 
-export { goPackage };
-
 /** The Go tools a run needs, found and built once. */
 export interface GoTools {
 	readonly go: string;

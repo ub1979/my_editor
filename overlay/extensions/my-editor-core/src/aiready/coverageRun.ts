@@ -8,7 +8,6 @@ import type { CheckCommand, RefactorHooks } from './language';
 
 /** One coverage command per unit with a refactor offer, and the offers it measures. */
 export interface CoverageCommand {
-	readonly unit: string;
 	readonly files: readonly string[];
 	readonly command: CheckCommand;
 	/** Where the command writes its profile, relative to the worktree. */
@@ -22,7 +21,7 @@ export function coverageCommands(offers: readonly FixChoice[], hooks: Pick<Refac
 		const unit = unitOf(offer.file);
 		units.set(unit, [...(units.get(unit) ?? []), offer.file]);
 	}
-	return [...units].map(([unit, files], index) => ({ unit, files, ...hooks.coverage(files[0], index + 1) }));
+	return [...units.values()].map((files, index) => ({ files, ...hooks.coverage(files[0], index + 1) }));
 }
 
 /** What the coverage pass needs from the run. */

@@ -24,11 +24,12 @@ const HOOKS: Pick<RefactorHooks, 'coverage' | 'ran'> = {
 
 test('one coverage command per package with a refactor offer', () => {
 	const commands = coverageCommands([...OFFERS, { file: 'internal/store/x.go', kind: 'split', lines: 500 }], HOOKS);
-	assert.deepEqual(commands.map(c => [c.unit, c.files, c.command.command, c.profile]), [
-		['./internal/store', ['internal/store/plan.go', 'internal/store/step.go'], 'go test -coverprofile=.cover-1.out ./internal/store', '.cover-1.out'],
-		['./cmd/x', ['cmd/x/main.go'], 'go test -coverprofile=.cover-2.out ./cmd/x', '.cover-2.out'],
+	assert.deepEqual(commands.map(c => [c.files, c.command.command, c.profile]), [
+		[['internal/store/plan.go', 'internal/store/step.go'], 'go test -coverprofile=.cover-1.out ./internal/store', '.cover-1.out'],
+		[['cmd/x/main.go'], 'go test -coverprofile=.cover-2.out ./cmd/x', '.cover-2.out'],
 	]);
 	assert.deepEqual(coverageCommands([], HOOKS), []);
+	assert.equal('unit' in commands[0], false, 'the files say what each command measures');
 });
 
 /** Deps on a temp worktree whose commands write `profiles[command]` (when given) and exit with `codes[command]` (0 by default). */

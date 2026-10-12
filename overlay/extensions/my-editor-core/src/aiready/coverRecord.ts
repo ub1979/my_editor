@@ -1,6 +1,5 @@
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'fs';
-import * as path from 'path';
 import { runDir } from './fixState';
+import { loadJson, saveJson } from './jsonStore';
 
 /**
  * Whether the package's tests ran a refactor offer's function, kept by the file's blob id. Checks are kept by tip, and
@@ -23,24 +22,19 @@ export function coverageCache(entries: ReadonlyMap<string, CoverageEntry>, previ
 	return { files: { ...previous?.files, ...Object.fromEntries(entries) } };
 }
 
-/** Whether the last coverage of this file, as it is now, ran its function; undefined when unknown. */
-export function ranBefore(cache: CoverageCache | undefined, file: string, blob: string | undefined): boolean | undefined {
+/** Whether the last coverage of this file, as it is now, ran this function; undefined when unknown. */
+export function ranBefore(cache: CoverageCache | undefined, file: string, blob: string | undefined, fn: string | undefined): boolean | undefined {
 	const known = cache?.files[file];
-	return known && blob && known.blob === blob ? known.ran : undefined;
+	return known && blob && known.blob === blob && known.function === fn ? known.ran : undefined;
 }
 
+const isCache = (value: unknown): value is CoverageCache =>
+	!!value && typeof value === 'object' && !!(value as CoverageCache).files && typeof (value as CoverageCache).files === 'object';
+
 export function saveCoverage(storageDir: string, root: string, cache: CoverageCache): void {
-	const dir = runDir(storageDir, root);
-	mkdirSync(dir, { recursive: true });
-	writeFileSync(path.join(dir, `${FILE}.tmp`), JSON.stringify(cache));
-	renameSync(path.join(dir, `${FILE}.tmp`), path.join(dir, FILE));
+	saveJson(runDir(storageDir, root), FILE, cache);
 }
 
 export function loadCoverage(storageDir: string, root: string): CoverageCache | undefined {
-	try {
-		const cache = JSON.parse(readFileSync(path.join(runDir(storageDir, root), FILE), 'utf8')) as CoverageCache;
-		return cache.files && typeof cache.files === 'object' ? cache : undefined;
-	} catch {
-		return undefined;
-	}
+	return loadJson(runDir(storageDir, root), FILE, isCache);
 }

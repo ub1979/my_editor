@@ -1,6 +1,5 @@
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'fs';
-import * as path from 'path';
 import { runDir, type StepRecord } from './fixState';
+import { loadJson, saveJson } from './jsonStore';
 import { git } from './worktree';
 
 /** A refactor a run refused, kept by the file's blob id so the picker can say why while the file is unchanged. */
@@ -33,20 +32,15 @@ export function refusedBefore(cache: RefusedCache | undefined, file: string, blo
 	return known && blob && known.blob === blob ? known.reason : undefined;
 }
 
+const isCache = (value: unknown): value is RefusedCache =>
+	!!value && typeof value === 'object' && !!(value as RefusedCache).files && typeof (value as RefusedCache).files === 'object';
+
 export function saveRefused(storageDir: string, root: string, cache: RefusedCache): void {
-	const dir = runDir(storageDir, root);
-	mkdirSync(dir, { recursive: true });
-	writeFileSync(path.join(dir, `${FILE}.tmp`), JSON.stringify(cache));
-	renameSync(path.join(dir, `${FILE}.tmp`), path.join(dir, FILE));
+	saveJson(runDir(storageDir, root), FILE, cache);
 }
 
 export function loadRefused(storageDir: string, root: string): RefusedCache | undefined {
-	try {
-		const cache = JSON.parse(readFileSync(path.join(runDir(storageDir, root), FILE), 'utf8')) as RefusedCache;
-		return cache.files && typeof cache.files === 'object' ? cache : undefined;
-	} catch {
-		return undefined;
-	}
+	return loadJson(runDir(storageDir, root), FILE, isCache);
 }
 
 /** When a run closes: its refused refactors, blob ids read in its worktree. Never fails the close. */
