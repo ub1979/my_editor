@@ -1,7 +1,7 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
 import type { CoverageCache } from '../src/aiready/coverRecord';
-import { countLeft } from '../src/aiready/fixCount';
+import { countLeft, isFixLeft } from '../src/aiready/fixCount';
 import type { FixChoice } from '../src/aiready/fixState';
 import type { CheckCache } from '../src/aiready/fixUnverifiable';
 import type { LanguageAdapter, RefactorHooks } from '../src/aiready/language';
@@ -34,4 +34,10 @@ test('the dialer\'s case: both offers untested, so a click would refactor nothin
 	assert.deepEqual(count, { left: 0, offers: 0, untested: 2, unbuildable: 0, refactor: 0, refactors: true });
 	const plain = { ...local, refactor: undefined, fixes: ['split', 'tests'] } as unknown as LanguageAdapter;
 	assert.equal(countLeft({ local: plain, choices: [], unsplittable: [], blobs: new Map() }, {}).refactors, false);
+});
+
+test('a count saved by an older version is not trusted, so the card counts again', () => {
+	assert.equal(isFixLeft({ left: 0, offers: 2, refactor: 0, unbuildable: 0 }), false, 'offers then counted untested refactors');
+	assert.equal(isFixLeft(undefined), false);
+	assert.equal(isFixLeft({ left: 0, offers: 0, untested: 2, refactor: 0, unbuildable: 0, refactors: true }), true);
 });

@@ -9,15 +9,22 @@ export interface FixLeft {
 	/** Splits a run would start with ticked. */
 	readonly left: number;
 	/** Long functions a run would start with ticked: the last coverage of their content shows tests running them. */
-	readonly offers?: number;
+	readonly offers: number;
 	/** Long functions offered unticked because no test is known to run them; the user may tick them in the picker. */
-	readonly untested?: number;
+	readonly untested: number;
 	/** Files still over the limit a split can't help and no refactor is offered for (or one was refused for their content). */
 	readonly refactor: number;
 	/** Files over the limit in packages whose build already failed here. */
 	readonly unbuildable: number;
 	/** Whether the language offers refactors at all. */
-	readonly refactors?: boolean;
+	readonly refactors: boolean;
+}
+
+/** Whether a saved count has this version's shape; an older one (offers counted untested refactors) is counted again. */
+export function isFixLeft(value: unknown): value is FixLeft {
+	const count = value as FixLeft | undefined;
+	return !!count && typeof count === 'object' && typeof count.left === 'number' && typeof count.unbuildable === 'number'
+		&& typeof count.offers === 'number' && typeof count.untested === 'number' && typeof count.refactors === 'boolean';
 }
 
 /** The records a count reads: the checks by tip, the coverage and the refused refactors by content. */

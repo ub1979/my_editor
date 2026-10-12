@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { loadCoverage } from './coverRecord';
 import { findCandidates } from './fixCandidates';
-import { countLeft, type FixLeft } from './fixCount';
+import { countLeft, type FixLeft, isFixLeft } from './fixCount';
 import { loadSettled, remembered } from './fixSettled';
 import { loadChecks } from './fixUnverifiable';
 import { adapterFor } from './languages';
@@ -12,11 +12,10 @@ export type { FixLeft };
 
 const key = (root: string) => `myEditor.fixLeft:${root}`;
 
-/** The cached count for this project; undefined when never computed (or saved by an older version in another shape). */
+/** The cached count for this project; undefined when never computed or saved by an older version in another shape (then it is counted again). */
 export function cachedLeft(context: vscode.ExtensionContext, root: string): FixLeft | undefined {
 	const saved = context.workspaceState.get<unknown>(key(root));
-	const count = saved as FixLeft | undefined;
-	return count && typeof count === 'object' && typeof count.left === 'number' && typeof count.unbuildable === 'number' ? count : undefined;
+	return isFixLeft(saved) ? saved : undefined;
 }
 
 /** Whether the `ai_fix` branch exists. */
