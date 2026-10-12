@@ -184,6 +184,11 @@ export interface LanguageAdapter {
 	readonly codeFence?: string;
 	/** Parse one file, with each declaration's movability and the file's skip reason. */
 	parse(file: string): Promise<FileInfo>;
+	/**
+	 * Parse a file's content as another branch has it, for a file the user's folder holds differently. Only for languages
+	 * whose parse needs nothing but the file itself (Go); without it such a file waits for the run's working copy.
+	 */
+	parseText?(file: string, text: string): Promise<FileInfo>;
 	/** The fix kinds it offers; split and tests when absent. */
 	readonly fixes?: readonly FixKind[];
 	/** The language's mechanical refactor, when it has one. */

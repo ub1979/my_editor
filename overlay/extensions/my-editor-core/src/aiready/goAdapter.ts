@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync } from 'fs';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { buildGoHelper, GO_ENV, GO_READ_ENV, goFileInfo, goPackage } from './goAst';
@@ -108,6 +108,15 @@ export function createGoAdapter(root: string, tools: GoTools, tracked: readonly 
 		async parse(file) {
 			const ast = await goFileInfo(tools.helper, path.join(root, file));
 			return goFileInfoView(file, ast, await packageNames(file), goSkipReason(file, ast, moduleFacts(), tools.platforms));
+		},
+		async parseText(file, text) {
+			const dir = mkdtempSync(path.join(os.tmpdir(), 'my-editor-goparse-'));
+			try {
+				const copy = path.join(dir, path.posix.basename(file));
+				writeFileSync(copy, text);
+				const ast = await goFileInfo(tools.helper, copy);
+				return goFileInfoView(file, ast, await packageNames(file), goSkipReason(file, ast, moduleFacts(), tools.platforms));
+			} finally { rmSync(dir, { recursive: true, force: true }); }
 		},
 		fileNameProblems: name => goFileNameProblems(name, tools.platforms),
 		splitHeader: goSplitHeader,

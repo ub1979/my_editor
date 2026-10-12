@@ -161,3 +161,30 @@ test('a changed file where nothing may move is ticked once, then never again, ru
 	}
 	rmSync(root, { recursive: true, force: true });
 });
+
+test('a language that parses text checks changed files from the branch: no blind ticks, and their refactors are offered at once', async () => {
+	const { root, git } = repository();
+	git('checkout', '--quiet', '-b', 'ai_fix');
+	writeFileSync(path.join(root, 'big_test.go'), lines(900));
+	writeFileSync(path.join(root, 'solo.go'), lines(431));
+	git('add', '.');
+	git('commit', '--quiet', '-m', 'the branch');
+	git('checkout', '--quiet', 'main');
+	const fromText: string[] = [];
+	const adapter = (dir: string): LanguageAdapter => ({
+		...refactoring([])(dir),
+		parseText: async (file: string, text: string): Promise<FileInfo> => {
+			fromText.push(`${file} ${text.split('\n').length - 1}`);
+			const declarations = file === 'solo.go' ? [decl(0, 425)] : [decl(0, 200), decl(1, 200), decl(2, 50)];
+			return { path: file, declarations, frame: [], imports: [], ...(file.endsWith('_test.go') ? { skip: 'test files are not split' } : {}) };
+		},
+	}) as LanguageAdapter;
+	const older: Remembered = (file, blob) => (file === 'solo.go' ? { blob: blob! } : undefined);
+	const found = await findCandidates(root, adapter, () => false, older);
+	assert.deepEqual(fromText.sort(), ['big_test.go 900', 'solo.go 431'], 'read from ai_fix, not the folder');
+	assert.equal(found?.skipped.get('big_test.go'), 'test files are not split');
+	assert.equal(found?.choices.some(c => c.file === 'big_test.go'), false);
+	assert.deepEqual(found?.choices.find(c => c.file === 'solo.go'), { file: 'solo.go', kind: 'refactor', lines: 431, target: { name: 'f0', lines: 425 } });
+	assert.deepEqual(found?.unparsed, []);
+	rmSync(root, { recursive: true, force: true });
+});

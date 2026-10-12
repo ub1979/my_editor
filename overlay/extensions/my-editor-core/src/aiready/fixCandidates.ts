@@ -22,7 +22,7 @@ export interface Candidates {
 	 * and listed in the change note.
 	 */
 	readonly unsplittable: FixChoice[];
-	/** Offered splits of files new or changed on the branch, which only its working copy can parse. */
+	/** Offered splits of files new or changed on the branch that only its working copy can parse (no `parseText`). */
 	readonly unparsed: FixChoice[];
 	/** Blob ids of the refactor offers' files at the tip, for the records kept by content. */
 	readonly blobs: ReadonlyMap<string, string>;
@@ -53,6 +53,7 @@ export async function findCandidates(root: string, factory: AdapterFactory, canc
 	const skipped = new Map<string, string>();
 	const narrowed = new Map<string, string>();
 	const unsplittable = new Set<string>();
+	const parsedChanged = new Set<string>();
 	const refactor = local.refactor && offers('refactor') ? local.refactor : undefined;
 	const refactors: FixChoice[] = [];
 	const blobs = new Map<string, string>();
@@ -70,11 +71,13 @@ export async function findCandidates(root: string, factory: AdapterFactory, canc
 			if (refactor && settled.big) { offer(file, settled.big, blob); }
 		}
 		if (settled && (settled.skip || settled.big || !refactor)) { continue; }
-		// Only the run's working copy can parse a changed file; a record without a big function (nothing may move, or one
-		// from before refactors) stays unsplittable. An unchanged one is parsed here once more, for a refactor to offer.
-		if (source.changed.has(file)) { continue; }
+		// A changed file is parsed from the branch's content when the language can (Go); otherwise only the run's working
+		// copy can, and a record without a big function (nothing may move, or one from before refactors) stays unsplittable.
+		const changed = source.changed.has(file);
+		if (changed && !local.parseText) { continue; }
 		try {
-			const info = await local.parse(file);
+			const info = changed ? await local.parseText!(file, await source.text(file)) : await local.parse(file);
+			if (changed) { parsedChanged.add(file); }
 			if (info.skip) { skipped.set(file, info.skip); continue; }
 			if (info.narrowed) { narrowed.set(file, info.narrowed); }
 			const big = needsRefactor(info, lines.get(file) ?? 0);
@@ -86,6 +89,6 @@ export async function findCandidates(root: string, factory: AdapterFactory, canc
 	const all = fixChoices(findings, stats, local.extensions, skipped, narrowed).filter(choice => offers(choice.kind));
 	const cannot = (choice: FixChoice) => choice.kind === 'split' && unsplittable.has(choice.file);
 	const choices = [...all.filter(c => !cannot(c)), ...refactors].sort(biggestFirst);
-	const unparsed = choices.filter(c => c.kind === 'split' && source.changed.has(c.file));
+	const unparsed = choices.filter(c => c.kind === 'split' && source.changed.has(c.file) && !parsedChanged.has(c.file));
 	return { local, tip: source.tip, choices, unsplittable: all.filter(cannot), unparsed, blobs, skipped, stats };
 }
