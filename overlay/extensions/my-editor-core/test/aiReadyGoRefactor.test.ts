@@ -33,8 +33,8 @@ test('the refactor target is the largest declaration over 400 lines, and only a 
 		{ name: 'StepVerification', receiver: 'Store', lines: 452 });
 	assert.deepEqual(hooks.target(info(goDecl('func', ['Big'], 420))), { name: 'Big', lines: 420 });
 	assert.equal(hooks.target(info(goDecl('func', ['small'], 30), goDecl('var', ['x', 'y'], 410))), '`x` is a var, not a function');
-	assert.equal(hooks.target(info(goDecl('func', ['f'], 400), goDecl('type', ['T'], 12))), 'no declaration is over 400 lines');
-	assert.equal(hooks.target(info()), 'no declaration is over 400 lines');
+	assert.deepEqual(hooks.target(info(goDecl('func', ['f'], 387), goDecl('type', ['T'], 12))), { name: 'f', lines: 387 }, 'too big for its file');
+	assert.equal(hooks.target(info()), 'it has no declarations');
 	assert.deepEqual(createGoAdapter('/p', FAKE, []).fixes, ['split', 'tests', 'refactor']);
 	assert.ok(createGoAdapter('/p', FAKE, []).refactor);
 	assert.deepEqual(createGoAdapter('/p', { ...FAKE, extract: undefined }, []).fixes, ['split', 'tests']);

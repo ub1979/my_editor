@@ -38,16 +38,24 @@ export function largestDeclaration(info: FileInfo): Declaration | undefined {
 }
 
 /**
- * A file a split can't help, before any model call: its largest declaration is over the limit by itself and at least
- * as much over it as everything else that could move out (the other movable declarations up to the limit). Moving
- * those out, or the big one, leaves one file over the limit as before. A big declaration with plenty around it splits.
+ * A file a split can't help, before any model call. Either its largest declaration fits under the limit only without
+ * the file's other lines (package, imports, blank lines), so whichever file a split leaves it in stays over; or it is
+ * over the limit by itself and at least as much over it as everything else that could move out (the other movable
+ * declarations up to the limit), so moving those out leaves one file over the limit as before. A big declaration with
+ * plenty around it splits.
  */
 export function needsRefactor(info: FileInfo, lines: number): StillOver | undefined {
 	const big = largestDeclaration(info);
-	if (lines <= MAX_SOURCE_LINES || !(big && big.lines > MAX_SOURCE_LINES)) { return undefined; }
+	if (lines <= MAX_SOURCE_LINES || !big) { return undefined; }
+	const name = () => big.names?.join(', ') || big.kind;
+	if (!(big.lines > MAX_SOURCE_LINES)) {
+		const around = Math.max(0, lines - info.declarations.reduce((sum, d) => sum + d.lines, 0));
+		if (!(big.lines + around > MAX_SOURCE_LINES)) { return undefined; }
+		return { file: info.path, lines, reason: `needs a real refactor: \`${name()}\` is ${big.lines} lines, too long for a file with its ${around} other lines` };
+	}
 	const rest = info.declarations.filter(d => d !== big && d.movable && d.lines <= MAX_SOURCE_LINES).reduce((sum, d) => sum + d.lines, 0);
 	if (big.lines - MAX_SOURCE_LINES < rest) { return undefined; }
-	return { file: info.path, lines, reason: `needs a real refactor: \`${big.names.join(', ') || big.kind}\` is ${big.lines} lines by itself` };
+	return { file: info.path, lines, reason: `needs a real refactor: \`${name()}\` is ${big.lines} lines by itself` };
 }
 
 /** One bullet per file, for the change note and the commit body. */

@@ -1,7 +1,6 @@
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { MAX_SOURCE_LINES } from '../quality/sourcePolicy';
 import type { GoTools } from './goAdapter';
 import { goFileInfo, goPackage } from './goAst';
 import { coverRan } from './goCover';
@@ -23,10 +22,10 @@ function lineAt(text: Buffer, offset: number): number {
 	return line;
 }
 
-/** The function a refactor would shorten: the file's largest declaration, when it is over 400 lines and a function. */
+/** The function a refactor would shorten: the file's largest declaration, when it is a function (screening decided a refactor is needed). */
 function goTarget(info: FileInfo): RefactorTarget | string {
 	const largest = [...(info as GoFileInfo).go.decls].sort((a, b) => b.lines - a.lines)[0];
-	if (!largest || largest.lines <= MAX_SOURCE_LINES) { return `no declaration is over ${MAX_SOURCE_LINES} lines`; }
+	if (!largest) { return 'it has no declarations'; }
 	if (largest.kind !== 'func' && largest.kind !== 'method') { return `\`${largest.names[0] ?? '_'}\` is a ${largest.kind}, not a function`; }
 	return { name: largest.names[0], ...(largest.receiver ? { receiver: largest.receiver } : {}), lines: largest.lines };
 }
