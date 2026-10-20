@@ -137,7 +137,7 @@ export function checkSummary(results: readonly CheckResult[], flaky: readonly st
 const ERROR_LINE = /error|undefined|cannot/i;
 
 /** The most telling line of a failed run: the first error-looking line of the output in its original order, else the first line that is not a `#` header. */
-function errorLine(run: CheckResult): string {
+export function errorLine(run: CheckResult): string {
 	const lines = run.tail.split('\n').map(line => line.trim()).filter(Boolean);
 	const line = lines.find(l => ERROR_LINE.test(l)) ?? lines.find(l => !l.startsWith('#')) ?? run.failures.find(l => !l.startsWith('#')) ?? 'no output';
 	return line.length > 200 ? `${line.slice(0, 199)}…` : line;

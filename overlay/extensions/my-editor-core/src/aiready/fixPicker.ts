@@ -89,10 +89,21 @@ export async function pickFixes(choices: readonly FixChoice[], show: ShowPicker,
 	});
 	const picked = await show(grouped(items), {
 		title: 'Fix on a local branch',
-		placeHolder: 'Each fix is checked and committed alone',
+		placeHolder: placeHolder(items, blocked),
 		matchOnDescription: true,
 	});
 	return picked?.filter(isPickItem).map(item => item.choice);
+}
+
+/** The list's top line: why rows are unticked when that is not obvious, else how fixes are done. */
+function placeHolder(items: readonly PickItem[], blocked: ReadonlyMap<string, string>): string {
+	// Add-tests rows are never ticked, so only the splits and refactors a failing build left unticked are counted.
+	const stuck = items.filter(item => item.choice.kind !== 'tests' && blocked.has(item.choice.file)).length;
+	if (stuck) {
+		return `${stuck} left unticked: their packages didn't build here last time. Fixed the build? Tick them to check again.`;
+	}
+	if (!items.some(item => item.picked)) { return 'Nothing is ticked yet: tick the fixes you want (tests are never ticked for you).'; }
+	return 'Each fix is checked and committed alone';
 }
 
 /** The never-split files for the run state, each with its size so the change note can list only the long ones. */

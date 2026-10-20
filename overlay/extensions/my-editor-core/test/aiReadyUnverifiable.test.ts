@@ -83,3 +83,31 @@ test('refactors come first under their own heading, and the search matches the r
 	await pickFixes([split('internal/store/b.go')], async items => { plain = items.map(item => item.label); return undefined; });
 	assert.deepEqual(plain, ['internal/store/b.go'], 'no headings without refactors');
 });
+
+test('the cache keeps why a check failed, says it in the reason, and forgets it once the check passes', () => {
+	const header = '# github.com/acme/dialer/internal/vad';
+	const missing = "silero_engine.c:6:10: fatal error: 'onnxruntime_c_api.h' file not found";
+	const failed = (command: string) => ({ ...run(command, 1), tail: `${header}\n${missing}\n` });
+	const engine = 'go build -o /dev/null ./internal/engine';
+	const vet = 'go vet ./internal/engine';
+	const cache = checkCache('tip1', { ...baseline, [engine]: [failed(engine), failed(engine)] as const, [vet]: [failed(vet), failed(vet)] as const });
+	assert.equal(cache.errors?.[engine], missing);
+	assert.deepEqual([...blockedFiles([split('internal/engine/a.go')], goChecks, cache, 'tip1').values()],
+		[`can't be checked here: ./internal/engine build already fails (${missing})`]);
+	const fixed = checkCache('tip2', { [engine]: twice(engine, 0) }, cache);
+	assert.equal(fixed.errors?.[engine], undefined);
+	assert.equal(fixed.errors?.[vet], missing, 'a check this run did not recheck keeps its error');
+	assert.equal(cache.errors?.['go build ./...'], undefined, 'a failure with no output records no error');
+});
+
+test('the picker top line says why rows are unticked, or that nothing is ticked yet', async () => {
+	let shown = '';
+	const show = async (_: unknown, options: PickOptions) => { shown = options.placeHolder; return undefined; };
+	const blocked = new Map([['internal/engine/a.go', "can't be checked here: ./internal/engine build already fails"]]);
+	await pickFixes([split('internal/engine/a.go'), { file: 'internal/engine/a.go', kind: 'tests', lines: 500 }, split('internal/store/b.go')], show, blocked);
+	assert.equal(shown, "1 left unticked: their packages didn't build here last time. Fixed the build? Tick them to check again.");
+	await pickFixes([{ file: 'c.go', kind: 'tests', lines: 300 }], show);
+	assert.equal(shown, 'Nothing is ticked yet: tick the fixes you want (tests are never ticked for you).');
+	await pickFixes([split('internal/store/b.go')], show);
+	assert.equal(shown, 'Each fix is checked and committed alone');
+});

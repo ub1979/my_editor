@@ -2,6 +2,11 @@
 
 my_editor uses the version in `overlay/extensions/my-editor-core/package.json` as its own release number. The Home page displays that version. The underlying editor shell keeps its upstream version independently.
 
+## 0.0.19 alpha — 2026-10-20
+
+- The fix list says why fixes are left unticked. When a package didn't build here last time, the top line reads "N left unticked: their packages didn't build here last time. Fixed the build? Tick them to check again.", and each row names the build error (say, a missing C header). When only add-tests rows are offered, it says nothing is ticked yet and that tests are never ticked for you.
+- The Project card adds that files in packages that don't build can be ticked again once they build.
+
 ## 0.0.18 alpha — 2026-10-12
 
 - Push to GitHub from my_editor: a **Push…** button on the Project view's Git card, and under Pair's reply when you ask Pair to push. You pick the remote and the branch name there, see exactly which commit goes where and the git command, and confirm; it pushes with your own git login and never forces. A new branch pushed under its own name then follows its GitHub copy, so update notices work.

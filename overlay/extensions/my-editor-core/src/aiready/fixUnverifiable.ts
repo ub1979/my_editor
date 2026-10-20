@@ -1,6 +1,6 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'fs';
 import * as path from 'path';
-import type { CheckResult } from './baseline';
+import { type CheckResult, errorLine } from './baseline';
 import { fixTip } from './branchTip';
 import { unitOf } from './fixScreen';
 import { type FixChoice, runDir } from './fixState';
@@ -14,6 +14,8 @@ export interface CheckCache {
 	readonly tip: string;
 	/** Each recorded command, and whether both baseline runs passed. */
 	readonly passed: Readonly<Record<string, boolean>>;
+	/** For each recorded command that failed, its most telling error line, so the picker can say why. */
+	readonly errors?: Readonly<Record<string, string>>;
 }
 
 type Baseline = Readonly<Record<string, readonly [CheckResult, CheckResult]>>;
@@ -22,11 +24,17 @@ const FILE = 'checks.json';
 
 /**
  * The cache after a run that left `tip`: its baseline over the earlier record, so a package this run did not recheck
- * keeps its entry, and one drops out only when a baseline shows it compiling.
+ * keeps its entry (and its error), and one drops out only when a baseline shows it compiling.
  */
 export function checkCache(tip: string, baseline: Baseline, previous?: CheckCache): CheckCache {
 	const now = Object.fromEntries(Object.entries(baseline).map(([command, runs]) => [command, runs.every(r => r.code === 0)]));
-	return { tip, passed: { ...previous?.passed, ...now } };
+	const errors: Record<string, string> = { ...previous?.errors };
+	for (const [command, runs] of Object.entries(baseline)) {
+		const failed = runs.find(r => r.code !== 0);
+		const line = failed && errorLine(failed);
+		if (line && line !== 'no output') { errors[command] = line; } else { delete errors[command]; }
+	}
+	return { tip, passed: { ...previous?.passed, ...now }, ...(Object.keys(errors).length ? { errors } : {}) };
 }
 
 export function saveChecks(storageDir: string, root: string, cache: CheckCache): void {
@@ -67,7 +75,8 @@ export function blockedFiles(choices: readonly FixChoice[], checks: (file: strin
 		try { commands = checks(file); } catch { continue; }
 		const recorded = commands.filter(check => check.verifies && check.command in cache.passed);
 		if (recorded.length && !recorded.some(check => cache.passed[check.command])) {
-			blocked.set(file, `can't be checked here: ${unitOf(file)} build already fails`);
+			const error = recorded.map(check => cache.errors?.[check.command]).find(Boolean);
+			blocked.set(file, `can't be checked here: ${unitOf(file)} build already fails${error ? ` (${error})` : ''}`);
 		}
 	}
 	return blocked;

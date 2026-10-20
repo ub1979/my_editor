@@ -36,7 +36,8 @@ const files = (n: number) => `${n} file${n === 1 ? '' : 's'}`;
 function stuckText(refactor: number, unbuildable: number): string {
 	const parts = [
 		...(refactor ? [`${files(refactor)} need${refactor === 1 ? 's' : ''} a real refactor this fixer can't do here`] : []),
-		...(unbuildable ? [`${files(unbuildable)} ${unbuildable === 1 ? 'is' : 'are'} in packages that don't build on this computer`] : []),
+		...(unbuildable ? [`${files(unbuildable)} ${unbuildable === 1 ? 'is' : 'are'} in packages that don't build on this computer `
+			+ '(once they build, tick them in the list to check again)'] : []),
 	];
 	return parts.length ? `${parts.join('; ')}.` : '';
 }
