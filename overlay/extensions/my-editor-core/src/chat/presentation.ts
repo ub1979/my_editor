@@ -1,5 +1,6 @@
 import MarkdownIt from 'markdown-it';
 import type { Proposal } from './proposals';
+import { replyChoices } from './replyChoices';
 
 export interface ProposalCard {
 	readonly id: string;
@@ -8,6 +9,7 @@ export interface ProposalCard {
 	readonly removed: number;
 	readonly isNewFile: boolean;
 	operation?: 'write' | 'delete';
+	planningDraft?: boolean;
 	state: Proposal['state'] | 'expired';
 }
 
@@ -42,11 +44,13 @@ export function labelFor(mode: string | undefined): string {
 
 /** Raw HTML is disabled so model replies cannot inject markup into the webview. */
 export function render(message: Message) {
+	const reply = replyChoices(message);
 	return {
 		id: message.id,
 		role: message.role,
 		characterId: message.characterId,
-		html: message.markdown ? markdown.render(message.markdown) : '',
+		html: reply.markdown ? markdown.render(reply.markdown) : '',
+		choices: reply.choices.map(choice => ({ label: choice.label, description: choice.description })),
 		label: message.role === 'user' && message.mode ? labelFor(message.mode) : undefined,
 		progress: message.progress,
 		error: message.error,

@@ -20,6 +20,7 @@ import { runChatTurn } from './replyRun';
 import { runReplyJob } from './replyJob';
 import { skillCards } from './skillCards';
 import { newChatId } from './viewUpdates';
+import { answerReplyChoice } from './replyChoices';
 
 const STATE_KEY = 'myEditor.chat.state';
 
@@ -243,6 +244,10 @@ export class ChatView implements vscode.WebviewViewProvider, ChatHandlers {
 			state, engine: this.engine, activeFile: () => this.activeFile.current, conversational: CONVERSATIONAL, save: () => this.save(),
 		};
 		await this.runReply(reply, (sink, token) => runChatTurn(turn, context, sink, token));
+	}
+
+	async chooseAnswer(messageId: string, index: number): Promise<void> {
+		await answerReplyChoice(this.state, messageId, index, !!this.running, text => this.send(text));
 	}
 
 	async runAction(messageId: string, index: number): Promise<void> {

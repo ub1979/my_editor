@@ -3,6 +3,10 @@
 Status of the requirements in [`plans/my_editor-plan-v2.md`](plans/my_editor-plan-v2.md). The original checklist is from 2026-09-23; the additions below are from 2026-09-25.
 ✅ done and verified in the app · 🟡 partly done · ⬜ not started.
 
+## 0.0.22 alpha source update — 31 October 2026
+
+Planning completion now checks document content and saved references. Summary drafts no longer complete a stage; finalization buttons prepare full proposals. Chat question options become clickable answer cards, and Flow & tree uses a matching illustrated avatar. Reinstall and live editor validation remain pending.
+
 ## 0.0.21 alpha source update — 31 October 2026
 
 Flow & tree has a dedicated role and creates missing planned files after Keep. Pair offers persistent chat text size controls. Settings, Keyboard Shortcuts, theme secondary text and chat controls have contrast fixes. Source checks are recorded in the commit; reinstall and final live UI verification remain pending.

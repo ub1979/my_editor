@@ -146,7 +146,7 @@ export class PairEngine {
 		}
 
 		// The requirements interview always opens the same way: the idea first, in the user's own words.
-		if (input.kickoff && mode.id === 'requirements') {
+		if (input.kickoff && mode.id === 'requirements' && !history.length && !await readProjectNote('specs/requirements.md')) {
 			const opener = 'What’s your idea? Tell me in your own words. A sentence or two is plenty.';
 			sink.text(opener);
 			return { mode: mode.id, reply: opener };
@@ -206,7 +206,10 @@ export class PairEngine {
 						? [evidence, plans, changes ? `Change record:\n${changes}` : '', file ? openFileExcerpt(file, prompt) : ''].filter(Boolean).join('\n\n')
 						: file ? [describeFile(file), neighbours].filter(Boolean).join('\n\n') : 'No file is selected.';
 		const request = input.kickoff
-			? 'Begin: say in one short sentence what you will help with, then ask your first question.'
+			? mode.writes === 'doc'
+				? 'Continue from the saved planning documents and our agreed decisions. Check completeness first. Finish the full '
+					+ 'document when enough is known; otherwise ask only the next essential question. Do not restart an existing interview.'
+				: 'Begin: say in one short sentence what you will help with, then ask your first question.'
 			: prompt || '(no extra instructions)';
 		const recentHistory = history.slice(-HISTORY_TURNS);
 		const turns: ChatTurn[] = [

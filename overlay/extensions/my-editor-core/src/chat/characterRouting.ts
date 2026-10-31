@@ -48,9 +48,9 @@ export function routeCharacter(text: string, mode: string | undefined, current: 
 export function projectCharacter(project: ProjectState): CharacterId {
 	if (!project.hasWorkspace) { return 'bamboo'; }
 	const stage = (id: string) => project.stages.find(item => item.id === id)?.state;
-	if (stage('requirements') === 'empty' && !project.memory.brain) { return 'soki'; }
-	if (stage('requirements') === 'done' && stage('architecture') === 'empty') { return 'lisko'; }
-	if (stage('architecture') === 'done' && stage('tree') === 'empty') { return 'flow'; }
+	if (stage('requirements') === 'started' || stage('requirements') === 'empty' && !project.memory.brain) { return 'soki'; }
+	if (stage('requirements') === 'done' && stage('architecture') !== 'done') { return 'lisko'; }
+	if (stage('architecture') === 'done' && stage('tree') !== 'done') { return 'flow'; }
 	if (stage('build') === 'started') { return 'ada'; }
 	if (stage('build') === 'done' && stage('qa') === 'empty') { return 'poppy'; }
 	return 'bamboo';

@@ -27,10 +27,12 @@ const FACES = {
 		+ '<g class="eyes" fill="#384f50"><circle cx="11" cy="17" r="1.4"/><circle cx="21" cy="17" r="1.4"/>'
 		+ '</g><path d="m14 22 2 1 2-1m-4 3q2 1 4 0" fill="none" stroke="#384f50" stroke-width="1.2" stroke-linecap="round"/>',
 	flow: '<circle cx="16" cy="16" r="16" fill="#e7f1fb"/>'
-		+ '<path d="M9 9v14h7M9 16h7" fill="none" stroke="#406c98" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
-		+ '<rect x="5" y="4" width="8" height="7" rx="2" fill="#406c98"/>'
-		+ '<rect x="16" y="12" width="10" height="8" rx="2" fill="#79a9cf"/>'
-		+ '<rect x="16" y="21" width="10" height="7" rx="2" fill="#79a9cf"/>',
+		+ '<circle cx="8" cy="9" r="5" fill="#9b785b"/><circle cx="24" cy="9" r="5" fill="#9b785b"/>'
+		+ '<circle cx="8" cy="9" r="2.5" fill="#e7c5a0"/><circle cx="24" cy="9" r="2.5" fill="#e7c5a0"/>'
+		+ '<ellipse cx="16" cy="18" rx="12" ry="11" fill="#b8916c"/><ellipse cx="16" cy="22" rx="8" ry="6" fill="#f7e8cf"/>'
+		+ '<g class="eyes" fill="#493f39"><circle cx="11" cy="16" r="1.5"/><circle cx="21" cy="16" r="1.5"/></g>'
+		+ '<ellipse cx="16" cy="20" rx="2.5" ry="1.7" fill="#493f39"/><rect x="13" y="23" width="6" height="5" rx="1" fill="#fffaf1"/>'
+		+ '<path d="M16 23v5m-5-6q5 4 10 0" fill="none" stroke="#493f39" stroke-width="1.1" stroke-linecap="round"/>',
 	diji: '<circle cx="16" cy="16" r="16" fill="#fff0df"/>'
 		+ '<path d="M3 19 6 9l4 3 3-7 3 6 4-6 2 7 4-3 3 10-5 7H8Z" fill="#b88e6e"/>'
 		+ '<ellipse cx="16" cy="20" rx="10" ry="8" fill="#f7e8cf"/><circle cx="11" cy="18" r="1.4" fill="#483d3b"/>'

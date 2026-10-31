@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import { planningProblems } from './planning';
+import { parseTree, TreeFile } from './stubs';
 
 /** One stage of the guided build, with a line of live status derived from the files that exist. */
 export interface Stage {
@@ -75,35 +77,43 @@ export async function readProjectStateAt(root: vscode.Uri, name: string): Promis
 
 	const frCount = requirements ? new Set(requirements.match(/\bN?FR-\d{3}\b/g) ?? []).size : 0;
 	const sectionCount = architecture ? (architecture.match(/^## /gm) ?? []).length : 0;
-	let files: { status?: string }[] = [];
+	let files: TreeFile[] = [];
 	try {
-		const parsed = tree ? JSON.parse(tree) : [];
-		files = Array.isArray(parsed) ? parsed : parsed.files ?? [];
+		files = tree ? parseTree(tree) : [];
 	} catch {
 		files = [];
 	}
 	const done = files.filter(f => f.status === 'done' || f.status === 'implemented').length;
 	const started = files.filter(f => f.status === 'in-progress').length;
+	const docs = { requirements, architecture, tree };
+	const requirementProblems = planningProblems('requirements', docs);
+	const architectureProblems = planningProblems('architecture', docs);
+	const treeProblems = planningProblems('tree', docs);
+	const treeReady = files.length > 0 && !treeProblems.length;
 
 	const stages: Stage[] = [
 		{
 			id: 'requirements', title: 'Requirements', file: '.my_editor/specs/requirements.md',
-			state: requirements === undefined ? 'empty' : frCount ? 'done' : 'started',
-			status: requirements === undefined ? 'Talk it through with the pair' : frCount ? plural(frCount, 'requirement') : 'Draft started',
+			state: requirements === undefined ? 'empty' : requirementProblems.length ? 'started' : 'done',
+			status: requirements === undefined ? 'Talk it through with the pair' : requirementProblems.length
+				? `Draft · ${requirementProblems[0].reason}` : plural(frCount, 'requirement'),
 		},
 		{
 			id: 'architecture', title: 'Architecture', file: '.my_editor/specs/architecture.md',
-			state: architecture === undefined ? 'empty' : sectionCount ? 'done' : 'started',
-			status: architecture === undefined ? 'Design the parts and patterns' : plural(sectionCount, 'section'),
+			state: architecture === undefined ? 'empty' : architectureProblems.length ? 'started' : 'done',
+			status: architecture === undefined ? 'Design the parts and patterns' : architectureProblems.length
+				? `Draft · ${architectureProblems[0].reason}` : plural(sectionCount, 'section'),
 		},
 		{
 			id: 'tree', title: 'Flow & tree', file: '.my_editor/specs/tree.json',
-			state: tree === undefined ? 'empty' : files.length ? 'done' : 'started',
-			status: tree === undefined ? 'Plan the files before writing them' : plural(files.length, 'planned file'),
+			state: tree === undefined ? 'empty' : treeReady ? 'done' : 'started',
+			status: tree === undefined ? 'Plan the files before writing them' : treeReady
+				? plural(files.length, 'planned file') : `Draft · ${treeProblems[0]?.reason ?? 'no planned files'}`,
 		},
 		{
-			id: 'build', title: 'Build', state: !files.length ? 'empty' : done === files.length ? 'done' : 'started',
-			status: files.length ? `${done} of ${files.length} done${started ? ` · ${started} in progress` : ''}` : 'File by file, at your pace',
+			id: 'build', title: 'Build', state: !treeReady ? 'empty' : done === files.length ? 'done' : 'started',
+			status: !treeReady && files.length ? 'Finalize the planning documents first' : files.length
+				? `${done} of ${files.length} done${started ? ` · ${started} in progress` : ''}` : 'File by file, at your pace',
 		},
 		{
 			id: 'qa', title: 'QA', state: qaReports ? 'done' : 'empty',

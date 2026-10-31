@@ -3,6 +3,7 @@ import * as path from 'path';
 import { checkedProjectPath } from '../chat/projectPath';
 import { serial } from '../util/serial';
 import { nextFile, parseTree, stubContent, TreeFile, validateTreePlan } from './stubs';
+import { assertPlanningReady } from './planningFiles';
 
 const TREE = '.my_editor/specs/tree.json';
 
@@ -35,6 +36,7 @@ async function exists(uri: vscode.Uri): Promise<boolean> {
 
 /** A kept tree is the user's approval to create every missing planned file. */
 export async function scaffoldKeptTree(root: vscode.Uri): Promise<{ created: number; skipped: string[] }> {
+	await assertPlanningReady(root, 'tree');
 	const treeUri = vscode.Uri.joinPath(root, TREE);
 	const files = validateTreePlan(new TextDecoder().decode(await vscode.workspace.fs.readFile(treeUri)));
 	const skipped: string[] = [];
@@ -63,6 +65,11 @@ export async function scaffoldKeptTree(root: vscode.Uri): Promise<{ created: num
 export async function scaffoldFromTree(): Promise<void> {
 	const tree = await load();
 	if (!tree) {
+		return;
+	}
+	try { await assertPlanningReady(tree.root, 'tree'); }
+	catch (error) {
+		void vscode.window.showWarningMessage(error instanceof Error ? error.message : String(error));
 		return;
 	}
 	const missing: TreeFile[] = [];

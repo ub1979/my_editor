@@ -61,6 +61,11 @@ test('documentFromReply ignores a question with one heading', () => {
 	assert.equal(documentFromReply('## Question\nWho is it for?', 'requirements.md'), undefined);
 });
 
+test('documentFromReply leaves an interview question or deferred summary in chat', () => {
+	assert.equal(documentFromReply('## Decisions\nUse a store.\n## Next\nWhen you say write it I will produce the full architecture.', 'architecture.md'), undefined);
+	assert.equal(documentFromReply('## Options\nA or B.\n## Next\nWhat should we do first?', 'architecture.md'), undefined);
+});
+
 test('documentFromReply extracts a JSON array for tree files', () => {
 	assert.equal(documentFromReply('Plan: [{"path": "a.ts"}] done', 'tree.json'), '[\n\t{\n\t\t"path": "a.ts"\n\t}\n]');
 });

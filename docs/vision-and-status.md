@@ -1,7 +1,7 @@
 # my_editor: vision, mission, and current status
 
 - **As of:** 31 October 2026
-- **Current version:** 0.0.21 alpha (Flow & tree agents, planned file creation, chat text size and UI contrast); source update, reinstall and final live checks pending
+- **Current version:** 0.0.22 alpha (planning finalization, clickable chat answers and consistent agent avatars); source update, reinstall and live checks pending
 - **Stage:** Working macOS alpha; still being validated on real projects
 
 ## Vision

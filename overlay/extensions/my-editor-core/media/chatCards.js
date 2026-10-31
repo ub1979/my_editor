@@ -95,7 +95,9 @@ function renderProposal(message, proposal) {
 	file.addEventListener('click', () => proposal.state === 'open' && vscode.postMessage({ type: 'review', id: proposal.id }));
 	const card = el('div', { class: 'proposal' }, [el('div', { class: 'head' }, [icon('file'), file, counts])]);
 	if (proposal.state === 'open') {
-		if (proposal.file.replaceAll('\\', '/') === '.my_editor/specs/tree.json') {
+		if (proposal.planningDraft) {
+			card.append(el('p', { class: 'proposal-note' }, ['Draft from existing code. Finalize the planning documents before creating planned files.']));
+		} else if (proposal.file.replaceAll('\\', '/') === '.my_editor/specs/tree.json') {
 			card.append(el('p', { class: 'proposal-note' }, ['Keep creates all missing planned files with their one-line roles. Existing files stay as they are.']));
 		}
 		const keep = el('button', { type: 'button', class: 'pill primary' }, [icon('check'), 'Keep']);
@@ -129,6 +131,23 @@ function renderMessage(message) {
 	}
 	if (message.progress && !message.done) {
 		body.append(el('div', { class: 'progress' }, [el('span', { class: 'spinner' }), message.progress]));
+	}
+	if (message.choices?.length) {
+		const row = el('div', { class: 'reply-choices', role: 'group', 'aria-label': 'Answer choices' });
+		message.choices.forEach((choice, index) => {
+			const button = el('button', { type: 'button', class: 'reply-choice' }, [
+				el('span', { class: 'choice-label' }, [choice.label]),
+				...(choice.description ? [el('span', { class: 'choice-description' }, [choice.description])] : []),
+			]);
+			button.disabled = state.running || state.messages.at(-1)?.id !== message.id;
+			button.addEventListener('click', () => {
+				if (state.running || state.messages.at(-1)?.id !== message.id) { return; }
+				for (const child of row.children) { child.disabled = true; }
+				vscode.postMessage({ type: 'answer', id: message.id, index });
+			});
+			row.append(button);
+		});
+		body.append(row);
 	}
 	for (const proposal of message.proposals) {
 		body.append(renderProposal(message, proposal));

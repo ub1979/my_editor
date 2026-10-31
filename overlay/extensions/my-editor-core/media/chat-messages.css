@@ -47,6 +47,18 @@
 
 .proposal-note { margin: 8px 0; color: var(--muted); }
 
+.reply-choices { display: grid; gap: 8px; margin: 12px 0; }
+.reply-choice {
+	display: grid; gap: 4px; padding: 11px 13px; border: 1px solid var(--accent);
+	border-radius: 9px; background: var(--surface); color: var(--text); text-align: left;
+	font: inherit; line-height: 1.5; white-space: normal; overflow-wrap: anywhere; cursor: pointer;
+}
+.reply-choice:hover:not(:disabled) { background: var(--accent-soft); }
+.reply-choice:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.reply-choice:disabled { opacity: .6; cursor: default; }
+.choice-label { font-weight: 600; }
+.choice-description { color: var(--muted); }
+
 .markdown > :first-child {
 	margin-top: 0;
 }

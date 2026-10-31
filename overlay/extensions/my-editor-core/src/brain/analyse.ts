@@ -271,7 +271,8 @@ export async function analyseProject(keys: ApiKeys, proposals: Proposals, sink: 
 	if (architecture) {
 		const doc = ensureSections(architecture, groups);
 		if (doc.trim() !== existing?.trim()) {
-			sink.proposal(await proposals.propose(architectureUri, doc.endsWith('\n') ? doc : `${doc}\n`));
+			sink.proposal(await proposals.propose(architectureUri,
+				`<!-- my_editor: draft -->\n${doc.replace(/^<!--\s*my_editor:\s*draft\s*-->\s*/, '').trimEnd()}\n`, 'write', true));
 		}
 		const overview = firstParagraph(doc);
 		if (overview) {
@@ -289,7 +290,7 @@ export async function analyseProject(keys: ApiKeys, proposals: Proposals, sink: 
 	const roles = Object.fromEntries(paths.map(path => [path, describeEntry(map.files[path]) || undefined]));
 	const tree = `${JSON.stringify(treeFromFiles(roles, previous.map(f => ({ ...f, section: f.section ?? '', status: f.status ?? 'planned' }))), null, 2)}\n`;
 	if (tree !== treeText) {
-		sink.proposal(await proposals.propose(treeUri, tree));
+		sink.proposal(await proposals.propose(treeUri, tree, 'write', true));
 	}
 
 	const summarised = Object.keys(summaries).length;

@@ -7,6 +7,7 @@ import { checkedProjectPath } from './projectPath';
 import { scaffoldKeptTree } from '../project/tree';
 import { validateTreePlan } from '../project/stubs';
 import * as path from 'path';
+import { validatePlanningFile } from '../project/planningFiles';
 
 export const PROPOSAL_SCHEME = 'my-editor-proposal';
 
@@ -22,6 +23,7 @@ export interface Proposal {
 	readonly added: number;
 	readonly removed: number;
 	operation?: 'write' | 'delete';
+	readonly planningDraft?: boolean;
 	state: 'open' | 'kept' | 'undone';
 }
 
@@ -40,7 +42,8 @@ export class Proposals implements vscode.Disposable {
 		this.registration = vscode.workspace.registerFileSystemProvider(PROPOSAL_SCHEME, this.fs, { isCaseSensitive: true });
 	}
 
-	async propose(target: vscode.Uri, proposed: string, operation: 'write' | 'delete' = 'write'): Promise<Proposal> {
+	async propose(target: vscode.Uri, proposed: string, operation: 'write' | 'delete' = 'write', planningDraft = false): Promise<Proposal> {
+		if (operation !== 'delete' && !planningDraft) { await validatePlanningFile(target, proposed); }
 		const policyError = sourcePolicyError(target.fsPath, proposed);
 		if (policyError) { throw new Error(policyError); }
 		const existing = this.findOpenFor(target);
@@ -66,7 +69,7 @@ export class Proposals implements vscode.Disposable {
 		const count = (a: string, b: string) => changedHunks(a, b).reduce((n, h) => n + h.end - h.start + 1, 0);
 		const proposal: Proposal = {
 			id, target, relativePath: vscode.workspace.asRelativePath(target, false), base, proposalUri, leftUri, isNewFile,
-			added: count(base, proposed), removed: count(proposed, base), operation, state: 'open',
+			added: count(base, proposed), removed: count(proposed, base), operation, planningDraft, state: 'open',
 		};
 		this.byId.set(id, proposal);
 		await this.show(id);
@@ -102,7 +105,14 @@ export class Proposals implements vscode.Disposable {
 		}
 		const text = await this.currentProposalText(proposal);
 		const deleting = proposal.operation === 'delete' && text.length === 0;
-		const keepingTree = !deleting && proposal.relativePath.replaceAll('\\', '/') === '.my_editor/specs/tree.json';
+		if (!deleting && !proposal.planningDraft) {
+			try { await validatePlanningFile(proposal.target, text); }
+			catch (error) {
+				void vscode.window.showWarningMessage(error instanceof Error ? error.message : String(error));
+				return false;
+			}
+		}
+		const keepingTree = !deleting && !proposal.planningDraft && proposal.relativePath.replaceAll('\\', '/') === '.my_editor/specs/tree.json';
 		if (keepingTree) {
 			try { validateTreePlan(text); }
 			catch (error) {

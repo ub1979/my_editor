@@ -7,17 +7,19 @@ import { join } from 'node:path';
 class Element {
 	children: unknown[] = [];
 	listeners = new Map<string, () => void>();
+	attributes = new Map<string, string>();
 	readonly style = { setProperty: (_name: string, _value: string) => undefined };
 	readonly classList = { toggle: () => undefined };
 	value = '';
+	disabled = false;
 	scrollHeight = 0;
 	scrollTop = 0;
 	clientHeight = 0;
-	setAttribute(): void {}
+	setAttribute(name: string, value: string): void { this.attributes.set(name, value); }
 	append(...children: unknown[]): void { this.children.push(...children); }
 	replaceChildren(...children: unknown[]): void { this.children = children; }
 	addEventListener(name: string, handler: () => void): void { this.listeners.set(name, handler); }
-	click(): void { this.listeners.get('click')?.(); }
+	click(): void { if (!this.disabled) { this.listeners.get('click')?.(); } }
 }
 
 test('split chat webview loads in order and renders a Codex model selection', () => {
@@ -65,4 +67,14 @@ test('split chat webview loads in order and renders a Codex model selection', ()
 	assert.equal(sent.at(-1)?.type, 'character');
 	runInContext('header.children[2].children[0].click()', context);
 	assert.equal(sent.at(-1)?.type, 'autoCharacter');
+
+	receive?.({ data: { type: 'messages', messages: [{ id: 'q1', role: 'assistant', html: '<p>Choose?</p>', done: true,
+		proposals: [], actions: [], choices: [{ label: 'Full architecture', description: 'Write all component interfaces.' }, { label: 'Decide for me' }] }] } });
+	assert.equal(runInContext("scroll.children[0].children[1].children.find(node => node.attributes?.get('class') === 'reply-choices').children.length", context), 2);
+	runInContext("scroll.children[0].children[1].children.find(node => node.attributes?.get('class') === 'reply-choices').children[0].click()", context);
+	assert.deepEqual(JSON.parse(JSON.stringify(sent.at(-1))), { type: 'answer', id: 'q1', index: 0 });
+	assert.equal(runInContext("scroll.children[0].children[1].children.find(node => node.attributes?.get('class') === 'reply-choices').children.every(button => button.disabled)", context), true);
+	const count = sent.length;
+	runInContext("scroll.children[0].children[1].children.find(node => node.attributes?.get('class') === 'reply-choices').children[0].click()", context);
+	assert.equal(sent.length, count);
 });

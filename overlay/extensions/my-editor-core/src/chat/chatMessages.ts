@@ -29,6 +29,7 @@ export interface ChatHandlers {
 	newChat(): Promise<void>;
 	stop(): void;
 	runAction(messageId: string, index: number): Promise<void>;
+	chooseAnswer(messageId: string, index: number): Promise<void>;
 }
 
 /** Routes one webview message; unknown types are ignored. */
@@ -64,6 +65,7 @@ export async function handleChatMessage(message: WebviewMessage, sender: vscode.
 			return;
 		case 'undo': return chat.proposals.undo(message.id ?? '');
 		case 'action': return chat.runAction(message.id ?? '', message.index ?? -1);
+		case 'answer': return chat.chooseAnswer(message.id ?? '', message.index ?? -1);
 		case 'link':
 			if (isWebLink(message.href)) {
 				await vscode.env.openExternal(vscode.Uri.parse(message.href));

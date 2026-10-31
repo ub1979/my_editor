@@ -27,7 +27,8 @@ export async function runReplyJob(
 		progress: message => { reply.progress = message; hooks.update(); },
 		proposal: proposal => {
 			reply.proposals.push({ id: proposal.id, file: proposal.relativePath, added: proposal.added,
-				removed: proposal.removed, isNewFile: proposal.isNewFile, state: proposal.state });
+				removed: proposal.removed, isNewFile: proposal.isNewFile, operation: proposal.operation,
+				planningDraft: proposal.planningDraft, state: proposal.state });
 			hooks.proposal?.(proposal);
 			hooks.update();
 		},

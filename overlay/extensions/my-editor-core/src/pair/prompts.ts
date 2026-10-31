@@ -9,8 +9,13 @@ export interface Mode {
 	readonly reads?: string[];
 }
 
-const WRITE_WHEN_ASKED = `Only when the user says to write it (for example "write it", "done", "go"), reply with one
-sentence and then the COMPLETE document in ONE fenced code block. Until then, do not output a code block.`;
+const WRITE_WHEN_ASKED = `When the user approves the plan, asks to finalize/write it, says done/go, or the essential
+decisions are settled, propose the COMPLETE document in ONE fenced code block with one sentence before it.
+Do not require a magic phrase or keep asking for approval after the user already gave it. "Decide for me" delegates
+the remaining choices: recommend defaults, record assumptions, and finish unless a critical fact is missing.
+During the interview ask only what is still needed. Never save a decisions summary, unanswered interview, placeholders,
+or a promise such as "when you say write it" as the finished document. Remove earlier draft markers when finalizing.
+Keep is the user's final save decision.`;
 
 const EDIT_FORMAT = `Reply with at most three short sentences saying what you changed and why, then ONE fenced code block
 containing the COMPLETE new content of the file — every line, unchanged lines included. Nothing after the block.`;
@@ -67,7 +72,9 @@ Interview rules, strictly:
 - Offer 2-4 short suggested answers only when choices genuinely help; open questions need none. Always accept
   "skip" or "decide for me".
 - Keep each message short: at most one sentence of reaction plus the question.
-If a requirements document exists, continue from it. ${WRITE_WHEN_ASKED} The document is Markdown: goal, users, functional requirements with IDs
+If a requirements document exists, first check whether it is complete or a draft. Finish drafts rather than restarting the interview.
+${WRITE_WHEN_ASKED} The document is Markdown with headings for Goal, Users, Functional requirements, Non-functional requirements,
+and Out of scope. Give functional requirements IDs
 FR-001, FR-002… each with MUST/SHOULD/COULD and acceptance criteria, non-functional requirements NFR-001…, and out of
 scope.`,
 	},
@@ -75,17 +82,23 @@ scope.`,
 		id: 'architecture', writes: 'doc', doc: '.my_editor/specs/architecture.md',
 		reads: ['.my_editor/specs/requirements.md', '.my_editor/specs/architecture.md'],
 		instruction: `Design the system with the user from the requirements. Propose the stack, components, data models,
-APIs and the design patterns that fit, one topic at a time, and let the user decide. Keep it as simple as the
-requirements allow. ${WRITE_WHEN_ASKED} The document is Markdown; every component gets a section heading with a stable
+APIs and the design patterns that fit, one topic at a time, and let the user decide. First check that the saved
+requirements are complete; if not, explain what is missing and offer to finalize requirements first. Keep it as simple as the
+requirements allow. ${WRITE_WHEN_ASKED} The document is Markdown with an overview, stack, main system flow, data models and APIs;
+every component gets a section heading with a stable
 anchor, like "## Auth service {#auth-service}", saying what it does, which requirement IDs it serves, and its
 interface. End with a short "Decisions" list: each decision, why, and the alternative rejected.`,
 	},
 	tree: {
 		id: 'tree', writes: 'doc', doc: '.my_editor/specs/tree.json',
-		reads: ['.my_editor/specs/architecture.md', '.my_editor/specs/tree.json'],
+		reads: ['.my_editor/specs/requirements.md', '.my_editor/specs/architecture.md', '.my_editor/specs/tree.json'],
 		instruction: `Plan the project's flow and files with the user from the architecture: explain the main flow,
 then show the proposed tree with one line per file saying its job. Include every file the plan needs, not just
-representative examples. Discuss and adjust. ${WRITE_WHEN_ASKED} The document is JSON: an array of objects
+representative examples. First check that requirements and architecture are complete saved documents, not summaries
+or promises to write them later. If not, explain that planning must be finalized first; do not call the tree buildable.
+Never guess requirement IDs or architecture anchors. Every section must exist and every requirement ID must be confirmed.
+Include the needed unit, adapter and contract tests; a fake contract test does not replace real-adapter coverage.
+Discuss and adjust. ${WRITE_WHEN_ASKED} The document is JSON: an array of objects
 {"path", "role", "requirements": ["FR-001"], "section": "auth-service", "status": "planned"}.
 The role is a concise one-line description that will become the new file's header comment when the user Keeps
 the tree proposal. Keeping tree.json creates all missing planned files as stubs; existing files are preserved.`,
@@ -147,5 +160,8 @@ Retrieve available project details yourself instead of asking the developer to r
 		conventions ? `Project conventions (always follow):\n${conventions}` : '',
 		brain ? `Project brain (short map of the project):\n${brain}` : '',
 		`Mode: ${mode.id}. ${mode.instruction}`,
+		'When a question has choices, put the question before a Markdown list of 2–4 answers. Start each bullet with a '
+			+ 'short bold label, followed by its trade-off. These answers become clickable buttons. Accept a typed answer too. '
+			+ 'Do not format ordinary findings as answer choices. For planning decisions include Decide for me when useful.',
 	].filter(Boolean).join('\n\n');
 }

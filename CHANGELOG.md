@@ -2,6 +2,14 @@
 
 my_editor uses the version in `overlay/extensions/my-editor-core/package.json` as its own release number. The Home page displays that version. The underlying editor shell keeps its upstream version independently.
 
+## 0.0.22 alpha — 2026-10-31
+
+- Planning resumes saved work and proposes a complete document once decisions are settled. It no longer waits for an exact "write it" phrase; Finalize buttons are available in chat.
+- Question options render as keyboard-accessible answer buttons, including their explanations. A choice sends its answer through the normal chat flow; typed answers remain available.
+- Completion checks identify draft summaries and missing requirement details. Architecture sections need stable anchors, requirement links and interfaces. Tree generation checks saved prerequisites and references before creating files; analysis drafts remain explicitly marked as drafts.
+- Flow & tree uses a beaver avatar in the same illustrated style as the other agents.
+- Source update; reinstall and live editor validation remain pending.
+
 ## 0.0.21 alpha — 2026-10-31
 
 - Flow & tree has its own named agent and diagram avatar. Selecting a planning skill chooses its agent, including when a different agent was pinned.

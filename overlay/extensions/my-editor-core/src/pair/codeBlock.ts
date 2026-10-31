@@ -62,5 +62,9 @@ export function documentFromReply(reply: string, target: string): string | undef
 	if (headings.length < 2) {
 		return undefined;
 	}
+	// Interview options and a promise to finish later are prose, not a document to save.
+	if (/\bwhen you say\b[^\n]*(?:write|full|complete)|\b(?:what should|which option|would you like)\b[^\n]*\?/i.test(reply)) {
+		return undefined;
+	}
 	return reply.slice(headings[0].index).trim();
 }
