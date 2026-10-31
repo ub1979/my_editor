@@ -75,7 +75,7 @@ export async function readProjectStateAt(root: vscode.Uri, name: string): Promis
 		count(root, '.my_editor/qa', '.md'),
 	]);
 
-	const frCount = requirements ? new Set(requirements.match(/\bN?FR-\d{3}\b/g) ?? []).size : 0;
+	const frCount = requirements ? new Set(requirements.match(/\bN?FR-\d{3,}\b/g) ?? []).size : 0;
 	const sectionCount = architecture ? (architecture.match(/^## /gm) ?? []).length : 0;
 	let files: TreeFile[] = [];
 	try {

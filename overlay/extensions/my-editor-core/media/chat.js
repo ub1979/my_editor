@@ -104,8 +104,10 @@ function renderCharacter() {
 	rail.append(choices);
 }
 
-function renderScroll() {
+
+function renderScroll(follow = false) {
 	const atBottom = scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight < 40;
+	const position = scroll.scrollTop;
 	scroll.replaceChildren();
 	if (!state.messages.length || showSkills) {
 		scroll.append(renderWelcome());
@@ -116,7 +118,7 @@ function renderScroll() {
 		}
 	}
 	// The skills start at the top; a conversation follows its newest message.
-	scroll.scrollTop = !state.messages.length || showSkills ? 0 : atBottom || !showSkills ? scroll.scrollHeight : scroll.scrollTop;
+	scroll.scrollTop = !state.messages.length || showSkills ? 0 : follow || atBottom ? scroll.scrollHeight : position;
 }
 
 function updateMessage(message) {

@@ -12,5 +12,6 @@ test('sectionAt finds the nearest anchored heading above the line', () => {
 test('requirementOn reads functional and non-functional IDs', () => {
 	assert.equal(requirementOn('- FR-003 Show streaks. MUST'), 'FR-003');
 	assert.equal(requirementOn('NFR-002: fast'), 'NFR-002');
+	assert.equal(requirementOn('FR-1000: another feature'), 'FR-1000');
 	assert.equal(requirementOn('no id here'), undefined);
 });

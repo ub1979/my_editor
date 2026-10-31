@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { isSensitiveFile } from '../records/sensitive';
 import type { ActiveFile } from '../chat/activeFile';
+import { sourceFingerprint } from './editSnapshot';
 
 const MAX_FILE_CHARS = 60_000;
 const EDITABLE_SCHEMES = new Set(['file', 'untitled']);
@@ -11,6 +12,7 @@ export interface FileContext {
 	readonly relativePath: string;
 	readonly languageId: string;
 	readonly text: string;
+	readonly fingerprint: string;
 	readonly selection: vscode.Selection | undefined;
 	readonly selectedText: string;
 	readonly diagnostics: string;
@@ -53,6 +55,7 @@ export async function currentFile(preferred?: ActiveFile, attached: readonly vsc
 		relativePath,
 		languageId: document.languageId,
 		text: fullText.slice(0, MAX_FILE_CHARS),
+		fingerprint: sourceFingerprint(fullText),
 		truncated: fullText.length > MAX_FILE_CHARS,
 		selection,
 		selectedText: selection ? document.getText(selection) : '',

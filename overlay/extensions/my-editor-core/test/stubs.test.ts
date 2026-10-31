@@ -5,6 +5,8 @@ import { nextFile, parseTree, stubContent, validateTreePlan } from '../src/proje
 test('parseTree accepts an array or an object with files', () => {
 	assert.equal(parseTree('[{"path":"a.ts"},{"role":"no path"}]').length, 1);
 	assert.equal(parseTree('{"files":[{"path":"a.ts"},{"path":"b.py"}]}').length, 2);
+	assert.equal(parseTree('[{"path":"a.ts","section":"#store"}]')[0].section, 'store');
+	assert.equal(parseTree('[{"path":"a.ts","requirements":false}]')[0].requirements, undefined);
 });
 
 test('a kept tree must be valid JSON with a path for every planned file', () => {

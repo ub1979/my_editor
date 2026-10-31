@@ -15,7 +15,7 @@ window.addEventListener('message', event => {
 			state.messages = data.messages;
 			state.offer = data.offer;
 			showSkills = false;
-			renderScroll();
+			renderScroll(true);
 			renderCharacter();
 			renderContext();
 			break;
@@ -26,7 +26,7 @@ window.addEventListener('message', event => {
 		case 'messages':
 			state.messages = data.messages;
 			showSkills = false;
-			renderScroll();
+			renderScroll(true);
 			break;
 		case 'message':
 			state.running = data.running;

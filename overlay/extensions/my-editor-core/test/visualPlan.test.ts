@@ -5,7 +5,7 @@ import { projectVisuals } from '../src/project/visualPlan';
 test('project visuals link architecture parts through the saved file map', () => {
 	const architecture = '# Dialer\n\nA calling service.\n\n## API {#internal-api}\n\nAccepts requests.\n\n## Store {#internal-store}\n\nPersists data.\n\n## Decisions\n\nKeep it simple.\n';
 	const tree = JSON.stringify([
-		{ path: 'internal/api/server.go', section: 'internal-api', status: 'done' },
+		{ path: 'internal/api/server.go', section: '#internal-api', status: 'done' },
 		{ path: 'internal/store/db.go', section: 'internal-store', status: 'in-progress' },
 	]);
 	const brain = JSON.stringify({ files: {
@@ -24,4 +24,6 @@ test('project visuals link architecture parts through the saved file map', () =>
 test('project visuals tolerate missing or unfinished specs', () => {
 	assert.deepEqual(projectVisuals('', '', '').parts, []);
 	assert.deepEqual(projectVisuals('## API {#api}\n\nHandles requests.', 'invalid JSON').files, []);
+	assert.deepEqual(projectVisuals('', '', 'null').parts, []);
+	assert.deepEqual(projectVisuals('', JSON.stringify([{ path: 'a.ts', section: 42, requirements: 'bad' }])).files[0].section, undefined);
 });

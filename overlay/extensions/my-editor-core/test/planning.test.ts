@@ -18,6 +18,7 @@ test('IDs and headings do not make a deferred requirements or architecture summa
 
 test('a component must carry its own requirement links and interface', () => {
 	assert.match(documentProblems('architecture', architecture.replace('Interface: saveDraft(text) and loadDraft(id).', 'Saves text.')).join(' '), /#composer/);
+	assert.match(documentProblems('architecture', architecture.replace('{#store}', '{#composer}')).join(' '), /anchors must be unique/);
 });
 
 test('a tree cannot invent missing sections or requirement IDs', () => {

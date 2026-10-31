@@ -98,3 +98,16 @@ test('a change-history request never asks the summarizer', async () => {
 	assert.deepEqual(run.state.memory, { brief: '' });
 	assert.equal(run.state.mode, undefined);
 });
+
+test('a cancelled reply cannot clear a newly selected mode', async () => {
+	const run = setup('feature', 'feature', async () => '');
+	let cancelled = false;
+	const context = { ...run.context, engine: { ...run.context.engine, run: async () => {
+		cancelled = true;
+		run.state.reset();
+		run.state.mode = 'feature';
+		return { mode: 'feature', reply: 'old response' };
+	} } };
+	await runChatTurn(run.turn('old request', []), context, sink([]), token(() => cancelled));
+	assert.equal(run.state.mode, 'feature');
+});

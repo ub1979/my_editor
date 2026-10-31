@@ -2,6 +2,15 @@
 
 my_editor uses the version in `overlay/extensions/my-editor-core/package.json` as its own release number. The Home page displays that version. The underlying editor shell keeps its upstream version independently.
 
+## 0.0.23 alpha — 2026-10-31
+
+- New Chat isolates cancelled replies; concurrent sends cannot start while chat persistence is pending. Project-stage refreshes respect an explicitly selected planning skill.
+- Chat refreshes preserve the reading position. Architecture links normalize leading `#` markers; malformed saved metadata no longer breaks maps, and duplicate component anchors are rejected.
+- Scaffold writes create files exclusively, recheck the plan after the picker, preserve tree metadata and update only changed statuses. Git metadata and dependency paths are skipped.
+- Generated source edits are rejected if the source changed while the model was answering. Provider stream errors, output limits and failed CLI exits prevent incomplete replies from becoming file proposals.
+- The theme generator now preserves the shipped contrast fixes. Regression coverage checks generated theme parity and key text/background contrast pairs.
+- Source audit: extension build and 682 tests passed, as did 53 Python helper tests and the Go extraction suite. Go tests use a writable cache. Reinstall and live UI/provider checks remain pending; see `docs/audits/2026-10-31.md`.
+
 ## 0.0.22 alpha — 2026-10-31
 
 - Planning resumes saved work and proposes a complete document once decisions are settled. It no longer waits for an exact "write it" phrase; Finalize buttons are available in chat.

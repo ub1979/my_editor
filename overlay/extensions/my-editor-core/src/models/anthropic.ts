@@ -31,7 +31,7 @@ export async function streamAnthropic(apiKey: string, request: StreamRequest): P
 		if (final.stop_reason === 'refusal') {
 			request.onText('\n\n_The model declined this request._');
 		} else if (final.stop_reason === 'max_tokens') {
-			request.onText('\n\n_Reply cut off at the output limit._');
+			throw new ProviderError('anthropic', 'Reply cut off at the output limit. Ask for a smaller change.');
 		}
 	} catch (err) {
 		if (request.token.isCancellationRequested) {

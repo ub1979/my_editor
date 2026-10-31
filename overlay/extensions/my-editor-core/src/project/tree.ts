@@ -1,20 +1,22 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
+import { promises as fs } from 'fs';
 import { checkedProjectPath } from '../chat/projectPath';
+import { safeRelativePath } from '../chat/agentProtocol';
 import { serial } from '../util/serial';
 import { nextFile, parseTree, stubContent, TreeFile, validateTreePlan } from './stubs';
 import { assertPlanningReady } from './planningFiles';
 
 const TREE = '.my_editor/specs/tree.json';
 
-async function load(): Promise<{ root: vscode.Uri; files: TreeFile[] } | undefined> {
+async function load(): Promise<{ root: vscode.Uri; files: TreeFile[]; text: string } | undefined> {
 	const root = vscode.workspace.workspaceFolders?.[0]?.uri;
 	if (!root) {
 		return undefined;
 	}
 	try {
 		const text = new TextDecoder().decode(await vscode.workspace.fs.readFile(vscode.Uri.joinPath(root, TREE)));
-		return { root, files: parseTree(text) };
+		return { root, files: parseTree(text), text };
 	} catch {
 		void vscode.window.showInformationMessage('No file tree yet. Plan it with the pair first: /tree in chat.');
 		return undefined;
@@ -22,7 +24,15 @@ async function load(): Promise<{ root: vscode.Uri; files: TreeFile[] } | undefin
 }
 
 async function save(root: vscode.Uri, files: TreeFile[]): Promise<void> {
-	await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(root, TREE), new TextEncoder().encode(JSON.stringify(files, null, '\t') + '\n'));
+	const uri = vscode.Uri.joinPath(root, TREE);
+	const raw = JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(uri)));
+	const entries = validateTreePlan(JSON.stringify(raw));
+	for (const file of files) {
+		const current = entries.find(entry => entry.path === file.path);
+		if (current) { current.status = file.status; }
+	}
+	const updated = Array.isArray(raw) ? entries : { ...raw, files: entries };
+	await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode(JSON.stringify(updated, null, '\t') + '\n'));
 }
 
 async function exists(uri: vscode.Uri): Promise<boolean> {
@@ -35,30 +45,43 @@ async function exists(uri: vscode.Uri): Promise<boolean> {
 }
 
 /** A kept tree is the user's approval to create every missing planned file. */
-export async function scaffoldKeptTree(root: vscode.Uri): Promise<{ created: number; skipped: string[] }> {
+export function scaffoldKeptTree(root: vscode.Uri): Promise<{ created: number; skipped: string[] }> {
+	return serial(() => createFiles(root));
+}
+
+/** Exclusive writes also preserve files created while the picker or another Keep was open. */
+async function createFiles(root: vscode.Uri, selected?: ReadonlySet<string>, expected?: string): Promise<{ created: number; skipped: string[] }> {
 	await assertPlanningReady(root, 'tree');
 	const treeUri = vscode.Uri.joinPath(root, TREE);
-	const files = validateTreePlan(new TextDecoder().decode(await vscode.workspace.fs.readFile(treeUri)));
+	const text = new TextDecoder().decode(await vscode.workspace.fs.readFile(treeUri));
+	if (expected !== undefined && text !== expected) { throw new Error('The file tree changed while the picker was open. Open it again to review the current plan.'); }
+	const files = validateTreePlan(text).filter(file => !selected || selected.has(file.path));
 	const skipped: string[] = [];
-	let created = 0;
+	const created: TreeFile[] = [];
 	const seen = new Set<string>();
 	for (const file of files) {
 		try {
+			if (!safeRelativePath(file.path)) { throw new Error('Use a project-relative path outside Git metadata and dependencies.'); }
 			const target = checkedProjectPath(root.fsPath, file.path, true);
 			if (seen.has(target)) { continue; }
 			seen.add(target);
 			const uri = vscode.Uri.file(target);
 			if (await exists(uri)) { continue; }
+			if (vscode.workspace.textDocuments?.some(document => document.uri.fsPath === target && document.isDirty)) {
+				throw new Error('This file has unsaved edits. Save it before creating planned files.');
+			}
 			await vscode.workspace.fs.createDirectory(vscode.Uri.file(path.dirname(target)));
-			await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode(stubContent(file)));
+			checkedProjectPath(root.fsPath, file.path, true);
+			await fs.writeFile(target, stubContent(file), { flag: 'wx' });
 			file.status = 'stub';
-			created++;
+			created.push(file);
 		} catch (error) {
+			if ((error as NodeJS.ErrnoException).code === 'EEXIST') { continue; }
 			skipped.push(`${file.path}: ${error instanceof Error ? error.message : String(error)}`);
 		}
 	}
-	if (created) { await serial(() => save(root, files)); }
-	return { created, skipped };
+	if (created.length) { await save(root, created); }
+	return { created: created.length, skipped };
 }
 
 /** Lets the user tick planned files, then creates each as a stub. Existing files are never touched. */
@@ -88,15 +111,13 @@ export async function scaffoldFromTree(): Promise<void> {
 	if (!picked?.length) {
 		return;
 	}
-	for (const { file } of picked) {
-		const target = checkedProjectPath(tree.root.fsPath, file.path, true);
-		await vscode.workspace.fs.createDirectory(vscode.Uri.file(path.dirname(target)));
-		await vscode.workspace.fs.writeFile(vscode.Uri.file(target), new TextEncoder().encode(stubContent(file)));
-		file.status = 'stub';
+	try {
+		const result = await serial(() => createFiles(tree.root, new Set(picked.map(item => item.file.path)), tree.text));
+		void vscode.window.showInformationMessage(`Created ${result.created} stub${result.created === 1 ? '' : 's'}. `
+			+ (result.skipped.length ? `Could not create: ${result.skipped.join('; ')}` : 'Open Build in the Project view to start file by file.'));
+	} catch (error) {
+		void vscode.window.showWarningMessage(error instanceof Error ? error.message : String(error));
 	}
-	await serial(() => save(tree.root, tree.files));
-	void vscode.window.showInformationMessage(
-		`Created ${picked.length} stub${picked.length === 1 ? '' : 's'}. Open Build in the Project view to start file by file.`);
 }
 
 /** Opens the next file to work on and turns the chat to the Next step skill. */
@@ -135,7 +156,7 @@ export async function toggleFileDone(): Promise<void> {
 		return;
 	}
 	file.status = file.status === 'done' ? 'in-progress' : 'done';
-	await serial(() => save(tree.root, tree.files));
+	await serial(() => save(tree.root, [file]));
 	void vscode.window.showInformationMessage(`${path}: ${file.status === 'done' ? 'done' : 'back in progress'}.`);
 }
 
@@ -157,7 +178,7 @@ export function trackProgress(document: vscode.TextDocument): Promise<void> {
 		const file = files.find(f => f.path === path);
 		if (file && (file.status === 'stub' || file.status === 'planned' || !file.status) && text.trim() !== stubContent(file).trim()) {
 			file.status = 'in-progress';
-			await save(root, files);
+			await save(root, [file]);
 		}
 	});
 }

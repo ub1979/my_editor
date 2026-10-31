@@ -58,6 +58,7 @@ export async function streamOllama(baseUrl: string, think: boolean, request: Str
 			if (chunk.error) {
 				throw new ProviderError('ollama', chunk.error);
 			}
+			if (chunk.done_reason === 'length') { throw new ProviderError('ollama', 'Reply cut off at the output limit. Ask for a smaller change.'); }
 			const text = chunk.message?.content;
 			if (typeof text === 'string' && text) {
 				request.onText(text);

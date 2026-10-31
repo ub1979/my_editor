@@ -29,6 +29,7 @@ export interface TurnContext {
 
 /** Folds older turns into the working brief, then asks the model with the recent turns. */
 export async function runChatTurn(turn: ChatTurn, context: TurnContext, sink: Sink, token: vscode.CancellationToken): Promise<void> {
+	if (token.isCancellationRequested) { return; }
 	const { state } = context;
 	if (!isDeterministic(turn.text, turn.mode)) {
 		const compacted = await compactMemory(turn.history, context, sink, token);
@@ -50,7 +51,7 @@ export async function runChatTurn(turn: ChatTurn, context: TurnContext, sink: Si
 		requestId: turn.reply.id,
 		chatArchive: turn.history.map(item => ({ role: item.role, text: item.text })),
 	}, live, sink, token);
-	if (endsMode(result.mode, state.mode, turn.mode, context.conversational)) {
+	if (!token.isCancellationRequested && endsMode(result.mode, state.mode, turn.mode, context.conversational)) {
 		state.mode = undefined;
 	}
 }

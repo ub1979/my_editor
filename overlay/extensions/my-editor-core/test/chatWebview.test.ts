@@ -77,4 +77,10 @@ test('split chat webview loads in order and renders a Codex model selection', ()
 	const count = sent.length;
 	runInContext("scroll.children[0].children[1].children.find(node => node.attributes?.get('class') === 'reply-choices').children[0].click()", context);
 	assert.equal(sent.length, count);
+
+	// Background refreshes must preserve the reading position; new messages follow the conversation.
+	runInContext('scroll.scrollHeight = 2000; scroll.clientHeight = 300; scroll.scrollTop = 240; renderScroll()', context);
+	assert.equal(runInContext('scroll.scrollTop', context), 240);
+	runInContext('renderScroll(true)', context);
+	assert.equal(runInContext('scroll.scrollTop', context), 2000);
 });

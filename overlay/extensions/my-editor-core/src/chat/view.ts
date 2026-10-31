@@ -18,6 +18,7 @@ import { Message } from './presentation';
 import { Proposal, Proposals } from './proposals';
 import { runChatTurn } from './replyRun';
 import { runReplyJob } from './replyJob';
+import { ReplySession } from './replySession';
 import { skillCards } from './skillCards';
 import { newChatId } from './viewUpdates';
 import { answerReplyChoice } from './replyChoices';
@@ -34,7 +35,7 @@ export class ChatView implements vscode.WebviewViewProvider, ChatHandlers {
 	private readonly broadcast: ChatBroadcast;
 	private projectRoot = vscode.workspace.workspaceFolders?.[0]?.uri.toString();
 	private readonly activeFile = new ActiveFileTracker();
-	private running: vscode.CancellationTokenSource | undefined;
+	private readonly replies = new ReplySession(runReplyJob);
 	private pending: PendingRequest | undefined;
 	private saveQueue: Promise<void> = Promise.resolve();
 
@@ -50,7 +51,7 @@ export class ChatView implements vscode.WebviewViewProvider, ChatHandlers {
 			context, keys, state: this.state,
 			webviews: () => this.panels.webviews(),
 			activeFile: () => this.activeFile.current,
-			running: () => !!this.running,
+			running: () => this.replies.running,
 		});
 		context.subscriptions.push(
 			this.activeFile,
@@ -103,7 +104,7 @@ export class ChatView implements vscode.WebviewViewProvider, ChatHandlers {
 			this.pending = pendingAnalysis(aiReady);
 			return;
 		}
-		if (this.running) {
+		if (this.replies.running) {
 			return;
 		}
 		await closeAnalysisOffer(this.context, this.broadcast);
@@ -118,7 +119,7 @@ export class ChatView implements vscode.WebviewViewProvider, ChatHandlers {
 	/** Runs a host job as a Pair reply under a short request line, with progress, buttons and Stop (e.g. fixing on a branch). */
 	async runTask(label: string, job: ReplyJob): Promise<void> {
 		await this.openLounge();
-		if (this.running) {
+		if (this.replies.running) {
 			return;
 		}
 		this.state.messages.push({ id: newChatId(), role: 'user', markdown: label, proposals: [], actions: [], done: true });
@@ -132,7 +133,7 @@ export class ChatView implements vscode.WebviewViewProvider, ChatHandlers {
 	}
 
 	async newChat(): Promise<void> {
-		this.running?.cancel();
+		this.replies.reset();
 		this.state.reset();
 		this.save();
 		await this.broadcast.init();
@@ -156,7 +157,7 @@ export class ChatView implements vscode.WebviewViewProvider, ChatHandlers {
 	}
 
 	chooseCharacter(id: string | undefined): void {
-		if (this.running) {
+		if (this.replies.running) {
 			return;
 		}
 		this.state.characterId = character(id).id;
@@ -177,12 +178,12 @@ export class ChatView implements vscode.WebviewViewProvider, ChatHandlers {
 	}
 
 	stop(): void {
-		this.running?.cancel();
+		this.replies.stop();
 	}
 
 	async pickSkill(id: string): Promise<void> {
 		const card = (await skillCards(this.context.extensionUri)).find(c => c.id === id);
-		if (!card) {
+		if (!card || this.replies.running) {
 			return;
 		}
 		if (id === 'analyse') {
@@ -211,7 +212,7 @@ export class ChatView implements vscode.WebviewViewProvider, ChatHandlers {
 	}
 
 	async send(text: string, kickoff = false): Promise<void> {
-		if (this.running) {
+		if (this.replies.running) {
 			return;
 		}
 		const state = this.state;
@@ -233,21 +234,20 @@ export class ChatView implements vscode.WebviewViewProvider, ChatHandlers {
 		const reply = state.addReply(newChatId(), mode);
 		// Save the user's full paste before asking a model, so a stopped or crashed run cannot lose it.
 		this.save();
-		try {
-			await this.saveQueue;
-		} catch {
-			void vscode.window.showWarningMessage('Pair could not save this chat yet. Keep the editor open until storage is available.');
-		}
 		this.broadcast.messages();
 		const turn = { text, mode, kickoff, reply, locateOnly: route.locateOnly, history };
 		const context = {
 			state, engine: this.engine, activeFile: () => this.activeFile.current, conversational: CONVERSATIONAL, save: () => this.save(),
 		};
-		await this.runReply(reply, (sink, token) => runChatTurn(turn, context, sink, token));
+		await this.runReply(reply, async (sink, token) => {
+			try { await this.saveQueue; }
+			catch { void vscode.window.showWarningMessage('Pair could not save this chat yet. Keep the editor open until storage is available.'); }
+			await runChatTurn(turn, context, sink, token);
+		});
 	}
 
 	async chooseAnswer(messageId: string, index: number): Promise<void> {
-		await answerReplyChoice(this.state, messageId, index, !!this.running, text => this.send(text));
+		await answerReplyChoice(this.state, messageId, index, this.replies.running, text => this.send(text));
 	}
 
 	async runAction(messageId: string, index: number): Promise<void> {
@@ -272,18 +272,15 @@ export class ChatView implements vscode.WebviewViewProvider, ChatHandlers {
 		if (root !== vscode.workspace.workspaceFolders?.[0]?.uri.toString() || this.state.pinned) {
 			return;
 		}
-		this.state.characterId = id;
+		this.state.characterId = this.state.mode ? routeCharacter('', this.state.mode, this.state.characterId, false).id : id;
 		this.save();
 		this.broadcast.character(false, 'Project stage');
 	}
 
 	/** Runs one job that writes into a reply: streamed text, progress, proposal cards, buttons and a Stop button. */
 	private async runReply(reply: Message, job: ReplyJob): Promise<void> {
-		await runReplyJob(reply, job, {
-			running: source => {
-				this.running = source;
-				this.broadcast.mode();
-			},
+		await this.replies.run(reply, job, {
+			running: () => this.broadcast.mode(),
 			update: () => this.broadcast.message(reply),
 			save: () => this.save(),
 			proposal: proposal => recordProposal(reply.id, proposal, 'proposed'),

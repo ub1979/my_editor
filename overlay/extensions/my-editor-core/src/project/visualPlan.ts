@@ -29,7 +29,8 @@ export function projectVisuals(architecture: string, treeText: string, brainText
 	}
 	let brain: { files?: Record<string, { imports?: string[] }> } = {};
 	try {
-		brain = JSON.parse(brainText) as typeof brain;
+		const parsed = JSON.parse(brainText);
+		if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) { brain = parsed; }
 	} catch {
 		// The specs can still be visualised without a brain map.
 	}
@@ -46,7 +47,7 @@ export function projectVisuals(architecture: string, treeText: string, brainText
 		const paragraph = body.split(/\n\s*\n/).map(p => p.trim()).find(p => p && !/^(#|[-*>|]|```)/.test(p)) ?? '';
 		return [{ id, title, summary: plain(paragraph).slice(0, 360), fileCount: 0, uses: [] }];
 	});
-	const byPath = new Map(files.map(file => [file.path, file.section || anchorFor(moduleOf(file.path))]));
+	const byPath = new Map(files.map(file => [file.path, file.section?.replace(/^#/, '') || anchorFor(moduleOf(file.path))]));
 	const byId = new Map(parts.map(part => [part.id, part]));
 	const links = new Map<string, Map<string, number>>();
 	for (const path of new Set([...files.map(file => file.path), ...Object.keys(brain.files ?? {})])) {

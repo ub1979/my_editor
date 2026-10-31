@@ -25,6 +25,8 @@ export function documentProblems(stage: 'requirements' | 'architecture', text = 
 		if (!/^#{1,3}\s+.*(?:out of scope|non-goals)/im.test(text)) { problems.push('requirements need an out-of-scope section'); }
 	} else {
 		const components = architectureComponents(text);
+		const anchors = [...text.matchAll(/^##\s+.+\{#([\w-]+)\}\s*$/gm)].map(match => match[1]);
+		if (new Set(anchors).size !== anchors.length) { problems.push('architecture section anchors must be unique'); }
 		if (!components.size) { problems.push('architecture needs component sections with stable {#anchors}'); }
 		for (const [anchor, body] of components) {
 			if (!/\bN?FR-\d{3,}\b/.test(body) || !/interface|\bAPI\b|inputs?|outputs?|contracts?/i.test(body)) {

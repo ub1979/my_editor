@@ -1,7 +1,7 @@
 # my_editor: vision, mission, and current status
 
 - **As of:** 31 October 2026
-- **Current version:** 0.0.22 alpha (planning finalization, clickable chat answers and consistent agent avatars); source update, reinstall and live checks pending
+- **Current version:** 0.0.23 alpha (source audit: chat lifecycle, safe scaffolding, edit freshness and theme generation); source update, reinstall and live checks pending
 - **Stage:** Working macOS alpha; still being validated on real projects
 
 ## Vision

@@ -3,6 +3,10 @@
 Status of the requirements in [`plans/my_editor-plan-v2.md`](plans/my_editor-plan-v2.md). The original checklist is from 2026-09-23; the additions below are from 2026-09-25.
 ✅ done and verified in the app · 🟡 partly done · ⬜ not started.
 
+## 0.0.23 alpha source audit — 31 October 2026
+
+Reviewed chat and cancellation, planning references, proposals and scaffolding, provider failures, source helpers, theme generation and build/install scripts. Fixed reproducible issues and added regression coverage. The current checkout builds and passes 682 extension tests, 53 Python helper tests and the Go extraction suite. Details and remaining live validation are in [the audit](audits/2026-10-31.md).
+
 ## 0.0.22 alpha source update — 31 October 2026
 
 Planning completion now checks document content and saved references. Summary drafts no longer complete a stage; finalization buttons prepare full proposals. Chat question options become clickable answer cards, and Flow & tree uses a matching illustrated avatar. Reinstall and live editor validation remain pending.

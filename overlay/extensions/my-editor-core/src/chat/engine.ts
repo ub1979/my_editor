@@ -17,6 +17,7 @@ import { logExchange } from '../records/chatLog';
 import { recordsAbout } from '../records/history';
 import { loadSkills } from '../skills/loader';
 import { Proposal, Proposals } from './proposals';
+import { assertEditSnapshot } from '../pair/editSnapshot';
 import { runPairAgent } from './agentSession';
 import { modelHistoryTurns } from './chatArchive';
 import { configuredReasoningEffort, mergeTurns } from './modelTurns';
@@ -296,6 +297,7 @@ export class PairEngine {
 			return;
 		}
 		const document = await vscode.workspace.openTextDocument(file.uri);
+		assertEditSnapshot(file.fingerprint, document.getText());
 		let proposed: string;
 		if (mode.writes === 'selection' && file.selection) {
 			const text = document.getText();

@@ -4,6 +4,7 @@ import { ProviderError, ProviderId, StreamRequest } from './types';
 export async function streamOpenAICompatible(
 	provider: ProviderId, baseUrl: string, apiKey: string | undefined, request: StreamRequest,
 ): Promise<void> {
+	if (request.token.isCancellationRequested) { return; }
 	const abort = new AbortController();
 	const listener = request.token.onCancellationRequested(() => abort.abort());
 	try {
@@ -36,7 +37,11 @@ export async function streamOpenAICompatible(
 			if (!data || data === '[DONE]') {
 				return;
 			}
-			const text = JSON.parse(data)?.choices?.[0]?.delta?.content;
+			const chunk = JSON.parse(data);
+			if (chunk.error) { throw new ProviderError(provider, chunk.error.message ?? String(chunk.error)); }
+			const choice = chunk.choices?.[0];
+			if (choice?.finish_reason === 'length') { throw new ProviderError(provider, 'Reply cut off at the output limit. Ask for a smaller change.'); }
+			const text = choice?.delta?.content;
 			if (typeof text === 'string' && text) {
 				request.onText(text);
 			}

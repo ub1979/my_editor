@@ -105,7 +105,7 @@ function runCli(
 			}
 			if (request.token.isCancellationRequested) {
 				resolve();
-			} else if (failure || (code !== 0 && !gotText)) {
+			} else if (failure || code !== 0) {
 				reject(new ProviderError(provider, failure ?? (stderr.trim().split('\n').slice(-3).join(' ') || `exited with code ${code}`)));
 			} else {
 				resolve();

@@ -11,7 +11,13 @@ export interface TreeFile {
 export function parseTree(text: string): TreeFile[] {
 	const raw = JSON.parse(text);
 	const list = Array.isArray(raw) ? raw : Array.isArray(raw?.files) ? raw.files : [];
-	return list.filter((f: unknown): f is TreeFile => !!f && typeof (f as TreeFile).path === 'string' && !!(f as TreeFile).path.trim());
+	return list.filter((f: unknown): f is TreeFile => !!f && typeof (f as TreeFile).path === 'string' && !!(f as TreeFile).path.trim())
+		.map((file: TreeFile) => ({ ...file,
+			role: typeof file.role === 'string' ? file.role : undefined,
+			section: typeof file.section === 'string' ? file.section.replace(/^#/, '') : undefined,
+			requirements: Array.isArray(file.requirements) ? file.requirements.filter(id => typeof id === 'string') : undefined,
+			status: typeof file.status === 'string' ? file.status : undefined,
+		}));
 }
 
 /** Refuse an incomplete tree when it is about to be kept and scaffolded. */
@@ -33,7 +39,7 @@ export function stubContent(file: TreeFile): string {
 	const facts = [
 		oneLine(typeof file.role === 'string' ? file.role : 'Describe what this file is responsible for.'),
 		Array.isArray(file.requirements) && file.requirements.length ? `Requirements: ${file.requirements.join(', ')}.` : '',
-		file.section ? `Architecture: #${file.section}.` : '',
+		file.section ? `Architecture: #${file.section.replace(/^#/, '')}.` : '',
 	].filter(Boolean).map(oneLine);
 	if (/\.(ts|tsx|mts|js|jsx|mjs|cjs)$/.test(file.path)) {
 		const body = /\.(ts|tsx|mts)$/.test(file.path) ? 'export {};\n' : '';

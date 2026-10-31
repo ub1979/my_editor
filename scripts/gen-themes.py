@@ -68,7 +68,7 @@ def chrome() -> dict:
         # The margins beside the centred page.
         'editorPane.background': OLIVE[950],
         'tab.inactiveBackground': OLIVE[900], 'tab.inactiveForeground': INK_500,
-        'tab.unfocusedInactiveForeground': OLIVE[300], 'tab.border': OLIVE[900],
+        'tab.unfocusedInactiveForeground': '#8f968a', 'tab.border': OLIVE[900],
         'tab.hoverBackground': OLIVE[825], 'tab.hoverForeground': PAPER_50,
         'tab.activeBorderTop': GOLD, 'tab.unfocusedActiveBorderTop': OLIVE[400],
         'tab.activeModifiedBorder': GOLD, 'tab.lastPinnedBorder': OLIVE[450],
@@ -88,7 +88,7 @@ def chrome() -> dict:
         'panelSectionHeader.background': OLIVE[850],
 
         'input.background': OLIVE[800], 'input.border': OLIVE[550], 'input.foreground': PAPER_50,
-        'input.placeholderForeground': INK_500, 'inputOption.activeBorder': GOLD,
+        'input.placeholderForeground': '#8f968a', 'inputOption.activeBorder': GOLD,
         'inputOption.activeBackground': GOLD + '33', 'inputOption.activeForeground': PAPER,
         'inputValidation.errorBackground': '#3a2620', 'inputValidation.errorBorder': RED,
         'inputValidation.warningBackground': '#3a3020', 'inputValidation.warningBorder': GOLD,
@@ -167,9 +167,11 @@ def page(paper: bool) -> dict:
     bg = PAPER if paper else OLIVE[850]
     fg = INK if paper else '#e9e6da'
     ink_a = INK if paper else '#e9e6da'
+    secondary = '#666c60' if paper else '#858b7f'
     return {
         'editor.background': bg, 'editor.foreground': fg,
-        'editorLineNumber.foreground': '#9a9178' if paper else OLIVE[300],
+        'settings.headerForeground': INK if paper else PAPER_50,
+        'editorLineNumber.foreground': secondary,
         'editorLineNumber.activeForeground': '#4a5145' if paper else '#b3b8a8',
         'editorCursor.foreground': GOLD_DEEP if paper else GOLD,
         'editor.selectionBackground': GOLD + ('40' if paper else '38'),
@@ -185,16 +187,16 @@ def page(paper: bool) -> dict:
         'editorIndentGuide.background1': ink_a + '14', 'editorIndentGuide.activeBackground1': ink_a + '33',
         'editorWhitespace.foreground': ink_a + '26', 'editorRuler.foreground': PAPER_LINE if paper else OLIVE[600],
         'editorBracketMatch.background': GOLD + '26', 'editorBracketMatch.border': GOLD_DEEP + '80',
-        'editorCodeLens.foreground': '#8a826b' if paper else INK_500,
-        'editorInlayHint.background': ink_a + '0d', 'editorInlayHint.foreground': INK_500,
+        'editorCodeLens.foreground': secondary,
+        'editorInlayHint.background': ink_a + '0d', 'editorInlayHint.foreground': secondary,
         'editorLink.activeForeground': GOLD_DEEP if paper else GOLD_LIGHT,
-        'editorGutter.background': bg, 'editorGutter.foldingControlForeground': '#8a826b' if paper else INK_500,
+        'editorGutter.background': bg, 'editorGutter.foldingControlForeground': secondary,
         'editorGutter.addedBackground': GREEN, 'editorGutter.modifiedBackground': GOLD,
         'editorGutter.deletedBackground': RED_DEEP,
         'editorOverviewRuler.border': '#00000000', 'editorOverviewRuler.background': bg,
         'editorStickyScroll.background': '#efece2' if paper else OLIVE[825],
         'editorStickyScrollHover.background': '#e9e5d8' if paper else OLIVE[750],
-        'editorGhostText.foreground': '#8a826b' if paper else INK_500,
+        'editorGhostText.foreground': secondary,
         'editorError.foreground': RED_DEEP, 'editorWarning.foreground': GOLD_DEEP if paper else GOLD,
         'editorInfo.foreground': '#3f6f82' if paper else '#9cc2dc',
         'editorLightBulb.foreground': GOLD_DEEP,
@@ -206,7 +208,7 @@ def page(paper: bool) -> dict:
         'peekViewEditor.background': '#efece2' if paper else OLIVE[825],
         'peekViewEditorGutter.background': '#efece2' if paper else OLIVE[825],
         'peekViewEditor.matchHighlightBackground': GOLD + '40',
-        'breadcrumb.background': bg, 'breadcrumb.foreground': INK_500,
+        'breadcrumb.background': bg, 'breadcrumb.foreground': secondary,
         'breadcrumb.focusForeground': fg, 'breadcrumb.activeSelectionForeground': fg,
         # The active tab is cut from the same page.
         'tab.activeBackground': bg, 'tab.activeForeground': fg,

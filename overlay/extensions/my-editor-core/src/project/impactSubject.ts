@@ -11,5 +11,5 @@ export function sectionAt(lines: string[], line: number): string | undefined {
 
 /** The first requirement ID (FR-001 / NFR-002) on a line, if any. */
 export function requirementOn(line: string): string | undefined {
-	return /\bN?FR-\d{3}\b/.exec(line)?.[0];
+	return /\bN?FR-\d{3,}\b/.exec(line)?.[0];
 }
