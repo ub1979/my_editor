@@ -1,10 +1,16 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
-import { nextFile, parseTree, stubContent } from '../src/project/stubs';
+import { nextFile, parseTree, stubContent, validateTreePlan } from '../src/project/stubs';
 
 test('parseTree accepts an array or an object with files', () => {
 	assert.equal(parseTree('[{"path":"a.ts"},{"role":"no path"}]').length, 1);
 	assert.equal(parseTree('{"files":[{"path":"a.ts"},{"path":"b.py"}]}').length, 2);
+});
+
+test('a kept tree must be valid JSON with a path for every planned file', () => {
+	assert.equal(validateTreePlan('[{"path":"src/a.ts"}]').length, 1);
+	assert.throws(() => validateTreePlan('[{"role":"missing path"}]'), /every entry needs a path/);
+	assert.throws(() => validateTreePlan('{"other":[]}'), /JSON array/);
 });
 
 test('stubContent writes a TypeScript header that keeps the module compiling', () => {
@@ -14,6 +20,13 @@ test('stubContent writes a TypeScript header that keeps the module compiling', (
 
 test('stubContent writes a Python module docstring', () => {
 	assert.equal(stubContent({ path: 'app/store.py', role: 'Stores habits.' }), '"""Stores habits.\n"""\n');
+});
+
+test('stubContent carries each planned role into supported file comments', () => {
+	assert.equal(stubContent({ path: 'app/main.go', role: 'Starts the service.' }), '// Starts the service.\n');
+	assert.equal(stubContent({ path: 'db/setup.sql', role: 'Creates tables.' }), '-- Creates tables.\n');
+	assert.equal(stubContent({ path: 'settings.jsonc', role: 'Editor settings.' }), '// Editor settings.\n{}\n');
+	assert.equal(stubContent({ path: 'settings.json', role: 'Machine settings.' }), '{}\n');
 });
 
 test('nextFile prefers work in progress, then stubs, then anything not done', () => {

@@ -7,7 +7,7 @@ import { join } from 'node:path';
 class Element {
 	children: unknown[] = [];
 	listeners = new Map<string, () => void>();
-	readonly style = {};
+	readonly style = { setProperty: (_name: string, _value: string) => undefined };
 	readonly classList = { toggle: () => undefined };
 	value = '';
 	scrollHeight = 0;
@@ -22,15 +22,17 @@ class Element {
 
 test('split chat webview loads in order and renders a Codex model selection', () => {
 	const sent: { type: string }[] = [];
+	let savedViewState: { chatTextSize?: number } = {};
 	let receive: ((event: { data: unknown }) => void) | undefined;
 	const document = {
 		getElementById: () => new Element(), createElement: () => new Element(), createElementNS: () => new Element(),
 	};
 	const context = createContext({
 		document, window: { addEventListener: (_name: string, handler: typeof receive) => { receive = handler; } },
-		acquireVsCodeApi: () => ({ postMessage: (message: { type: string }) => sent.push(message) }),
+		acquireVsCodeApi: () => ({ postMessage: (message: { type: string }) => sent.push(message),
+			getState: () => savedViewState, setState: (value: { chatTextSize?: number }) => { savedViewState = value; } }),
 	});
-	for (const file of ['chatDom.js', 'chatFaces.js', 'chatCards.js', 'chatMenu.js', 'chat.js']) {
+	for (const file of ['chatDom.js', 'chatFaces.js', 'chatCards.js', 'chatMenu.js', 'chat.js', 'chatEvents.js']) {
 		runInContext(readFileSync(join(process.cwd(), 'media', file), 'utf8'), context, { filename: file });
 	}
 	receive?.({ data: { type: 'init', project: 'm_dialer', projectPath: '/projects/m_dialer', skills: [], messages: [],
@@ -38,7 +40,8 @@ test('split chat webview loads in order and renders a Codex model selection', ()
 			{ id: 'bamboo', name: 'Shan', role: 'Project guide', greeting: 'Hello' },
 			{ id: 'soki', name: 'Soki', role: 'Requirements', greeting: 'Why?' },
 			{ id: 'ada', name: 'Ada', role: 'Builder', greeting: 'Build?' },
-			{ id: 'lisko', name: 'Lisko', role: 'Architect', greeting: 'Design?' },
+			{ id: 'lisko', name: 'Architecture agent', role: 'Architecture', greeting: 'Design?' },
+			{ id: 'flow', name: 'Flow & tree agent', role: 'Flow & tree', greeting: 'Map?' },
 			{ id: 'diji', name: 'Diji', role: 'Reviewer', greeting: 'Review?' },
 			{ id: 'poppy', name: 'Poppy', role: 'QA', greeting: 'Test?' },
 			{ id: 'hopper', name: 'Hopper', role: 'Debugger', greeting: 'Debug?' },
@@ -51,8 +54,12 @@ test('split chat webview loads in order and renders a Codex model selection', ()
 	receive?.({ data: { type: 'character', characterId: 'ada', pinned: false, reason: 'Building together' } });
 	assert.equal(runInContext('state.characterId', context), 'ada');
 	assert.equal(runInContext('rail.children.length', context), 2);
-	assert.equal(runInContext('rail.children[1].children.length', context), 7);
-	assert.equal(runInContext('FACES.ada !== FACES.bamboo && FACES.poppy !== FACES.hopper', context), true);
+	assert.equal(runInContext('rail.children[1].children.length', context), 8);
+	assert.equal(runInContext('FACES.flow !== FACES.lisko && FACES.ada !== FACES.bamboo && FACES.poppy !== FACES.hopper', context), true);
+	runInContext('header.children[2].children[1].children[1].click()', context);
+	assert.equal(savedViewState.chatTextSize, 14);
+	runInContext('header.children[2].children[1].children[0].click()', context);
+	assert.equal(savedViewState.chatTextSize, 13);
 	runInContext('rail.children[1].children[5].click()', context);
 	assert.equal(runInContext('state.pinned', context), true);
 	assert.equal(sent.at(-1)?.type, 'character');

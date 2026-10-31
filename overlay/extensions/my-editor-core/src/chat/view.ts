@@ -192,6 +192,11 @@ export class ChatView implements vscode.WebviewViewProvider, ChatHandlers {
 			return;
 		}
 		this.state.mode = card.id;
+		const route = routeCharacter('', card.id, this.state.characterId, false);
+		if (route.reason) {
+			this.state.characterId = route.id; this.state.pinned = false;
+			this.broadcast.character(false, route.reason);
+		}
 		this.state.pendingPlaceholder = card.start === 'compose' ? card.placeholder : undefined;
 		this.save();
 		this.broadcast.mode();

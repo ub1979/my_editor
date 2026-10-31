@@ -2,6 +2,14 @@
 
 my_editor uses the version in `overlay/extensions/my-editor-core/package.json` as its own release number. The Home page displays that version. The underlying editor shell keeps its upstream version independently.
 
+## 0.0.21 alpha — 2026-10-31
+
+- Flow & tree has its own named agent and diagram avatar. Selecting a planning skill chooses its agent, including when a different agent was pinned.
+- Pair adds persistent A− and A+ controls for chat text size, with a layout that wraps on narrow panels.
+- Keeping a valid tree JSON proposal creates every missing planned file, including nested folders, and carries each role into supported file comments. Existing files are preserved.
+- Settings and Keyboard Shortcuts use readable text, selection, link and focus colors on their editor surfaces. Paper and Night secondary text and chat controls have improved contrast.
+- Source update; reinstall and final live UI checks remain pending.
+
 ## 0.0.19 alpha — 2026-10-20
 
 - The fix list says why fixes are left unticked. When a package didn't build here last time, the top line reads "N left unticked: their packages didn't build here last time. Fixed the build? Tick them to check again.", and each row names the build error (say, a missing C header). When only add-tests rows are offered, it says nothing is ticked yet and that tests are never ticked for you.

@@ -1,7 +1,7 @@
 # my_editor: vision, mission, and current status
 
-- **As of:** 5 October 2026
-- **Current version:** 0.0.19 alpha (AI-ready health report, one-click Go, TS/JS and Python fixes and Go refactors of long functions on a local `ai_fix` branch, web research in Pair), built on 20 October; install and live checks pending
+- **As of:** 31 October 2026
+- **Current version:** 0.0.21 alpha (Flow & tree agents, planned file creation, chat text size and UI contrast); source update, reinstall and final live checks pending
 - **Stage:** Working macOS alpha; still being validated on real projects
 
 ## Vision
