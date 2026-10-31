@@ -85,7 +85,7 @@ function renderTree() {
 	if (!state.visuals.files.length) {
 		section.append(el('p', { class: 'empty' }, [state.hasTree
 			? 'The file tree has no valid paths yet.'
-			: 'No file tree yet. Run Analyse or use Plan the files in Pair.']));
+			: 'No file tree yet. Run Analyse or use Flow & tree in Pair.']));
 		root.append(section);
 		return;
 	}

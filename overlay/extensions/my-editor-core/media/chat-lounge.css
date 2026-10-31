@@ -5,13 +5,13 @@
 	--bubble: #e7ecf2;
 	--line: #dce3ea;
 	--text: #263345;
-	--muted: #6f7d8c;
+	--muted: #637384;
 	--accent: #44576e;
 	--on-accent: #ffffff;
 	--accent-soft: #e9eef3;
-	--focus: #759cc3;
+	--focus: #4e78a2;
 	--added: #347b61;
-	--removed: #b85f59;
+	--removed: #a74f4a;
 }
 
 body.vscode-dark {
@@ -75,6 +75,9 @@ body {
 .switch-note { margin-top: 5px; color: #d3e8da; font-size: 10px; }
 
 .header-actions { display: flex; align-items: center; gap: 5px; align-self: flex-start; }
+.text-size-controls { display: inline-flex; align-items: center; gap: 2px; }
+.text-size-button { width: 27px; height: 27px; border-radius: 7px; font-size: 11px; font-weight: 700; }
+.text-size-button:disabled { opacity: .45; cursor: default; }
 .auto-character {
 	min-height: 25px;
 	padding: 3px 8px;
@@ -86,7 +89,8 @@ body {
 }
 .auto-character.pinned { background: #fff; color: #263142; cursor: pointer; }
 .auto-character:disabled { opacity: .6; }
-.auto-character:focus-visible, .character-choice:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.character-header :focus-visible { outline-color: #fff; }
+.character-choice:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .header-action {
 	display: grid;
 	place-items: center;
@@ -166,7 +170,8 @@ body.lounge .header-action[title='Open Pair in the editor'] { display: none; }
 .composer .row { margin-top: 6px; }
 .composer select.model, .composer select.reasoning { max-width: 44%; }
 .send { border-radius: 12px; background: #a7b1bc; color: #fff; }
-.send:not(:disabled) { background: var(--accent); }
+.send:not(:disabled) { background: var(--accent); color: var(--on-accent); }
+.send.stop:not(:disabled) { background: var(--surface-2); color: var(--text); }
 
 .character-rail {
 	flex: none;
@@ -215,7 +220,8 @@ body.lounge .composer { padding: 13px 22px; }
 body.lounge .character-rail { padding-bottom: 17px; }
 
 @media (max-width: 460px) {
-	.character-header { gap: 8px; padding: 12px; }
+	.character-header { gap: 8px; padding: 12px; flex-wrap: wrap; }
+	.header-actions { width: 100%; justify-content: flex-end; }
 	.header-face { width: 43px; height: 43px; border-radius: 12px; }
 	.header-face .avatar.big { width: 36px; height: 36px; }
 	.character-identity strong { font-size: 15px; }

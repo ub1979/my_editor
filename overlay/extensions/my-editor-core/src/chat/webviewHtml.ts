@@ -14,5 +14,6 @@ export function chatWebviewHtml(webview: vscode.Webview, media: vscode.Uri, layo
 <script nonce="${nonce}" src="${asset('chatFaces.js')}"></script>
 <script nonce="${nonce}" src="${asset('chatCards.js')}"></script>
 <script nonce="${nonce}" src="${asset('chatMenu.js')}"></script>
-<script nonce="${nonce}" src="${asset('chat.js')}"></script></body></html>`;
+<script nonce="${nonce}" src="${asset('chat.js')}"></script>
+<script nonce="${nonce}" src="${asset('chatEvents.js')}"></script></body></html>`;
 }

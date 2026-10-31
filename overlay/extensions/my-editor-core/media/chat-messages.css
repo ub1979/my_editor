@@ -4,6 +4,7 @@
 	display: flex;
 	gap: 8px;
 	margin: 14px 0;
+	font-size: var(--chat-text-size, 13px);
 }
 
 .message.user {
@@ -44,6 +45,8 @@
 	margin-top: 2px;
 }
 
+.proposal-note { margin: 8px 0; color: var(--muted); }
+
 .markdown > :first-child {
 	margin-top: 0;
 }
@@ -70,9 +73,9 @@
 	font-weight: 500;
 }
 
-.markdown h1 { font-size: 18px; }
-.markdown h2 { font-size: 16px; }
-.markdown h3 { font-size: 14px; }
+.markdown h1 { font-size: calc(var(--chat-text-size, 13px) + 5px); }
+.markdown h2 { font-size: calc(var(--chat-text-size, 13px) + 3px); }
+.markdown h3 { font-size: calc(var(--chat-text-size, 13px) + 1px); }
 
 .markdown code {
 	padding: 1px 5px;
@@ -80,7 +83,7 @@
 	background: var(--accent-soft);
 	color: var(--vscode-textPreformat-foreground, #e8bd6c);
 	font-family: var(--mono);
-	font-size: 12px;
+	font-size: var(--chat-text-size, 13px);
 }
 
 .markdown pre {
@@ -98,7 +101,7 @@
 }
 
 .markdown a {
-	color: var(--vscode-textLink-foreground, #e8bd6c);
+	color: var(--accent);
 }
 
 .markdown blockquote {
@@ -185,7 +188,7 @@
 	padding: 0;
 	border: 0;
 	background: none;
-	color: var(--vscode-textLink-foreground, #e8bd6c);
+	color: var(--accent);
 	text-align: left;
 	text-decoration: underline;
 	text-decoration-color: color-mix(in srgb, currentColor 40%, transparent);

@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
+import { checkedProjectPath } from '../chat/projectPath';
 import { serial } from '../util/serial';
-import { nextFile, parseTree, stubContent, TreeFile } from './stubs';
+import { nextFile, parseTree, stubContent, TreeFile, validateTreePlan } from './stubs';
 
 const TREE = '.my_editor/specs/tree.json';
 
@@ -31,6 +33,32 @@ async function exists(uri: vscode.Uri): Promise<boolean> {
 	}
 }
 
+/** A kept tree is the user's approval to create every missing planned file. */
+export async function scaffoldKeptTree(root: vscode.Uri): Promise<{ created: number; skipped: string[] }> {
+	const treeUri = vscode.Uri.joinPath(root, TREE);
+	const files = validateTreePlan(new TextDecoder().decode(await vscode.workspace.fs.readFile(treeUri)));
+	const skipped: string[] = [];
+	let created = 0;
+	const seen = new Set<string>();
+	for (const file of files) {
+		try {
+			const target = checkedProjectPath(root.fsPath, file.path, true);
+			if (seen.has(target)) { continue; }
+			seen.add(target);
+			const uri = vscode.Uri.file(target);
+			if (await exists(uri)) { continue; }
+			await vscode.workspace.fs.createDirectory(vscode.Uri.file(path.dirname(target)));
+			await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode(stubContent(file)));
+			file.status = 'stub';
+			created++;
+		} catch (error) {
+			skipped.push(`${file.path}: ${error instanceof Error ? error.message : String(error)}`);
+		}
+	}
+	if (created) { await serial(() => save(root, files)); }
+	return { created, skipped };
+}
+
 /** Lets the user tick planned files, then creates each as a stub. Existing files are never touched. */
 export async function scaffoldFromTree(): Promise<void> {
 	const tree = await load();
@@ -54,7 +82,9 @@ export async function scaffoldFromTree(): Promise<void> {
 		return;
 	}
 	for (const { file } of picked) {
-		await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(tree.root, file.path), new TextEncoder().encode(stubContent(file)));
+		const target = checkedProjectPath(tree.root.fsPath, file.path, true);
+		await vscode.workspace.fs.createDirectory(vscode.Uri.file(path.dirname(target)));
+		await vscode.workspace.fs.writeFile(vscode.Uri.file(target), new TextEncoder().encode(stubContent(file)));
 		file.status = 'stub';
 	}
 	await serial(() => save(tree.root, tree.files));

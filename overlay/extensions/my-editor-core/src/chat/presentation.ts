@@ -7,6 +7,7 @@ export interface ProposalCard {
 	readonly added: number;
 	readonly removed: number;
 	readonly isNewFile: boolean;
+	operation?: 'write' | 'delete';
 	state: Proposal['state'] | 'expired';
 }
 
@@ -25,7 +26,7 @@ export interface Message {
 
 const markdown = new MarkdownIt({ html: false, linkify: true, breaks: false });
 const LABELS: Record<string, string> = {
-	requirements: 'Requirements', architecture: 'Architecture', tree: 'Plan the files', brainstorm: 'Brainstorm',
+	requirements: 'Requirements', architecture: 'Architecture', tree: 'Flow & tree', brainstorm: 'Brainstorm',
 	next: 'Next step', feature: 'Add a feature', change: 'Change selection', explain: 'Explain', why: 'Why is it like this?',
 	review: 'Review', qa: 'Fit check', file: 'Write the file', impact: 'Impact', changes: 'Change history', locate: 'Find a change',
 };

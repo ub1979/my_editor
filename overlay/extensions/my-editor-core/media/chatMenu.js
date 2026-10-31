@@ -6,7 +6,7 @@ const COMMANDS = [
 	['feature', 'Add a feature to this file'], ['change', 'Rewrite the selected lines'], ['next', 'Take the next small step'],
 	['locate', 'Find files and lines to change'], ['file', 'Write the whole file'], ['explain', 'Explain the file or selection'],
 	['review', 'Review without editing'], ['why', 'Why is this code like this?'], ['brainstorm', 'Explore approaches'],
-	['requirements', 'Work out what to build'], ['architecture', 'Design the parts'], ['tree', 'Plan the files'],
+	['requirements', 'Work out what to build'], ['architecture', 'Design the parts'], ['tree', 'Flow & tree'],
 	['impact', 'What does a change affect?'], ['changes', 'Git history and current edits'], ['skill', 'Run a skill by name'],
 ];
 

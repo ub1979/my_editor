@@ -3,6 +3,10 @@ import * as vscode from 'vscode';
 import { changedHunks } from '../navigator/hunks';
 import { sourcePolicyError } from '../quality/sourcePolicy';
 import { ProposalFileSystem } from './proposalFileSystem';
+import { checkedProjectPath } from './projectPath';
+import { scaffoldKeptTree } from '../project/tree';
+import { validateTreePlan } from '../project/stubs';
+import * as path from 'path';
 
 export const PROPOSAL_SCHEME = 'my-editor-proposal';
 
@@ -17,6 +21,7 @@ export interface Proposal {
 	readonly isNewFile: boolean;
 	readonly added: number;
 	readonly removed: number;
+	operation?: 'write' | 'delete';
 	state: 'open' | 'kept' | 'undone';
 }
 
@@ -35,7 +40,7 @@ export class Proposals implements vscode.Disposable {
 		this.registration = vscode.workspace.registerFileSystemProvider(PROPOSAL_SCHEME, this.fs, { isCaseSensitive: true });
 	}
 
-	async propose(target: vscode.Uri, proposed: string): Promise<Proposal> {
+	async propose(target: vscode.Uri, proposed: string, operation: 'write' | 'delete' = 'write'): Promise<Proposal> {
 		const policyError = sourcePolicyError(target.fsPath, proposed);
 		if (policyError) { throw new Error(policyError); }
 		const existing = this.findOpenFor(target);
@@ -49,6 +54,7 @@ export class Proposals implements vscode.Disposable {
 		} catch {
 			isNewFile = true;
 		}
+		if (operation === 'delete' && isNewFile) { throw new Error('The file to delete does not exist.'); }
 		const id = randomBytes(6).toString('hex');
 		const name = target.path.split('/').pop() ?? 'file';
 		const proposalUri = vscode.Uri.from({ scheme: PROPOSAL_SCHEME, path: `/${id}/${name}` });
@@ -60,7 +66,7 @@ export class Proposals implements vscode.Disposable {
 		const count = (a: string, b: string) => changedHunks(a, b).reduce((n, h) => n + h.end - h.start + 1, 0);
 		const proposal: Proposal = {
 			id, target, relativePath: vscode.workspace.asRelativePath(target, false), base, proposalUri, leftUri, isNewFile,
-			added: count(base, proposed), removed: count(proposed, base), state: 'open',
+			added: count(base, proposed), removed: count(proposed, base), operation, state: 'open',
 		};
 		this.byId.set(id, proposal);
 		await this.show(id);
@@ -85,7 +91,7 @@ export class Proposals implements vscode.Disposable {
 			return;
 		}
 		await vscode.commands.executeCommand('vscode.diff', proposal.leftUri, proposal.proposalUri,
-			`${proposal.relativePath.split('/').pop()} · proposed by Pair`, { preview: false });
+			`${proposal.relativePath.split('/').pop()} · ${proposal.operation === 'delete' ? 'deletion ' : ''}proposed by Pair`, { preview: false });
 	}
 
 	/** Writes what is left of the proposal into the file and saves it. */
@@ -95,12 +101,31 @@ export class Proposals implements vscode.Disposable {
 			return false;
 		}
 		const text = await this.currentProposalText(proposal);
+		const deleting = proposal.operation === 'delete' && text.length === 0;
+		const keepingTree = !deleting && proposal.relativePath.replaceAll('\\', '/') === '.my_editor/specs/tree.json';
+		if (keepingTree) {
+			try { validateTreePlan(text); }
+			catch (error) {
+				void vscode.window.showWarningMessage(`The file tree is not valid JSON: ${error instanceof Error ? error.message : String(error)}`);
+				return false;
+			}
+		}
+		const root = vscode.workspace.getWorkspaceFolder(proposal.target)?.uri.fsPath;
+		if (!root) { throw new Error('Open the proposal’s project before keeping it.'); }
+		checkedProjectPath(root, path.relative(root, proposal.target.fsPath), proposal.isNewFile);
 		const policyError = sourcePolicyError(proposal.target.fsPath, text);
 		if (policyError) {
 			void vscode.window.showWarningMessage(policyError);
 			return false;
 		}
-		if (proposal.isNewFile) {
+		if (deleting) {
+			const document = await vscode.workspace.openTextDocument(proposal.target);
+			if (document.getText() !== proposal.base) {
+				void vscode.window.showWarningMessage('The file changed since deletion was proposed. Ask for a fresh proposal.');
+				return false;
+			}
+			await vscode.workspace.fs.delete(proposal.target, { recursive: false, useTrash: true });
+		} else if (proposal.isNewFile) {
 			try {
 				await vscode.workspace.fs.stat(proposal.target);
 				const choice = await vscode.window.showWarningMessage(`${proposal.relativePath} was created since this was proposed.`,
@@ -111,6 +136,7 @@ export class Proposals implements vscode.Disposable {
 			} catch {
 				// Still new: good.
 			}
+			await vscode.workspace.fs.createDirectory(vscode.Uri.file(path.dirname(proposal.target.fsPath)));
 			await vscode.workspace.fs.writeFile(proposal.target, new TextEncoder().encode(text));
 		} else {
 			const document = await vscode.workspace.openTextDocument(proposal.target);
@@ -128,8 +154,18 @@ export class Proposals implements vscode.Disposable {
 				return false;
 			}
 		}
+		proposal.operation = deleting ? 'delete' : 'write';
 		await this.close(proposal, 'kept');
-		await vscode.window.showTextDocument(proposal.target, { preview: false });
+		if (keepingTree) {
+			try {
+				const result = await scaffoldKeptTree(vscode.Uri.file(root));
+				const suffix = result.skipped.length ? ` ${result.skipped.length} could not be created: ${result.skipped.join('; ')}` : '';
+				void vscode.window.showInformationMessage(`Created ${result.created} planned file${result.created === 1 ? '' : 's'} from the tree.${suffix}`);
+			} catch (error) {
+				void vscode.window.showWarningMessage(`The tree was kept, but its files could not be created: ${error instanceof Error ? error.message : String(error)}`);
+			}
+		}
+		if (!deleting) { await vscode.window.showTextDocument(proposal.target, { preview: false }); }
 		return true;
 	}
 

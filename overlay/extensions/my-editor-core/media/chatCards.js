@@ -87,7 +87,7 @@ function renderProposal(message, proposal) {
 	const counts = el('span', { class: 'counts', 'aria-label': `${proposal.added} lines added, ${proposal.removed} removed` }, [
 		el('span', { class: 'plus' }, [`+${proposal.added}`]), ' ', el('span', { class: 'minus' }, [`−${proposal.removed}`]),
 	]);
-	const name = `${proposal.isNewFile ? 'New · ' : ''}${proposal.file.split('/').pop()}`;
+	const name = `${proposal.operation === 'delete' ? 'Delete · ' : proposal.isNewFile ? 'New · ' : ''}${proposal.file.split('/').pop()}`;
 	// While the change is open, the file name opens the review.
 	const file = proposal.state === 'open'
 		? el('button', { type: 'button', class: 'file link', title: `Review the change to ${proposal.file}` }, [name])
@@ -95,13 +95,16 @@ function renderProposal(message, proposal) {
 	file.addEventListener('click', () => proposal.state === 'open' && vscode.postMessage({ type: 'review', id: proposal.id }));
 	const card = el('div', { class: 'proposal' }, [el('div', { class: 'head' }, [icon('file'), file, counts])]);
 	if (proposal.state === 'open') {
+		if (proposal.file.replaceAll('\\', '/') === '.my_editor/specs/tree.json') {
+			card.append(el('p', { class: 'proposal-note' }, ['Keep creates all missing planned files with their one-line roles. Existing files stay as they are.']));
+		}
 		const keep = el('button', { type: 'button', class: 'pill primary' }, [icon('check'), 'Keep']);
 		const undo = el('button', { type: 'button', class: 'pill' }, [icon('undo'), 'Undo']);
 		keep.addEventListener('click', () => vscode.postMessage({ type: 'keep', id: proposal.id }));
 		undo.addEventListener('click', () => vscode.postMessage({ type: 'undo', id: proposal.id }));
 		card.append(el('div', { class: 'buttons' }, [keep, undo]));
 	} else {
-		const label = proposal.state === 'kept' ? [icon('check'), 'Kept and saved']
+		const label = proposal.state === 'kept' ? [icon('check'), proposal.operation === 'delete' ? 'Deleted' : 'Kept and saved']
 			: proposal.state === 'expired' ? [icon('undo'), 'Review expired after restart. Ask Pair to propose it again.']
 			: [icon('undo'), 'Undone. The file was not changed.'];
 		card.append(el('span', { class: `state ${proposal.state}` }, label));

@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
  *  my_editor: the workbench in the same quiet language as the Project and Pair panels.
- *  Colours come from the theme; this file only sets type, spacing and shape.
+ *  Colours come from the theme; light editor surfaces need their own text tokens.
  *--------------------------------------------------------------------------------------------*/
 
 /* Panel titles (EXPLORER, PROJECT, PAIR) and section headers: small mono labels, like the panels' own. */
@@ -46,4 +46,44 @@
 .monaco-workbench .quick-input-widget,
 .monaco-workbench .suggest-widget {
 	border-radius: 10px !important;
+}
+
+/* Settings and Keyboard Shortcuts sit on editor.background. Paper keeps the
+ * surrounding workbench dark, so its global foreground is illegible here. */
+.monaco-workbench .settings-editor,
+.monaco-workbench .keybindings-editor {
+	color: var(--vscode-editor-foreground);
+	--vscode-foreground: var(--vscode-editor-foreground);
+	--vscode-descriptionForeground: color-mix(in srgb, var(--vscode-editor-foreground) 78%, var(--vscode-editor-background));
+	--vscode-settings-headerForeground: var(--vscode-editor-foreground);
+	--my-editor-editor-link: color-mix(in srgb, var(--vscode-editor-foreground) 70%, var(--vscode-button-background));
+	--vscode-textLink-foreground: var(--my-editor-editor-link);
+	--vscode-textLink-activeForeground: var(--my-editor-editor-link);
+	--vscode-textPreformat-foreground: var(--my-editor-editor-link);
+	--vscode-focusBorder: var(--my-editor-editor-link);
+	--vscode-list-activeSelectionBackground: color-mix(in srgb, var(--vscode-editor-foreground) 14%, var(--vscode-editor-background));
+	--vscode-list-activeSelectionForeground: var(--vscode-editor-foreground);
+	--vscode-list-inactiveSelectionBackground: color-mix(in srgb, var(--vscode-editor-foreground) 10%, var(--vscode-editor-background));
+	--vscode-list-inactiveSelectionForeground: var(--vscode-editor-foreground);
+	--vscode-list-hoverBackground: color-mix(in srgb, var(--vscode-editor-foreground) 7%, var(--vscode-editor-background));
+	--vscode-list-hoverForeground: var(--vscode-editor-foreground);
+	--vscode-list-focusBackground: color-mix(in srgb, var(--vscode-editor-foreground) 14%, var(--vscode-editor-background));
+	--vscode-list-focusForeground: var(--vscode-editor-foreground);
+	--vscode-list-highlightForeground: var(--my-editor-editor-link);
+	--vscode-list-focusHighlightForeground: var(--my-editor-editor-link);
+	--vscode-list-focusOutline: var(--my-editor-editor-link);
+	--vscode-keybindingTable-rowsBackground: color-mix(in srgb, var(--vscode-editor-foreground) 3%, var(--vscode-editor-background));
+	--vscode-settings-rowHoverBackground: color-mix(in srgb, var(--vscode-editor-foreground) 7%, var(--vscode-editor-background));
+	--vscode-settings-focusedRowBackground: color-mix(in srgb, var(--vscode-editor-foreground) 10%, var(--vscode-editor-background));
+	--vscode-errorForeground: color-mix(in srgb, var(--vscode-editor-foreground) 65%, #d4735f);
+}
+
+/* Native chevrons can stay dark despite the dark dropdown field. */
+.monaco-workbench .settings-editor select.monaco-select-box {
+	appearance: none;
+	padding-right: 30px !important;
+	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='m1 1 5 5 5-5' fill='none' stroke='%23f0efe8' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+	background-repeat: no-repeat;
+	background-position: right 10px center;
+	background-size: 12px 8px;
 }

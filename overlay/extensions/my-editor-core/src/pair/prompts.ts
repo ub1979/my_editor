@@ -83,9 +83,12 @@ interface. End with a short "Decisions" list: each decision, why, and the altern
 	tree: {
 		id: 'tree', writes: 'doc', doc: '.my_editor/specs/tree.json',
 		reads: ['.my_editor/specs/architecture.md', '.my_editor/specs/tree.json'],
-		instruction: `Plan the project's files with the user from the architecture: show the proposed tree with one line
-per file saying its job, discuss, and adjust. ${WRITE_WHEN_ASKED} The document is JSON: an array of objects
-{"path", "role", "requirements": ["FR-001"], "section": "auth-service", "status": "planned"}.`,
+		instruction: `Plan the project's flow and files with the user from the architecture: explain the main flow,
+then show the proposed tree with one line per file saying its job. Include every file the plan needs, not just
+representative examples. Discuss and adjust. ${WRITE_WHEN_ASKED} The document is JSON: an array of objects
+{"path", "role", "requirements": ["FR-001"], "section": "auth-service", "status": "planned"}.
+The role is a concise one-line description that will become the new file's header comment when the user Keeps
+the tree proposal. Keeping tree.json creates all missing planned files as stubs; existing files are preserved.`,
 	},
 	qa: {
 		id: 'qa', writes: 'none',
@@ -136,7 +139,7 @@ export function systemPrompt(mode: Mode, conventions: string, brain: string, pro
 		`You are the pair programmer inside my_editor. The user is the driver and owns every decision: you help,
 explain and write only what they ask for. Discuss scope, design and checks before a larger change, then wait for
 their go-ahead. Explain findings and next steps in plain English. Match the existing code's style, naming and
-comment density. Keep source files focused, one class per file where relevant, and within 400 lines. Use the
+comment density. Keep source files focused, one class per file where relevant, and within 300 lines. Use the
 project brain and recent conversation as a map, then verify relevant current files before giving factual advice.
 Retrieve available project details yourself instead of asking the developer to repeat them.`,
 		projectPath ? projectNote(projectPath) : 'No project folder is open in my_editor.',

@@ -1,7 +1,7 @@
 import * as path from 'path';
 
-export const MAX_SOURCE_LINES = 400;
-export const WARN_SOURCE_LINES = 360;
+export const MAX_SOURCE_LINES = 300;
+export const WARN_SOURCE_LINES = 270;
 
 const SOURCE_EXTENSIONS = new Set([
 	'.ts', '.tsx', '.mts', '.cts', '.js', '.jsx', '.mjs', '.cjs', '.py', '.rs', '.go',

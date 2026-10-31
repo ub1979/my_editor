@@ -5,11 +5,11 @@ import { projectCharacter, routeCharacter, wantsChangeMap } from '../src/chat/ch
 import type { ProjectState } from '../src/project/state';
 import { classNames, sourceLines, sourcePolicyError } from '../src/quality/sourcePolicy';
 
-test('source policy allows 400 lines and rejects 401, including an edited proposal at Keep', () => {
+test('source policy allows 300 lines and rejects 301, including an edited proposal at Keep', () => {
 	assert.equal(sourceLines('a\nb\n'), 2);
-	assert.equal(sourcePolicyError('src/a.ts', 'x\n'.repeat(400)), undefined);
-	assert.match(sourcePolicyError('src/a.ts', 'x\n'.repeat(401)) ?? '', /401 lines/);
-	assert.equal(sourcePolicyError('src/a.md', 'x\n'.repeat(401)), undefined);
+	assert.equal(sourcePolicyError('src/a.ts', 'x\n'.repeat(300)), undefined);
+	assert.match(sourcePolicyError('src/a.ts', 'x\n'.repeat(301)) ?? '', /301 lines/);
+	assert.equal(sourcePolicyError('src/a.md', 'x\n'.repeat(301)), undefined);
 });
 
 test('source policy rejects two classes in one file and ignores CSS selectors', () => {
@@ -20,7 +20,7 @@ test('source policy rejects two classes in one file and ignores CSS selectors', 
 
 test('characters change presentation while preserving the review rules', () => {
 	assert.equal(character('unknown').id, 'bamboo');
-	assert.equal(character('olive').role, 'Architect');
+	assert.equal(character('olive').role, 'Architecture');
 	assert.match(characterPrompt('pip'), /Keep\/Undo rules/);
 });
 
@@ -28,10 +28,15 @@ test('task routing switches specialists, while manual choice stays pinned', () =
 	assert.equal(routeCharacter('Please review this code', undefined, 'bamboo', false).id, 'diji');
 	assert.equal(routeCharacter('The app crashes on save', undefined, 'bamboo', false).id, 'hopper');
 	assert.equal(routeCharacter('', 'requirements', 'bamboo', false).id, 'soki');
+	assert.equal(routeCharacter('', 'tree', 'hopper', false).id, 'flow');
+	assert.equal(routeCharacter('/tree', undefined, 'hopper', false).id, 'flow');
+	assert.equal(routeCharacter('', 'tree', 'hopper', true).id, 'hopper');
 	assert.equal(routeCharacter('Please review this code', undefined, 'ada', true).id, 'ada');
-	assert.equal(routeCharacter('I want to change the header', undefined, 'ada', false).locateOnly, true);
+	assert.equal(routeCharacter('I want to change the header', undefined, 'ada', false).locateOnly, false);
 	assert.equal(routeCharacter('/locate the header', undefined, 'ada', false).id, 'bamboo');
 	assert.equal(wantsChangeMap('I want to change the header', 'review'), false);
+	assert.equal(wantsChangeMap('I want to change the header'), false);
+	assert.equal(wantsChangeMap('Where should I change the header?'), true);
 });
 
 test('a new project starts with its next useful specialist', () => {
@@ -43,5 +48,8 @@ test('a new project starts with its next useful specialist', () => {
 	] };
 	assert.equal(projectCharacter(project), 'soki');
 	assert.equal(projectCharacter({ ...project, stages: project.stages.map(stage => stage.id === 'requirements' ? { ...stage, state: 'done' } : stage) }), 'lisko');
+	assert.equal(projectCharacter({ ...project, stages: project.stages.map(stage => stage.id === 'architecture' || stage.id === 'requirements'
+		? { ...stage, state: 'done' as const } : stage)
+		.concat({ id: 'tree' as const, title: '', status: '', state: 'empty' as const }) }), 'flow');
 	assert.equal(projectCharacter({ ...project, stages: project.stages.map(stage => stage.id === 'build' ? { ...stage, state: 'started' } : stage), memory: { ...project.memory, brain: true } }), 'ada');
 });
