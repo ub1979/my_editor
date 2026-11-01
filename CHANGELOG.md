@@ -2,6 +2,11 @@
 
 my_editor uses the version in `overlay/extensions/my-editor-core/package.json` as its own release number. The Home page displays that version. The underlying editor shell keeps its upstream version independently.
 
+## 0.0.26 alpha — 2026-11-01
+
+- Regenerate, rewrite, restore, rebuild and generate choices switch to the named planning document. Regenerating architecture from Requirements no longer validates architecture content as requirements.
+- Verified the user's saved requirements pass validation; only architecture needs completion. Planning and answer-routing regression tests pass.
+
 ## 0.0.25 alpha — 2026-11-01
 
 - The chat model picker now offers Claude effort: Model default, Low (light), Medium, High, Extra high and Maximum, limited to the levels reported by the selected model.

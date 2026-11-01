@@ -62,8 +62,8 @@ export function replyChoices(message: Pick<Message, 'role' | 'done' | 'markdown'
 	if (message.role !== 'assistant' || !message.done) { return { markdown: message.markdown, choices: [] }; }
 	const result = questionChoices(message.markdown);
 	for (const choice of result.choices) {
-		if (/\b(?:write|finali[sz]e|complete|full)\b/i.test(choice.label)) {
-			const target = /\b(?:write|produce|finali[sz]e|complete)\s+(?:(?:the|full|complete)\s+)*(requirements|architecture|tree)\b/i.exec(choice.text)?.[1]?.toLowerCase();
+		if (/\b(?:write|rewrite|generate|regenerate|rebuild|restore|finali[sz]e|complete|full)\b/i.test(choice.label)) {
+			const target = /\b(?:write|rewrite|produce|generate|regenerate|rebuild|restore|finali[sz]e|complete)\s+(?:(?:the|full|complete)\s+)*(requirements|architecture|tree)\b/i.exec(choice.text)?.[1]?.toLowerCase();
 			const stage = target ?? (/requirements/i.test(choice.label) ? 'requirements' : /architecture/i.test(choice.label) ? 'architecture' : undefined);
 			if (stage) { choice.mode = stage as PlanningStage; }
 		}

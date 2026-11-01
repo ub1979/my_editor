@@ -3,6 +3,10 @@
 Status of the requirements in [`plans/my_editor-plan-v2.md`](plans/my_editor-plan-v2.md). The original checklist is from 2026-09-23; the additions below are from 2026-09-25.
 ✅ done and verified in the app · 🟡 partly done · ⬜ not started.
 
+## 0.0.26 alpha local fix — 1 November 2026
+
+Regenerating architecture from a Requirements answer now switches the planning target. Saved requirements in the reported project already pass validation; no project regeneration is needed. Planning and choice regression tests pass.
+
 ## 0.0.25 alpha local release — 1 November 2026
 
 Claude effort selection is available beside the model picker, using discovered model capabilities and separate saved preferences for Claude and Codex. Build and 17 focused tests passed; the existing Go split failure remains.

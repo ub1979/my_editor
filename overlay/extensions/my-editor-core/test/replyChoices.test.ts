@@ -78,3 +78,15 @@ test('Write it now routes using its architecture description instead of keeping 
 	await answerReplyChoice(state, 'q1', 0, false, async () => {});
 	assert.equal(state.mode, 'architecture');
 });
+
+test('regenerating architecture from a requirements conversation switches the document target', async () => {
+	for (const verb of ['Regenerate', 'Rewrite', 'Restore', 'Rebuild', 'Generate']) {
+		const state = new ChatState(undefined);
+		state.mode = 'requirements';
+		state.messages = [reply('What should we do next?\n\n'
+			+ `- **${verb} architecture.md:** brings back the full doc with 14 sections that match the tree.\n`
+			+ '- **Review requirements:** check the saved decisions.', { mode: 'requirements' })];
+		await answerReplyChoice(state, 'q1', 0, false, async () => {});
+		assert.equal(state.mode, 'architecture', verb);
+	}
+});
