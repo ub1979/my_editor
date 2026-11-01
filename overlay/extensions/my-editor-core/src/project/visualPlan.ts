@@ -1,4 +1,5 @@
 import { anchorFor, moduleOf } from '../brain/analysisPlan';
+import { planningSections } from './planningSections';
 import { parseTree, TreeFile } from './stubs';
 
 export interface VisualPart {
@@ -35,15 +36,16 @@ export function projectVisuals(architecture: string, treeText: string, brainText
 		// The specs can still be visualised without a brain map.
 	}
 
-	const headings = [...architecture.matchAll(/^##\s+(.+?)(?:\s+\{#([\w-]+)\})?\s*$/gm)];
+	const sections = planningSections(architecture);
+	const headings = sections.some(section => section.anchor) ? sections.filter(section => section.anchor) : sections.filter(section => section.level === 2);
 	const general = new Set(['stack', 'how it fits together', 'decisions', 'open questions']);
-	const parts: VisualPart[] = headings.flatMap((heading, i) => {
-		const title = heading[1].trim();
+	const parts: VisualPart[] = headings.flatMap(heading => {
+		const title = heading.title;
 		if (general.has(title.toLowerCase())) {
 			return [];
 		}
-		const id = heading[2] ?? anchorFor(title);
-		const body = architecture.slice(heading.index! + heading[0].length, headings[i + 1]?.index ?? architecture.length);
+		const id = heading.anchor ?? anchorFor(title);
+		const body = heading.body;
 		const paragraph = body.split(/\n\s*\n/).map(p => p.trim()).find(p => p && !/^(#|[-*>|]|```)/.test(p)) ?? '';
 		return [{ id, title, summary: plain(paragraph).slice(0, 360), fileCount: 0, uses: [] }];
 	});
@@ -75,7 +77,7 @@ export function projectVisuals(architecture: string, treeText: string, brainText
 	for (const part of parts) {
 		part.uses = [...(links.get(part.id) ?? [])].sort((a, b) => b[1] - a[1]).map(([id, count]) => ({ id, count }));
 	}
-	const before = architecture.slice(0, headings[0]?.index ?? architecture.length);
+	const before = architecture.split('\n').slice(0, headings[0]?.line).join('\n');
 	const overview = before.split(/\n\s*\n/).map(p => p.trim()).find(p => p && !p.startsWith('#')) ?? '';
 	return { overview: plain(overview).slice(0, 500), parts, files };
 }

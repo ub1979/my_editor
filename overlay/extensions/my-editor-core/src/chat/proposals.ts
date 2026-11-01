@@ -61,11 +61,10 @@ export class Proposals implements vscode.Disposable {
 		const id = randomBytes(6).toString('hex');
 		const name = target.path.split('/').pop() ?? 'file';
 		const proposalUri = vscode.Uri.from({ scheme: PROPOSAL_SCHEME, path: `/${id}/${name}` });
-		const leftUri = isNewFile ? vscode.Uri.from({ scheme: PROPOSAL_SCHEME, path: `/${id}/empty/${name}` }) : target;
+		// Freeze the reviewed base: applying Keep must not mutate a live diff's original model mid-update.
+		const leftUri = vscode.Uri.from({ scheme: PROPOSAL_SCHEME, path: `/${id}/base/${name}` });
 		this.fs.set(proposalUri, proposed);
-		if (isNewFile) {
-			this.fs.set(leftUri, '');
-		}
+		this.fs.set(leftUri, base);
 		const count = (a: string, b: string) => changedHunks(a, b).reduce((n, h) => n + h.end - h.start + 1, 0);
 		const proposal: Proposal = {
 			id, target, relativePath: vscode.workspace.asRelativePath(target, false), base, proposalUri, leftUri, isNewFile,
@@ -214,9 +213,7 @@ export class Proposals implements vscode.Disposable {
 		}
 		proposal.state = state;
 		this.fs.delete(proposal.proposalUri);
-		if (proposal.isNewFile) {
-			this.fs.delete(proposal.leftUri);
-		}
+		this.fs.delete(proposal.leftUri);
 		this.changed.fire(proposal);
 	}
 

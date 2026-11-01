@@ -17,6 +17,7 @@ import { ObservationRunner } from './observationRunner';
 import { characterPrompt } from './characters';
 import { mayProposeFile, mayUsePlanningTool } from './projectToolPolicy';
 import { proposeDoc } from './engineEdit';
+import { planningReplyPreview } from '../pair/fencedBlocks';
 import { pairWebAccess, WEB_ACCESS_NOTE } from '../models/webAccess';
 
 /** The locate-only turn: map where a change belongs, open the files, and propose nothing. */
@@ -111,13 +112,15 @@ export async function runPairAgent(options: AgentSessionOptions): Promise<string
 	});
 	sink.progress('');
 	if (last && planning && !token.isCancellationRequested) {
-		try { await proposeDoc(proposals, options.mode, last, sink); }
+		sink.archive?.(last);
+		try {
+			const document = await proposeDoc(proposals, options.mode, last, sink);
+			sink.text(planningReplyPreview(last, document));
+		}
 		catch (error) {
 			sink.error(error instanceof Error ? error.message : String(error));
-			// Still record the reply and retrieved decisions when validation refuses a draft.
-			return last;
+			sink.text('The planning document could not be prepared for Keep. Your saved files are unchanged.');
 		}
-		sink.text(last.split('```')[0].trim());
 	} else if (last) { sink.text(last); }
 	if (last && !token.isCancellationRequested && input.requestId) {
 		try {

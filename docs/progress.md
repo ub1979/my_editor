@@ -3,6 +3,10 @@
 Status of the requirements in [`plans/my_editor-plan-v2.md`](plans/my_editor-plan-v2.md). The original checklist is from 2026-09-23; the additions below are from 2026-09-25.
 ✅ done and verified in the app · 🟡 partly done · ⬜ not started.
 
+## 0.0.27 alpha planning audit — 1 November 2026
+
+Fixed shared planning intent routing, wrong-document rejection, HTML/nested section parsing, interface recognition, complete generated-document history, nested code fences, trailing warnings and archive failure handling. Keep uses a fixed original snapshot. The user's archived architecture validates against the saved requirements and 14-section tree; rebuilding the project is unnecessary. All 701 automated tests passed, plus the planning and general editor-host checks. The earlier Go split test passes with normal build-cache access; failed package discovery now reports its cause. Local installation and versioned archive are prepared for user acceptance testing.
+
 ## 0.0.26 alpha local fix — 1 November 2026
 
 Regenerating architecture from a Requirements answer now switches the planning target. Saved requirements in the reported project already pass validation; no project regeneration is needed. Planning and choice regression tests pass.

@@ -83,12 +83,13 @@ async function proposeEdit(proposals: Proposals, mode: Mode, file: FileContext, 
 	sink.proposal(await proposals.propose(file.uri, proposed));
 }
 
-export async function proposeDoc(proposals: Proposals, mode: Mode, reply: string, sink: Sink): Promise<void> {
+export async function proposeDoc(proposals: Proposals, mode: Mode, reply: string, sink: Sink): Promise<string | undefined> {
 	const root = vscode.workspace.workspaceFolders?.[0]?.uri;
 	const content = mode.doc ? documentFromReply(reply, mode.doc) : undefined;
 	if (!root || !mode.doc || content === undefined) {
 		return; // Still interviewing: nothing to write yet.
 	}
 	sink.proposal(await proposals.propose(vscode.Uri.joinPath(root, mode.doc), content.endsWith('\n') ? content : `${content}\n`));
+	return content;
 }
 

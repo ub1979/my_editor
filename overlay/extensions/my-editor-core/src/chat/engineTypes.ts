@@ -4,6 +4,7 @@ import type { ActiveFile } from './activeFile';
 /** Where a reply goes: the chat panel implements this. */
 export interface Sink {
 	text(markdown: string): void;
+	archive?(markdown: string): void;
 	progress(message: string): void;
 	proposal(proposal: Proposal): void;
 	action(label: string, command: string, args: unknown[]): void;

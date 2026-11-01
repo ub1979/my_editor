@@ -20,6 +20,7 @@ export async function runReplyJob(
 	hooks.running(source);
 	let flush: NodeJS.Timeout | undefined;
 	const sink: Sink = {
+		archive: markdown => { reply.historyText = markdown; },
 		text: chunk => {
 			reply.markdown += chunk;
 			flush ??= setTimeout(() => { flush = undefined; hooks.update(); }, 50);
@@ -33,7 +34,7 @@ export async function runReplyJob(
 			hooks.update();
 		},
 		action: (label, command, args) => { reply.actions.push({ label, command, args }); },
-		error: message => { reply.error = message; },
+		error: message => { reply.error = [reply.error, message].filter(Boolean).join('\n'); },
 	};
 	try { await job(sink, source.token); }
 	catch (error) { reply.error = error instanceof Error ? error.message : String(error); }

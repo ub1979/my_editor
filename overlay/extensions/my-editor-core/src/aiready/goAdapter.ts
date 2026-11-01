@@ -124,6 +124,7 @@ export function createGoAdapter(root: string, tools: GoTools, tracked: readonly 
 		sameDeclarations: declarationProblems,
 		async unitFiles(file) {
 			const listed = await runTool(tools.go, ['list', '-e', '-f', '{{join .GoFiles "\\n"}}', goPackage(file)], root, GO_READ_ENV);
+			if (listed.code !== 0) { throw new Error(`Could not list the Go package for ${file}: ${listed.stderr.trim().slice(0, 500)}`); }
 			const dir = path.posix.dirname(file);
 			return listed.stdout.split('\n').map(name => name.trim()).filter(Boolean).map(name => (dir === '.' ? name : `${dir}/${name}`));
 		},

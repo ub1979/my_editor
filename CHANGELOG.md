@@ -2,6 +2,15 @@
 
 my_editor uses the version in `overlay/extensions/my-editor-core/package.json` as its own release number. The Home page displays that version. The underlying editor shell keeps its upstream version independently.
 
+## 0.0.27 alpha — 2026-11-01
+
+- Typed planning requests and answer choices share document routing. Wrong-document replies are rejected before a proposal can replace another planning file; errors distinguish proposed content from saved prerequisites.
+- Architecture validation, project maps and impact lookup share a Markdown section parser, supporting nested headings, HTML anchors and fenced examples. Concrete routes, configuration and callable signatures count as interfaces.
+- Planning history retains full generated documents across display shortening and restarts. Longer outer fences preserve embedded examples, incomplete fences cannot produce partial documents, and warnings after the document remain visible.
+- Chat archives finish saving before a turn completes, report failures and do not replace unreadable history. Rejected planning replies retain their investigation record.
+- Proposal diffs use a fixed, read-only original snapshot, avoiding an editor assertion while Keep replaces an existing file. Go package discovery reports lookup failures instead of treating them as empty packages.
+- Validation: 701 automated tests passed, plus planning and general editor-host checks. The earlier Go split failure was reproduced only with restricted cache access; it passes with the normal local cache. The user's complete archived architecture passes against the existing requirements and all 14 tree sections.
+
 ## 0.0.26 alpha — 2026-11-01
 
 - Regenerate, rewrite, restore, rebuild and generate choices switch to the named planning document. Regenerating architecture from Requirements no longer validates architecture content as requirements.

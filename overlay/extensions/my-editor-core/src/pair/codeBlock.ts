@@ -1,6 +1,8 @@
+import { fencedBlocks } from './fencedBlocks';
+
 /** Every fenced code block's body, in order. Tolerates a missing closing fence on the last one. */
 function codeBlocks(text: string): string[] {
-	return [...text.matchAll(/```[^\n]*\n([\s\S]*?)(?:\n?```|$)/g)].map(m => m[1]);
+	return fencedBlocks(text).map(block => block.text);
 }
 
 /** The body of the last fenced code block, or undefined. */
@@ -42,8 +44,15 @@ export function elidesCode(code: string): boolean {
  * for JSON to the outermost array.
  */
 export function documentFromReply(reply: string, target: string): string | undefined {
+	const blocks = fencedBlocks(reply);
+	if (blocks.some(block => !block.closed)) { throw new Error('The planning document has an unfinished code fence. Ask Pair to finish the complete document; nothing was saved.'); }
+	const headings = [...reply.matchAll(/^#{1,3} \S/gm)].filter(heading =>
+		!blocks.some(block => heading.index! >= block.start && heading.index! < block.end));
+	// A plain Markdown document can itself contain examples; those examples must not replace the document.
+	const plainDocument = !target.endsWith('.json') && headings.length >= 2
+		&& headings[0].index! < (blocks[0]?.start ?? Infinity);
 	const fenced = fileFromReply(reply);
-	if (fenced !== undefined && fenced.trim()) {
+	if (!plainDocument && fenced !== undefined && fenced.trim()) {
 		return fenced;
 	}
 	if (target.endsWith('.json')) {
@@ -58,7 +67,6 @@ export function documentFromReply(reply: string, target: string): string | undef
 			return undefined;
 		}
 	}
-	const headings = [...reply.matchAll(/^#{1,3} \S/gm)];
 	if (headings.length < 2) {
 		return undefined;
 	}

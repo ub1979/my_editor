@@ -180,6 +180,15 @@ test('the Go checks also build the changed package on its own, writing no binary
 	assert.equal(adapter.checks('a.go')[1].command, `go build -o ${nul} .`);
 });
 
+test('failed Go package discovery reports the cause instead of pretending no source files exist', async () => {
+	const dir = mkdtempSync(path.join(os.tmpdir(), 'my-editor-go-list-failure-'));
+	const bin = path.join(dir, 'go');
+	writeFileSync(bin, '#!/bin/sh\necho "build cache is not writable" >&2\nexit 1\n');
+	chmodSync(bin, 0o755);
+	const adapter = createGoAdapter(dir, { go: bin, helper: '', platforms: { os: new Set(), arch: new Set() } }, []);
+	await assert.rejects(adapter.unitFiles('a.go'), /Could not list the Go package.*build cache is not writable/);
+});
+
 test('a log folder that cannot be created is a failed result, and a short timeout is not rounded to 0 s', async () => {
 	const dir = mkdtempSync(path.join(os.tmpdir(), 'my-editor-nolog-'));
 	writeFileSync(path.join(dir, 'file'), '');

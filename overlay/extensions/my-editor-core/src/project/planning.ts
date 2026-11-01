@@ -1,3 +1,4 @@
+import { planningSections } from './planningSections';
 import { validateTreePlan } from './stubs';
 
 export type PlanningStage = 'requirements' | 'architecture' | 'tree';
@@ -5,7 +6,29 @@ export interface PlanningDocuments { requirements?: string; architecture?: strin
 export interface PlanningProblem { stage: PlanningStage; reason: string }
 
 const IDS = /\bN?FR-\d{3,}\b/g;
+const INTERFACE = /\b(?:interfaces?|API|inputs?|outputs?|contracts?|routes?|endpoints?|HTTP|SSE|CLI|commands?|config(?:uration)?)\b|`[\w.$]+\([^`\n]*\)`/i;
 const DEFERRED = /\bwhen (?:you|the user) (?:say|ask|approve)[^\n.!?]*(?:write|produce|generate|full|complete)|\b(?:I['’]ll|I will) (?:write|produce|generate) (?:the |a )?(?:full|complete) (?:architecture|requirements|document)/i;
+
+/** A clear document title or JSON tree must never be accepted as a different planning file. */
+export function planningDocumentKind(text: string): PlanningStage | undefined {
+	try { if (Array.isArray(JSON.parse(text))) { return 'tree'; } } catch { /* Markdown document. */ }
+	const title = planningSections(text).find(section => section.level === 1)?.title;
+	const match = /^(?:\d+[.)]?\s+)?(requirements?|architecture|(?:file\s+)?tree)\b/i.exec(title ?? '');
+	if (!match) { return; }
+	return /requirements?/i.test(match[1]) ? 'requirements' : /architecture/i.test(match[1]) ? 'architecture' : 'tree';
+}
+
+/** Explain whether a rejected check concerns the new proposal or a saved prerequisite. */
+export function planningError(stage: PlanningStage, docs: PlanningDocuments, proposed?: string): string | undefined {
+	const kind = proposed === undefined ? undefined : planningDocumentKind(proposed);
+	if (kind && kind !== stage) {
+		return `The reply contains ${kind}, but this request targets ${stage}. Use /${kind} to prepare the correct document. No saved file was changed.`;
+	}
+	const problems = planningProblems(stage, proposed === undefined ? docs : { ...docs, [stage]: proposed });
+	if (!problems.length) { return; }
+	const detail = problems.slice(0, 4).map(problem => `${proposed !== undefined && problem.stage === stage ? 'Proposed' : 'Saved'} ${problem.stage}: ${problem.reason}`);
+	return `Planning is not complete: ${detail.join('; ')}. Finalize ${problems[0].stage} before continuing. No planned files were created.`;
+}
 
 /** Saved summaries and deferred promises do not establish that a planning stage is complete. */
 export function documentProblems(stage: 'requirements' | 'architecture', text = ''): string[] {
@@ -25,11 +48,11 @@ export function documentProblems(stage: 'requirements' | 'architecture', text = 
 		if (!/^#{1,3}\s+.*(?:out of scope|non-goals)/im.test(text)) { problems.push('requirements need an out-of-scope section'); }
 	} else {
 		const components = architectureComponents(text);
-		const anchors = [...text.matchAll(/^##\s+.+\{#([\w-]+)\}\s*$/gm)].map(match => match[1]);
+		const anchors = planningSections(text).flatMap(section => section.anchor ? [section.anchor] : []);
 		if (new Set(anchors).size !== anchors.length) { problems.push('architecture section anchors must be unique'); }
-		if (!components.size) { problems.push('architecture needs component sections with stable {#anchors}'); }
+		if (!components.size) { problems.push('architecture needs component sections with stable anchors ({#id} or an HTML anchor)'); }
 		for (const [anchor, body] of components) {
-			if (!/\bN?FR-\d{3,}\b/.test(body) || !/interface|\bAPI\b|inputs?|outputs?|contracts?/i.test(body)) {
+			if (!/\bN?FR-\d{3,}\b/.test(body) || !INTERFACE.test(body)) {
 				problems.push(`architecture section #${anchor} needs requirement links and an interface`);
 			}
 		}
@@ -41,11 +64,7 @@ export function documentProblems(stage: 'requirements' | 'architecture', text = 
 
 /** Component bodies stop at the next section, so a later component cannot supply a missing interface. */
 export function architectureComponents(text: string): Map<string, string> {
-	const headings = [...text.matchAll(/^##\s+(.+)$/gm)];
-	return new Map(headings.flatMap((heading, index) => {
-		const anchor = /\{#([\w-]+)\}/.exec(heading[1])?.[1];
-		return anchor ? [[anchor, text.slice(heading.index! + heading[0].length, headings[index + 1]?.index ?? text.length)]] : [];
-	}));
+	return new Map(planningSections(text).flatMap(section => section.anchor ? [[section.anchor, section.body]] : []));
 }
 
 /** Check the saved dependency chain and every reference before calling a tree ready to build. */

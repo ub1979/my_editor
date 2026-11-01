@@ -18,6 +18,8 @@ export interface Message {
 	readonly role: 'user' | 'assistant';
 	characterId?: string;
 	markdown: string;
+	/** Full model reply, including reviewed document content hidden from the chat presentation. */
+	historyText?: string;
 	mode?: string;
 	progress?: string;
 	error?: string;

@@ -16,6 +16,15 @@ test('a fresh chat starts empty with the default character', () => {
 	assert.equal(state.pinned, false);
 });
 
+test('a typed request switches the active planning skill and persists it for follow-up turns', () => {
+	const state = new ChatState(undefined);
+	state.mode = 'requirements';
+	assert.equal(state.selectPlanningMode('Regenerate architecture.md'), true);
+	assert.equal(new ChatState(state.snapshot()).mode, 'architecture');
+	assert.equal(state.selectPlanningMode('Yes, include notifications.'), false);
+	assert.equal(state.mode, 'architecture');
+});
+
 test('restoring finishes interrupted replies and expires only open proposals', () => {
 	const card = (id: string, state: 'open' | 'kept' | 'undone') => ({ id, file: `${id}.ts`, added: 1, removed: 0, isNewFile: false, state });
 	const saved: SavedChat = {
@@ -77,6 +86,15 @@ test('history keeps finished turns with text and can leave out the request just 
 	assert.deepEqual(state.history(false), [
 		{ id: 'a', role: 'user', text: 'a' }, { id: 'd', role: 'assistant', text: 'd' }, { id: 'e', role: 'user', text: 'now' },
 	]);
+});
+
+test('generated documents remain available to history tools after the display is shortened and the chat restored', () => {
+	const state = new ChatState(undefined);
+	const full = 'Ready for Keep.\n```md\n# Architecture\n## Notifications {#notifications}\nFR-001\n```';
+	state.messages.push(message('document', { role: 'assistant', markdown: 'Ready for Keep.', historyText: full }));
+	const restored = new ChatState(state.snapshot());
+	assert.equal(restored.visibleMessages()[0].markdown, 'Ready for Keep.');
+	assert.equal(restored.history(false)[0].text, full);
 });
 
 test('proposal states list the latest twelve cards across messages', () => {

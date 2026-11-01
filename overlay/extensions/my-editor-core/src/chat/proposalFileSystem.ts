@@ -13,7 +13,8 @@ export class ProposalFileSystem implements vscode.FileSystemProvider {
 	stat(uri: vscode.Uri): vscode.FileStat {
 		const data = this.files.get(uri.path);
 		if (!data) { throw vscode.FileSystemError.FileNotFound(uri); }
-		return { type: vscode.FileType.File, ctime: 0, mtime: Date.now(), size: data.byteLength };
+		return { type: vscode.FileType.File, ctime: 0, mtime: Date.now(), size: data.byteLength,
+			permissions: uri.path.includes('/base/') ? vscode.FilePermission.Readonly : undefined };
 	}
 
 	readDirectory(): [string, vscode.FileType][] { return []; }
@@ -26,6 +27,7 @@ export class ProposalFileSystem implements vscode.FileSystemProvider {
 	}
 
 	writeFile(uri: vscode.Uri, content: Uint8Array): void {
+		if (uri.path.includes('/base/')) { throw vscode.FileSystemError.NoPermissions('The reviewed original is read-only.'); }
 		this.files.set(uri.path, content);
 		this.changed.fire([{ type: vscode.FileChangeType.Changed, uri }]);
 	}

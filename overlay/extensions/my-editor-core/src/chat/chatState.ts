@@ -2,6 +2,7 @@ import { character, CharacterId } from './characters';
 import type { MemoryMessage, MemoryState } from './memory';
 import { labelFor, Message } from './presentation';
 import type { Proposal } from './proposals';
+import { planningIntent } from './planningIntent';
 
 /** Older messages are dropped from storage past this count. */
 export const MAX_KEPT_MESSAGES = 200;
@@ -67,6 +68,14 @@ export class ChatState {
 		this.pendingPlaceholder = undefined;
 	}
 
+	/** A request to write a particular planning document also updates the visible active skill. */
+	selectPlanningMode(text: string): boolean {
+		const mode = planningIntent(text);
+		if (!mode || mode === this.mode) { return false; }
+		this.mode = mode;
+		return true;
+	}
+
 	/** Adds a finished user line; a skill run without text shows the skill's label. */
 	addUserMessage(id: string, text: string, mode?: string): void {
 		this.messages.push({ id, role: 'user', markdown: text.trim() || labelFor(mode), mode, proposals: [], actions: [], done: true });
@@ -83,8 +92,8 @@ export class ChatState {
 
 	/** Finished turns the model may remember; `withoutLast` leaves out the request just added. */
 	history(withoutLast: boolean): MemoryMessage[] {
-		const finished = this.messages.filter(message => message.done && message.markdown);
-		return finished.slice(0, withoutLast ? -1 : undefined).map(message => ({ id: message.id, role: message.role, text: message.markdown }));
+		const finished = this.messages.filter(message => message.done && (message.historyText || message.markdown));
+		return finished.slice(0, withoutLast ? -1 : undefined).map(message => ({ id: message.id, role: message.role, text: message.historyText ?? message.markdown }));
 	}
 
 	/** The latest proposal cards as `file: state` lines, for the model's context. */

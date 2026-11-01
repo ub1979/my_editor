@@ -34,7 +34,8 @@ export async function logExchange(entry: { mode: string; model: string; file?: s
 		let existing: string;
 		try {
 			existing = new TextDecoder().decode(await vscode.workspace.fs.readFile(target));
-		} catch {
+		} catch (error) {
+			if (!['FileNotFound', 'ENOENT'].includes((error as { code?: string }).code ?? '')) { throw error; }
 			existing = `# Chats — ${day}\n`;
 		}
 		await vscode.workspace.fs.writeFile(target, new TextEncoder().encode(existing + block));

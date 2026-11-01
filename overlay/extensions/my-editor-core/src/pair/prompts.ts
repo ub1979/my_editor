@@ -15,7 +15,7 @@ Do not require a magic phrase or keep asking for approval after the user already
 the remaining choices: recommend defaults, record assumptions, and finish unless a critical fact is missing.
 During the interview ask only what is still needed. Never save a decisions summary, unanswered interview, placeholders,
 or a promise such as "when you say write it" as the finished document. Remove earlier draft markers when finalizing.
-Keep is the user's final save decision.`;
+Use a four-backtick outer fence when the document itself contains fenced examples. Keep is the user's final save decision.`;
 
 const EDIT_FORMAT = `Reply with at most three short sentences saying what you changed and why, then ONE fenced code block
 containing the COMPLETE new content of the file — every line, unchanged lines included. Nothing after the block.`;

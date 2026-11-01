@@ -26,6 +26,7 @@ import { usesProjectTools } from './projectToolPolicy';
 import { pairWebAccess, WEB_ACCESS_NOTE } from '../models/webAccess';
 import { offerPush } from './pushOffer';
 import { qaSubject, specs as readSpecs } from './engineDocuments';
+import { planningIntent } from './planningIntent';
 import { streamEdit } from './engineEdit';
 import { readModeFile, resolveMode } from './engineMode';
 
@@ -72,7 +73,7 @@ export class PairEngine {
 
 	async run(input: RunInput, history: readonly Turn[], sink: Sink, token: vscode.CancellationToken): Promise<RunResult> {
 		const parsed = /^\/([\w:-]+)\s*([\s\S]*)$/.exec(input.text.trim());
-		let modeId = parsed ? parsed[1] : input.mode ?? 'chat';
+		let modeId = parsed ? parsed[1] : planningIntent(input.text) ?? input.mode ?? 'chat';
 		let prompt = parsed ? parsed[2] : input.text;
 		const locateOnly = input.locateOnly || modeId === 'locate';
 		if (modeId === 'locate') { modeId = 'chat'; }
@@ -154,7 +155,8 @@ export class PairEngine {
 				sink.action('Save as decision', 'myEditor.saveDecision', [{ title: prompt, context: prompt, discussion: reply }]);
 			}
 			if (!input.kickoff) { offerPush(prompt, sink); }
-			void logExchange({ mode: mode.id, model: entry.label, file: file?.relativePath, prompt: input.kickoff ? '(started)' : prompt, reply });
+			await logExchange({ mode: mode.id, model: entry.label, file: file?.relativePath, prompt: input.kickoff ? '(started)' : prompt, reply })
+				.catch(() => sink.error('Pair answered, but could not save the chat archive.'));
 			return { mode: mode.id, reply, model: entry.label };
 		}
 
@@ -168,7 +170,8 @@ export class PairEngine {
 			sink.action('Save as decision', 'myEditor.saveDecision', [{ title: prompt, context: prompt, discussion: reply }]);
 		}
 		if (!input.kickoff) { offerPush(prompt, sink); }
-		void logExchange({ mode: mode.id, model: entry.label, file: file?.relativePath, prompt: input.kickoff ? '(started)' : prompt, reply });
+		await logExchange({ mode: mode.id, model: entry.label, file: file?.relativePath, prompt: input.kickoff ? '(started)' : prompt, reply })
+			.catch(() => sink.error('Pair answered, but could not save the chat archive.'));
 		return { mode: mode.id, reply, model: entry.label };
 	}
 

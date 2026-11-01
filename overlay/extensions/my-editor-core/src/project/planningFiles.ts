@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { planningProblems, PlanningDocuments, PlanningStage } from './planning';
+import { planningError, PlanningDocuments, PlanningStage } from './planning';
 
 export async function readPlanningDocuments(root: vscode.Uri): Promise<PlanningDocuments> {
 	const values = await Promise.all(['requirements.md', 'architecture.md', 'tree.json'].map(async name => {
@@ -21,11 +21,6 @@ export async function validatePlanningFile(target: vscode.Uri, content: string):
 
 export async function assertPlanningReady(root: vscode.Uri, stage: PlanningStage, content?: string): Promise<void> {
 	const docs = await readPlanningDocuments(root);
-	if (content !== undefined) { docs[stage] = content; }
-	const problems = planningProblems(stage, docs);
-	if (problems.length) {
-		const first = problems[0];
-		throw new Error(`Planning is not complete: ${problems.slice(0, 4).map(problem => problem.reason).join('; ')}. `
-			+ `Finalize ${first.stage} before continuing. No planned files were created.`);
-	}
+	const error = planningError(stage, docs, content);
+	if (error) { throw new Error(error); }
 }

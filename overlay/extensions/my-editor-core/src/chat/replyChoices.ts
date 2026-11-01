@@ -1,4 +1,5 @@
 import MarkdownIt from 'markdown-it';
+import { planningIntent } from './planningIntent';
 import type { Message } from './presentation';
 import type { PlanningStage } from '../project/planning';
 import type { ChatState } from './chatState';
@@ -62,14 +63,11 @@ export function replyChoices(message: Pick<Message, 'role' | 'done' | 'markdown'
 	if (message.role !== 'assistant' || !message.done) { return { markdown: message.markdown, choices: [] }; }
 	const result = questionChoices(message.markdown);
 	for (const choice of result.choices) {
-		if (/\b(?:write|rewrite|generate|regenerate|rebuild|restore|finali[sz]e|complete|full)\b/i.test(choice.label)) {
-			const target = /\b(?:write|rewrite|produce|generate|regenerate|rebuild|restore|finali[sz]e|complete)\s+(?:(?:the|full|complete)\s+)*(requirements|architecture|tree)\b/i.exec(choice.text)?.[1]?.toLowerCase();
-			const stage = target ?? (/requirements/i.test(choice.label) ? 'requirements' : /architecture/i.test(choice.label) ? 'architecture' : undefined);
-			if (stage) { choice.mode = stage as PlanningStage; }
-		}
+		choice.mode = planningIntent(choice.text);
 	}
 	if (message.mode && STAGES.has(message.mode) && !message.proposals.some(proposal => proposal.state === 'open' || proposal.state === 'kept')) {
-		const repair = /Finalize (requirements|architecture|tree) before continuing/.exec(message.error ?? '')?.[1];
+		const repair = /Finalize (requirements|architecture|tree) before continuing/.exec(message.error ?? '')?.[1]
+			?? /Use \/(requirements|architecture|tree)\b/.exec(message.error ?? '')?.[1];
 		const stage = (repair ?? message.mode) as PlanningStage;
 		if (!result.choices.some(choice => choice.mode === stage)) { result.choices.push(finalizeChoice(stage)); }
 	}

@@ -12,7 +12,8 @@ const requirements = '# Requirements\n## Goal\nWrite reviewed drafts.\n## Users\
 	+ '## Non-functional requirements\nNFR-001 SHOULD preserve drafts. Acceptance: recover after restart.\n'
 	+ '## Out of scope\nTeam accounts.\n';
 const architecture = '# Architecture\n## Main system flow\nThe interface sends a reviewed draft to the composer.\n'
-	+ sections.map(section => `## ${section} {#${section}}\nServes FR-001. Interface: typed request and response.\n`).join('')
+	+ '```mermaid\ngraph LR\nInterface --> Composer\n```\n## Components\n'
+	+ sections.map(section => `<a id="${section}"></a>\n### ${section}\nServes FR-001. Routes: typed request and response.\n`).join('')
 	+ '## Decisions\nUse local storage for one user; defer remote storage.\n';
 
 function proposalTab() {
@@ -33,6 +34,7 @@ exports.run = async function () {
 	const root = vscode.workspace.workspaceFolders[0].uri.fsPath;
 	const calls = [];
 	let fixtureError;
+	let phase = 'planning';
 	const server = http.createServer(async (req, res) => {
 		res.setHeader('content-type', 'application/json');
 		if (req.url === '/api/tags') { res.end(JSON.stringify({ models: [{ name: 'planning-fixture' }] })); return; }
@@ -42,7 +44,23 @@ exports.run = async function () {
 			const system = payload.messages.find(message => message.role === 'system').content;
 			const last = payload.messages.at(-1).content;
 			let response;
-			if (system.includes('Help the user work out what to build')) {
+			if (phase === 'wrong document') {
+				assert.ok(system.includes('Help the user work out what to build'));
+				response = { action: 'final', message: '````markdown\n' + architecture + '````' };
+			} else if (phase === 'recover generated document') {
+				if (last.includes('Host tool result for read_chat')) {
+					assert.ok(last.includes('<a id="notifications"></a>'), 'The full document must survive display shortening');
+					assert.ok(last.includes('Check deployment settings before building.'));
+					calls.push('read full generated document');
+					response = { action: 'final', message: 'I recovered the full architecture and its trailing warning.' };
+				} else if (last.includes('Host tool result for search_chat')) {
+					const match = /(\d+) turns ago \(assistant\)/.exec(last);
+					assert.ok(match, 'Generated document contents must be searchable');
+					response = { action: 'tool', name: 'read_chat', arguments: { turnsAgo: Number(match[1]) } };
+				} else {
+					response = { action: 'tool', name: 'search_chat', arguments: { query: 'typed request and response' } };
+				}
+			} else if (system.includes('Help the user work out what to build')) {
 				if (last.includes('Host tool result for read_file')) {
 					assert.ok(last.includes('section-agreement'));
 					response = { action: 'final', message: 'The requirements are ready for Keep.\n```markdown\n' + requirements + '```' };
@@ -59,7 +77,8 @@ exports.run = async function () {
 			} else if (system.includes('Design the system with the user')) {
 				if (last.includes('Host tool result for read_chat')) {
 					assert.ok(last.includes('notifications'));
-					response = { action: 'final', message: 'The architecture follows our agreed sections.\n```markdown\n' + architecture + '```' };
+					response = { action: 'final', message: 'The architecture follows our agreed sections.\n````markdown\n'
+						+ architecture + '````\nCheck deployment settings before building.' };
 				} else if (last.includes('Host tool result for search_chat')) {
 					const match = /(\d+) turns ago \(assistant\)/.exec(last);
 					assert.ok(match, 'Assistant decisions must be searchable');
@@ -86,23 +105,37 @@ exports.run = async function () {
 			await config.update(key, value, vscode.ConfigurationTarget.Global);
 		}
 		await vscode.extensions.getExtension('my-editor.my-editor-core').activate();
+		await vscode.commands.executeCommand('myEditor.chat.ask', '/chat Recall the section-agreement.');
+		await until(() => calls.length || fs.readdirSync(path.join(root, '.my_editor/chats')).length > 1, 'Initial chat did not finish');
 		await vscode.commands.executeCommand('myEditor.chat.ask', '/requirements Finalize using the saved section-agreement.');
 		if (fixtureError) { throw fixtureError; }
 		await until(proposalTab, 'No requirements proposal after saved chat retrieval');
+		assert.equal((await vscode.workspace.openTextDocument(proposalTab().input.original)).getText(), 'Status: Draft\n' + requirements);
 		assert.match(fs.readFileSync(path.join(root, '.my_editor/specs/requirements.md'), 'utf8'), /Status: Draft/);
 		await vscode.commands.executeCommand('myEditor.proposal.keep', proposalTab().input.modified);
 		assert.equal(fs.readFileSync(path.join(root, '.my_editor/specs/requirements.md'), 'utf8'), requirements);
-		await vscode.commands.executeCommand('myEditor.chat.ask', '/chat Recall the section-agreement.');
-		await vscode.commands.executeCommand('myEditor.chat.ask', '/architecture Write the complete architecture using the section-agreement.');
+		await vscode.commands.executeCommand('myEditor.chat.ask', 'Regenerate architecture.md using the section-agreement.');
 		if (fixtureError) { throw fixtureError; }
 		await until(proposalTab, 'No architecture proposal after assistant history retrieval');
 		assert.equal(fs.existsSync(path.join(root, '.my_editor/specs/architecture.md')), false);
 		await vscode.commands.executeCommand('myEditor.proposal.keep', proposalTab().input.modified);
 		assert.equal(fs.readFileSync(path.join(root, '.my_editor/specs/architecture.md'), 'utf8'), architecture);
 		await until(() => fs.readdirSync(path.join(root, '.my_editor/chats')).some(file =>
-			fs.readFileSync(path.join(root, '.my_editor/chats', file), 'utf8').includes('## notifications {#notifications}')),
+			fs.readFileSync(path.join(root, '.my_editor/chats', file), 'utf8').includes('<a id="notifications"></a>')),
 		'Full planning response was not saved to the chat archive');
-		assert.deepEqual(calls, ['search saved chats', 'read saved chat', 'search earlier assistant', 'read earlier assistant']);
+		phase = 'recover generated document';
+		await vscode.commands.executeCommand('myEditor.chat.ask', '/chat Recover the full generated document from our earlier messages.');
+		if (fixtureError) { throw fixtureError; }
+		phase = 'wrong document';
+		if (proposalTab()) { await vscode.window.tabGroups.close(proposalTab()); }
+		await vscode.commands.executeCommand('myEditor.chat.ask', '/requirements Test a reply with the wrong document title.');
+		if (fixtureError) { throw fixtureError; }
+		assert.equal(proposalTab(), undefined, 'An architecture must not become a requirements proposal');
+		assert.equal(fs.readFileSync(path.join(root, '.my_editor/specs/requirements.md'), 'utf8'), requirements);
+		assert.equal(fs.readFileSync(path.join(root, '.my_editor/specs/architecture.md'), 'utf8'), architecture);
+		calls.push('reject wrong document without modifying saved files');
+		assert.deepEqual(calls, ['search saved chats', 'read saved chat', 'search earlier assistant', 'read earlier assistant',
+			'read full generated document', 'reject wrong document without modifying saved files']);
 		fs.writeFileSync(process.env.MY_EDITOR_INTEGRATION_REPORT, JSON.stringify({ ok: true, checks: calls,
 			sections: sections.length, reviewedDocuments: 2, fullChatSaved: true }, null, 2));
 	} finally { server.close(); }

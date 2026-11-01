@@ -1,12 +1,8 @@
-/** The architecture section anchor (`{#id}`) that contains the given 0-based line, if any. */
+import { planningSections } from './planningSections';
+
+/** The explicit architecture section containing this line, using the same parser as validation and maps. */
 export function sectionAt(lines: string[], line: number): string | undefined {
-	for (let i = Math.min(line, lines.length - 1); i >= 0; i--) {
-		const match = /^#{1,6} .*\{#([\w-]+)\}\s*$/.exec(lines[i]);
-		if (match) {
-			return match[1];
-		}
-	}
-	return undefined;
+	return planningSections(lines.join('\n')).find(section => section.anchor && section.line <= line && line < section.endLine)?.anchor;
 }
 
 /** The first requirement ID (FR-001 / NFR-002) on a line, if any. */
