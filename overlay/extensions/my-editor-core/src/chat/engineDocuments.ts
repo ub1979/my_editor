@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { readProjectNote } from '../pair/context';
 import type { Mode } from '../pair/prompts';
 import { readPlanningDocuments } from '../project/planningFiles';
-import { planningProblems, PlanningStage } from '../project/planning';
+import { planningProblems, PlanningStage, savedTreeSections } from '../project/planning';
 
 export async function qaSubject(prompt: string): Promise<string> {
 	const reportPath = /\.my_editor\/qa\/\S+\.md/.exec(prompt)?.[0];
@@ -37,7 +37,13 @@ export async function specs(mode: Mode): Promise<string> {
 	}));
 	const root = vscode.workspace.workspaceFolders?.[0]?.uri;
 	if (root && ['requirements', 'architecture', 'tree'].includes(mode.id)) {
-		const problems = planningProblems(mode.id as PlanningStage, await readPlanningDocuments(root));
+		const docs = await readPlanningDocuments(root);
+		const problems = planningProblems(mode.id as PlanningStage, docs);
+		const sections = savedTreeSections(docs.tree);
+		if (sections.length) {
+			parts.push('All saved tree section values (read directly by the editor): ' + sections.join(', ') + '. '
+				+ 'Keep these component anchors when continuing the current design; explain any mapping changes needed by a requested redesign.');
+		}
 		parts.push('Host validation of the saved planning files (an unkept proposal does not change these files):\n'
 			+ (problems.length ? problems.map(problem => `- ${problem.reason}`).join('\n')
 				+ '\nDo not claim these stages are complete. Finish the current document if its prerequisites are valid; '

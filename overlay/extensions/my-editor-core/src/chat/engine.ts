@@ -117,7 +117,7 @@ export class PairEngine {
 		const entries = await loadCatalog(this.keys);
 		const entry = entries.find(e => e.key === input.modelKey) ?? pickDefault(entries);
 		if (!entry) {
-			sink.error('No model is set up yet. Choose one from the model menu at the bottom of the chat.');
+			sink.error('No model is set up yet. Choose one from the model menu at the bottom of the chat.', 'chooseModel');
 			return { mode: mode.id, reply: '' };
 		}
 

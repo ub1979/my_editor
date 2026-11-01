@@ -27,7 +27,7 @@ export function planningSections(text: string): PlanningSection[] {
 			level: Number(token.tag.slice(1)), line: html ? previous : token.map[0], contentLine: token.map[1] }];
 	});
 	return headings.map((heading, i) => {
-		const next = headings.slice(i + 1).find(item => item.level <= heading.level || item.anchor);
+		const next = headings.slice(i + 1).find(item => item.level <= heading.level);
 		const endLine = next?.line ?? lines.length;
 		return { ...heading, endLine, body: lines.slice(heading.contentLine, endLine).join('\n') };
 	});

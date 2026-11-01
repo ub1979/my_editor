@@ -9,7 +9,7 @@ export interface Sink {
 	progress(message: string): void;
 	proposal(proposal: Proposal): void;
 	action(label: string, command: string, args: unknown[]): void;
-	error(message: string): void;
+	error(message: string, action?: 'chooseModel'): void;
 }
 
 export interface Turn {

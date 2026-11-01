@@ -1,12 +1,20 @@
 import { planningSections } from './planningSections';
+import { architectureAnchors, architectureComponentSections, hasComponentContract } from './architectureSections';
 import { validateTreePlan } from './stubs';
 
 export type PlanningStage = 'requirements' | 'architecture' | 'tree';
 export interface PlanningDocuments { requirements?: string; architecture?: string; tree?: string }
 export interface PlanningProblem { stage: PlanningStage; reason: string }
 
+/** Supply the complete saved section list without requiring a model to page through the file tree. */
+export function savedTreeSections(tree = ''): string[] {
+	try {
+		return [...new Set(validateTreePlan(tree).flatMap(file => typeof file.section === 'string'
+			&& file.section.trim() ? [file.section.replace(/^#/, '')] : []))];
+	} catch { return []; }
+}
+
 const IDS = /\bN?FR-\d{3,}\b/g;
-const INTERFACE = /\b(?:interfaces?|API|inputs?|outputs?|contracts?|routes?|endpoints?|HTTP|SSE|CLI|commands?|config(?:uration)?)\b|`[\w.$]+\([^`\n]*\)`/i;
 const DEFERRED = /\bwhen (?:you|the user) (?:say|ask|approve)[^\n.!?]*(?:write|produce|generate|full|complete)|\b(?:I['’]ll|I will) (?:write|produce|generate) (?:the |a )?(?:full|complete) (?:architecture|requirements|document)/i;
 
 /** A clear document title or JSON tree must never be accepted as a different planning file. */
@@ -52,7 +60,7 @@ export function documentProblems(stage: 'requirements' | 'architecture', text = 
 		if (new Set(anchors).size !== anchors.length) { problems.push('architecture section anchors must be unique'); }
 		if (!components.size) { problems.push('architecture needs component sections with stable anchors ({#id} or an HTML anchor)'); }
 		for (const [anchor, body] of components) {
-			if (!/\bN?FR-\d{3,}\b/.test(body) || !INTERFACE.test(body)) {
+			if (!hasComponentContract(body)) {
 				problems.push(`architecture section #${anchor} needs requirement links and an interface`);
 			}
 		}
@@ -64,7 +72,7 @@ export function documentProblems(stage: 'requirements' | 'architecture', text = 
 
 /** Component bodies stop at the next section, so a later component cannot supply a missing interface. */
 export function architectureComponents(text: string): Map<string, string> {
-	return new Map(planningSections(text).flatMap(section => section.anchor ? [[section.anchor, section.body]] : []));
+	return new Map(architectureComponentSections(text).map(section => [section.anchor!, section.body]));
 }
 
 /** Check the saved dependency chain and every reference before calling a tree ready to build. */
@@ -79,7 +87,7 @@ export function planningProblems(stage: PlanningStage, docs: PlanningDocuments):
 	if (stage === 'architecture') { return problems; }
 	try {
 		const files = validateTreePlan(docs.tree ?? '');
-		const anchors = architectureComponents(docs.architecture ?? '');
+		const anchors = architectureAnchors(docs.architecture ?? '');
 		if (!files.length) { problems.push({ stage: 'tree', reason: 'the tree has no planned files' }); }
 		const paths = new Set<string>();
 		for (const file of files) {

@@ -5,7 +5,10 @@ import { ChatTurn, ModelEntry } from '../models/types';
 import { documentFromReply, elidesCode, fileFromReply } from '../pair/codeBlock';
 import { FileContext } from '../pair/context';
 import { assertEditSnapshot } from '../pair/editSnapshot';
-import { Mode } from '../pair/prompts';
+import { Mode, MODES } from '../pair/prompts';
+import { planningReplyPreview } from '../pair/fencedBlocks';
+import { isPlanningStage } from './planningStart';
+import { logExchange } from '../records/chatLog';
 import { pairWebAccess } from '../models/webAccess';
 import { mergeTurns } from './modelTurns';
 import { Proposals } from './proposals';
@@ -91,5 +94,16 @@ export async function proposeDoc(proposals: Proposals, mode: Mode, reply: string
 	}
 	sink.proposal(await proposals.propose(vscode.Uri.joinPath(root, mode.doc), content.endsWith('\n') ? content : `${content}\n`));
 	return content;
+}
+
+/** The retained response is revalidated against today's saved prerequisites and still requires Keep. */
+export async function reviewPlanningReply(proposals: Proposals, stage: string, reply: string, sink: Sink): Promise<void> {
+	if (!isPlanningStage(stage) || typeof reply !== 'string') { throw new Error('Choose a saved planning document to review.'); }
+	const document = await proposeDoc(proposals, MODES[stage], reply, sink);
+	if (document === undefined) { throw new Error('This saved reply does not contain a complete planning document.'); }
+	sink.archive?.(reply);
+	sink.text(planningReplyPreview(reply, document) || 'The saved document is ready for review. Use Keep to save it.');
+	await logExchange({ mode: stage, model: 'my_editor', prompt: '(review saved document)', reply })
+		.catch(() => sink.error('The review is ready, but its chat archive could not be saved.'));
 }
 

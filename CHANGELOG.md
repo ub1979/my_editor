@@ -2,6 +2,14 @@
 
 my_editor uses the version in `overlay/extensions/my-editor-core/package.json` as its own release number. The Home page displays that version. The underlying editor shell keeps its upstream version independently.
 
+## 0.0.29 alpha — 2026-11-01
+
+- Architecture validation follows component groups and separates general document anchors from component interfaces. Overview, Stack, APIs, Data models and Events no longer need per-component requirement/interface descriptions. Nested API headings stay part of their owning component; all anchors remain available for links.
+- The Choose a model action now requires an explicit missing-model error. Text such as data-models in a validation error cannot trigger it or change the selected model.
+- Failed replies that retain a complete valid document offer Review saved architecture (or the relevant document). This revalidates the retained response and prepares Keep without another model call; it replaces the redundant Finalize choice.
+- Planning context includes every saved tree section value directly, avoiding partial anchor lists from paged file reads.
+- Validation: all 713 automated tests passed. Both captured architecture replies from the reported project pass validation. The latest exact response was replayed in a disposable editor project, reached Keep, and saved successfully; reviewing it again made no model request, preserved requirements/tree, and kept the selected model.
+
 ## 0.0.28 alpha — 2026-11-01
 
 - Opening completed Requirements, Architecture or Flow & tree now reports the saved stage status without calling a model or preparing a replacement. It offers the next incomplete planning stage and keeps the selected skill available for requested revisions.

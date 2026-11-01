@@ -34,7 +34,7 @@ export async function runReplyJob(
 			hooks.update();
 		},
 		action: (label, command, args) => { reply.actions.push({ label, command, args }); },
-		error: message => { reply.error = [reply.error, message].filter(Boolean).join('\n'); },
+		error: (message, action) => { reply.error = [reply.error, message].filter(Boolean).join('\n'); reply.errorAction ??= action; },
 	};
 	try { await job(sink, source.token); }
 	catch (error) { reply.error = error instanceof Error ? error.message : String(error); }

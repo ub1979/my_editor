@@ -1,7 +1,7 @@
 # my_editor: vision, mission, and current status
 
 - **As of:** 1 November 2026
-- **Current version:** 0.0.28 alpha (deterministic completed-stage startup and explicit draft targets); 706 automated tests and the editor-host planning suite passed. Local installation and archive prepared; user acceptance pending.
+- **Current version:** 0.0.29 alpha (component-aware architecture validation, explicit model errors and retained-document recovery); 713 automated tests and exact-response editor replay passed. Local installation and archive prepared; user acceptance pending.
 - **Stage:** Working macOS alpha; still being validated on real projects
 
 ## Vision

@@ -1,5 +1,6 @@
 import { anchorFor, moduleOf } from '../brain/analysisPlan';
 import { planningSections } from './planningSections';
+import { architectureComponentSections } from './architectureSections';
 import { parseTree, TreeFile } from './stubs';
 
 export interface VisualPart {
@@ -37,7 +38,7 @@ export function projectVisuals(architecture: string, treeText: string, brainText
 	}
 
 	const sections = planningSections(architecture);
-	const headings = sections.some(section => section.anchor) ? sections.filter(section => section.anchor) : sections.filter(section => section.level === 2);
+	const headings = sections.some(section => section.anchor) ? architectureComponentSections(architecture) : sections.filter(section => section.level === 2);
 	const general = new Set(['stack', 'how it fits together', 'decisions', 'open questions']);
 	const parts: VisualPart[] = headings.flatMap(heading => {
 		const title = heading.title;

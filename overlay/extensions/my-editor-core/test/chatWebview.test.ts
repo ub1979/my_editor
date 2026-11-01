@@ -15,6 +15,7 @@ class Element {
 	scrollHeight = 0;
 	scrollTop = 0;
 	clientHeight = 0;
+	get lastElementChild(): Element | undefined { return this.children.at(-1) as Element | undefined; }
 	setAttribute(name: string, value: string): void { this.attributes.set(name, value); }
 	append(...children: unknown[]): void { this.children.push(...children); }
 	replaceChildren(...children: unknown[]): void { this.children = children; }
@@ -67,6 +68,18 @@ test('split chat webview loads in order and renders a Codex model selection', ()
 	assert.equal(runInContext('state.reasoning', context), 'default');
 	runInContext("modelSelect.value = 'claude-cli:opus'; modelSelect.listeners.get('change')()", context);
 	assert.equal(runInContext('state.reasoning', context), 'low');
+
+	// A selected model stays selected after validation errors mentioning a data-models section.
+	for (const errorAction of [undefined, 'chooseModel']) {
+		receive?.({ data: { type: 'messages', messages: [{ id: 'error1', role: 'assistant', done: true, proposals: [], actions: [],
+			error: 'Proposed architecture: architecture section #data-models needs requirement links and an interface.', errorAction }] } });
+		const buttons = runInContext(`(() => {
+			const collect = node => typeof node === 'string' ? [node] : (node.children || []).flatMap(collect);
+			return collect(scroll).filter(text => text === 'Choose a model').length;
+		})()`, context);
+		assert.equal(buttons, errorAction ? 1 : 0);
+		assert.equal(runInContext('state.model', context), 'claude-cli:opus');
+	}
 
 	receive?.({ data: { type: 'character', characterId: 'ada', pinned: false, reason: 'Building together' } });
 	assert.equal(runInContext('state.characterId', context), 'ada');

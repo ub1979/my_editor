@@ -163,7 +163,7 @@ function renderMessage(message) {
 	}
 	if (message.error) {
 		const box = el('div', { class: 'error', role: 'alert' }, [icon('alert'), el('div', {}, [message.error])]);
-		if (/model/i.test(message.error)) {
+		if (message.errorAction === 'chooseModel') {
 			const choose = el('button', { type: 'button', class: 'pill' }, ['Choose a model']);
 			choose.addEventListener('click', () => vscode.postMessage({ type: 'chooseModel' }));
 			box.lastElementChild?.append(el('div', { class: 'actions' }, [choose]));

@@ -4,6 +4,7 @@ import { choosePythonCommand } from './aiready/pyPick';
 import { buildBrain, updateBrainFile } from './brain/brain';
 import { AutoComments } from './comments/autoComments';
 import { PairEngine } from './chat/engine';
+import { reviewPlanningReply } from './chat/engineEdit';
 import { ANALYSE_ANSWERED, analysisOffer } from './chat/analysisOffer';
 import { ObservationRunner } from './chat/observationRunner';
 import { openObservationProfile } from './chat/observationSetup';
@@ -72,6 +73,8 @@ export function activate(context: vscode.ExtensionContext): void {
 		vscode.window.registerWebviewViewProvider(ThisFileView.id, new ThisFileView(context)),
 		vscode.commands.registerCommand('myEditor.chat.start', (skill: string) => chat.startSkill(skill)),
 		vscode.commands.registerCommand('myEditor.chat.ask', (text: string) => chat.ask(text)),
+		vscode.commands.registerCommand('myEditor.reviewPlanningReply', (stage: string, reply: string) =>
+			chat.runTask(`Review saved ${stage}`, sink => reviewPlanningReply(proposals, stage, reply, sink))),
 		vscode.commands.registerCommand('myEditor.chat.skills', () => chat.toggleSkills()),
 		vscode.commands.registerCommand('myEditor.chat.new', () => chat.newChat()),
 		vscode.commands.registerCommand('myEditor.chat.openLounge', () => chat.openLounge()),

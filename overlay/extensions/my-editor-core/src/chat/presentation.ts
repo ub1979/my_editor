@@ -2,6 +2,7 @@ import MarkdownIt from 'markdown-it';
 import type { Proposal } from './proposals';
 import { replyChoices } from './replyChoices';
 import type { PlanningStatus } from './planningStart';
+import { replyActions } from './replyActions';
 
 export interface ProposalCard {
 	readonly id: string;
@@ -26,6 +27,7 @@ export interface Message {
 	mode?: string;
 	progress?: string;
 	error?: string;
+	errorAction?: 'chooseModel';
 	proposals: ProposalCard[];
 	actions: { label: string; command: string; args: unknown[] }[];
 	done: boolean;
@@ -59,8 +61,9 @@ export function render(message: Message) {
 		label: message.role === 'user' && message.mode ? labelFor(message.mode) : undefined,
 		progress: message.progress,
 		error: message.error,
+		errorAction: message.errorAction,
 		proposals: message.proposals,
-		actions: message.actions.map(action => action.label),
+		actions: replyActions(message).map(action => action.label),
 		done: message.done,
 	};
 }

@@ -3,6 +3,7 @@ import { planningIntent } from './planningIntent';
 import type { Message } from './presentation';
 import type { PlanningStage } from '../project/planning';
 import type { ChatState } from './chatState';
+import { savedPlanningAction } from './replyActions';
 
 export interface ReplyChoice { label: string; description?: string; text: string; mode?: PlanningStage }
 const markdown = new MarkdownIt({ html: false });
@@ -58,9 +59,10 @@ export function finalizeChoice(stage: PlanningStage): ReplyChoice {
 }
 
 /** Keep the original reply for history; expose reviewed answer text, never model-supplied commands. */
-export function replyChoices(message: Pick<Message, 'role' | 'done' | 'markdown' | 'mode' | 'error' | 'proposals' | 'planningStatus'>):
+export function replyChoices(message: Pick<Message, 'role' | 'done' | 'markdown' | 'mode' | 'error' | 'proposals' | 'planningStatus' | 'historyText'>):
 	{ markdown: string; choices: ReplyChoice[] } {
 	if (message.role !== 'assistant' || !message.done) { return { markdown: message.markdown, choices: [] }; }
+	if (savedPlanningAction(message)) { return { markdown: message.markdown, choices: [] }; }
 	if (message.planningStatus) {
 		const next = message.planningStatus.next;
 		const choice = next ? finalizeChoice(next) : undefined;

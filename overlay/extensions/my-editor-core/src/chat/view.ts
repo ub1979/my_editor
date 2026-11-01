@@ -22,6 +22,7 @@ import { ReplySession } from './replySession';
 import { skillCards } from './skillCards';
 import { newChatId } from './viewUpdates';
 import { answerReplyChoice } from './replyChoices';
+import { replyActions } from './replyActions';
 
 const STATE_KEY = 'myEditor.chat.state';
 
@@ -245,7 +246,7 @@ export class ChatView implements vscode.WebviewViewProvider, ChatHandlers {
 		await answerReplyChoice(this.state, messageId, index, this.replies.running, text => this.send(text));
 	}
 	async runAction(messageId: string, index: number): Promise<void> {
-		const action = this.state.messages.find(m => m.id === messageId)?.actions[index];
+		const action = replyActions(this.state.messages.find(m => m.id === messageId))[index];
 		if (action && allowedAction(action.command)) {
 			await vscode.commands.executeCommand(action.command, ...action.args);
 		}
