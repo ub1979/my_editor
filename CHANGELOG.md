@@ -2,6 +2,12 @@
 
 my_editor uses the version in `overlay/extensions/my-editor-core/package.json` as its own release number. The Home page displays that version. The underlying editor shell keeps its upstream version independently.
 
+## 0.0.25 alpha — 2026-11-01
+
+- The chat model picker now offers Claude effort: Model default, Low (light), Medium, High, Extra high and Maximum, limited to the levels reported by the selected model.
+- Claude and Codex retain separate effort preferences. Claude requests pass the selected level with `--effort`; unsupported saved levels fall back to the model default.
+- Validation: build and 17 focused provider, effort and webview tests passed. The known Go split test failure from 0.0.24 remains outside this change.
+
 ## 0.0.24 alpha — 2026-11-01
 
 - Claude subscription models are discovered from the installed CLI, with resolved version labels and explicit version selections. Existing aliases and custom IDs remain supported.

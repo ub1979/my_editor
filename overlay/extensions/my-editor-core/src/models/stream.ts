@@ -1,26 +1,29 @@
 import * as vscode from 'vscode';
+import { effortSetting, supportedEffort } from './effort';
 import { streamAnthropic } from './anthropic';
 import { findCli, streamClaudeCli, streamCodexCli } from './cli';
 import { streamOllama } from './ollama';
 import { streamOpenAICompatible } from './openaiCompatible';
 import { ApiKeys } from './secrets';
-import { ChatTurn, ModelEntry, ProviderError, StreamRequest } from './types';
+import { ChatTurn, ModelEntry, ProviderError, ReasoningEffort, StreamRequest } from './types';
 
 export interface ModelCall {
 	readonly system?: string;
 	readonly turns: readonly ChatTurn[];
 	readonly token: vscode.CancellationToken;
 	readonly onText: (text: string) => void;
-	readonly reasoningEffort?: 'low' | 'medium' | 'high' | 'xhigh';
+	readonly reasoningEffort?: ReasoningEffort;
 	readonly webAccess?: boolean;
 	readonly onActivity?: (label: string) => void;
 }
 
 /** Sends one conversation to a model from the catalog and streams the reply. Used by chat and navigator. */
 export async function streamModel(entry: ModelEntry, keys: ApiKeys, call: ModelCall): Promise<void> {
-	const request: StreamRequest = { entry, system: call.system, turns: call.turns, token: call.token, onText: call.onText,
-		reasoningEffort: call.reasoningEffort, webAccess: call.webAccess, onActivity: call.onActivity };
 	const settings = vscode.workspace.getConfiguration('myEditor');
+	const effortKey = effortSetting(entry.provider);
+	const effort = supportedEffort(entry, call.reasoningEffort ?? (effortKey ? settings.get(effortKey, 'default') : 'default'));
+	const request: StreamRequest = { entry, system: call.system, turns: call.turns, token: call.token, onText: call.onText,
+		reasoningEffort: effort, webAccess: call.webAccess, onActivity: call.onActivity };
 	const requireKey = async (provider: 'anthropic' | 'openai' | 'openrouter') => {
 		const key = await keys.get(provider);
 		if (!key) {

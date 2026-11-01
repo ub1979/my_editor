@@ -60,7 +60,7 @@ window.addEventListener('message', event => {
 		case 'models':
 			state.models = data.models;
 			state.model = data.current;
-			state.reasoning = data.reasoning ?? 'default';
+			state.reasoning = state.models.find(model => model.key === state.model)?.reasoning ?? 'default';
 			renderModels();
 			if (state.offer) {
 				renderScroll(); // The offer names the model.

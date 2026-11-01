@@ -12,7 +12,7 @@ import { chatArchiveIndex, readChatMessage, searchChatMessages } from './chatArc
 import type { RunInput, Sink } from './engine';
 import { saveInvestigation } from './investigationJournal';
 import { evidenceEntry, EvidenceEntry } from './investigationRecord';
-import { configuredReasoningEffort, mergeTurns } from './modelTurns';
+import { mergeTurns } from './modelTurns';
 import { ObservationRunner } from './observationRunner';
 import { characterPrompt } from './characters';
 import { mayProposeFile, mayUsePlanningTool } from './projectToolPolicy';
@@ -90,7 +90,6 @@ export async function runPairAgent(options: AgentSessionOptions): Promise<string
 						: remaining <= 8 ? `Only ${remaining} host tool calls remain. Finish the task or prepare a useful final answer.` : '',
 				].filter(Boolean).join('\n\n'),
 				turns: mergeTurns(turns), token,
-				reasoningEffort: entry.provider === 'codex-cli' ? configuredReasoningEffort() : undefined,
 				webAccess: web, onActivity: label => { if (label) { sink.progress(label); } },
 				onText: chunk => { response += chunk; },
 			});

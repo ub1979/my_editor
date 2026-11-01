@@ -1,12 +1,14 @@
 import { spawn } from 'child_process';
 import { claudeEnvironment, scratchDir } from './cli';
-import type { ModelEntry } from './types';
+import { parseEffortLevels } from './effort';
+import type { ModelEntry, ReasoningEffort } from './types';
 
 export interface ClaudeModel {
 	readonly value: string;
 	readonly resolvedModel?: string;
 	readonly displayName: string;
 	readonly description: string;
+	readonly supportedEffortLevels?: readonly ReasoningEffort[];
 }
 
 /** Accept only model metadata from Claude's initialize response, never account information. */
@@ -16,7 +18,8 @@ export function parseClaudeModels(value: unknown): ClaudeModel[] {
 		if (!item || typeof item !== 'object' || typeof item.value !== 'string' || !item.value.trim()) { return []; }
 		return [{ value: item.value, resolvedModel: typeof item.resolvedModel === 'string' ? item.resolvedModel : undefined,
 			displayName: typeof item.displayName === 'string' ? item.displayName : item.value,
-			description: typeof item.description === 'string' ? item.description : '' }];
+			description: typeof item.description === 'string' ? item.description : '',
+			supportedEffortLevels: item.supportsEffort === false ? [] : parseEffortLevels(item.supportedEffortLevels) }];
 	});
 }
 
@@ -34,7 +37,7 @@ export function claudeModelEntries(configured: readonly string[], discovered: re
 	const ids = new Set([...configured, ...discovered.map(model => model.value),
 		...discovered.flatMap(model => model.resolvedModel ? [model.resolvedModel] : [])]);
 	return [...ids].filter(id => id.trim()).map(model => {
-		const info = known.get(model);
+		const info = known.get(model) ?? discovered.find(item => item.resolvedModel === model);
 		const resolved = info?.resolvedModel;
 		const alias = !!resolved && model !== resolved && !model.startsWith('claude-');
 		const label = resolved ? modelLabel(resolved) + (model.endsWith('[1m]') ? ' (1M context)' : '')
@@ -42,6 +45,7 @@ export function claudeModelEntries(configured: readonly string[], discovered: re
 		return { key: `claude-cli:${model}`, provider: 'claude-cli', model,
 			label: `Claude ${label}${alias ? ` (${model === 'default' ? 'default' : `${model} alias`})` : ''}`,
 			detail: `Claude subscription · ${model}${!resolved && !model.startsWith('claude-') ? ' · version unavailable' : ''}`,
+			supportedEffortLevels: info?.supportedEffortLevels,
 			maxInputTokens: 200_000, maxOutputTokens: 32_000 };
 	});
 }

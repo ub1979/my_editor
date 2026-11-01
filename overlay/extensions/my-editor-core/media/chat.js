@@ -35,7 +35,7 @@ const context = el('div', { class: 'context' });
 const input = /** @type {HTMLTextAreaElement} */ (el('textarea', { rows: '1', 'aria-label': 'Message the pair' }));
 const modelSelect = /** @type {HTMLSelectElement} */ (el('select', { class: 'model', 'aria-label': 'Model' }));
 const reasoningSelect = /** @type {HTMLSelectElement} */ (el('select', {
-	class: 'reasoning', 'aria-label': 'Codex reasoning level', title: 'Codex reasoning level',
+	class: 'reasoning', 'aria-label': 'Model effort level', title: 'Model effort level',
 }));
 const sendButton = /** @type {HTMLButtonElement} */ (el('button', { type: 'submit', class: 'send', 'aria-label': 'Send' }));
 let showSkills = false;
@@ -181,16 +181,16 @@ function renderModels() {
 		modelSelect.append(option);
 	}
 	reasoningSelect.replaceChildren();
-	const efforts = [
-		['default', 'Effort: Codex default'], ['low', 'Effort: Low'], ['medium', 'Effort: Medium'],
-		['high', 'Effort: High'], ['xhigh', 'Effort: Extra high'],
-	];
-	for (const [value, label] of efforts) {
-		const option = el('option', { value }, [label]);
-		if (value === state.reasoning) { option.setAttribute('selected', ''); }
+	const selected = state.models.find(model => model.key === state.model);
+	const levels = selected?.effortLevels ?? [];
+	const labels = { low: 'Low (light)', medium: 'Medium', high: 'High', xhigh: 'Extra high', max: 'Maximum' };
+	const effort = levels.includes(state.reasoning) ? state.reasoning : 'default';
+	for (const value of ['default', ...levels]) {
+		const option = el('option', { value }, [`Effort: ${value === 'default' ? 'Model default' : labels[value]}`]);
+		if (value === effort) { option.setAttribute('selected', ''); }
 		reasoningSelect.append(option);
 	}
-	reasoningSelect.hidden = !String(state.model ?? '').startsWith('codex-cli:');
+	reasoningSelect.hidden = levels.length === 0;
 }
 
 /* Events */
@@ -241,6 +241,7 @@ input.addEventListener('keydown', event => {
 modelSelect.addEventListener('change', () => {
 	if (modelSelect.value) {
 		state.model = modelSelect.value;
+		state.reasoning = state.models.find(model => model.key === state.model)?.reasoning ?? 'default';
 		renderModels();
 		vscode.postMessage({ type: 'model', key: modelSelect.value });
 	} else {
@@ -250,7 +251,9 @@ modelSelect.addEventListener('change', () => {
 
 reasoningSelect.addEventListener('change', () => {
 	state.reasoning = reasoningSelect.value;
-	vscode.postMessage({ type: 'reasoning', key: reasoningSelect.value });
+	const selected = state.models.find(model => model.key === state.model);
+	if (selected) { selected.reasoning = state.reasoning; }
+	vscode.postMessage({ type: 'reasoning', key: reasoningSelect.value, id: state.model });
 });
 
 scroll.addEventListener('click', event => {

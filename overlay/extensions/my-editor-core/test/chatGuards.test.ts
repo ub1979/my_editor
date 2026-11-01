@@ -22,8 +22,8 @@ test('every command a reply button carries is allowed, or its click would do not
 });
 
 test('reasoning efforts are the menu values only', () => {
-	for (const key of ['default', 'low', 'medium', 'high', 'xhigh']) { assert.equal(isReasoningEffort(key), true, key); }
-	for (const key of [undefined, '', 'max', 'HIGH']) { assert.equal(isReasoningEffort(key), false, String(key)); }
+	for (const key of ['default', 'low', 'medium', 'high', 'xhigh', 'max']) { assert.equal(isReasoningEffort(key), true, key); }
+	for (const key of [undefined, '', 'ultra', 'HIGH']) { assert.equal(isReasoningEffort(key), false, String(key)); }
 });
 
 test('only http and https links open externally', () => {

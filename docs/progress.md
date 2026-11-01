@@ -3,6 +3,10 @@
 Status of the requirements in [`plans/my_editor-plan-v2.md`](plans/my_editor-plan-v2.md). The original checklist is from 2026-09-23; the additions below are from 2026-09-25.
 ✅ done and verified in the app · 🟡 partly done · ⬜ not started.
 
+## 0.0.25 alpha local release — 1 November 2026
+
+Claude effort selection is available beside the model picker, using discovered model capabilities and separate saved preferences for Claude and Codex. Build and 17 focused tests passed; the existing Go split failure remains.
+
 ## 0.0.24 alpha local release — 1 November 2026
 
 Claude now offers discovered versions and pinned model IDs. Planning can retrieve earlier user and assistant messages and saved chats; finalization choices route to the described document. The build, 40 focused tests, planning and general editor-host smoke tests, and a live Claude response passed. Full suite: 687/688; the existing Go split declaration-check failure remains. A versioned local app archive is available for user acceptance testing.

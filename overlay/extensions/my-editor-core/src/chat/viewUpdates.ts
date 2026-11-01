@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { randomBytes } from 'crypto';
+import { effortLevels, effortSetting, supportedEffort } from '../models/effort';
 import { loadCatalog, pickDefault } from '../models/catalog';
 import { ApiKeys } from '../models/secrets';
 import type { ActiveFile } from './activeFile';
@@ -20,8 +21,12 @@ export async function modelListMessage(keys: ApiKeys): Promise<unknown> {
 	return {
 		type: 'models',
 		current: pickDefault(entries)?.key,
-		reasoning: vscode.workspace.getConfiguration('myEditor').get<string>('codexCli.reasoningEffort', 'default'),
-		models: entries.map(entry => ({ key: entry.key, label: entry.label, detail: entry.detail })),
+		models: entries.map(entry => {
+			const key = effortSetting(entry.provider);
+			const value = key ? vscode.workspace.getConfiguration('myEditor').get(key, 'default') : 'default';
+			return { key: entry.key, label: entry.label, detail: entry.detail, effortLevels: effortLevels(entry),
+				reasoning: supportedEffort(entry, value) ?? 'default' };
+		}),
 	};
 }
 

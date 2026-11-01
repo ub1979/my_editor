@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { effortSetting } from '../models/effort';
 import { isReasoningEffort, isWebLink } from './chatGuards';
 import type { Proposals } from './proposals';
 
@@ -53,7 +54,9 @@ export async function handleChatMessage(message: WebviewMessage, sender: vscode.
 			return;
 		case 'reasoning':
 			if (isReasoningEffort(message.key)) {
-				await setting('codexCli.reasoningEffort', message.key);
+				const provider = message.id?.split(':')[0];
+				const key = effortSetting(provider);
+				if (key && (provider !== 'codex-cli' || message.key !== 'max')) { await setting(key, message.key); }
 			}
 			return;
 		case 'chooseModel':

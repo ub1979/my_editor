@@ -1,4 +1,5 @@
 import { spawn } from 'child_process';
+import { claudeEffortArgs } from './effort';
 import { accessSync, constants, mkdtempSync } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -136,6 +137,7 @@ export function streamClaudeCli(command: string, request: StreamRequest): Promis
 		'--no-session-persistence', '--safe-mode', '--permission-mode', 'dontAsk',
 		...claudeToolArgs(!!request.webAccess), '--strict-mcp-config', '--setting-sources=',
 		'--system-prompt', request.system ?? '',
+		...claudeEffortArgs(request.entry, request.reasoningEffort),
 		...(request.entry.model !== 'default' ? ['--model', request.entry.model] : []),
 	];
 	return runCli('claude-cli', command, args, transcript(request.turns), scratchDir(), env, parseClaudeLine, request);

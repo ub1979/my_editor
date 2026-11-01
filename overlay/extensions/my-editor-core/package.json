@@ -2,7 +2,7 @@
   "name": "my-editor-core",
   "displayName": "my_editor Core",
   "description": "Built-in core of my_editor: project brain, skills, pair mode.",
-  "version": "0.0.24-alpha.0",
+  "version": "0.0.25-alpha.0",
   "publisher": "my-editor",
   "license": "MIT",
   "private": true,
@@ -335,6 +335,13 @@
             "haiku"
           ],
           "markdownDescription": "Extra Claude Code aliases or full model IDs to offer. Available models and their versions are also discovered from the installed Claude CLI. Aliases follow CLI defaults; full IDs pin a version."
+        },
+        "myEditor.claudeCli.reasoningEffort": {
+          "type": "string",
+          "enum": ["default", "low", "medium", "high", "xhigh", "max"],
+          "default": "default",
+          "scope": "machine",
+          "description": "Claude effort level. The picker shows levels supported by the selected model. Unsupported preferences use the model default."
         },
         "myEditor.codexCli.enabled": {
           "type": "boolean",

@@ -7,7 +7,7 @@ import { FileContext } from '../pair/context';
 import { assertEditSnapshot } from '../pair/editSnapshot';
 import { Mode } from '../pair/prompts';
 import { pairWebAccess } from '../models/webAccess';
-import { configuredReasoningEffort, mergeTurns } from './modelTurns';
+import { mergeTurns } from './modelTurns';
 import { Proposals } from './proposals';
 import type { Sink } from './engineTypes';
 
@@ -22,7 +22,6 @@ export async function streamEdit(entry: ModelEntry, keys: ApiKeys, proposals: Pr
 		system,
 		turns: mergeTurns(turns),
 		token,
-		reasoningEffort: entry.provider === 'codex-cli' ? configuredReasoningEffort() : undefined,
 		webAccess: web, onActivity: label => sink.progress(label),
 		onText: chunk => {
 			reply += chunk;

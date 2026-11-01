@@ -2,6 +2,8 @@ import type * as vscode from 'vscode';
 
 export type ProviderId = 'anthropic' | 'claude-cli' | 'codex-cli' | 'openai' | 'openrouter' | 'ollama' | 'lmstudio' | 'custom';
 
+export type ReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
+
 /** One model offered in the chat model picker. */
 export interface ModelEntry {
 	/** Unique across providers: `<provider>:<model>`. */
@@ -11,6 +13,7 @@ export interface ModelEntry {
 	readonly model: string;
 	readonly label: string;
 	readonly detail: string;
+	readonly supportedEffortLevels?: readonly ReasoningEffort[];
 	readonly maxInputTokens: number;
 	readonly maxOutputTokens: number;
 }
@@ -27,7 +30,7 @@ export interface StreamRequest {
 	readonly turns: readonly ChatTurn[];
 	readonly token: vscode.CancellationToken;
 	readonly onText: (text: string) => void;
-	readonly reasoningEffort?: 'low' | 'medium' | 'high' | 'xhigh';
+	readonly reasoningEffort?: ReasoningEffort;
 	/** Lets a subscription CLI use its own web search and page reading. Other providers ignore it. */
 	readonly webAccess?: boolean;
 	/** What the model process is doing between replies, such as a web search; empty when it writes again. */

@@ -1,10 +1,4 @@
-import * as vscode from 'vscode';
 import { ChatTurn } from '../models/types';
-
-export function configuredReasoningEffort(): 'low' | 'medium' | 'high' | 'xhigh' | undefined {
-	const value = vscode.workspace.getConfiguration('myEditor').get<string>('codexCli.reasoningEffort', 'default');
-	return value === 'low' || value === 'medium' || value === 'high' || value === 'xhigh' ? value : undefined;
-}
 
 /** Providers expect alternating turns starting with the user. */
 export function mergeTurns(turns: ChatTurn[]): ChatTurn[] {

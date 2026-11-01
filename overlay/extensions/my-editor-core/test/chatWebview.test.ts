@@ -49,10 +49,25 @@ test('split chat webview loads in order and renders a Codex model selection', ()
 			{ id: 'hopper', name: 'Hopper', role: 'Debugger', greeting: 'Debug?' },
 		] } });
 	receive?.({ data: { type: 'models', current: 'codex-cli:default', reasoning: 'high',
-		models: [{ key: 'codex-cli:default', label: 'Codex', detail: 'local login' }] } });
+		models: [{ key: 'codex-cli:default', label: 'Codex', detail: 'local login', effortLevels: ['low', 'medium', 'high', 'xhigh'], reasoning: 'high' }] } });
 	assert.equal(sent[0]?.type, 'ready');
 	assert.equal(runInContext('reasoningSelect.hidden', context), false);
 	assert.equal(runInContext('reasoningSelect.children.length', context), 5);
+	receive?.({ data: { type: 'models', current: 'claude-cli:opus', models: [
+		{ key: 'claude-cli:opus', label: 'Claude Opus', effortLevels: ['low', 'medium', 'high', 'xhigh', 'max'], reasoning: 'max' },
+		{ key: 'claude-cli:legacy', label: 'Legacy', effortLevels: [], reasoning: 'default' },
+	] } });
+	assert.equal(runInContext('reasoningSelect.hidden', context), false);
+	assert.equal(runInContext('reasoningSelect.children.length', context), 6);
+	assert.equal(runInContext('state.reasoning', context), 'max');
+	runInContext("reasoningSelect.value = 'low'; reasoningSelect.listeners.get('change')()", context);
+	assert.deepEqual(JSON.parse(JSON.stringify(sent.at(-1))), { type: 'reasoning', key: 'low', id: 'claude-cli:opus' });
+	runInContext("modelSelect.value = 'claude-cli:legacy'; modelSelect.listeners.get('change')()", context);
+	assert.equal(runInContext('reasoningSelect.hidden', context), true);
+	assert.equal(runInContext('state.reasoning', context), 'default');
+	runInContext("modelSelect.value = 'claude-cli:opus'; modelSelect.listeners.get('change')()", context);
+	assert.equal(runInContext('state.reasoning', context), 'low');
+
 	receive?.({ data: { type: 'character', characterId: 'ada', pinned: false, reason: 'Building together' } });
 	assert.equal(runInContext('state.characterId', context), 'ada');
 	assert.equal(runInContext('rail.children.length', context), 2);
