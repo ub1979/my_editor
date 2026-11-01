@@ -1,7 +1,7 @@
 # my_editor: vision, mission, and current status
 
 - **As of:** 1 November 2026
-- **Current version:** 0.0.27 alpha (planning routing, validation, full history and reviewed Keep fixes, with Claude versions and effort selection); 701 automated tests and planning/general editor-host checks passed. Local installation and archive prepared; user acceptance pending.
+- **Current version:** 0.0.28 alpha (deterministic completed-stage startup and explicit draft targets); 706 automated tests and the editor-host planning suite passed. Local installation and archive prepared; user acceptance pending.
 - **Stage:** Working macOS alpha; still being validated on real projects
 
 ## Vision

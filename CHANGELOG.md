@@ -2,6 +2,13 @@
 
 my_editor uses the version in `overlay/extensions/my-editor-core/package.json` as its own release number. The Home page displays that version. The underlying editor shell keeps its upstream version independently.
 
+## 0.0.28 alpha — 2026-11-01
+
+- Opening completed Requirements, Architecture or Flow & tree now reports the saved stage status without calling a model or preparing a replacement. It offers the next incomplete planning stage and keeps the selected skill available for requested revisions.
+- Incomplete prerequisites are reported before generation. Draft-stage startup names the exact target document and treats older cross-stage requests as history. Planning startup skips model-based chat compaction.
+- Completed-stage replies no longer offer redundant Finalize buttons; their continuation state survives reopening the chat.
+- Validation: all 706 automated tests passed. Editor-host tests reopen completed Requirements after an architecture conversation and a rejected wrong-document reply, confirming zero model requests, no proposals and unchanged files. The user's actual saved documents select Architecture as the next stage.
+
 ## 0.0.27 alpha — 2026-11-01
 
 - Typed planning requests and answer choices share document routing. Wrong-document replies are rejected before a proposal can replace another planning file; errors distinguish proposed content from saved prerequisites.

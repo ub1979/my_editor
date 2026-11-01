@@ -99,6 +99,20 @@ test('a change-history request never asks the summarizer', async () => {
 	assert.equal(run.state.mode, undefined);
 });
 
+test('opening a planning skill skips model compaction and preserves host status in the saved reply', async () => {
+	let compactions = 0;
+	const run = setup('requirements', 'requirements', async () => { compactions++; return 'stale architecture request'; });
+	const turn = { ...run.turn('', history(30)), kickoff: true };
+	const context = { ...run.context, engine: { ...run.context.engine, run: async () => ({
+		mode: 'requirements', reply: 'Your saved requirements are complete.',
+		planningStatus: { complete: true, next: 'architecture' as const },
+	}) } };
+	await runChatTurn(turn, context, sink([]), token());
+	assert.equal(compactions, 0);
+	assert.deepEqual(new ChatState(run.state.snapshot()).messages.at(-1)?.planningStatus, { complete: true, next: 'architecture' });
+	assert.equal(run.state.mode, 'requirements', 'Opening a completed stage must still allow the user to revise it');
+});
+
 test('a cancelled reply cannot clear a newly selected mode', async () => {
 	const run = setup('feature', 'feature', async () => '');
 	let cancelled = false;

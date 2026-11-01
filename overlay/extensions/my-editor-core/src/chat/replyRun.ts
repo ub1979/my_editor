@@ -4,6 +4,7 @@ import type { ChatState } from './chatState';
 import type { PairEngine, Sink } from './engine';
 import { fallbackBrief, liveTurns, memoryBatch, MemoryMessage } from './memory';
 import type { Message } from './presentation';
+import { isPlanningStage } from './planningStart';
 
 /** One request to answer: what the user sent and the empty reply it streams into. */
 export interface ChatTurn {
@@ -31,7 +32,7 @@ export interface TurnContext {
 export async function runChatTurn(turn: ChatTurn, context: TurnContext, sink: Sink, token: vscode.CancellationToken): Promise<void> {
 	if (token.isCancellationRequested) { return; }
 	const { state } = context;
-	if (!isDeterministic(turn.text, turn.mode)) {
+	if (!isDeterministic(turn.text, turn.mode) && !(turn.kickoff && isPlanningStage(turn.mode ?? ''))) {
 		const compacted = await compactMemory(turn.history, context, sink, token);
 		if (!compacted) {
 			return;
@@ -51,6 +52,7 @@ export async function runChatTurn(turn: ChatTurn, context: TurnContext, sink: Si
 		requestId: turn.reply.id,
 		chatArchive: turn.history.map(item => ({ role: item.role, text: item.text })),
 	}, live, sink, token);
+	if (!token.isCancellationRequested) { turn.reply.planningStatus = result.planningStatus; }
 	if (!token.isCancellationRequested && endsMode(result.mode, state.mode, turn.mode, context.conversational)) {
 		state.mode = undefined;
 	}

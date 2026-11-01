@@ -27,6 +27,8 @@ import { pairWebAccess, WEB_ACCESS_NOTE } from '../models/webAccess';
 import { offerPush } from './pushOffer';
 import { qaSubject, specs as readSpecs } from './engineDocuments';
 import { planningIntent } from './planningIntent';
+import { isPlanningStage, planningKickoffPrompt, planningStart } from './planningStart';
+import { readPlanningDocuments } from '../project/planningFiles';
 import { streamEdit } from './engineEdit';
 import { readModeFile, resolveMode } from './engineMode';
 
@@ -91,6 +93,16 @@ export class PairEngine {
 		if (!resolved) { return { mode: 'chat', reply: '' }; }
 		const { mode } = resolved;
 		prompt = resolved.prompt;
+		const root = vscode.workspace.workspaceFolders?.[0]?.uri;
+		if (input.kickoff && root && isPlanningStage(mode.id)) {
+			const start = planningStart(mode.id, await readPlanningDocuments(root));
+			if (start) {
+				sink.text(start.reply);
+				await logExchange({ mode: mode.id, model: 'my_editor', prompt: '(opened skill)', reply: start.reply })
+					.catch(() => sink.error('Could not save the chat archive.'));
+				return { mode: mode.id, reply: start.reply, planningStatus: start.status };
+			}
+		}
 
 		// The requirements interview always opens the same way: the idea first, in the user's own words.
 		if (input.kickoff && mode.id === 'requirements' && !history.length && !await readProjectNote('specs/requirements.md')) {
@@ -137,8 +149,7 @@ export class PairEngine {
 						: file ? [describeFile(file), neighbours].filter(Boolean).join('\n\n') : 'No file is selected.';
 		const request = input.kickoff
 			? mode.writes === 'doc'
-				? 'Continue from the saved planning documents and our agreed decisions. Check completeness first. Finish the full '
-					+ 'document when enough is known; otherwise ask only the next essential question. Do not restart an existing interview.'
+				? planningKickoffPrompt(mode.id, mode.doc ?? mode.id)
 				: 'Begin: say in one short sentence what you will help with, then ask your first question.'
 			: prompt || '(no extra instructions)';
 		const recentHistory = history.slice(-HISTORY_TURNS);

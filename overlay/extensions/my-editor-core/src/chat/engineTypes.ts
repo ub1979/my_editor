@@ -1,5 +1,6 @@
 import type { Proposal } from './proposals';
 import type { ActiveFile } from './activeFile';
+import type { PlanningStatus } from './planningStart';
 
 /** Where a reply goes: the chat panel implements this. */
 export interface Sink {
@@ -42,5 +43,6 @@ export interface RunResult {
 	readonly mode: string;
 	readonly reply: string;
 	readonly model?: string;
+	readonly planningStatus?: PlanningStatus;
 }
 

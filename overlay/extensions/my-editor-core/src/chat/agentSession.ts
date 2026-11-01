@@ -70,7 +70,9 @@ export async function runPairAgent(options: AgentSessionOptions): Promise<string
 		chatArchiveIndex(chatArchive),
 		web ? WEB_ACCESS_NOTE : '',
 		AGENT_INSTRUCTION,
-		planning ? 'For this planning turn, only read-only tools are available: list_files, search, read_file, git_history, '
+		planning ? `The active planning target is ${options.mode.doc}. Only propose that document in this turn. `
+			+ 'If another stage should come next, explain it and offer a choice; do not generate another document under this target. '
+			+ 'For this planning turn, only read-only tools are available: list_files, search, read_file, git_history, '
 			+ 'read_chat, search_chat and search_records. Retrieve earlier agreed decisions when needed. '
 			+ 'Return your response in action=final; its message must include the complete fenced document when ready, '
 			+ 'as required by this planning mode. The host prepares a Keep/Undo proposal for the designated document. '

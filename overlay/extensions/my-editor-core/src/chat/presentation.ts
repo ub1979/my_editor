@@ -1,6 +1,7 @@
 import MarkdownIt from 'markdown-it';
 import type { Proposal } from './proposals';
 import { replyChoices } from './replyChoices';
+import type { PlanningStatus } from './planningStart';
 
 export interface ProposalCard {
 	readonly id: string;
@@ -20,6 +21,8 @@ export interface Message {
 	markdown: string;
 	/** Full model reply, including reviewed document content hidden from the chat presentation. */
 	historyText?: string;
+	/** Host-validated saved stage state, used to offer the correct continuation instead of regeneration. */
+	planningStatus?: PlanningStatus;
 	mode?: string;
 	progress?: string;
 	error?: string;

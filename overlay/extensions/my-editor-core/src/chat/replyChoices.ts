@@ -58,9 +58,17 @@ export function finalizeChoice(stage: PlanningStage): ReplyChoice {
 }
 
 /** Keep the original reply for history; expose reviewed answer text, never model-supplied commands. */
-export function replyChoices(message: Pick<Message, 'role' | 'done' | 'markdown' | 'mode' | 'error' | 'proposals'>):
+export function replyChoices(message: Pick<Message, 'role' | 'done' | 'markdown' | 'mode' | 'error' | 'proposals' | 'planningStatus'>):
 	{ markdown: string; choices: ReplyChoice[] } {
 	if (message.role !== 'assistant' || !message.done) { return { markdown: message.markdown, choices: [] }; }
+	if (message.planningStatus) {
+		const next = message.planningStatus.next;
+		const choice = next ? finalizeChoice(next) : undefined;
+		if (choice && message.planningStatus.complete) {
+			choice.label = `Continue to ${next === 'tree' ? 'Flow & tree' : next === 'architecture' ? 'Architecture' : 'Requirements'}`;
+		}
+		return { markdown: message.markdown, choices: choice ? [choice] : [] };
+	}
 	const result = questionChoices(message.markdown);
 	for (const choice of result.choices) {
 		choice.mode = planningIntent(choice.text);

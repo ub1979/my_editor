@@ -35,10 +35,12 @@ exports.run = async function () {
 	const calls = [];
 	let fixtureError;
 	let phase = 'planning';
+	let requests = 0;
 	const server = http.createServer(async (req, res) => {
 		res.setHeader('content-type', 'application/json');
 		if (req.url === '/api/tags') { res.end(JSON.stringify({ models: [{ name: 'planning-fixture' }] })); return; }
 		try {
+			requests++;
 			let body = ''; for await (const chunk of req) { body += chunk; }
 			const payload = JSON.parse(body);
 			const system = payload.messages.find(message => message.role === 'system').content;
@@ -114,6 +116,10 @@ exports.run = async function () {
 		assert.match(fs.readFileSync(path.join(root, '.my_editor/specs/requirements.md'), 'utf8'), /Status: Draft/);
 		await vscode.commands.executeCommand('myEditor.proposal.keep', proposalTab().input.modified);
 		assert.equal(fs.readFileSync(path.join(root, '.my_editor/specs/requirements.md'), 'utf8'), requirements);
+		const beforeOpening = requests;
+		await vscode.commands.executeCommand('myEditor.chat.start', 'requirements');
+		assert.equal(requests, beforeOpening, 'Opening complete Requirements must not ask a model to resume old work');
+		assert.equal(proposalTab(), undefined);
 		await vscode.commands.executeCommand('myEditor.chat.ask', 'Regenerate architecture.md using the section-agreement.');
 		if (fixtureError) { throw fixtureError; }
 		await until(proposalTab, 'No architecture proposal after assistant history retrieval');
@@ -134,8 +140,19 @@ exports.run = async function () {
 		assert.equal(fs.readFileSync(path.join(root, '.my_editor/specs/requirements.md'), 'utf8'), requirements);
 		assert.equal(fs.readFileSync(path.join(root, '.my_editor/specs/architecture.md'), 'utf8'), architecture);
 		calls.push('reject wrong document without modifying saved files');
+		const beforeReopening = requests;
+		await vscode.commands.executeCommand('myEditor.chat.start', 'requirements');
+		await vscode.commands.executeCommand('myEditor.chat.start', 'architecture');
+		assert.equal(requests, beforeReopening, 'Reopening complete stages after an architecture conversation must not generate documents');
+		assert.equal(proposalTab(), undefined);
+		const savedChats = fs.readdirSync(path.join(root, '.my_editor/chats')).map(file =>
+			fs.readFileSync(path.join(root, '.my_editor/chats', file), 'utf8')).join('\n');
+		assert.match(savedChats, /Your saved requirements are complete/);
+		assert.match(savedChats, /Your saved architecture is complete/);
+		calls.push('reopen completed planning skills without model requests or proposals');
 		assert.deepEqual(calls, ['search saved chats', 'read saved chat', 'search earlier assistant', 'read earlier assistant',
-			'read full generated document', 'reject wrong document without modifying saved files']);
+			'read full generated document', 'reject wrong document without modifying saved files',
+			'reopen completed planning skills without model requests or proposals']);
 		fs.writeFileSync(process.env.MY_EDITOR_INTEGRATION_REPORT, JSON.stringify({ ok: true, checks: calls,
 			sections: sections.length, reviewedDocuments: 2, fullChatSaved: true }, null, 2));
 	} finally { server.close(); }
