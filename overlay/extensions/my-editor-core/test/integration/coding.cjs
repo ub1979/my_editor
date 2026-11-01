@@ -131,6 +131,8 @@ exports.run = async function () {
 		const sourceEditor = await vscode.window.showTextDocument(document);
 		await sourceEditor.edit(edit => edit.insert(new vscode.Position(0, 0), '# unsaved editor context\n'));
 		assert.ok(!fs.readFileSync(file.fsPath, 'utf8').includes('# unsaved editor context'));
+		// Separate agent chats start new projects in Requirements; this fixture tests explicit Build work.
+		await vscode.commands.executeCommand('myEditor.chat.agent', 'ada');
 		await vscode.commands.executeCommand('myEditor.chat.ask', 'Please create fixture in nested/hello.txt.');
 		const created = await until(proposalTab, 'No new-file proposal');
 		assert.equal(fs.existsSync(path.join(root, 'nested')), false);

@@ -3,6 +3,10 @@
 Status of the requirements in [`plans/my_editor-plan-v2.md`](plans/my_editor-plan-v2.md). The original checklist is from 2026-09-23; the additions below are from 2026-09-25.
 ✅ done and verified in the app · 🟡 partly done · ⬜ not started.
 
+## 0.0.32 alpha file-local pair programming — 1 November 2026
+
+File chat follows the active source file and retains separate transcripts and drafts. Planned-file rationale comes from linked saved planning evidence, and Review/Explain use the selection or unsaved file with brief replies by default. Existing inline AI directives now include linked plan context and style instructions, with stale-buffer protection and reviewed Keep. Opening files does not invoke a model. All 735 automated tests and the file-chat and coding editor-host suites passed. The screen-inspection tool timed out, so visual acceptance remains pending. Local installation and archive are prepared for user testing.
+
 ## 0.0.31 alpha stable planning baseline — 1 November 2026
 
 The reported saved chat showed a request to keep architecture v1.0.1 and switch to the tree producing another architecture revision. Stage handoffs now recognize that wording. Host-enforced inspection prevents replacement proposals during checks, existing drafts open without generation, and explicit revisions still require Keep. Analysis writes separate observed-code reports in the brain rather than replacing planning files. Creating saved planned files uses the tree without model regeneration. The user's current saved requirements, architecture and tree pass validation and were only read. All 731 automated tests passed, along with editor-host plan-stability, planning retrieval and separate/shared-chat checks. Local installation and archive are prepared for user acceptance testing.

@@ -2,7 +2,7 @@
   "name": "my-editor-core",
   "displayName": "my_editor Core",
   "description": "Built-in core of my_editor: project brain, skills, pair mode.",
-  "version": "0.0.31-alpha.0",
+  "version": "0.0.32-alpha.0",
   "publisher": "my-editor",
   "license": "MIT",
   "private": true,
@@ -10,7 +10,9 @@
     "vscode": "^1.100.0"
   },
   "main": "./dist/extension.js",
-  "enabledApiProposals": ["editorInsets"],
+  "enabledApiProposals": [
+    "editorInsets"
+  ],
   "activationEvents": [
     "onStartupFinished"
   ],
@@ -217,6 +219,29 @@
         "command": "myEditor.assistance.symbol",
         "title": "Suggest Tests or Accessors",
         "category": "my_editor"
+      },
+      {
+        "command": "myEditor.fileChat.open",
+        "title": "Chat About This File",
+        "category": "my_editor",
+        "icon": "$(comment-discussion)"
+      },
+      {
+        "command": "myEditor.fileChat.review",
+        "title": "Review This Code Briefly",
+        "category": "my_editor",
+        "icon": "$(inspect)"
+      },
+      {
+        "command": "myEditor.fileChat.explain",
+        "title": "Explain Selected Code or File",
+        "category": "my_editor"
+      },
+      {
+        "command": "myEditor.fileChat.new",
+        "title": "New Chat for This File",
+        "category": "my_editor",
+        "icon": "$(add)"
       }
     ],
     "configuration": {
@@ -338,7 +363,14 @@
         },
         "myEditor.claudeCli.reasoningEffort": {
           "type": "string",
-          "enum": ["default", "low", "medium", "high", "xhigh", "max"],
+          "enum": [
+            "default",
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ],
           "default": "default",
           "scope": "machine",
           "description": "Claude effort level. The picker shows levels supported by the selected model. Unsupported preferences use the model default."
@@ -425,6 +457,11 @@
           "minimum": 10,
           "maximum": 600,
           "description": "Maximum seconds for one Ollama response, including streaming. Increase this for slower local models."
+        },
+        "myEditor.fileChat.followEditor": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show the current file\u2019s own chat when switching source files, keeping keyboard focus in the editor. Project agent chats remain separate."
         }
       }
     },
@@ -450,6 +487,13 @@
           "name": "This file",
           "visibility": "visible"
         }
+      ],
+      "myEditorFile": [
+        {
+          "type": "webview",
+          "id": "myEditor.fileChat",
+          "name": "File chat"
+        }
       ]
     },
     "viewsContainers": {
@@ -464,6 +508,11 @@
         {
           "id": "myEditorPair",
           "title": "Pair",
+          "icon": "media/pair-icon.svg"
+        },
+        {
+          "id": "myEditorFile",
+          "title": "File chat",
           "icon": "media/pair-icon.svg"
         }
       ]
@@ -522,6 +571,16 @@
           "command": "myEditor.autoComments.turnOn",
           "when": "resourceScheme == file && editorLangId =~ /^(python|typescript|typescriptreact|javascript|javascriptreact|rust|go|c|cpp|java)$/ && !config.myEditor.autoComments.enabled",
           "group": "navigation@9"
+        },
+        {
+          "command": "myEditor.fileChat.open",
+          "when": "resourceScheme == file",
+          "group": "navigation@3"
+        },
+        {
+          "command": "myEditor.fileChat.review",
+          "when": "resourceScheme == file",
+          "group": "navigation@4"
         }
       ],
       "view/title": [
@@ -539,6 +598,11 @@
           "command": "myEditor.chat.new",
           "when": "view == myEditor.chat",
           "group": "navigation@2"
+        },
+        {
+          "command": "myEditor.fileChat.new",
+          "when": "view == myEditor.fileChat",
+          "group": "navigation@1"
         }
       ],
       "editor/context": [
@@ -566,6 +630,16 @@
           "command": "myEditor.assistance.symbol",
           "group": "myEditorCoding",
           "when": "resourceScheme == file"
+        },
+        {
+          "command": "myEditor.fileChat.open",
+          "when": "resourceScheme == file",
+          "group": "myEditorCoding@1"
+        },
+        {
+          "command": "myEditor.fileChat.explain",
+          "when": "resourceScheme == file",
+          "group": "myEditorCoding@2"
         }
       ]
     },

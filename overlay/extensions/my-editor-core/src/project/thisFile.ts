@@ -122,7 +122,7 @@ export class ThisFileView implements vscode.WebviewViewProvider {
 				return;
 			case 'skill':
 				if (message.skill && ['explain', 'review', 'why'].includes(message.skill)) {
-					await vscode.commands.executeCommand('myEditor.chat.start', message.skill);
+					await vscode.commands.executeCommand('myEditor.fileChat.action', message.skill, editor?.document.uri);
 				}
 				return;
 		}

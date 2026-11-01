@@ -2,6 +2,15 @@
 
 my_editor uses the version in `overlay/extensions/my-editor-core/package.json` as its own release number. The Home page displays that version. The underlying editor shell keeps its upstream version independently.
 
+## 0.0.32 alpha — 2026-11-01
+
+- File chat follows the source editor with an independent saved transcript and draft for every file URI. It resumes when returning to a file; New chat clears only that file. Project agents retain their separate chats. Automatic following can be turned off in settings.
+- Planned files offer “Why did we plan this file?” above the source. Explanations use the saved tree role, linked architecture section and requirements. Opening a file makes no model request and does not change plans.
+- Editor toolbar and file-chat buttons provide focused Review and Explain for selected code or the current file, including unsaved changes. Replies are instructed to stay within three short sentences or bullets unless more detail is requested. This file actions and Open next file now use the file conversation.
+- Existing #AI / // AI directives generate bounded snippets in the editor using the saved plan and surrounding code style, with brief useful comments. Changes remain reviewed diffs until Keep. An edit during generation invalidates the result.
+- File requests capture their originating file and selection. Switching during a reply cannot move its transcript to another file; stale UI actions are rejected. Unsent drafts survive quick actions, secrets are excluded/redacted, and saved chats remain available through the existing project chat archive setting.
+- Validation: 735 automated tests passed, including file-history restoration and webview isolation. Real editor-host file-chat checks passed for plan context, selections, unsaved code, switching during generation, draft persistence, no generation on open, inline Keep and unchanged saved plans. The existing coding suite also passed after explicitly selecting Builder for its creation/deletion fixture, as required by separate agent chats. Visual inspection was unavailable because the computer-use tool timed out; local user acceptance is still needed.
+
 ## 0.0.31 alpha — 2026-11-01
 
 - Checks and discussion of saved planning documents cannot create replacement proposals. The host blocks write/delete tools during inspections and does not turn a model's unsolicited document into Keep. Explicit revision requests still work; read-only replies do not add Finalize or recovery actions.

@@ -1,0 +1,20 @@
+body { padding: 12px; color: var(--vscode-foreground); font-family: var(--vscode-font-family); font-size: var(--vscode-font-size); }
+header { display: grid; gap: 5px; margin-bottom: 14px; overflow-wrap: anywhere; }
+#scope, .hint { color: var(--vscode-descriptionForeground); font-size: 12px; }
+nav, .controls, footer { display: flex; flex-wrap: wrap; gap: 6px; }
+button { cursor: pointer; border: 1px solid var(--vscode-button-border, transparent); border-radius: 4px; padding: 6px 9px; color: var(--vscode-button-secondaryForeground); background: var(--vscode-button-secondaryBackground); font: inherit; }
+button:hover { background: var(--vscode-button-secondaryHoverBackground); }
+button:focus-visible, textarea:focus-visible { outline: 1px solid var(--vscode-focusBorder); }
+button:disabled { opacity: .5; cursor: default; }
+article { margin: 16px 0; line-height: 1.5; }
+article > strong { display: block; margin-bottom: 4px; font-size: 11px; color: var(--vscode-descriptionForeground); }
+article > div { white-space: pre-wrap; overflow-wrap: anywhere; }
+article.user { border-left: 2px solid var(--vscode-focusBorder); padding-left: 10px; }
+label { display: block; margin-bottom: 6px; }
+textarea { box-sizing: border-box; width: 100%; resize: vertical; padding: 8px; border: 1px solid var(--vscode-input-border, transparent); border-radius: 4px; background: var(--vscode-input-background); color: var(--vscode-input-foreground); font: inherit; }
+.controls { margin-top: 6px; }
+#send { color: var(--vscode-button-foreground); background: var(--vscode-button-background); }
+#error { color: var(--vscode-errorForeground); white-space: pre-wrap; }
+code { font-family: var(--vscode-editor-font-family); }
+footer { margin-top: 18px; }
+[hidden] { display: none !important; }

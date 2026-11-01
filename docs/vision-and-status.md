@@ -1,7 +1,7 @@
 # my_editor: vision, mission, and current status
 
 - **As of:** 1 November 2026
-- **Current version:** 0.0.31 alpha (checks preserve saved plans; analysis writes separate code reports; stage handoffs and saved-tree creation avoid regeneration); 731 automated tests and editor-host plan-stability, planning and chat checks passed. Local installation and archive prepared; user acceptance pending.
+- **Current version:** 0.0.32 alpha (separate chats per file, concise selected-code advice, saved-plan explanations and contextual inline snippets); 735 automated tests and file-chat/coding editor-host checks passed. Local installation and archive prepared; visual and user acceptance pending.
 - **Stage:** Working macOS alpha; still being validated on real projects
 
 ## Vision

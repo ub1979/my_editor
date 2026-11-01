@@ -120,7 +120,7 @@ export async function scaffoldFromTree(): Promise<void> {
 	}
 }
 
-/** Opens the next file to work on and turns the chat to the Next step skill. */
+/** Opens the next file with its own focused conversation. */
 export async function openNextFile(): Promise<void> {
 	const tree = await load();
 	if (!tree) {
@@ -139,7 +139,7 @@ export async function openNextFile(): Promise<void> {
 		}
 	}
 	await vscode.window.showTextDocument(uri);
-	await vscode.commands.executeCommand('myEditor.chat.start', 'next');
+	await vscode.commands.executeCommand('myEditor.fileChat.open');
 }
 
 /** Marks the active file done (or back in progress) in the tree. */
