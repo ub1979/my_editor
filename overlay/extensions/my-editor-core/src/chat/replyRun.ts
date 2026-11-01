@@ -52,7 +52,7 @@ export async function runChatTurn(turn: ChatTurn, context: TurnContext, sink: Si
 		requestId: turn.reply.id,
 		chatArchive: turn.history.map(item => ({ role: item.role, text: item.text })),
 	}, live, sink, token);
-	if (!token.isCancellationRequested) { turn.reply.planningStatus = result.planningStatus; }
+	if (!token.isCancellationRequested) { turn.reply.planningStatus = result.planningStatus; turn.reply.readOnly = result.readOnly; }
 	if (!token.isCancellationRequested && endsMode(result.mode, state.mode, turn.mode, context.conversational)) {
 		state.mode = undefined;
 	}

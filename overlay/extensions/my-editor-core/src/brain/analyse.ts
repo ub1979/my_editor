@@ -10,8 +10,8 @@ import {
 } from './analysisPlan';
 import { buildBrain, describeEntry, describeProject, MAX_FILES, readText, saveSummaries, writeBrainNote } from './brain';
 
-const ARCHITECTURE = '.my_editor/specs/architecture.md';
-const TREE = '.my_editor/specs/tree.json';
+const ARCHITECTURE = '.my_editor/brain/code-architecture.md';
+const TREE = '.my_editor/brain/code-files.json';
 
 export { ask } from './analysisModel';
 import { summariseSourceFiles } from './fileSummaries';
@@ -19,11 +19,11 @@ import { ask, plural, summarise, PART_SYSTEM, ARCHITECTURE_SYSTEM } from './anal
 
 /**
  * "Analyse this project": builds the brain from the code, summarises every file (long files piece by piece),
- * then each part, writes a note per part, and proposes an architecture document and a file map to keep.
+ * then each part, and writes observed code reports under brain. Saved planning documents are never replaced.
  * Only `.my_editor/brain/` is written directly (the user asked for it); the code is never touched.
  * Files whose summary is still current are skipped, so running it again continues where it stopped.
  */
-export async function analyseProject(keys: ApiKeys, proposals: Proposals, sink: Sink, token: vscode.CancellationToken): Promise<void> {
+export async function analyseProject(keys: ApiKeys, _proposals: Proposals, sink: Sink, token: vscode.CancellationToken): Promise<void> {
 	const folder = vscode.workspace.workspaceFolders?.[0];
 	if (!folder) {
 		sink.error('Open a project first.');
@@ -78,7 +78,7 @@ export async function analyseProject(keys: ApiKeys, proposals: Proposals, sink: 
 		tooLarge: built.tooLarge ?? [], fileLimitHit: !!built.fileLimitHit, ...coverage,
 	}, MAX_FILES);
 
-	// Architecture and file map: proposals the user keeps or undoes.
+	// Observations belong to the brain; the saved plan remains the design baseline.
 	const architectureUri = vscode.Uri.joinPath(folder.uri, ARCHITECTURE);
 	const existing = await readText(architectureUri);
 	// On a re-run, only parts with changed files (or no section yet) are rewritten; the rest stays word for word.
@@ -86,14 +86,14 @@ export async function analyseProject(keys: ApiKeys, proposals: Proposals, sink: 
 		groups.get(module)!.some(f => summaries[f]) || !existing?.includes(`{#${anchorFor(module)}}`));
 	let architecture = '';
 	if (!existing || changedParts.length) {
-		sink.progress(`${existing ? 'Updating' : 'Drafting'} the architecture with ${model.label}…`);
+		sink.progress(`${existing ? 'Updating' : 'Writing'} the observed code report with ${model.label}…`);
 		const request = [
 			`Project: ${folder.name}`,
 			'',
 			'Outline (parts, their anchors, files and one-line summaries):',
 			projectOutline(map.files, 40_000, map.modules),
 			existing ? [
-				'\nThe current architecture document follows. It may contain the user\'s own words.',
+				'\nThe previous observed code report follows. This is not the accepted architecture plan.',
 				`Only these parts changed: ${changedParts.join(', ')}. Update their sections, and anything elsewhere that is now`,
 				'wrong because of them. Keep every other sentence exactly as it is.\n',
 				existing,
@@ -102,7 +102,7 @@ export async function analyseProject(keys: ApiKeys, proposals: Proposals, sink: 
 		try {
 			architecture = (await ask(model, keys, ARCHITECTURE_SYSTEM, request, token, 300_000)).trim();
 		} catch (err) {
-			sink.error(`The architecture draft failed: ${err instanceof Error ? err.message : String(err)}`);
+			sink.error(`The observed code report failed: ${err instanceof Error ? err.message : String(err)}`);
 		}
 	}
 	architecture = architecture.replace(/^```(?:markdown|md)?\n([\s\S]*?)\n```$/, '$1');
@@ -112,8 +112,7 @@ export async function analyseProject(keys: ApiKeys, proposals: Proposals, sink: 
 	if (architecture) {
 		const doc = ensureSections(architecture, groups);
 		if (doc.trim() !== existing?.trim()) {
-			sink.proposal(await proposals.propose(architectureUri,
-				`<!-- my_editor: draft -->\n${doc.replace(/^<!--\s*my_editor:\s*draft\s*-->\s*/, '').trimEnd()}\n`, 'write', true));
+			await vscode.workspace.fs.writeFile(architectureUri, new TextEncoder().encode(doc.trimEnd() + '\n'));
 		}
 		const overview = firstParagraph(doc);
 		if (overview) {
@@ -131,17 +130,15 @@ export async function analyseProject(keys: ApiKeys, proposals: Proposals, sink: 
 	const roles = Object.fromEntries(paths.map(path => [path, describeEntry(map.files[path]) || undefined]));
 	const tree = `${JSON.stringify(treeFromFiles(roles, previous.map(f => ({ ...f, section: f.section ?? '', status: f.status ?? 'planned' }))), null, 2)}\n`;
 	if (tree !== treeText) {
-		sink.proposal(await proposals.propose(treeUri, tree, 'write', true));
+		await vscode.workspace.fs.writeFile(treeUri, new TextEncoder().encode(tree));
 	}
 
 	const summarised = Object.keys(summaries).length;
 	const written = [
-		'- **Brain**: written to `.my_editor/brain/`. It has the map with a line per file, a few sentences per part, the index, and a note per part.',
-		...(architecture
-			? [`- **Architecture**: ${existing ? `updated for ${plural(changedParts.length, 'changed part')}` : 'a draft from the code'}. `
-				+ 'Open it below, fix what is wrong, then Keep.']
-			: existing && !changedParts.length ? ['- **Architecture**: no part changed, so I left it as it is.'] : []),
-		...(tree !== treeText ? ['- **File map**: every file linked to its part. Keep it to track progress.'] : []),
+		'- **Brain**: refreshed file summaries and module notes in `.my_editor/brain/`.',
+		...(architecture ? ['- **Observed architecture**: written to `.my_editor/brain/code-architecture.md`. This describes the code, not a replacement design.'] : []),
+		'- **Observed file map**: `.my_editor/brain/code-files.json`.',
+		'- **Saved plan**: requirements, architecture and tree were left unchanged. Code that has not been implemented yet does not invalidate the plan.',
 	];
 	sink.text([
 		`I read **${plural(paths.length, 'file')}** in **${plural(groups.size, 'part')}** and summarised ${plural(summarised, 'file')}`

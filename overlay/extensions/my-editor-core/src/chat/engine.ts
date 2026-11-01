@@ -28,9 +28,11 @@ import { offerPush } from './pushOffer';
 import { qaSubject, specs as readSpecs } from './engineDocuments';
 import { planningIntent } from './planningIntent';
 import { isPlanningStage, planningKickoffPrompt, planningStart } from './planningStart';
+import { scaffoldKeptTree } from '../project/tree';
 import { readPlanningDocuments } from '../project/planningFiles';
 import { streamEdit } from './engineEdit';
 import { readModeFile, resolveMode } from './engineMode';
+import { readOnlyRequest, READ_ONLY_REQUEST_NOTE, requestsPlannedFiles } from './requestPolicy';
 
 const HISTORY_TURNS = 16;
 
@@ -91,9 +93,18 @@ export class PairEngine {
 		}
 		const resolved = await resolveMode(this.extensionUri, modeId, prompt, sink);
 		if (!resolved) { return { mode: 'chat', reply: '' }; }
-		const { mode } = resolved;
+		let { mode } = resolved;
 		prompt = resolved.prompt;
 		const root = vscode.workspace.workspaceFolders?.[0]?.uri;
+		if (root && mode.id === 'tree' && requestsPlannedFiles(prompt)) {
+			const result = await scaffoldKeptTree(root);
+			const reply = `Created ${result.created} missing planned files as stubs from the saved tree. Existing files were preserved. `
+				+ 'No requirements, architecture or tree design was regenerated.'
+				+ (result.skipped.length ? ` Could not create: ${result.skipped.join('; ')}` : '');
+			sink.text(reply);
+			await logExchange({ mode: 'tree', model: 'my_editor', prompt, reply }).catch(() => sink.error('Could not save the chat archive.'));
+			return { mode: 'tree', reply, planningStatus: { complete: true } };
+		}
 		if (input.kickoff && root && isPlanningStage(mode.id)) {
 			const start = planningStart(mode.id, await readPlanningDocuments(root));
 			if (start) {
@@ -110,6 +121,10 @@ export class PairEngine {
 			sink.text(opener);
 			return { mode: mode.id, reply: opener };
 		}
+
+		const docs = root ? await readPlanningDocuments(root) : {};
+		const readOnly = readOnlyRequest(prompt, mode.id, docs, !!input.kickoff, history);
+		if (readOnly && (mode.writes === 'file' || mode.writes === 'selection')) { mode = { ...mode, writes: 'none' }; }
 
 		const file = await readModeFile(mode, input, sink);
 		if (file === false) { return { mode: mode.id, reply: '' }; }
@@ -158,7 +173,7 @@ export class PairEngine {
 			{ role: 'user', text: `${subject}\n\nRequest: ${request}` },
 		];
 		if (usesProjectTools(mode)) {
-			const reply = await runPairAgent({ entry, mode, input: { ...input, locateOnly }, initial: turns, conventions, brain,
+			const reply = await runPairAgent({ entry, mode, input: { ...input, locateOnly, readOnly }, initial: turns, conventions, brain,
 			projectStatus: describeProjectStatus(projectState), projectState, availableObservations,
 				previousInvestigations, sink, token, keys: this.keys, proposals: this.proposals,
 				observations: this.observations });
@@ -168,22 +183,23 @@ export class PairEngine {
 			if (!input.kickoff) { offerPush(prompt, sink); }
 			await logExchange({ mode: mode.id, model: entry.label, file: file?.relativePath, prompt: input.kickoff ? '(started)' : prompt, reply })
 				.catch(() => sink.error('Pair answered, but could not save the chat archive.'));
-			return { mode: mode.id, reply, model: entry.label };
+			return { mode: mode.id, reply, model: entry.label, readOnly };
 		}
 
 		const reply = await streamEdit(entry, this.keys, this.proposals, mode, file, turns, [
 			systemPrompt(mode, conventions, brain, vscode.workspace.workspaceFolders?.[0]?.uri.fsPath),
+			readOnly ? READ_ONLY_REQUEST_NOTE : '',
 			characterPrompt(input.characterId), pairWebAccess(entry) ? WEB_ACCESS_NOTE : '', describeProjectStatus(projectState),
 			input.memory ? `Working brief from earlier turns (refresh facts against current source and Git):\n${input.memory}` : '',
 		].filter(Boolean).join('\n\n'), sink, token);
-		if (token.isCancellationRequested) { return { mode: mode.id, reply, model: entry.label }; }
+		if (token.isCancellationRequested) { return { mode: mode.id, reply, model: entry.label, readOnly }; }
 		if (mode.id === 'brainstorm' && reply.trim() && !input.kickoff) {
 			sink.action('Save as decision', 'myEditor.saveDecision', [{ title: prompt, context: prompt, discussion: reply }]);
 		}
 		if (!input.kickoff) { offerPush(prompt, sink); }
 		await logExchange({ mode: mode.id, model: entry.label, file: file?.relativePath, prompt: input.kickoff ? '(started)' : prompt, reply })
 			.catch(() => sink.error('Pair answered, but could not save the chat archive.'));
-		return { mode: mode.id, reply, model: entry.label };
+		return { mode: mode.id, reply, model: entry.label, readOnly };
 	}
 
 	private async impact(change: string, sink: Sink): Promise<void> {

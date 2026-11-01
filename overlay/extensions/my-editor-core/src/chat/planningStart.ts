@@ -20,7 +20,12 @@ export function planningStart(stage: PlanningStage, docs: PlanningDocuments):
 		return { reply: `Before continuing ${LABELS[stage]}, finish and Keep ${LABELS[prerequisite.stage]}. `
 			+ `The saved document needs attention: ${prerequisite.reason}.`, status: { complete: false, next: prerequisite.stage } };
 	}
-	if (problems.length) { return; }
+	if (problems.length) {
+		if (!docs[stage]?.trim()) { return; }
+		return { reply: `Your saved ${stage === 'tree' ? 'file tree' : stage} is open. No revision has been requested. `
+			+ `The saved-file check reports: ${problems.map(problem => problem.reason).join('; ')}. `
+			+ 'These checks do not authorize replacing the document. Tell me what you want to review or revise.', status: { complete: false } };
+	}
 	const next = STAGES.slice(STAGES.indexOf(stage) + 1).find(candidate => planningProblems(candidate, docs).length);
 	return { reply: `Your saved ${stage === 'tree' ? 'file tree is' : `${stage} ${stage === 'requirements' ? 'are' : 'is'}`} complete. `
 		+ 'Tell me what you want to change'
@@ -30,9 +35,9 @@ export function planningStart(stage: PlanningStage, docs: PlanningDocuments):
 
 /** Name the exact active document so stale conversation requests cannot choose its replacement. */
 export function planningKickoffPrompt(stage: string, document: string): string {
-	return `The user opened the ${stage} skill. The only document this turn may propose is ${document}. `
+	return `The user opened the ${stage} skill for ${document}. Opening a skill does not request a replacement document. `
 		+ 'Earlier requests for other planning documents are historical context, not a new instruction to generate them. '
-		+ 'Continue this document from its saved draft and agreed decisions. Check completeness first. '
-		+ 'If enough is known, prepare its complete content for Keep; otherwise ask only the next essential question. '
+		+ 'Read the saved draft and agreed decisions, then explain the current state or ask the next essential question. '
+		+ 'Do not generate a document merely because the skill was opened. '
 		+ 'Do not restart an existing interview or generate a different document.';
 }

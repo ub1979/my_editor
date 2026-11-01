@@ -59,7 +59,7 @@ export function finalizeChoice(stage: PlanningStage): ReplyChoice {
 }
 
 /** Keep the original reply for history; expose reviewed answer text, never model-supplied commands. */
-export function replyChoices(message: Pick<Message, 'role' | 'done' | 'markdown' | 'mode' | 'error' | 'proposals' | 'planningStatus' | 'historyText'>):
+export function replyChoices(message: Pick<Message, 'role' | 'done' | 'markdown' | 'mode' | 'error' | 'proposals' | 'planningStatus' | 'historyText' | 'readOnly'>):
 	{ markdown: string; choices: ReplyChoice[] } {
 	if (message.role !== 'assistant' || !message.done) { return { markdown: message.markdown, choices: [] }; }
 	if (savedPlanningAction(message)) { return { markdown: message.markdown, choices: [] }; }
@@ -75,7 +75,7 @@ export function replyChoices(message: Pick<Message, 'role' | 'done' | 'markdown'
 	for (const choice of result.choices) {
 		choice.mode = planningIntent(choice.text);
 	}
-	if (message.mode && STAGES.has(message.mode) && !message.proposals.some(proposal => proposal.state === 'open' || proposal.state === 'kept')) {
+	if (!message.readOnly && message.mode && STAGES.has(message.mode) && !message.proposals.some(proposal => proposal.state === 'open' || proposal.state === 'kept')) {
 		const repair = /Finalize (requirements|architecture|tree) before continuing/.exec(message.error ?? '')?.[1]
 			?? /Use \/(requirements|architecture|tree)\b/.exec(message.error ?? '')?.[1];
 		const stage = (repair ?? message.mode) as PlanningStage;

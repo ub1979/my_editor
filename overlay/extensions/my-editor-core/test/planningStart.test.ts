@@ -26,7 +26,8 @@ test('opening a stage with an incomplete prerequisite offers the prerequisite fi
 	const start = planningStart('architecture', { requirements: 'Status: Draft', architecture })!;
 	assert.deepEqual(start.status, { complete: false, next: 'requirements' });
 	assert.match(start.reply, /finish and Keep Requirements/);
-	assert.equal(planningStart('requirements', { requirements: 'Status: Draft' }), undefined);
+	assert.match(planningStart('requirements', { requirements: 'Status: Draft' })!.reply, /No revision has been requested/);
+	assert.equal(planningStart('requirements', {}), undefined);
 });
 
 test('completed stages advance to the first unfinished document and do not offer redundant finalization', () => {
@@ -39,6 +40,6 @@ test('completed stages advance to the first unfinished document and do not offer
 
 test('unfinished-stage kickoff names its exact document and limits stale cross-stage requests', () => {
 	const request = planningKickoffPrompt('architecture', '.my_editor/specs/architecture.md');
-	assert.match(request, /only document this turn may propose is .my_editor\/specs\/architecture.md/);
+	assert.match(request, /Opening a skill does not request a replacement document/);
 	assert.match(request, /historical context, not a new instruction/);
 });

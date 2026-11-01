@@ -3,6 +3,10 @@
 Status of the requirements in [`plans/my_editor-plan-v2.md`](plans/my_editor-plan-v2.md). The original checklist is from 2026-09-23; the additions below are from 2026-09-25.
 ✅ done and verified in the app · 🟡 partly done · ⬜ not started.
 
+## 0.0.31 alpha stable planning baseline — 1 November 2026
+
+The reported saved chat showed a request to keep architecture v1.0.1 and switch to the tree producing another architecture revision. Stage handoffs now recognize that wording. Host-enforced inspection prevents replacement proposals during checks, existing drafts open without generation, and explicit revisions still require Keep. Analysis writes separate observed-code reports in the brain rather than replacing planning files. Creating saved planned files uses the tree without model regeneration. The user's current saved requirements, architecture and tree pass validation and were only read. All 731 automated tests passed, along with editor-host plan-stability, planning retrieval and separate/shared-chat checks. Local installation and archive are prepared for user acceptance testing.
+
 ## 0.0.30 alpha separate agent chats — 1 November 2026
 
 Agent chats now retain independent transcripts and working briefs by default. A visible Shared chat option restores the combined workflow explicitly. Migration preserves the complete prior chat and copies identifiable exchanges into the corresponding agents, including full document recovery. Returning to an agent resumes without generation; drafts and New chat are scoped to the active conversation, while saved specs remain shared project evidence. All 724 automated tests passed. Real editor-host tests verified eight requests across isolated and shared chats, plus the existing planning suite and captured architecture Keep/recovery replay. Local installation and archive are prepared for user acceptance testing.

@@ -2,6 +2,14 @@
 
 my_editor uses the version in `overlay/extensions/my-editor-core/package.json` as its own release number. The Home page displays that version. The underlying editor shell keeps its upstream version independently.
 
+## 0.0.31 alpha — 2026-11-01
+
+- Checks and discussion of saved planning documents cannot create replacement proposals. The host blocks write/delete tools during inspections and does not turn a model's unsolicited document into Keep. Explicit revision requests still work; read-only replies do not add Finalize or recovery actions.
+- Opening an existing draft reports its saved-file checks without generating a new document. Agents are instructed to cite saved evidence, separate defects from optional improvements and implementation gaps, and preserve unrelated decisions and IDs. Long project-note excerpts identify the omitted content.
+- Move on/switch/continue-to-stage requests, including the reported answer labels, route to the named document before generation. Asking Flow & tree to make the planned files uses the saved tree directly, creates only missing stubs, and changes only their progress status.
+- Analyse project and AI-readiness write observed architecture and file-map reports under `.my_editor/brain/`; they never propose replacing the saved architecture or tree. Code-derived observations no longer downgrade the plan to a draft.
+- Validation: all 731 automated tests passed. A real editor-host test blocked unsolicited replacements and incidental cross-document edits, preserved all saved plans during analysis, opened complete stages and drafts without generation, created files without a model, and kept an explicitly requested revision. Existing planning retrieval and separate/shared-chat integration checks also passed.
+
 ## 0.0.30 alpha — 2026-11-01
 
 - Each agent has its own saved conversation and working brief by default. Agent buttons open the corresponding chat; returning resumes it without another planning kickoff. Explicit document requests switch to the correct agent before assembling history.

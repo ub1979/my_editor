@@ -71,7 +71,9 @@ export async function readProjectNote(name: string, maxChars = 8_000): Promise<s
 	}
 	try {
 		const bytes = await vscode.workspace.fs.readFile(vscode.Uri.joinPath(root, '.my_editor', name));
-		return new TextDecoder().decode(bytes).slice(0, maxChars);
+		const text = new TextDecoder().decode(bytes);
+		return text.length <= maxChars ? text : text.slice(0, maxChars)
+			+ `\n[Excerpt: first ${maxChars} of ${text.length} characters from .my_editor/${name}. Read the remaining file before claiming an item is missing.]`;
 	} catch {
 		return '';
 	}

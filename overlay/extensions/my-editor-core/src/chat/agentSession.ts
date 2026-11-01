@@ -17,6 +17,8 @@ import { ObservationRunner } from './observationRunner';
 import { characterPrompt } from './characters';
 import { mayProposeFile, mayUsePlanningTool } from './projectToolPolicy';
 import { proposeDoc } from './engineEdit';
+import { mayRevisePlanningPath, READ_ONLY_REQUEST_NOTE } from './requestPolicy';
+import { documentFromReply } from '../pair/codeBlock';
 import { planningReplyPreview } from '../pair/fencedBlocks';
 import { pairWebAccess, WEB_ACCESS_NOTE } from '../models/webAccess';
 
@@ -57,6 +59,7 @@ export async function runPairAgent(options: AgentSessionOptions): Promise<string
 	const evidence: EvidenceEntry[] = [];
 	const web = pairWebAccess(entry);
 	const planning = options.mode.writes === 'doc';
+	const reviewing = !!input.readOnly;
 	const system = [
 			systemPrompt(options.mode, conventions, brain, vscode.workspace.workspaceFolders?.[0]?.uri.fsPath),
 			characterPrompt(input.characterId),
@@ -77,11 +80,12 @@ export async function runPairAgent(options: AgentSessionOptions): Promise<string
 			+ 'Return your response in action=final; its message must include the complete fenced document when ready, '
 			+ 'as required by this planning mode. The host prepares a Keep/Undo proposal for the designated document. '
 			+ 'Do not call propose_file or propose_delete, and do not claim the document is already saved.' : '',
+		reviewing ? READ_ONLY_REQUEST_NOTE : '',
 	].filter(Boolean).join('\n\n');
 	const last = await runAgentLoop({
 		initial,
 		toolsAvailable: !!vscode.workspace.workspaceFolders?.length,
-		deferredProposal: planning,
+		deferredProposal: planning && !reviewing,
 		requireCheck: options.mode.id === 'review' ? call => call.name === 'read_file' || call.name === 'search' : undefined,
 		cancelled: () => token.isCancellationRequested,
 		progress: message => sink.progress(message),
@@ -99,6 +103,9 @@ export async function runPairAgent(options: AgentSessionOptions): Promise<string
 			return response;
 		},
 		execute: async call => {
+			if (reviewing && !mayUsePlanningTool(call.name) && call.name !== 'open_files') { return READ_ONLY_TURN; }
+			if (['propose_file', 'propose_delete'].includes(call.name)
+				&& !mayRevisePlanningPath(call.arguments.path, input.text, chatArchive)) { return 'This request does not authorize revising that planning document. Report the issue with its path and requirement IDs.'; }
 			if (planning && !mayUsePlanningTool(call.name)) { return 'Planning allows only read-only retrieval. Return the complete document in the final message for Keep/Undo.'; }
 			if (['propose_file', 'propose_delete'].includes(call.name) && !mayProposeFile(options.mode.id, !!input.locateOnly)) { return READ_ONLY_TURN; }
 			if (call.name === 'read_chat') { return readChatMessage(chatArchive, call.arguments); }
@@ -116,8 +123,13 @@ export async function runPairAgent(options: AgentSessionOptions): Promise<string
 	if (last && planning && !token.isCancellationRequested) {
 		sink.archive?.(last);
 		try {
-			const document = await proposeDoc(proposals, options.mode, last, sink);
-			sink.text(planningReplyPreview(last, document));
+			if (reviewing) {
+				const document = documentFromReply(last, options.mode.doc!);
+				sink.text(document ? 'The model returned a replacement document during a read-only check. No replacement was prepared and your saved plan is unchanged.' : last);
+			} else {
+				const document = await proposeDoc(proposals, options.mode, last, sink);
+				sink.text(planningReplyPreview(last, document));
+			}
 		}
 		catch (error) {
 			sink.error(error instanceof Error ? error.message : String(error));

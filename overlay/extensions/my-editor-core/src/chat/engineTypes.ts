@@ -36,6 +36,8 @@ export interface RunInput {
 	readonly characterId?: string;
 	/** Find and open relevant source before discussing a change; no file proposals in this turn. */
 	readonly locateOnly?: boolean;
+	/** Host-enforced inspection: no proposal tools or automatic document replacement. */
+	readonly readOnly?: boolean;
 	readonly activeFile?: ActiveFile;
 }
 
@@ -44,5 +46,6 @@ export interface RunResult {
 	readonly reply: string;
 	readonly model?: string;
 	readonly planningStatus?: PlanningStatus;
+	readonly readOnly?: boolean;
 }
 

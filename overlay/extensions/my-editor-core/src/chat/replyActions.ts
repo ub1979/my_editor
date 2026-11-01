@@ -4,9 +4,9 @@ import { isPlanningStage } from './planningStart';
 import type { Message } from './presentation';
 
 /** Re-review a complete retained reply after a validator fix, without generating another document. */
-export function savedPlanningAction(message: Pick<Message, 'mode' | 'done' | 'error' | 'historyText' | 'proposals'>):
+export function savedPlanningAction(message: Pick<Message, 'mode' | 'done' | 'error' | 'historyText' | 'proposals' | 'readOnly'>):
 	Message['actions'][number] | undefined {
-	if (!message.done || !message.error || !message.historyText || !isPlanningStage(message.mode ?? '')
+	if (message.readOnly || !message.done || !message.error || !message.historyText || !isPlanningStage(message.mode ?? '')
 		|| message.proposals.some(proposal => ['open', 'kept'].includes(proposal.state))) { return; }
 	const stage = message.mode!;
 	try {

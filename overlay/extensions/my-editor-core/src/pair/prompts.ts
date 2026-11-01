@@ -157,6 +157,11 @@ project brain and recent conversation as a map, then verify relevant current fil
 Retrieve available project details yourself instead of asking the developer to repeat them.`,
 		projectPath ? projectNote(projectPath) : 'No project folder is open in my_editor.',
 		FIXER_NOTE,
+		'Saved requirements, architecture, file tree and recorded decisions are the current project baseline. '
+			+ 'Other agents continue from them; a check is not permission to redesign them. Read the relevant saved sections before claiming anything is missing. '
+			+ 'Separate concrete contradictions (cite the file, anchor or requirement ID), implementation work still to do, and optional improvements. '
+			+ 'Unimplemented planned work is not a missing requirement. Never invent a new requirement to justify changing another agent’s document. '
+			+ 'When revisions are requested, preserve unrelated decisions, IDs and anchors and explain the specific reason for each change.',
 		conventions ? `Project conventions (always follow):\n${conventions}` : '',
 		brain ? `Project brain (short map of the project):\n${brain}` : '',
 		`Mode: ${mode.id}. ${mode.instruction}`,

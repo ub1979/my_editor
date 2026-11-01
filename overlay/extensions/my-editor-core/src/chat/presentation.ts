@@ -28,6 +28,7 @@ export interface Message {
 	progress?: string;
 	error?: string;
 	errorAction?: 'chooseModel';
+	readOnly?: boolean;
 	proposals: ProposalCard[];
 	actions: { label: string; command: string; args: unknown[] }[];
 	done: boolean;
