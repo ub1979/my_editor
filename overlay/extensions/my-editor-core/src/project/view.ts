@@ -201,6 +201,10 @@ export class ProjectView implements vscode.WebviewViewProvider {
 
 	/** A stage with a document opens it; otherwise the matching conversation starts in chat. */
 	private async openOrStart(stage: string, path: string | undefined): Promise<void> {
+		if (stage === 'requirements' || stage === 'architecture' || stage === 'tree') {
+			await vscode.commands.executeCommand('myEditor.chat.start', stage);
+			return;
+		}
 		const root = vscode.workspace.workspaceFolders?.[0]?.uri;
 		if (root && path) {
 			const uri = vscode.Uri.joinPath(root, path);

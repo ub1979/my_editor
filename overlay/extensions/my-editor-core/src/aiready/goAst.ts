@@ -1,5 +1,5 @@
 import { createHash } from 'crypto';
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from 'fs';
 import * as path from 'path';
 import { runTool } from './projectCommands';
 
@@ -81,15 +81,19 @@ export async function buildGoHelper(mainGo: string, storageDir: string, version:
 	mkdirSync(storageDir, { recursive: true });
 	const goVersion = await runTool(go, ['version'], storageDir, GO_ENV);
 	if (goVersion.code !== 0) { throw new Error(`\`go version\` failed: ${goVersion.stderr.trim().slice(0, 300)}`); }
-	const hash = createHash('sha1').update(readFileSync(mainGo)).update(goVersion.stdout.trim()).digest('hex').slice(0, 8);
+	const sourceDir = path.dirname(mainGo);
+	const sources = readdirSync(sourceDir).filter(file => file.endsWith('.go') && !file.endsWith('_test.go')).sort();
+	const digest = createHash('sha1');
+	for (const file of sources) { digest.update(file).update(readFileSync(path.join(sourceDir, file))); }
+	const hash = digest.update(goVersion.stdout.trim()).digest('hex').slice(0, 8);
 	const dir = path.join(storageDir, 'goast', `${version}-${hash}`);
 	const binary = path.join(dir, 'goast');
 	if (existsSync(binary)) { return binary; }
 	mkdirSync(dir, { recursive: true });
 	const work = mkdtempSync(path.join(dir, 'build-'));
 	try {
-		copyFileSync(mainGo, path.join(work, 'main.go'));
-		const built = await runTool(go, ['build', '-o', path.join(work, 'goast'), 'main.go'], work,
+		for (const file of sources) { copyFileSync(path.join(sourceDir, file), path.join(work, file)); }
+		const built = await runTool(go, ['build', '-o', path.join(work, 'goast'), ...sources], work,
 			{ ...GO_READ_ENV, GOOS: '', GOARCH: '', GOENV: 'off', GOWORK: 'off', CGO_ENABLED: '0' });
 		if (built.code !== 0) { throw new Error(`Could not build the Go parser helper: ${built.stderr.trim().slice(0, 500)}`); }
 		writeFileSync(path.join(work, 'probe.go'), 'package probe\n');

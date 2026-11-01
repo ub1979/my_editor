@@ -65,7 +65,7 @@ test('renderReport lists files, suggestions, unreviewed parts and the next step'
 		project: 'shop', date: '2026-10-07', model: 'Claude Sonnet',
 		stats: [fileStats('src/big.ts', 'x\n'.repeat(450))],
 		findings: [
-			{ kind: 'too-long', file: 'src/big.ts', text: '450 lines; the limit is 400.' },
+			{ kind: 'too-long', file: 'src/big.ts', text: '450 lines; the limit is 300.' },
 			{ kind: 'mixed-job', file: 'src/big.ts', line: 12, text: 'Parses and renders.', grouping: 'parse: a, b; render: c' },
 			{ kind: 'bug', file: 'src/big.ts', line: 40, text: 'Total ignores discounts.' },
 			{ kind: 'no-test-runner', text: 'No test command was found, so changes cannot be checked by tests yet.' },
@@ -75,7 +75,7 @@ test('renderReport lists files, suggestions, unreviewed parts and the next step'
 	});
 	assert.match(report, /^# AI-ready health report: shop/);
 	assert.match(report, /stopped early/);
-	assert.match(report, /\| Over 400 lines \| 1 \|/);
+	assert.match(report, /\| Over 300 lines \| 1 \|/);
 	assert.match(report, /### \[src\/big\.ts\]\(\.\.\/\.\.\/src\/big\.ts\)/);
 	assert.match(report, /\[src\/big\.ts:12\]\(\.\.\/\.\.\/src\/big\.ts#L12\)/);
 	assert.match(report, /Grouping: parse: a, b; render: c/);

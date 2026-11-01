@@ -96,12 +96,13 @@ export class ChatState {
 	}
 
 	/** Copies a proposal's new state onto its cards and returns the messages that hold one. */
-	applyProposal(proposal: Pick<Proposal, 'id' | 'state'>): Message[] {
+	applyProposal(proposal: Pick<Proposal, 'id' | 'state' | 'operation'>): Message[] {
 		const changed: Message[] = [];
 		for (const message of this.messages) {
 			const card = message.proposals.find(p => p.id === proposal.id);
 			if (card) {
 				card.state = proposal.state;
+				if (proposal.operation) { card.operation = proposal.operation; }
 				changed.push(message);
 			}
 		}

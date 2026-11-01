@@ -4,57 +4,8 @@ import builtins
 
 from my_editor_pyreads import annotation_nodes, binds, defaults, global_assignments, type_params
 
-BUILTIN_NAMES = frozenset(dir(builtins))
-BUILTIN_CLASSES = frozenset(n for n in BUILTIN_NAMES if isinstance(getattr(builtins, n), type))
-TYPING = ('typing.', 'typing_extensions.')
-GENERICS = frozenset(['list', 'dict', 'tuple', 'set', 'frozenset', 'type'])
-PURE_CALLS = frozenset(['builtins.object', 'builtins.frozenset', 're.compile', 'collections.namedtuple', 'typing.TypeVar',
-                        'typing.ParamSpec', 'typing.TypeVarTuple', 'typing.NewType'])
-CLASS_CALLS = frozenset(['dataclasses.field', 'enum.auto'])
-QUIET_CALLS = frozenset(['logging.getLogger', 're.compile', 'os.environ.get', 'os.getenv', 'collections.namedtuple', 'typing.TypeVar',
-                         'typing.NewType', 'typing.ParamSpec', 'builtins.object'])
-TOP_FUNC = frozenset(['functools.cache', 'functools.lru_cache', 'contextlib.contextmanager', 'contextlib.asynccontextmanager',
-                      'typing.overload', 'typing.final'])
-TOP_CLASS = frozenset(['dataclasses.dataclass', 'functools.total_ordering', 'enum.unique', 'typing.final', 'typing.runtime_checkable'])
-IN_CLASS = frozenset(['builtins.property', 'builtins.staticmethod', 'builtins.classmethod', 'functools.cached_property',
-                      'abc.abstractmethod', 'typing.overload', 'typing.override', 'typing.final'])
-CALLABLE_DECORATORS = frozenset(['functools.lru_cache', 'dataclasses.dataclass'])
-STD_BASES = frozenset(['abc.ABC', 'enum.Enum', 'enum.IntEnum', 'enum.StrEnum', 'enum.Flag', 'enum.IntFlag', 'typing.NamedTuple',
-                       'typing.TypedDict', 'typing.Protocol'])
-SUBSCRIPT_BASES = frozenset(['typing.Generic', 'typing.Protocol'])
-CLASS_HOOKS = ('__init_subclass__', '__class_getitem__', '__set_name__')
-ENUM_HOOKS = ('__init__', '__new__', '_generate_next_value_')
-ITERATED = frozenset(['builtins.frozenset', 'collections.namedtuple'])
-
-
-def normal(name):
-    """typing_extensions names count as typing names."""
-    return 'typing.' + name[len('typing_extensions.'):] if name and name.startswith('typing_extensions.') else name
-
-
-class Names:
-    """What the file binds: the leading block's imports and every top-level binding, for resolving names by binding."""
-
-    def __init__(self, lead_canon, lead_modules, counts, defined, nodes=None):
-        self.lead_canon = lead_canon      # name -> dotted target, None when the binding is conditional or relative
-        self.lead_modules = lead_modules  # names bound by `import m` (module objects)
-        self.counts = counts              # name -> number of statements that bind it
-        self.defined = defined            # non-lead name -> id of the declaration that binds it first
-        self.nodes = nodes or {}          # name -> the top-level def or class that binds it
-
-    def canon(self, node):
-        """The dotted target of a name or attribute chain resolved by binding, else None."""
-        if isinstance(node, ast.Name):
-            name = node.id
-            if name in self.lead_canon and self.counts.get(name, 0) == 1:
-                return normal(self.lead_canon[name])
-            if name not in self.counts and name in BUILTIN_NAMES:
-                return 'builtins.' + name
-            return None
-        if isinstance(node, ast.Attribute):
-            base = self.canon(node.value)
-            return normal(base + '.' + node.attr) if base else None
-        return None
+from my_editor_pyconstants import *  # noqa: F403 - shared finite rule table
+from my_editor_pynames import Names, names_of, normal
 
 
 class Purity:
@@ -338,29 +289,3 @@ def class_rules(p, ann, cls):
         else:
             return p.fail('its class body runs code (%s)' % type(stmt).__name__)
     return True
-
-
-def names_of(lead, groups, table):
-    """The file's bindings: leading-block targets, statement counts (a compound statement counts once), first definitions."""
-    canon, modules, counts, defined, nodes = {}, set(), {}, {}, {}
-    for stmt in lead:
-        for name in binds(stmt):
-            counts[name] = counts.get(name, 0) + 1
-            canon[name] = None
-        if isinstance(stmt, ast.Import):
-            for a in stmt.names:
-                local = a.asname or a.name.split('.')[0]
-                canon[local] = a.name if a.asname else local
-                modules.add(local)
-        elif isinstance(stmt, ast.ImportFrom) and stmt.module != '__future__':
-            for a in stmt.names:
-                canon[a.asname or a.name] = '%s.%s' % (stmt.module, a.name) if not stmt.level else None
-    for index, stmts in enumerate(groups):
-        for name in set().union(*[binds(s) for s in stmts]):
-            counts[name] = counts.get(name, 0) + 1
-            defined.setdefault(name, index)
-        if isinstance(stmts[0], (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-            nodes.setdefault(stmts[0].name, stmts[0])
-    for name in global_assignments(table):
-        counts[name] = counts.get(name, 0) + 1
-    return Names(canon, modules, counts, defined, nodes)

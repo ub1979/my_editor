@@ -33,7 +33,8 @@ export class AutoComments implements vscode.Disposable {
 	}
 
 	static get enabled(): boolean {
-		return vscode.workspace.getConfiguration('myEditor').get<boolean>('autoComments.enabled', true);
+		const config = vscode.workspace.getConfiguration('myEditor');
+		return config.get<boolean>('autoComments.enabled', true) && config.get('assistance.mode', 'auto') === 'auto';
 	}
 
 	static async setEnabled(on: boolean): Promise<void> {

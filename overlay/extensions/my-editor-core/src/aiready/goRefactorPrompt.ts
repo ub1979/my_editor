@@ -15,7 +15,7 @@ const SYSTEM = [
 	'- Each helper takes at most 6 parameters (ctx counts, the receiver does not) and has at most 3 changed variables flowing out. '
 		+ 'The outline lists at each statement boundary the variables still needed after it: choose boundaries where few are live.',
 	'- Statements marked "refused" stay out of every run.',
-	'- The function must end at or under the line budget given below, so the file can then be split; each helper at most 400 lines.',
+	'- The function must end at or under the line budget given below, so the file can then be split; each helper at most 300 lines.',
 	'- Make it a real improvement, not the smallest change that fits: aim for the function under 200 lines (or half its size), '
 		+ 'with a few helpers of about 30–150 lines that each do one recognizable job.',
 	'- Names are new, unexported lowerCamelCase verbs (queryPlacementRows, applyLedgerPhase).',

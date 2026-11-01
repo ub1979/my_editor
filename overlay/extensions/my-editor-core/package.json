@@ -2,7 +2,7 @@
   "name": "my-editor-core",
   "displayName": "my_editor Core",
   "description": "Built-in core of my_editor: project brain, skills, pair mode.",
-  "version": "0.0.23-alpha.0",
+  "version": "0.0.24-alpha.0",
   "publisher": "my-editor",
   "license": "MIT",
   "private": true,
@@ -10,6 +10,7 @@
     "vscode": "^1.100.0"
   },
   "main": "./dist/extension.js",
+  "enabledApiProposals": ["editorInsets"],
   "activationEvents": [
     "onStartupFinished"
   ],
@@ -171,6 +172,51 @@
         "title": "Comment Guidance: Off (click to turn on)",
         "category": "my_editor",
         "icon": "$(comment)"
+      },
+      {
+        "command": "myEditor.python.runSelection",
+        "title": "Python: Run Selection or Current Line",
+        "category": "my_editor"
+      },
+      {
+        "command": "myEditor.python.runCell",
+        "title": "Python: Run Cell",
+        "category": "my_editor"
+      },
+      {
+        "command": "myEditor.python.restart",
+        "title": "Python: Restart Interactive Session",
+        "category": "my_editor"
+      },
+      {
+        "command": "myEditor.python.showResults",
+        "title": "Show Python Results",
+        "category": "my_editor"
+      },
+      {
+        "command": "myEditor.python.clearInlineResults",
+        "title": "Python: Clear Inline Output",
+        "category": "my_editor"
+      },
+      {
+        "command": "myEditor.inlineAi.generate",
+        "title": "Generate Code Below AI Comment",
+        "category": "my_editor"
+      },
+      {
+        "command": "myEditor.assistance.mode",
+        "title": "Choose Automatic or Manual Assistance",
+        "category": "my_editor"
+      },
+      {
+        "command": "myEditor.assistance.review",
+        "title": "Review Selection or File Now",
+        "category": "my_editor"
+      },
+      {
+        "command": "myEditor.assistance.symbol",
+        "title": "Suggest Tests or Accessors",
+        "category": "my_editor"
       }
     ],
     "configuration": {
@@ -288,7 +334,7 @@
             "sonnet",
             "haiku"
           ],
-          "markdownDescription": "Claude Code model names to offer (`opus`, `sonnet`, `haiku`, a full model id, or `default`)."
+          "markdownDescription": "Extra Claude Code aliases or full model IDs to offer. Available models and their versions are also discovered from the installed Claude CLI. Aliases follow CLI defaults; full IDs pin a version."
         },
         "myEditor.codexCli.enabled": {
           "type": "boolean",
@@ -347,6 +393,31 @@
           "type": "boolean",
           "default": true,
           "description": "Show advisory notes for newly added functions or classes that may need a useful comment. Choose a reviewed Pair suggestion or manual guidance from Quick Fix. Toggle it from the editor toolbar."
+        },
+        "myEditor.assistance.mode": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "manual"
+          ],
+          "default": "auto",
+          "enumDescriptions": [
+            "Review after a quiet spell while typing and show declaration suggestions.",
+            "Only respond to explicit review and generation commands."
+          ],
+          "description": "When the coding assistant speaks up."
+        },
+        "myEditor.assistance.suggestions": {
+          "type": "boolean",
+          "default": true,
+          "description": "Offer test and accessor actions above functions and classes in automatic mode."
+        },
+        "myEditor.ollama.requestTimeoutSeconds": {
+          "type": "number",
+          "default": 180,
+          "minimum": 10,
+          "maximum": 600,
+          "description": "Maximum seconds for one Ollama response, including streaming. Increase this for slower local models."
         }
       }
     },
@@ -462,8 +533,54 @@
           "when": "view == myEditor.chat",
           "group": "navigation@2"
         }
+      ],
+      "editor/context": [
+        {
+          "command": "myEditor.python.runSelection",
+          "group": "myEditorCoding",
+          "when": "editorLangId == python"
+        },
+        {
+          "command": "myEditor.python.runCell",
+          "group": "myEditorCoding",
+          "when": "editorLangId == python"
+        },
+        {
+          "command": "myEditor.inlineAi.generate",
+          "group": "myEditorCoding",
+          "when": "resourceScheme == file"
+        },
+        {
+          "command": "myEditor.assistance.review",
+          "group": "myEditorCoding",
+          "when": "resourceScheme == file"
+        },
+        {
+          "command": "myEditor.assistance.symbol",
+          "group": "myEditorCoding",
+          "when": "resourceScheme == file"
+        }
       ]
-    }
+    },
+    "keybindings": [
+      {
+        "command": "myEditor.python.runSelection",
+        "key": "shift+enter",
+        "when": "editorTextFocus && editorLangId == python"
+      },
+      {
+        "command": "myEditor.python.runCell",
+        "key": "ctrl+enter",
+        "mac": "cmd+enter",
+        "when": "editorTextFocus && editorLangId == python"
+      },
+      {
+        "command": "myEditor.inlineAi.generate",
+        "key": "ctrl+alt+enter",
+        "mac": "cmd+alt+enter",
+        "when": "editorTextFocus"
+      }
+    ]
   },
   "scripts": {
     "compile": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc --noEmit -p ./ && esbuild src/extension.ts --bundle --platform=node --format=cjs --target=node20 --external:vscode --outfile=dist/extension.js --sourcemap",

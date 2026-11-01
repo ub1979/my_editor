@@ -63,8 +63,9 @@ export function replyChoices(message: Pick<Message, 'role' | 'done' | 'markdown'
 	const result = questionChoices(message.markdown);
 	for (const choice of result.choices) {
 		if (/\b(?:write|finali[sz]e|complete|full)\b/i.test(choice.label)) {
-			const stage = /requirements/i.test(choice.label) ? 'requirements' : /architecture/i.test(choice.label) ? 'architecture' : undefined;
-			if (stage) { choice.mode = stage; }
+			const target = /\b(?:write|produce|finali[sz]e|complete)\s+(?:(?:the|full|complete)\s+)*(requirements|architecture|tree)\b/i.exec(choice.text)?.[1]?.toLowerCase();
+			const stage = target ?? (/requirements/i.test(choice.label) ? 'requirements' : /architecture/i.test(choice.label) ? 'architecture' : undefined);
+			if (stage) { choice.mode = stage as PlanningStage; }
 		}
 	}
 	if (message.mode && STAGES.has(message.mode) && !message.proposals.some(proposal => proposal.state === 'open' || proposal.state === 'kept')) {

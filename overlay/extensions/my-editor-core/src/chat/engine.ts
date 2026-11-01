@@ -5,9 +5,8 @@ import { ApiKeys } from '../models/secrets';
 import { streamModel } from '../models/stream';
 import { ChatTurn } from '../models/types';
 import { BRIEF_SYSTEM, briefRequest, cleanBrief } from './memory';
-import { documentFromReply, elidesCode, fileFromReply } from '../pair/codeBlock';
-import { currentFile, describeFile, FileContext, readProjectNote } from '../pair/context';
-import { Mode, MODES, systemPrompt } from '../pair/prompts';
+import { describeFile, FileContext, readProjectNote } from '../pair/context';
+import { systemPrompt } from '../pair/prompts';
 import { computeImpact } from '../project/impact';
 import { projectEvidence } from '../project/evidence';
 import { changeContext } from '../project/gitHistory';
@@ -15,12 +14,9 @@ import { planningContext } from '../project/planningContext';
 import { queryTerms, sourceExcerpt } from '../project/relevance';
 import { logExchange } from '../records/chatLog';
 import { recordsAbout } from '../records/history';
-import { loadSkills } from '../skills/loader';
-import { Proposal, Proposals } from './proposals';
-import { assertEditSnapshot } from '../pair/editSnapshot';
+import { Proposals } from './proposals';
 import { runPairAgent } from './agentSession';
 import { modelHistoryTurns } from './chatArchive';
-import { configuredReasoningEffort, mergeTurns } from './modelTurns';
 import { ObservationRunner } from './observationRunner';
 import { currentProjectStatus } from '../project/contextStatus';
 import { describeProjectStatus } from '../project/contextStatusText';
@@ -28,52 +24,15 @@ import { recentInvestigationContext } from './investigationJournal';
 import { characterPrompt } from './characters';
 import { usesProjectTools } from './projectToolPolicy';
 import { pairWebAccess, WEB_ACCESS_NOTE } from '../models/webAccess';
-import type { ActiveFile } from './activeFile';
 import { offerPush } from './pushOffer';
+import { qaSubject, specs as readSpecs } from './engineDocuments';
+import { streamEdit } from './engineEdit';
+import { readModeFile, resolveMode } from './engineMode';
 
 const HISTORY_TURNS = 16;
 
-/** Where a reply goes: the chat panel implements this. */
-export interface Sink {
-	text(markdown: string): void;
-	progress(message: string): void;
-	proposal(proposal: Proposal): void;
-	action(label: string, command: string, args: unknown[]): void;
-	error(message: string): void;
-}
-
-export interface Turn {
-	readonly role: 'user' | 'assistant';
-	readonly text: string;
-}
-
-export interface RunInput {
-	/** What the user typed; may start with a /command. */
-	readonly text: string;
-	/** The skill chosen in the panel (sticky), e.g. `requirements` or `skill:debug`. */
-	readonly mode?: string;
-	/** A kickoff: the skill speaks first, without a visible user message. */
-	readonly kickoff?: boolean;
-	readonly modelKey?: string;
-	/** Condensed earlier turns, kept separately from the live transcript. */
-	readonly memory?: string;
-	/** Recent proposal outcomes from the chat UI; refreshed every turn. */
-	readonly proposalState?: string;
-	/** Full stored turns before this request; long messages are fetched through read_chat when needed. */
-	readonly chatArchive?: readonly Turn[];
-	/** Stable id of the user's request, used for its durable investigation record. */
-	readonly requestId?: string;
-	readonly characterId?: string;
-	/** Find and open relevant source before discussing a change; no file proposals in this turn. */
-	readonly locateOnly?: boolean;
-	readonly activeFile?: ActiveFile;
-}
-
-export interface RunResult {
-	readonly mode: string;
-	readonly reply: string;
-	readonly model?: string;
-}
+export type { Sink, Turn, RunInput, RunResult } from './engineTypes';
+import type { Sink, Turn, RunInput, RunResult } from './engineTypes';
 
 /** The open file's most relevant source for the request, plus the selected text when there is one. */
 function openFileExcerpt(file: FileContext, prompt: string): string {
@@ -127,24 +86,10 @@ export class PairEngine {
 			sink.text(report);
 			return { mode: 'changes', reply: report };
 		}
-		let mode: Mode | undefined = MODES[modeId];
-		if (modeId === 'skill' || modeId.startsWith('skill:')) {
-			const name = modeId === 'skill' ? prompt.trim().split(/\s+/)[0] ?? '' : modeId.slice(6);
-			if (modeId === 'skill') {
-				prompt = prompt.trim().slice(name.length).trim();
-			}
-			const skill = (await loadSkills(this.extensionUri)).get(name.toLowerCase());
-			if (!skill) {
-				sink.text(`There is no skill called \`${name}\`. Pick one from the list at the top of the chat.`);
-				return { mode: 'chat', reply: '' };
-			}
-			modeId = `skill:${skill.name}`;
-			mode = { id: modeId, writes: skill.writes, instruction: skill.instruction };
-		}
-		if (!mode) {
-			sink.text(`I don't know \`/${modeId}\`. Try /feature, /change, /next, /explain, /review, /brainstorm or a skill.`);
-			return { mode: 'chat', reply: '' };
-		}
+		const resolved = await resolveMode(this.extensionUri, modeId, prompt, sink);
+		if (!resolved) { return { mode: 'chat', reply: '' }; }
+		const { mode } = resolved;
+		prompt = resolved.prompt;
 
 		// The requirements interview always opens the same way: the idea first, in the user's own words.
 		if (input.kickoff && mode.id === 'requirements' && !history.length && !await readProjectNote('specs/requirements.md')) {
@@ -153,25 +98,8 @@ export class PairEngine {
 			return { mode: mode.id, reply: opener };
 		}
 
-		let file: FileContext | undefined;
-		try {
-			file = await currentFile(input.activeFile);
-		} catch (err) {
-			sink.error(err instanceof Error ? err.message : String(err));
-			return { mode: mode.id, reply: '' };
-		}
-		if ((mode.writes === 'file' || mode.writes === 'selection') && !file) {
-			sink.text('Open the file you want to work on, then ask again.');
-			return { mode: mode.id, reply: '' };
-		}
-		if (mode.writes === 'file' && file?.truncated) {
-			sink.text(`\`${file.relativePath}\` is too long to rewrite as a whole (over 60,000 characters). Select the part to work on and use \`/change\`.`);
-			return { mode: mode.id, reply: '' };
-		}
-		if (mode.writes === 'selection' && !file?.selection) {
-			sink.text('Select the lines to change first, or use `/feature` to change the file.');
-			return { mode: mode.id, reply: '' };
-		}
+		const file = await readModeFile(mode, input, sink);
+		if (file === false) { return { mode: mode.id, reply: '' }; }
 
 		const entries = await loadCatalog(this.keys);
 		const entry = entries.find(e => e.key === input.modelKey) ?? pickDefault(entries);
@@ -185,7 +113,7 @@ export class PairEngine {
 		const [
 			conventions, brain, specs, neighbours, evidence, changes, plans, projectState, availableObservations, previousInvestigations,
 		] = await Promise.all([
-			readProjectNote('conventions.md'), readProjectNote('brain/index.md', 12_000), this.specs(mode),
+			readProjectNote('conventions.md'), readProjectNote('brain/index.md', 12_000), readSpecs(mode),
 			file ? neighbourSummary(file.relativePath) : Promise.resolve(''),
 			mode.id === 'chat' ? projectEvidence(evidenceQuery, Math.round(entry.maxInputTokens * 0.45)) : Promise.resolve(''),
 			mode.id === 'chat' ? changeContext(prompt, file?.relativePath) : Promise.resolve(''),
@@ -195,7 +123,7 @@ export class PairEngine {
 			mode.id === 'chat' ? recentInvestigationContext(prompt) : Promise.resolve('')]);
 		const records = mode.id === 'why' && file ? await recordsAbout(file.relativePath) : '';
 		const subject = mode.id === 'qa'
-			? await this.qaSubject(prompt)
+			? await qaSubject(prompt)
 			: mode.id === 'why' && file
 				? [
 					describeFile(file), neighbours,
@@ -230,91 +158,18 @@ export class PairEngine {
 			return { mode: mode.id, reply, model: entry.label };
 		}
 
-		let reply = '';
-		let shown = 0;
-		let writing = false;
-		const web = pairWebAccess(entry);
-		await streamModel(entry, this.keys, {
-			system: [
-				systemPrompt(mode, conventions, brain, vscode.workspace.workspaceFolders?.[0]?.uri.fsPath),
-				characterPrompt(input.characterId), web ? WEB_ACCESS_NOTE : '', describeProjectStatus(projectState),
-				input.memory ? `Working brief from earlier turns (refresh facts against the current brain, source and Git):\n${input.memory}` : '',
-			].filter(Boolean).join('\n\n'),
-			turns: mergeTurns(turns),
-			token,
-			reasoningEffort: entry.provider === 'codex-cli' ? configuredReasoningEffort() : undefined,
-			webAccess: web, onActivity: label => sink.progress(label),
-			onText: chunk => {
-				reply += chunk;
-				if (mode!.writes === 'none') {
-					sink.text(chunk);
-					return;
-				}
-				if (writing) {
-					return;
-				}
-				// Show prose; once a code block starts, show progress instead of the code.
-				const fence = reply.indexOf('```');
-				const safeEnd = fence >= 0 ? fence : Math.max(shown, reply.length - 2);
-				if (safeEnd > shown) {
-					sink.text(reply.slice(shown, safeEnd));
-					shown = safeEnd;
-				}
-				if (fence >= 0) {
-					writing = true;
-					sink.progress(`Writing ${mode!.doc ?? file?.relativePath ?? 'the change'}…`);
-				}
-			},
-		});
-		if (token.isCancellationRequested) {
-			return { mode: mode.id, reply, model: entry.label };
-		}
-		if (mode.writes !== 'none' && !writing && reply.length > shown) {
-			sink.text(reply.slice(shown));
-		}
-		if (mode.writes === 'doc') {
-			await this.proposeDoc(mode, reply, sink);
-		} else if ((mode.writes === 'file' || mode.writes === 'selection') && file) {
-			await this.proposeEdit(mode, file, reply, sink);
-		}
+		const reply = await streamEdit(entry, this.keys, this.proposals, mode, file, turns, [
+			systemPrompt(mode, conventions, brain, vscode.workspace.workspaceFolders?.[0]?.uri.fsPath),
+			characterPrompt(input.characterId), pairWebAccess(entry) ? WEB_ACCESS_NOTE : '', describeProjectStatus(projectState),
+			input.memory ? `Working brief from earlier turns (refresh facts against current source and Git):\n${input.memory}` : '',
+		].filter(Boolean).join('\n\n'), sink, token);
+		if (token.isCancellationRequested) { return { mode: mode.id, reply, model: entry.label }; }
 		if (mode.id === 'brainstorm' && reply.trim() && !input.kickoff) {
 			sink.action('Save as decision', 'myEditor.saveDecision', [{ title: prompt, context: prompt, discussion: reply }]);
 		}
 		if (!input.kickoff) { offerPush(prompt, sink); }
 		void logExchange({ mode: mode.id, model: entry.label, file: file?.relativePath, prompt: input.kickoff ? '(started)' : prompt, reply });
 		return { mode: mode.id, reply, model: entry.label };
-	}
-
-	private async proposeEdit(mode: Mode, file: FileContext, reply: string, sink: Sink): Promise<void> {
-		const code = fileFromReply(reply);
-		if (code === undefined) {
-			sink.text('\n\n_No code came back, so nothing was changed._');
-			return;
-		}
-		if (mode.writes === 'file' && elidesCode(code)) {
-			sink.text('\n\n_The reply left out parts of the file ("… existing code …"), which would delete them, so nothing was changed. '
-				+ 'Try again, or select the part to change and use `/change`._');
-			return;
-		}
-		const document = await vscode.workspace.openTextDocument(file.uri);
-		assertEditSnapshot(file.fingerprint, document.getText());
-		let proposed: string;
-		if (mode.writes === 'selection' && file.selection) {
-			const text = document.getText();
-			proposed = text.slice(0, document.offsetAt(file.selection.start)) + code + text.slice(document.offsetAt(file.selection.end));
-		} else {
-			proposed = document.getText().endsWith('\n') && !code.endsWith('\n') ? `${code}\n` : code;
-		}
-		sink.proposal(await this.proposals.propose(file.uri, proposed));
-	}
-
-	private async proposeDoc(mode: Mode, reply: string, sink: Sink): Promise<void> {
-		const root = vscode.workspace.workspaceFolders?.[0]?.uri;
-		const content = mode.doc ? documentFromReply(reply, mode.doc) : undefined;
-		if (!root || !mode.doc || content === undefined) {
-			return; // Still interviewing: nothing to write yet.
-		}
-		sink.proposal(await this.proposals.propose(vscode.Uri.joinPath(root, mode.doc), content.endsWith('\n') ? content : `${content}\n`));
 	}
 
 	private async impact(change: string, sink: Sink): Promise<void> {
@@ -336,37 +191,4 @@ export class PairEngine {
 		}
 	}
 
-	private async qaSubject(prompt: string): Promise<string> {
-		const reportPath = /\.my_editor\/qa\/\S+\.md/.exec(prompt)?.[0];
-		if (!reportPath) {
-			return 'No fit report given. Right-click files or a folder and choose "Check How These Fit".';
-		}
-		const report = await readProjectNote(reportPath.replace(/^\.my_editor\//, ''), 20_000);
-		const architecture = await readProjectNote('specs/architecture.md', 15_000);
-		const root = vscode.workspace.workspaceFolders?.[0]?.uri;
-		const files = [...report.matchAll(/^- `([^`]+)`$/gm)].map(m => m[1]);
-		let budget = 40_000;
-		const contents: string[] = [];
-		for (const path of files) {
-			if (!root || budget <= 0) {
-				break;
-			}
-			try {
-				const text = new TextDecoder().decode(await vscode.workspace.fs.readFile(vscode.Uri.joinPath(root, path))).slice(0, budget);
-				budget -= text.length;
-				contents.push(`${path}:\n${text}`);
-			} catch {
-				// Moved or deleted since the check; the report still lists it.
-			}
-		}
-		return [`Fit report (${reportPath}):\n${report}`, architecture ? `Architecture:\n${architecture}` : '', ...contents].filter(Boolean).join('\n\n');
-	}
-
-	private async specs(mode: Mode): Promise<string> {
-		const parts = await Promise.all((mode.reads ?? []).map(async path => {
-			const text = await readProjectNote(path.replace(/^\.my_editor\//, ''), 30_000);
-			return text ? `${path}:\n${text}` : '';
-		}));
-		return parts.filter(Boolean).join('\n\n');
-	}
 }

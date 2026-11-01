@@ -1,11 +1,15 @@
 import * as vscode from 'vscode';
 import { runGit } from './gitRun';
-import { branchNameProblem, confirmText, pushArgs, pushFailure, type PushPlan, withoutLogin } from './pushPlan';
+import { branchNameProblem, confirmText, FIX_BRANCH_NAME, pushArgs, pushFailure, type PushPlan, withoutLogin } from './pushPlan';
 
 /** What a caller may suggest; the user still picks and confirms everything. */
 export interface PushRequest {
 	/** The branch name on the remote, from the chat message that asked for the push. */
 	readonly target?: string;
+	/** The local branch to push instead of the current one, from the chat message (`ai_fix`). */
+	readonly source?: string;
+	/** Ask which branch to push when the fixer's branch is there too (Pair's button, when the message named none). */
+	readonly pickSource?: boolean;
 }
 
 const PUSH_TIMEOUT_MS = 120_000;
@@ -23,6 +27,23 @@ async function pickRemote(cwd: string): Promise<{ name: string; url: string } | 
 	const picked = await vscode.window.showQuickPick(remotes.map(remote => ({ label: remote.name, description: remote.url, remote })),
 		{ title: 'Push to which remote?' });
 	return picked?.remote;
+}
+
+const hasBranch = (cwd: string, name: string) => runGit(cwd, ['rev-parse', '--verify', '--quiet', `refs/heads/${name}`]).then(() => true, () => false);
+
+/** The local branch to push: the one asked for, or the user's pick when the fixer's branch is there too. Undefined means the current one; null, stop. */
+async function chooseSource(cwd: string, request: PushRequest, current: string | undefined): Promise<string | undefined | null> {
+	if (request.source) {
+		if (await hasBranch(cwd, request.source)) { return request.source; }
+		void vscode.window.showWarningMessage(`This project has no local branch ${request.source} to push.`);
+		return null;
+	}
+	if (!request.pickSource || current === FIX_BRANCH_NAME || !await hasBranch(cwd, FIX_BRANCH_NAME)) { return undefined; }
+	const picked = await vscode.window.showQuickPick([
+		{ label: current ?? 'detached HEAD', description: 'the branch you are on', branch: undefined },
+		{ label: FIX_BRANCH_NAME, description: 'the fixer\'s branch', branch: FIX_BRANCH_NAME },
+	], { title: 'Push which branch?' });
+	return picked ? picked.branch : null;
 }
 
 /** A branch pushed under its own name that followed no remote branch now follows it, so update notices work. */
@@ -48,11 +69,14 @@ export async function pushBranch(request: PushRequest = {}): Promise<boolean> {
 		void vscode.window.showWarningMessage('This folder has no commit to push yet.');
 		return false;
 	}
+	const source = await chooseSource(cwd, request, branch);
+	if (source === null) { return false; }
+	if (source) { [branch, commit] = [source, await runGit(cwd, ['rev-parse', `refs/heads/${source}`])]; }
 	const remote = await pickRemote(cwd);
 	if (!remote) { return false; }
 	const suggested = request.target && !branchNameProblem(request.target) ? request.target : branch;
 	const target = await vscode.window.showInputBox({
-		title: `Push ${commit.slice(0, 7)} to ${remote.name}`, prompt: 'The branch name on the remote',
+		title: `Push ${commit.slice(0, 7)}${branch ? ` (${branch})` : ''} to ${remote.name}`, prompt: 'The branch name on the remote',
 		value: suggested ?? '', validateInput: value => branchNameProblem(value.trim()),
 	});
 	if (!target) { return false; }

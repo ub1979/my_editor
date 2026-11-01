@@ -1,6 +1,7 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
-import { asksToPush, branchNameProblem, confirmText, pushArgs, pushFailure, type PushPlan, suggestedTarget, withoutLogin }
+import { asksToPush, branchNameProblem, confirmText, pushArgs, pushFailure, type PushPlan, suggestedSource, suggestedTarget,
+	withoutLogin }
 	from '../src/project/pushPlan';
 
 const PLAN: PushPlan = { remote: 'origin', remoteUrl: 'https://github.com/lucky-ali/go-dialer.git', branch: 'codex/delivery-v1',
@@ -50,4 +51,13 @@ test('a chat message that asks to push gets the button, with the branch name it 
 	assert.equal(suggestedTarget('push to the branch release/2.'), 'release/2');
 	assert.equal(suggestedTarget('push this to github'), undefined);
 	assert.equal(suggestedTarget('push this branch to github'), undefined);
+	assert.equal(suggestedTarget('push to git, make sure to push in u_m_dialer_ai_fix branch'), 'u_m_dialer_ai_fix');
+	assert.equal(suggestedTarget('push ai_fix to github'), undefined, 'the source branch is not the name there');
+});
+
+test('a message that names the fixer\'s branch pushes it; a longer name that ends in ai_fix is not it', () => {
+	assert.equal(suggestedSource('push ai_fix to github as u_m_dialer_ai_fix'), 'ai_fix');
+	assert.equal(suggestedSource('push the AI-fix branch'), 'ai_fix');
+	assert.equal(suggestedSource('push in u_m_dialer_ai_fix branch'), undefined);
+	assert.equal(suggestedSource('fix the push button'), undefined);
 });

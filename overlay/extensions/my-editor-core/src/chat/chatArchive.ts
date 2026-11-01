@@ -16,7 +16,7 @@ export function chatArchiveIndex(messages: readonly ChatTurn[]): string {
 	return `Recent stored chat messages (read_chat can retrieve any of the last ${messages.length}):\n${entries.join('\n')}`;
 }
 
-/** Find evidence in older user pastes without loading the full conversation into every prompt. */
+/** Find earlier user requests and assistant decisions without treating internal tool JSON as evidence. */
 export function searchChatMessages(messages: readonly ChatTurn[], query: unknown): string {
 	if (typeof query !== 'string' || query.trim().length < 2 || query.length > 120) {
 		return 'Search needs a text query of 2–120 characters.';
@@ -25,13 +25,14 @@ export function searchChatMessages(messages: readonly ChatTurn[], query: unknown
 	const found: string[] = [];
 	for (let index = messages.length - 1; index >= 0 && found.length < 20; index--) {
 		const message = messages[index];
-		if (message.role !== 'user') { continue; }
+		if (message.role === 'assistant' && looksLikeAgentProtocol(message.text)) { continue; }
 		const at = message.text.toLowerCase().indexOf(needle);
 		if (at < 0) { continue; }
 		const excerpt = message.text.slice(Math.max(0, at - 60), Math.min(message.text.length, at + query.length + 100)).replace(/\s+/g, ' ');
-		found.push(`${messages.length - index} turns ago (user), character ${at}: ${excerpt}`);
+		found.push(`${messages.length - index} turns ago (${message.role}), character ${at}: ${excerpt}`);
 	}
-	return found.length ? `Earlier user messages matching ${query}:\n${found.join('\n')}` : `No stored user message matches ${query}.`;
+	return found.length ? `Earlier messages matching ${query}:\n${found.join('\n')}`
+		: `No message in the current conversation matches ${query}. Use search_records to search saved project chats from earlier conversations.`;
 }
 
 /** Fetch one earlier chat message by its position before the current user request. */

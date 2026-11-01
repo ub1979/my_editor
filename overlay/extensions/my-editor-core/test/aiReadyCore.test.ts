@@ -105,7 +105,7 @@ test('the approval modal says what an install does: registry, install scripts, r
 	assert.doesNotMatch(approvalDetail('/p/w', ['go build ./...'], 'Go'), /install scripts/);
 });
 
-test('a file may stay over 400 lines when nothing left in it may move (a types-only project keeps its run-time code)', () => {
+test('a file may stay over 300 lines when nothing left in it may move (a types-only project keeps its run-time code)', () => {
 	const reason = 'only interfaces and type aliases may move here';
 	const stuck = Array.from({ length: 450 }, (_, i) => ({ ...decl(i + 1, `f${i}`, { start: 0, end: 0 }), movable: false, reason }));
 	const info: FileInfo = { path: 'src/big.ts', declarations: [decl(0, 'T', { start: 0, end: 0 }), ...stuck], frame: [], imports: [] };

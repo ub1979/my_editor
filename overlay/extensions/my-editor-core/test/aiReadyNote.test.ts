@@ -40,7 +40,7 @@ test('the picker pre-selects every split, however many, and names no per-run lim
 	assert.ok(options.placeHolder.length <= 50, options.placeHolder);
 });
 
-test('the change note shows plan attempts and lists only skipped files over 400 lines', () => {
+test('the change note shows plan attempts and lists only skipped files over 300 lines', () => {
 	const run = state('/p/shop');
 	run.steps[0] = { ...run.steps[0], plan: { attempts: 2, rejected: ['Declaration 9 does not exist.'] } };
 	run.steps[2] = { ...run.steps[2], plan: { attempts: 2, rejected: ['a', 'b'] } };
@@ -49,8 +49,8 @@ test('the change note shows plan attempts and lists only skipped files over 400 
 	const note = renderChangeNote(run, new Date('2026-10-09T12:34:00Z'));
 	assert.match(note, /Plan: 2 attempts; rejected: Declaration 9 does not exist\./);
 	assert.match(note, /`c\.go` \(split\): refused\. The move check failed: Rule 2\. Plan: 2 attempts; rejected: a \/ b/);
-	assert.match(note, /## Files never split\n\n- 1 file \(`gen\.go`\): generated code\.\n- plus 2 files under 400 lines that need no split\. /);
-	assert.match(note, /under 400 lines that need no split\. They have no tests and cannot be given any, so the picker does not offer them/);
+	assert.match(note, /## Files never split\n\n- 1 file \(`gen\.go`\): generated code\.\n- plus 2 files under 300 lines that need no split\. /);
+	assert.match(note, /under 300 lines that need no split\. They have no tests and cannot be given any, so the picker does not offer them/);
 	assert.doesNotMatch(note, /x\.go/);
 });
 

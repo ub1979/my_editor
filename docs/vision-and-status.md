@@ -1,7 +1,7 @@
 # my_editor: vision, mission, and current status
 
-- **As of:** 31 October 2026
-- **Current version:** 0.0.23 alpha (source audit: chat lifecycle, safe scaffolding, edit freshness and theme generation); source update, reinstall and live checks pending
+- **As of:** 1 November 2026
+- **Current version:** 0.0.24 alpha (Claude version discovery and planning history fixes); local build and editor-host smoke tests verified, user acceptance pending. One existing Go split unit test remains failing (687/688 passed).
 - **Stage:** Working macOS alpha; still being validated on real projects
 
 ## Vision
@@ -23,10 +23,10 @@ The central promise is **continuity with evidence**: Pair should remember the us
 - **Consult before coding.** Pair can write a function, file, or larger part of a project after discussing the intended behavior, scope, design, and checks with the developer. The person explicitly requests the change and reviews each proposed diff before it reaches the project.
 - **Help while the person codes.** Watch for likely mistakes, performance problems, inconsistent style, duplicated logic, weak design, and missing or misleading comments. Explain a finding with its location and reason. Offer to propose a fix, or guide the person through fixing it themselves. Advice does not edit code.
 - **Keep engineering standards high.** Follow the project's conventions and sound programming practices: clear responsibilities, appropriate design patterns, readable names and control flow, useful error handling, relevant tests, and comments that explain intent or non-obvious behavior. Do not force a pattern where a simpler design is clearer.
-- **Keep source files focused and short.** A source file has one clear responsibility. Where classes are used, keep one class per file. No human or AI code change should leave a source file above **400 lines**. Warn as it approaches the limit; at the limit, guide a split into cohesive files. Pair must not propose or Keep a change that crosses it. Existing oversized files need a guided refactor rather than further growth.
+- **Keep source files focused and short.** A source file has one clear responsibility. Where classes are used, keep one class per file. No human or AI code change should leave a source file above **300 lines**. Warn as it approaches the limit; at the limit, guide a split into cohesive files. Pair must not propose or Keep a change that crosses it. Existing oversized files need a guided refactor rather than further growth.
 - **Teach, do not take over.** The developer chooses whether to accept a suggestion, request a fix, or make the change by hand. Pair explains trade-offs and verification so the person can make an informed choice.
 
-These are product requirements. The current source now offers fix-or-guide actions for Navigator, comment, and structure findings. It rejects AI proposals and Keep actions that exceed 400 lines or contain multiple top-level classes in one file. Human edits receive live diagnostics; a VSCodium core patch blocks saves above 400 lines after save participants run. Comment guidance is advisory and does not insert code automatically. The core patch and new flow are built into the installed app and still need live checks.
+These are product requirements. The current source now offers fix-or-guide actions for Navigator, comment, and structure findings. It rejects AI proposals and Keep actions that exceed 300 lines or contain multiple top-level classes in one file. Human edits receive live diagnostics; a VSCodium core patch blocks saves above 300 lines after save participants run. Comment guidance is advisory and does not insert code automatically. The core patch and new flow are built into the installed app and still need live checks.
 
 ## Who it serves
 
@@ -38,7 +38,7 @@ The first user is an individual developer working on new and existing projects. 
 |---|---|
 | Pair programming | Ask for explanations, reviews, debugging help, ideas, or a requested code change. Pair reads the relevant project evidence and works with the user across several turns. |
 | Live coding guidance | While writing code, get actionable findings about correctness, performance, style, design and comments; choose an AI-proposed fix or guided manual fix. |
-| Code structure | Keep each source file focused, one class per file where relevant, and at most 400 lines after any human or AI change. |
+| Code structure | Keep each source file focused, one class per file where relevant, and at most 300 lines after any human or AI change. |
 | Human control | Review every AI code or document change as a diff. Keep or undo it; advice and background review never edit silently. |
 | Requirements and design | Work from an idea through requirements, architecture, flows, and a planned file tree, then revisit those decisions when the project changes. |
 | Project memory | Reopen a project or continue a long chat without losing its purpose, conventions, accepted decisions, current task, important files, and unresolved work. Retrieve fresh details instead of sending the whole repository to a model. |
@@ -77,13 +77,15 @@ The 0.0.5 alpha included:
 - Claude and Codex subscription routes, local Ollama and LM Studio routes, and API-key routes. The model can be selected in the editor.
 - Pair can retrieve long earlier chat messages, search saved records, inspect current project and brain revisions, and request approved project observations. Proposal and investigation records link evidence to a chat request.
 
-Version 0.0.6 adds a centered Pair chat with seven [original characters](characters-and-change-finder.md), task and project-stage switching, and a manual pin. A change-location request searches source and opens verified file lines for review before coding. The characters use the same model, context, permissions, and Keep/Undo review. The right sidebar remains available. Navigator, comment, and structure diagnostics can open Pair for a reviewed fix or manual guidance. Human edits receive 360-line warnings and 400-line errors, while AI proposals and Keep have a hard 400-line and one-class check. A VSCodium core patch adds a save-time 400-line check for human edits.
+Version 0.0.6 adds a centered Pair chat with seven [original characters](characters-and-change-finder.md), task and project-stage switching, and a manual pin. A change-location request searches source and opens verified file lines for review before coding. The characters use the same model, context, permissions, and Keep/Undo review. The right sidebar remains available. Navigator, comment, and structure diagnostics can open Pair for a reviewed fix or manual guidance. Human edits receive 270-line warnings and 300-line errors, while AI proposals and Keep have a hard 300-line and one-class check. A VSCodium core patch adds a save-time 300-line check for human edits.
+
+Version 0.0.20 adds persistent Python selection/cell execution, an Auto/Manual assistance control, bounded generation below AI comments, optional declaration test/accessor suggestions, and more reliable Ollama project actions. Maintained extension code, parser helpers and tests are kept within 300 lines and one class per file; editor-host tests exercise actual proposals and Python state.
 
 The detailed feature checklist is in [progress.md](progress.md). Release changes are in [CHANGELOG.md](../CHANGELOG.md); the original requirements and design decisions are in [my_editor-plan-v2.md](plans/my_editor-plan-v2.md).
 
 ## Where we are
 
-This is a usable **alpha**, not a finished large-project workflow. The 0.0.6 extension compiles and its automated tests pass. On 25 September the app was rebuilt with all ten core patches, including the 400-line save gate, and installed in `/Applications`. The 0.0.6 chat and guidance changes have not yet been checked in live use.
+This is a usable **alpha**, not a finished large-project workflow. The 0.0.6 extension compiles and its automated tests pass. On 25 September the app was rebuilt with all ten core patches, including the 300-line save gate, and installed in `/Applications`. The 0.0.6 chat and guidance changes have not yet been checked in live use.
 
 Current limits matter to the product promise:
 
@@ -105,4 +107,4 @@ Current limits matter to the product promise:
 
 ## Success criteria
 
-my_editor is meeting its aim when a user can return to a large project after time away, understand what is being built and why, ask Pair to investigate a current problem with cited source and Git evidence, review a requested change before any file is written, verify the kept change, and later trace its purpose and likely impact. While the user codes, it catches worthwhile issues, offers a choice between a reviewed fix and manual guidance, and keeps source files focused and within 400 lines. The same project must remain usable when AI assistance is off.
+my_editor is meeting its aim when a user can return to a large project after time away, understand what is being built and why, ask Pair to investigate a current problem with cited source and Git evidence, review a requested change before any file is written, verify the kept change, and later trace its purpose and likely impact. While the user codes, it catches worthwhile issues, offers a choice between a reviewed fix and manual guidance, and keeps source files focused and within 300 lines. The same project must remain usable when AI assistance is off.

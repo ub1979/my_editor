@@ -35,7 +35,7 @@ function repository(): { root: string; git: (...args: string[]) => string } {
 function firstRun(root: string, git: (...args: string[]) => string, branch: string): void {
 	git('checkout', '--quiet', '-b', branch);
 	writeFileSync(path.join(root, 'a.go'), lines(250));
-	writeFileSync(path.join(root, 'a_part.go'), lines(350));
+	writeFileSync(path.join(root, 'a_part.go'), lines(250));
 	writeFileSync(path.join(root, 'b.go'), lines(90));
 	writeFileSync(path.join(root, 'b_big.go'), lines(410));
 	git('add', '.');
@@ -50,7 +50,7 @@ function factory(parsed: string[]) {
 		parse: async (file: string): Promise<FileInfo> => {
 			readFileSync(path.join(root, file));
 			parsed.push(file);
-			const declarations = file === 'solo.go' ? [decl(0, 425)] : [decl(0, 200), decl(1, 200), decl(2, 50)];
+			const declarations = file === 'solo.go' ? [decl(0, 425)] : [decl(0, 200), decl(1, 200), decl(2, 150)];
 			return { path: file, declarations, frame: [], imports: [] };
 		},
 	}) as unknown as LanguageAdapter;
@@ -175,7 +175,7 @@ test('a language that parses text checks changed files from the branch: no blind
 		...refactoring([])(dir),
 		parseText: async (file: string, text: string): Promise<FileInfo> => {
 			fromText.push(`${file} ${text.split('\n').length - 1}`);
-			const declarations = file === 'solo.go' ? [decl(0, 425)] : [decl(0, 200), decl(1, 200), decl(2, 50)];
+			const declarations = file === 'solo.go' ? [decl(0, 425)] : [decl(0, 200), decl(1, 200), decl(2, 150)];
 			return { path: file, declarations, frame: [], imports: [], ...(file.endsWith('_test.go') ? { skip: 'test files are not split' } : {}) };
 		},
 	}) as LanguageAdapter;

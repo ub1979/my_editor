@@ -3,7 +3,7 @@ import { readProjectState } from '../project/state';
 import { ApiKeys } from '../models/secrets';
 import { ActiveFileTracker } from './activeFile';
 import { analysisTask, closeAnalysisOffer } from './analysisOffer';
-import { ProposalEvent, saveProposalEvent } from './changeJournal';
+import { recordProposal } from './proposalRecord';
 import { character } from './characters';
 import { projectCharacter, routeCharacter } from './characterRouting';
 import { ChatBroadcast } from './chatBroadcast';
@@ -69,13 +69,9 @@ export class ChatView implements vscode.WebviewViewProvider, ChatHandlers {
 	}
 
 	/** Shows the chat as a centered editor tab and closes the sidebar. */
-	openLounge(): Promise<void> {
-		return this.panels.openLounge();
-	}
+	openLounge(): Promise<void> { return this.panels.openLounge(); }
 
-	openSidebar(): Promise<void> {
-		return this.panels.openSidebar();
-	}
+	openSidebar(): Promise<void> { return this.panels.openSidebar(); }
 
 	/** Opens the chat on a skill, e.g. from the Project view or after creating a project. */
 	async startSkill(id: string): Promise<void> {
@@ -210,7 +206,6 @@ export class ChatView implements vscode.WebviewViewProvider, ChatHandlers {
 			this.broadcast.post({ type: 'focusComposer', placeholder: this.state.pendingPlaceholder });
 		}
 	}
-
 	async send(text: string, kickoff = false): Promise<void> {
 		if (this.replies.running) {
 			return;
@@ -245,11 +240,9 @@ export class ChatView implements vscode.WebviewViewProvider, ChatHandlers {
 			await runChatTurn(turn, context, sink, token);
 		});
 	}
-
 	async chooseAnswer(messageId: string, index: number): Promise<void> {
 		await answerReplyChoice(this.state, messageId, index, this.replies.running, text => this.send(text));
 	}
-
 	async runAction(messageId: string, index: number): Promise<void> {
 		const action = this.state.messages.find(m => m.id === messageId)?.actions[index];
 		if (action && allowedAction(action.command)) {
@@ -301,10 +294,4 @@ export class ChatView implements vscode.WebviewViewProvider, ChatHandlers {
 		const snapshot = this.state.snapshot();
 		this.saveQueue = this.saveQueue.catch(() => undefined).then(() => saveConversation(this.context, STATE_KEY, snapshot));
 	}
-}
-
-/** Writes a proposal's event to the change journal; a failure only warns. */
-function recordProposal(requestId: string, proposal: Proposal, event: ProposalEvent): void {
-	void saveProposalEvent(requestId, proposal, event).catch(error =>
-		vscode.window.showWarningMessage(`Could not save the change record: ${error instanceof Error ? error.message : String(error)}`));
 }

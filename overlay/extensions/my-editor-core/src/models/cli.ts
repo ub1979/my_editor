@@ -118,7 +118,7 @@ function runCli(
 
 /** An empty folder to run CLIs in, so an agentic CLI has nothing of the user's to wander through. */
 let scratch: string | undefined;
-function scratchDir(): string {
+export function scratchDir(): string {
 	scratch ??= mkdtempSync(path.join(os.tmpdir(), 'my-editor-cli-'));
 	return scratch;
 }
@@ -130,10 +130,7 @@ function scratchDir(): string {
  * only when the request allows web access; it never gets file, shell or edit tools.
  */
 export function streamClaudeCli(command: string, request: StreamRequest): Promise<void> {
-	const env = { ...process.env };
-	for (const key of ['ANTHROPIC_API_KEY', 'ANTHROPIC_TOKEN', 'ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_BASE_URL', 'CLAUDECODE']) {
-		delete env[key];
-	}
+	const env = claudeEnvironment();
 	const args = [
 		'--print', '--output-format', 'stream-json', '--include-partial-messages', '--verbose',
 		'--no-session-persistence', '--safe-mode', '--permission-mode', 'dontAsk',
@@ -142,6 +139,15 @@ export function streamClaudeCli(command: string, request: StreamRequest): Promis
 		...(request.entry.model !== 'default' ? ['--model', request.entry.model] : []),
 	];
 	return runCli('claude-cli', command, args, transcript(request.turns), scratchDir(), env, parseClaudeLine, request);
+}
+
+/** Use the same subscription environment for discovery and requests. */
+export function claudeEnvironment(): NodeJS.ProcessEnv {
+	const env = { ...process.env };
+	for (const key of ['ANTHROPIC_API_KEY', 'ANTHROPIC_TOKEN', 'ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_BASE_URL', 'CLAUDECODE']) {
+		delete env[key];
+	}
+	return env;
 }
 
 export function claudeToolArgs(webAccess: boolean): string[] {

@@ -35,6 +35,7 @@ export class Navigator implements vscode.Disposable {
 	private readonly baselines = new Map<string, string>();
 	private readonly timers = new Map<string, NodeJS.Timeout>();
 	private readonly muted = new Set<string>();
+	private readonly pending = new Map<string, vscode.CancellationTokenSource>();
 	private readonly busy = new vscode.EventEmitter<boolean>();
 	readonly onDidChangeBusy = this.busy.event;
 	private sessionOff = false;
@@ -53,11 +54,13 @@ export class Navigator implements vscode.Disposable {
 				this.diagnostics.delete(d.uri);
 			}),
 			vscode.workspace.onDidSaveTextDocument(d => this.schedule(d)),
+			vscode.workspace.onDidChangeTextDocument(event => { if (event.contentChanges.length) { this.schedule(event.document); } }),
 		);
 	}
 
 	get active(): boolean {
-		return !this.sessionOff && vscode.workspace.getConfiguration('myEditor').get<boolean>('navigator.enabled', true);
+		const config = vscode.workspace.getConfiguration('myEditor');
+		return !this.sessionOff && config.get<boolean>('navigator.enabled', true) && config.get('assistance.mode', 'auto') === 'auto';
 	}
 
 	toggleSession(): void {
@@ -87,32 +90,44 @@ export class Navigator implements vscode.Disposable {
 	}
 
 	private schedule(document: vscode.TextDocument): void {
+		if (!this.active || document.uri.scheme !== 'file') { return; }
 		const key = document.uri.toString();
+		this.pending.get(key)?.cancel();
 		clearTimeout(this.timers.get(key));
 		this.timers.set(key, setTimeout(() => void this.review(document), DEBOUNCE_MS));
 	}
 
-	private async review(document: vscode.TextDocument): Promise<void> {
+	async reviewNow(): Promise<void> {
+		const editor = vscode.window.activeTextEditor;
+		if (!editor) { return; }
+		await this.review(editor.document, true, editor.selection.isEmpty ? undefined : editor.selection);
+	}
+
+	private async review(document: vscode.TextDocument, manual = false, selection?: vscode.Selection): Promise<void> {
 		const key = document.uri.toString();
 		const text = document.getText();
 		const before = this.baselines.get(key);
 		this.baselines.set(key, text);
-		if (!this.active || this.muted.has(key) || before === undefined || document.uri.scheme !== 'file'
+		if ((!manual && (!this.active || this.muted.has(key) || before === undefined)) || document.uri.scheme !== 'file'
 			|| SKIPPED_LANGUAGES.has(document.languageId) || document.uri.path.includes('/.my_editor/')
 			|| isSensitiveFile(document.uri.path, document.languageId)
 			|| document.lineCount > MAX_LINES) {
 			return;
 		}
-		const hunks = changedHunks(before, text);
+		const hunks = manual ? [{ start: selection ? selection.start.line + 1 : 1,
+			end: selection ? selection.end.line + 1 : document.lineCount }] : changedHunks(before!, text);
 		if (!hunks.length) {
 			return;
 		}
 		const model = await this.pickModel();
 		if (!model) {
+			if (manual) { void vscode.window.showInformationMessage('Choose a model before reviewing code.'); }
 			return;
 		}
 		this.busy.fire(true);
 		const cancel = new vscode.CancellationTokenSource();
+		this.pending.get(key)?.cancel();
+		this.pending.set(key, cancel);
 		const timer = setTimeout(() => cancel.cancel(), TIMEOUT_MS);
 		try {
 			const path = vscode.workspace.asRelativePath(document.uri, false);
@@ -131,7 +146,7 @@ export class Navigator implements vscode.Disposable {
 				token: cancel.token,
 				onText: chunk => (reply += chunk),
 			});
-			if (document.getText() !== text) {
+			if (cancel.token.isCancellationRequested || !manual && !this.active || document.getText() !== text) {
 				return; // The file moved on while we were thinking; the next save will review again.
 			}
 			const findings = parseFindings(reply, document.lineCount);
@@ -144,13 +159,15 @@ export class Navigator implements vscode.Disposable {
 				diagnostic.source = 'navigator';
 				return diagnostic;
 			}));
+			if (manual) { vscode.window.setStatusBarMessage(`Review complete: ${findings.length} suggestion(s).`, 4000); }
 			this.log.info(`navigator: ${path}: ${findings.length} finding(s) from ${model.label}`);
 		} catch (err) {
 			this.log.warn(`navigator: review failed: ${String(err)}`);
 		} finally {
 			clearTimeout(timer);
 			cancel.dispose();
-			this.busy.fire(false);
+			if (this.pending.get(key) === cancel) { this.pending.delete(key); }
+			this.busy.fire(this.pending.size > 0);
 		}
 	}
 
@@ -162,6 +179,7 @@ export class Navigator implements vscode.Disposable {
 	}
 
 	dispose(): void {
+		for (const source of this.pending.values()) { source.cancel(); source.dispose(); }
 		for (const timer of this.timers.values()) {
 			clearTimeout(timer);
 		}

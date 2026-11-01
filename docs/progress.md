@@ -3,6 +3,10 @@
 Status of the requirements in [`plans/my_editor-plan-v2.md`](plans/my_editor-plan-v2.md). The original checklist is from 2026-09-23; the additions below are from 2026-09-25.
 ✅ done and verified in the app · 🟡 partly done · ⬜ not started.
 
+## 0.0.24 alpha local release — 1 November 2026
+
+Claude now offers discovered versions and pinned model IDs. Planning can retrieve earlier user and assistant messages and saved chats; finalization choices route to the described document. The build, 40 focused tests, planning and general editor-host smoke tests, and a live Claude response passed. Full suite: 687/688; the existing Go split declaration-check failure remains. A versioned local app archive is available for user acceptance testing.
+
 ## 0.0.23 alpha source audit — 31 October 2026
 
 Reviewed chat and cancellation, planning references, proposals and scaffolding, provider failures, source helpers, theme generation and build/install scripts. Fixed reproducible issues and added regression coverage. The current checkout builds and passes 682 extension tests, 53 Python helper tests and the Go extraction suite. Details and remaining live validation are in [the audit](audits/2026-10-31.md).
@@ -36,7 +40,7 @@ Flow & tree has a dedicated role and creates missing planned files after Keep. P
 | FR-034 | Brain for an existing repo | ✅ | **Analyse this project**: offered once when a project with code has no brain, runs only if the user says yes. Summarises every file (quick model, secrets redacted, `.env`/keys skipped), writes part notes, proposes `architecture.md` and `tree.json` for Keep/Undo. Long files are summarised in pieces cut between definitions, then as a whole (the pieces become a line-range outline the pair sees). Each part gets a few sentences. Re-runs only redo changed files (content hash) and rewrite only changed architecture sections. Anything not covered is reported in the chat and the brain index: files over 400 KB, the 5,000-file cap, the 1,500-files-per-run cap (Continue button), failures. Tested on a 50-file project with Claude CLI |
 | FR-035 | Context assembly | 🟡 | Conventions + brain index + file + neighbours; no token accounting yet |
 | FR-036 | Brain hand-editable | ✅ | Notes outside the auto markers and `note` fields survive rebuilds |
-| FR-041 | Chat history, secrets redacted | ✅ | `.my_editor/chats/`, code collapsed to keep git small |
+| FR-041 | Chat history, secrets redacted | ✅ | `.my_editor/chats/`, complete replies retained with secrets redacted |
 | FR-050 | Chat aware of file, selection, problems, brain | ✅ | |
 | FR-051 | Help modes | ✅ | `/file /feature /change /next /explain /why /review /qa /brainstorm /locate /impact`, plus `/requirements /architecture /tree` for planning |
 | FR-052 | Every AI edit is a diff with keep/undo per hunk | ✅ | Pair proposals in an in-memory file system, shown as an inline diff (decision 0002, which replaced the core chat of 0001) |
@@ -55,11 +59,16 @@ Flow & tree has a dedicated role and creates missing planned files after Keep. P
 |---|---|---|---|
 | FR-059 | Choose a reviewed AI fix or guided manual fix for a live finding | 🟡 | Source now adds Quick Fix choices to Navigator, comment, and structure findings. Running-app validation is open. |
 | FR-085 | Check correctness, performance, style, design, comments and tests against project conventions | 🟡 | Navigator prompt now requests evidence-based findings across these areas; comment guidance is advisory. Accuracy and coverage need real-project validation. |
-| FR-086 | One responsibility per source file, one class per file where relevant, and a 400-line maximum for human and AI changes | 🟡 | AI proposals and Keep are rejected above 400 lines or with multiple top-level classes. Human edits get diagnostics and a VSCodium core save gate. The core patch needs full-build validation; guided splits remain open. |
-| FR-087 | Helpful Pair characters switch with task and project, with manual override | 🟡 | Seven original mascots and source routing are implemented; live editor validation remains open. Manual choice pins the voice until Auto or a project folder change. |
+| FR-086 | One responsibility per source file, one class per file where relevant, and a 300-line maximum for human and AI changes | ✅ | AI proposals and Keep are rejected above 300 lines or with multiple top-level classes. Human edits get diagnostics and a rebuilt VSCodium save gate. The editor-host smoke test confirms that 301 lines stay unsaved. Maintained source/helpers/tests are checked for 300 lines and one class per file. |
+| FR-087 | Helpful Pair roles switch with task and project, with manual override | 🟡 | Eight role-named agents and source routing are implemented; live editor validation remains open. Choosing a planning stage selects its agent. Manual choice pins the voice until Auto, another skill, or a project folder change. |
 | FR-088 | Find likely change sites and open relevant files near exact lines | 🟡 | `/locate`, a Find a change card, and host-verified tab opening are implemented; real-project search quality and UI behavior need live validation. |
 | FR-089 | Pair researches on the web before asking or advising (5 October 2026) | 🟡 | Claude and Codex subscription models use their own web search in every skill; checked from the extension's CLI code with both, not yet in the running app. Local and API-key models have no search. `myEditor.pair.webAccess` turns it off. |
 | FR-090 | Offer to make a foreign project AI-ready (7 October 2026) | 🟡 | Stage 1 health report built, reviewed and unit-tested (131 tests); checked end to end in a dev window on a sample project with Claude Haiku (found the planted bug at its line, code untouched); installed-app check by the user pending. Follow-ups: Analyse's Continue button doesn't refresh the report; whole-project texts held in memory; redaction of a multi-line key shifts later line numbers. Stage 2a (Go fixes on a local branch) built and unit-tested (155 tests), dry-run on a copy of the dialer; live check pending. Refactor of long Go functions (extract function) built and reviewed (632 TS tests, goextract tests), dry-run on a copy of the dialer: both store functions refactored and split. TS/JS, Python, C#, Rust and C/C++ adapters next. |
+| FR-091 | Run Python lines and cells in a persistent interactive session | ✅ | Shift+Enter runs a selection or line; Cmd/Ctrl+Enter runs a `# %%` cell. Project interpreter, retained variables, final-expression display and restart. Editor-host smoke test executes two dependent selections. |
+| FR-092 | Automatic or manual coding assistance | ✅ | Persistent Auto/Manual status control. Auto reviews changed code after a quiet typing period; explicit review works in either mode. Editor-host checks cover automatic typing review and manual silence. |
+| FR-093 | Generate only the code requested by an inline AI comment | ✅ | `#Ai <instruction>` / `// Ai ...` CodeLens and command; Auto mode starts on Enter. One bounded insertion below the directive, stale-file guard and Keep/Undo review. Surrounding text is preserved exactly. |
+| FR-094 | Optional tests and accessor suggestions at declarations | ✅ | Language-provider CodeLens actions for functions/classes, plus an explicit manual command. The prompt limits work to the chosen declaration and existing test framework. |
+| FR-095 | Recover Ollama project actions and report file state truthfully | ✅ | Known tool-action shorthand and prose repair, host-tool recovery for access denials, current unsaved-buffer reads, false-write-claim guard, nested creation, reviewed deletion and bounded response time. Adapter tests and deterministic editor-host tests pass; individual model reliability varies. |
 
 ### Other work after v0.1
 
@@ -69,7 +78,7 @@ Flow & tree has a dedicated role and creates missing planned files after Keep. P
 | Review notes as line comments (FR-042) | ⬜ | |
 | "Why is this like this?" (FR-044) | ✅ | `/why` cites decisions and past chats about the file; says when there is no record |
 | Guided build: requirements, architecture, tree (FR-060–062) | ✅ | Requirements verified end to end with a local model; architecture/tree share the same path |
-| Scaffold stubs from the tree (FR-063) | ✅ | Tick planned files; stubs state job, requirements, section; never overwrites |
+| Scaffold stubs from the tree (FR-063) | ✅ | Keeping tree.json creates every missing planned file as a stub; supported text formats include the JSON role as a comment. Existing files are preserved. The manual command still lets users tick files. |
 | Progress per file (FR-064) | ✅ | stub → in progress on save → done by command; Build opens the next file with `/next` |
 | Change impact list (FR-070–071) | ✅ | `/impact`: section, requirement or symbol → affected files with Adapt buttons; decisions not yet recorded (FR-072) |
 | QA on a folder (FR-080) | ✅ | Right-click → Check How These Fit: tool findings saved to `.my_editor/qa/`, then `/qa` explains |

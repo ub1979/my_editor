@@ -26,6 +26,7 @@ import { SourceWatch } from './quality/sourceWatch';
 import { DecisionDraft, saveDecision } from './records/decisions';
 import { pushBranch, type PushRequest } from './project/pushCommand';
 import { closeProject } from './project/closeProject';
+import { registerCoding } from './coding/register';
 
 /** Entry point of the built-in core. */
 export function activate(context: vscode.ExtensionContext): void {
@@ -54,6 +55,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
 	context.subscriptions.push(
 		keys,
+		registerCoding(keys, proposals, navigator),
 		log,
 		navigator,
 		vscode.languages.registerCodeActionsProvider({ scheme: 'file' }, new GuidanceActions(),

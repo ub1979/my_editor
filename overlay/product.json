@@ -12,6 +12,7 @@
   "downloadUrl": "",
   "reportIssueUrl": "",
   "licenseUrl": "",
+  "extensionEnabledApiProposals": { "my-editor.my-editor-core": ["editorInsets"] },
   "configurationDefaults": {
     "workbench.colorTheme": "my_editor Paper",
     "workbench.preferredDarkColorTheme": "my_editor Night",

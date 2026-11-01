@@ -20,7 +20,7 @@ test('files never split: common reasons are one line each with a count and three
 		'- 1 file (`tools/x.go`): inside the nested module tools/.',
 		'- `sys_linux.go`: its name ends in _linux, a build constraint.',
 		'- `crlf.go`: it has CRLF line endings.',
-		'- plus 1 file under 400 lines that needs no split. They have no tests and cannot be given any, so the picker does not offer them.',
+		'- plus 1 file under 300 lines that needs no split. They have no tests and cannot be given any, so the picker does not offer them.',
 	]);
 });
 

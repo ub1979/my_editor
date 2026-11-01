@@ -5,11 +5,11 @@ import { projectCharacter, routeCharacter, wantsChangeMap } from '../src/chat/ch
 import type { ProjectState } from '../src/project/state';
 import { classNames, sourceLines, sourcePolicyError } from '../src/quality/sourcePolicy';
 
-test('source policy allows 400 lines and rejects 401, including an edited proposal at Keep', () => {
+test('source policy allows 300 lines and rejects 301, including an edited proposal at Keep', () => {
 	assert.equal(sourceLines('a\nb\n'), 2);
-	assert.equal(sourcePolicyError('src/a.ts', 'x\n'.repeat(400)), undefined);
-	assert.match(sourcePolicyError('src/a.ts', 'x\n'.repeat(401)) ?? '', /401 lines/);
-	assert.equal(sourcePolicyError('src/a.md', 'x\n'.repeat(401)), undefined);
+	assert.equal(sourcePolicyError('src/a.ts', 'x\n'.repeat(300)), undefined);
+	assert.match(sourcePolicyError('src/a.ts', 'x\n'.repeat(301)) ?? '', /301 lines/);
+	assert.equal(sourcePolicyError('src/a.md', 'x\n'.repeat(301)), undefined);
 });
 
 test('source policy rejects two classes in one file and ignores CSS selectors', () => {

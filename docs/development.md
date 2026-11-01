@@ -28,14 +28,14 @@ Requirements: macOS, Node 24, Xcode command-line tools, `jq`, Python 3, and abou
 scripts/build.sh               # full build from fresh VS Code source (~15 min)
 scripts/build.sh --reuse       # reuse vscodium/vscode, re-apply patches (~10 min)
 scripts/install.sh             # quick: recompile built-in extensions into app/, sign, copy to /Applications
-scripts/install.sh --full      # build.sh --reuse first (needed for patch or product.json changes), then install
+scripts/install.sh --full      # build.sh --reuse first (needed for core patches and resource changes), then install
 scripts/run.sh [folder]        # open app/my_editor.app, optionally on a folder
 python3 scripts/gen-themes.py  # regenerate the Paper and Night themes from one palette
 python3 scripts/gen-icons.py   # regenerate the file icon theme
 ```
 
-The quick install only refreshes `overlay/extensions/`. Changes to patches, `overlay/src/`, `product.json` or the
-bundled language extensions need `--full`. Both installs ad-hoc sign the bundle and verify the signature before
+The quick install refreshes `overlay/extensions/` and merges `overlay/product.json` into the built app. Changes to
+core patches, `overlay/src/` or the bundled language extensions need `--full`. Both installs ad-hoc sign the bundle and verify the signature before
 and after copying it to `/Applications/my_editor.app`.
 
 Don't edit `scripts/build.sh` while a build is running (bash reads it lazily), and don't launch the app while
@@ -51,6 +51,12 @@ cd overlay/extensions/my-editor-core
 npm install
 npm run compile   # type-check, then bundle src/extension.ts to dist/extension.js
 npm test          # compile to out-test/ and run the unit tests with node --test
+# from the repository root, after compile:
+bash scripts/test-editor.sh --save-gate  # isolated editor-host smoke tests (requires current app shell)
+MY_EDITOR_INTEGRATION_SUITE=planning bash scripts/test-editor.sh  # saved chat lookup and planning Keep/Undo
+bash scripts/test-glm.sh                # installed editor + real Ollama GLM; disposable Python project
+MY_EDITOR_GLM_SUITE=glmAssistance bash scripts/test-glm.sh  # Python output, Auto/Manual reviews and tests
+bash scripts/test-python-inline.sh      # installed native inline output; no proposed-API launch override
 ```
 
 | Folder in `src/` | Responsibility |
@@ -59,8 +65,9 @@ npm test          # compile to out-test/ and run the unit tests with node --test
 | `pair/` | Prompts, context assembly, code-block parsing |
 | `models/` | Providers: Claude and Codex CLIs, Anthropic, OpenAI-compatible, Ollama, LM Studio, keychain |
 | `brain/` | Fact extraction, Analyse, the brain index and file map, fit checks |
-| `navigator/` | On-save review of changed lines and its Quick Fix actions |
-| `comments/`, `quality/` | Comment guidance and the 400-line / one-class source policy |
+| `navigator/` | Quiet-period and manual review of changed lines and its Quick Fix actions |
+| `coding/` | Persistent Python execution, bounded inline generation and optional declaration suggestions |
+| `comments/`, `quality/` | Comment guidance and the 300-line / one-class source policy |
 | `project/` | Home, clone, the Project view, Git history and sync, impact, visual maps, This file |
 | `records/`, `qa/`, `skills/` | Saved records and redaction, QA fit reports, the SKILL.md loader |
 
@@ -74,7 +81,7 @@ Built-in extensions may use proposed APIs; their typings are in `typings/`.
 `src/dev/testHooks.ts` supports automated UI runs. It does nothing unless `MY_EDITOR_TEST_REPORT`,
 `MY_EDITOR_TEST_QUERY` or `MY_EDITOR_TEST_COMMAND` is set.
 
-Keep each source file focused and under 400 lines; my_editor applies the same rule to itself.
+Keep each source file focused and under 300 lines; my_editor applies the same rule to itself.
 
 ## Releasing
 

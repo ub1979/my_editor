@@ -28,19 +28,21 @@ export async function listOllamaModels(baseUrl: string): Promise<ModelEntry[]> {
 	}
 }
 
-/** Streams one reply from Ollama's native `/api/chat` (NDJSON), with thinking off for a snappy pair. */
-export async function streamOllama(baseUrl: string, think: boolean, request: StreamRequest): Promise<void> {
+/** Streams native Ollama replies, consuming answer content separately from model reasoning. */
+export async function streamOllama(baseUrl: string, think: boolean, request: StreamRequest, timeoutMs = 180_000): Promise<void> {
 	const abort = new AbortController();
 	const listener = request.token.onCancellationRequested(() => abort.abort());
 	try {
 		const response = await fetch(`${baseUrl}/api/chat`, {
 			method: 'POST',
-			signal: abort.signal,
+			signal: AbortSignal.any([abort.signal, AbortSignal.timeout(timeoutMs)]),
 			headers: { 'content-type': 'application/json' },
 			body: JSON.stringify({
 				model: request.entry.model,
 				stream: true,
-				think,
+				// GLM 5 cloud templates leak reasoning into content with think=false. Enabling it
+				// restores message.thinking separation; only message.content reaches the editor.
+				think: /^glm-5(?:[.:-]|$)/i.test(request.entry.model) ? true : think,
 				messages: [
 					...(request.system ? [{ role: 'system', content: request.system }] : []),
 					...request.turns.map(turn => ({ role: turn.role, content: turn.text })),
@@ -68,7 +70,8 @@ export async function streamOllama(baseUrl: string, think: boolean, request: Str
 		if (request.token.isCancellationRequested) {
 			return;
 		}
-		throw err instanceof ProviderError ? err : new ProviderError('ollama', String(err));
+		throw err instanceof ProviderError ? err : new ProviderError('ollama',
+			err instanceof Error && err.name === 'TimeoutError' ? 'The model request timed out. Retry, choose another model, or increase Ollama request timeout in settings.' : String(err));
 	} finally {
 		listener.dispose();
 	}

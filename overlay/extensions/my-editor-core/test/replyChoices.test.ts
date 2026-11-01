@@ -68,3 +68,13 @@ test('clicking architecture finalization changes the skill and sends the visible
 	assert.equal(state.pinned, false);
 	assert.match(sent[0], /Write the complete architecture document now/);
 });
+
+test('Write it now routes using its architecture description instead of keeping the tree skill', async () => {
+	const state = new ChatState(undefined);
+	state.mode = 'tree';
+	state.messages = [reply('How should we get the architecture doc written?\n\n'
+		+ '- **Write it now:** produce the full `architecture.md` with the 14 sections above. I will finish the tree right after.\n'
+		+ '- **Review the summary first:** read the current decisions again.', { mode: 'tree' })];
+	await answerReplyChoice(state, 'q1', 0, false, async () => {});
+	assert.equal(state.mode, 'architecture');
+});

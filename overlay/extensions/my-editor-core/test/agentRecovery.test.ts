@@ -1,0 +1,43 @@
+import { strict as assert } from 'node:assert';
+import { test } from 'node:test';
+import { parseAgentStep } from '../src/chat/agentProtocol';
+import { runAgentLoop } from '../src/chat/agentLoop';
+
+test('a shorthand local-model file action is executed instead of discarded before a false final claim', async () => {
+	assert.deepEqual(parseAgentStep('{"action":"propose_file","arguments":{"path":"hello.txt","content":"Hello"}}'),
+		{ action: 'tool', name: 'propose_file', arguments: { path: 'hello.txt', content: 'Hello' } });
+	assert.equal(parseAgentStep('{"action":"shell","arguments":{}}'), undefined);
+	assert.deepEqual(parseAgentStep('Reasoning. {"action":"propose_file","path":"pricing.py","content":"def subtotal(values):\\n    return sum(values)\\n"}'),
+		{ action: 'tool', name: 'propose_file', arguments: { path: 'pricing.py', content: 'def subtotal(values):\n    return sum(values)\n' } });
+	assert.equal(parseAgentStep('{"action":"shell","command":"echo unsafe"}'), undefined);
+	assert.equal(parseAgentStep('{"action":"propose_file","arguments":[]}'), undefined);
+	assert.deepEqual(parseAgentStep('<think>{"action":"final","message":"guess"}</think>{"action":"tool","name":"list_files","arguments":{}}'),
+		{ action: 'tool', name: 'list_files', arguments: {} });
+});
+
+test('a model denying file access is redirected to host tools, then a proposal awaiting Keep', async () => {
+	const replies = ['{"action":"final","message":"I cannot access project files."}',
+		'{"action":"tool","name":"propose_file","arguments":{"path":"hello.txt","content":"Hello"}}',
+		'{"action":"final","message":"The hello.txt proposal is ready. Use Keep to apply it."}'];
+	let calls = 0;
+	const answer = await runAgentLoop({ initial: [{ role: 'user', text: 'Create hello.txt' }], cancelled: () => false,
+		progress: () => undefined, ask: async () => replies.shift()!, execute: async () => { calls++; return 'Proposed hello.txt.'; } });
+	assert.equal(calls, 1);
+	assert.match(answer, /Use Keep/);
+});
+
+test('repeated false success cannot be shown when no host file action ran', async () => {
+	let calls = 0;
+	const answer = await runAgentLoop({ initial: [], cancelled: () => false, progress: () => undefined,
+		ask: async () => '{"action":"final","message":"I created hello.txt."}', execute: async () => { calls++; return ''; } });
+	assert.equal(calls, 0);
+	assert.match(answer, /No file was changed/);
+});
+
+test('ordinary prose is repaired into a tool request before ending the agent session', async () => {
+	let round = 0, calls = 0;
+	const answers = ['Let me read the project.', '{"action":"tool","name":"list_files","arguments":{}}', '{"action":"final","message":"The folder has one file."}'];
+	await runAgentLoop({ initial: [], cancelled: () => false, progress: () => undefined,
+		ask: async () => answers[round++], execute: async () => { calls++; return 'hello.txt'; } });
+	assert.equal(calls, 1);
+});

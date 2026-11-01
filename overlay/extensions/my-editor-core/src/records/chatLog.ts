@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { serial } from '../util/serial';
-import { collapseCode, redact } from './redact';
+import { redact } from './redact';
 
 /**
  * Appends each exchange to `.my_editor/chats/YYYY-MM-DD.md` so decisions can be traced later (FR-041), in
@@ -26,10 +26,11 @@ export async function logExchange(entry: { mode: string; model: string; file?: s
 		'',
 		`**You:** ${redact(entry.prompt)}`,
 		'',
-		`**Pair:** ${redact(collapseCode(entry.reply))}`,
+		`**Pair:** ${redact(entry.reply)}`,
 		'',
 	].join('\n');
 	await serial(async () => {
+		await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(root, '.my_editor', 'chats'));
 		let existing: string;
 		try {
 			existing = new TextDecoder().decode(await vscode.workspace.fs.readFile(target));

@@ -14,13 +14,9 @@ import os
 import sys
 
 import my_editor_pyast as pa
-
-
-def absolute(module, level, package):
-    if not level:
-        return module
-    base = package.rsplit('.', level - 1)[0] if level > 1 else package
-    return '%s.%s' % (base, module) if module else base
+from my_editor_pyscratch import Scratch, absolute
+from my_editor_pyabort import Abort
+from my_editor_pyhook import Hook
 
 
 def loaded_cleanly(name):
@@ -40,39 +36,6 @@ def clean_failure(error, module):
     return type(error) is ImportError and error.name == module and loaded_cleanly(module)
 
 
-class Scratch:
-    """Runs the leading block statement by statement in a plain dict namespace, recording failed fallback imports."""
-
-    def __init__(self, name, package, origin):
-        self.namespace = {'__name__': name, '__package__': package, '__file__': origin, '__builtins__': builtins, '__spec__': None}
-        self.package = package
-        self.origin = origin
-        self.failures = {}
-
-    def run(self, stmt):
-        exec(compile(ast.Module(body=[stmt], type_ignores=[]), self.origin, 'exec'), self.namespace)
-
-    def statement(self, stmt, text):
-        if not isinstance(stmt, ast.Try):
-            self.run(stmt)
-            return
-        for inner in stmt.body:
-            try:
-                self.run(inner)
-            except ImportError as error:
-                module = absolute(getattr(inner, 'module', None) or inner.names[0].name, getattr(inner, 'level', 0), self.package)
-                self.failures[text] = (error, module)
-                handler = next((h for h in stmt.handlers if any(isinstance(error, getattr(builtins, n.id)) for n in (
-                    h.type.elts if isinstance(h.type, ast.Tuple) else [h.type]))), None)
-                if handler is None:
-                    raise
-                for s in handler.body:
-                    self.run(s)
-                return
-        for s in stmt.orelse:
-            self.run(s)
-
-
 def split_modules(facts, origin):
     """New modules named by the facade: level-1 imports of siblings whose first line is this original's split header."""
     header = '# Split from %s by my_editor.' % os.path.basename(origin)
@@ -86,33 +49,6 @@ def split_modules(facts, origin):
                 if raw.split(b'\n', 1)[0].decode('utf-8', 'replace') == header:
                     found.append((imp['module'], path, pa.analyze(raw, path), item))
     return found
-
-
-class Abort(Exception):
-    """Stops the real import when a check before it failed."""
-
-
-class Hook:
-    """A meta-path finder that runs the checks before the import when the import system first looks for the original."""
-
-    def __init__(self, name):
-        self.name = name
-        self.busy = False
-        self.problems = None
-        self.state = None
-
-    def find_spec(self, fullname, path=None, target=None):
-        if fullname != self.name or self.busy:
-            return None  # A leading import that comes back here imports the real module: a cycle, reported below.
-        if self.problems is None:
-            self.busy = True
-            try:
-                self.problems, self.state = before_import(fullname, importlib.machinery.PathFinder.find_spec(fullname, path))
-            finally:
-                self.busy = False
-        if self.problems:
-            raise Abort()
-        return None
 
 
 def before_import(name, spec):
@@ -173,7 +109,7 @@ def before_import(name, spec):
 
 def check(name):
     """Plain lines naming each failure; empty when the module passes."""
-    hook = Hook(name)
+    hook = Hook(name, before_import)
     sys.meta_path.insert(0, hook)
     try:
         importlib.import_module(name)

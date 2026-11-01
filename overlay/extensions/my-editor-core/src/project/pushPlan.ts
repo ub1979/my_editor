@@ -69,7 +69,7 @@ export function pushFailure(message: string): string {
 
 const PUSH = /\bpush(?:ed|es|ing)?\b/i;
 const WHERE = /\b(?:git|github|gitlab|bitbucket|remote|origin|upstream|branch|repo|repository)\b/i;
-const NOT_NAMES = new Set(['git', 'github', 'gitlab', 'bitbucket', 'origin', 'remote', 'upstream', 'the', 'a', 'an', 'my', 'new', 'branch',
+const NOT_NAMES = new Set(['ai_fix', 'push', 'git', 'github', 'gitlab', 'bitbucket', 'origin', 'remote', 'upstream', 'the', 'a', 'an', 'my', 'new', 'branch',
 	'repo', 'repository', 'it', 'this', 'that', 'to', 'as', 'from', 'on', 'in', 'for', 'with', 'now', 'please', 'there', 'here']);
 
 /** Whether a chat message asks to push to a remote (so Pair offers the Push button under its reply). */
@@ -77,9 +77,14 @@ export function asksToPush(prompt: string): boolean {
 	return PUSH.test(prompt) && WHERE.test(prompt);
 }
 
-/** A branch name the message gives for the push ("as u_m_dialer", "to branch release-1"); undefined when none. */
+/** `ai_fix` when the message names the fixer's branch (not as part of a longer name like u_m_dialer_ai_fix); else undefined. */
+export function suggestedSource(prompt: string): string | undefined {
+	return /(?<![\w-])ai[_-]?fix(?![\w-])/i.test(prompt) ? FIX_BRANCH_NAME : undefined;
+}
+
+/** A branch name the message gives for the push ("as u_m_dialer", "to branch release-1", "in release-1 branch"); undefined when none. */
 export function suggestedTarget(prompt: string): string | undefined {
-	for (const match of prompt.matchAll(/\b(?:as|to|named|called|branch)\s+[`'"]?([A-Za-z0-9._/-]+)[`'"]?/gi)) {
+	for (const match of prompt.matchAll(/\b(?:as|to|in|into|named|called|branch)\s+[`'"]?([A-Za-z0-9._/-]+)[`'"]?/gi)) {
 		const name = match[1].replace(/[.,]+$/, '');
 		if (!NOT_NAMES.has(name.toLowerCase()) && !branchNameProblem(name)) { return name; }
 	}

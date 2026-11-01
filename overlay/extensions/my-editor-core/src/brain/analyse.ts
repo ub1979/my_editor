@@ -1,114 +1,21 @@
-import { createHash } from 'crypto';
 import * as vscode from 'vscode';
 import type { Sink } from '../chat/engine';
 import { Proposals } from '../chat/proposals';
 import { loadCatalog, pickDefault } from '../models/catalog';
 import { ApiKeys } from '../models/secrets';
-import { streamModel } from '../models/stream';
-import { ModelEntry } from '../models/types';
 import { parseTree } from '../project/stubs';
-import { redact } from '../records/redact';
-import { isSensitiveFile } from '../records/sensitive';
 import {
-	anchorFor, batchFiles, coverageLines, ensureSections, FilePiece, firstParagraph, groupByModule, moduleNote, parseSummaries, projectOutline,
-	SourceFile, splitAtDefinitions, treeFromFiles,
+	anchorFor, coverageLines, ensureSections, firstParagraph, groupByModule, moduleNote, projectOutline,
+	SourceFile, treeFromFiles,
 } from './analysisPlan';
-import { buildBrain, describeEntry, describeProject, FileSummary, MAX_FILES, readText, saveSummaries, writeBrainNote } from './brain';
+import { buildBrain, describeEntry, describeProject, MAX_FILES, readText, saveSummaries, writeBrainNote } from './brain';
 
-/** Files summarised per run; the most-used first. Running Analyse again continues with the rest. */
-const MAX_SUMMARISED = 1_500;
-/** A file longer than one request's share is summarised piece by piece, then as a whole. */
-const PIECE_CHARS = 10_000;
-const MAX_PIECES = 30;
-const PARALLEL = 3;
-const BATCH_TIMEOUT_MS = 180_000;
 const ARCHITECTURE = '.my_editor/specs/architecture.md';
 const TREE = '.my_editor/specs/tree.json';
 
-const SUMMARY_SYSTEM = `You summarise source files for a project map. For each item you are given, write one plain sentence
-(at most 25 words) saying what it is responsible for, as a teammate would explain it. An item named like "path#3" is one
-piece of a longer file: summarise what that piece does. No Markdown, no code.
-Reply with only a JSON object mapping each item name exactly as given to its sentence.`;
-
-const COMBINE_SYSTEM = `You are given, for each source file, one-line summaries of its pieces in order. Write one plain sentence
-(at most 25 words) saying what the whole file is responsible for. No Markdown, no code.
-Reply with only a JSON object mapping each file path exactly as given to its sentence.`;
-
-const PART_SYSTEM = `You are given the parts of a software project, each with its files and one-line summaries. For each part write
-two or three plain sentences: what the part is for and how it is organised. No Markdown, no code.
-Reply with only a JSON object mapping each part name exactly as given to its sentences.`;
-const ARCHITECTURE_SYSTEM = `You write the architecture document of an existing project from an outline of its files. Describe what
-the code shows; where something is unclear, say so under "Open questions" instead of guessing. Write Markdown:
-- "# <project name>", then one short paragraph: what the project is and who it seems to be for.
-- "## Stack": languages, frameworks and tools visible in the files.
-- One section per part in the outline, using exactly the heading anchor given there, e.g. "## API client {#src-api}".
-  Say what the part does, its main files and how it connects to the other parts. Merge nothing, skip nothing.
-- "## How it fits together": the main flow through the parts, in a few sentences.
-- "## Decisions": design choices visible in the code, each with why it was probably made.
-- "## Open questions": what a newcomer cannot tell from the code.
-Keep it short: a few sentences per section. Reply with only the document.`;
-
-/** Asks one model and returns its whole reply, giving up after a while so one stuck request cannot stall the run. */
-export async function ask(entry: ModelEntry, keys: ApiKeys, system: string, text: string, token: vscode.CancellationToken, timeoutMs: number): Promise<string> {
-	const source = new vscode.CancellationTokenSource();
-	const cancel = token.onCancellationRequested(() => source.cancel());
-	const timer = setTimeout(() => source.cancel(), timeoutMs);
-	let reply = '';
-	try {
-		await streamModel(entry, keys, { system, turns: [{ role: 'user', text }], token: source.token, onText: chunk => reply += chunk });
-	} finally {
-		clearTimeout(timer);
-		cancel.dispose();
-		source.dispose();
-	}
-	return reply;
-}
-
-function hashOf(text: string): string {
-	return createHash('sha1').update(text).digest('hex').slice(0, 12);
-}
-
-function plural(n: number, word: string): string {
-	return `${n.toLocaleString('en')} ${word}${n === 1 ? '' : 's'}`;
-}
-
-/**
- * Sends items to the model in batches, a few at a time, and collects one summary per item.
- * Items the model did not answer for are simply missing from the result.
- */
-async function summarise(
-	items: readonly SourceFile[], system: string, model: ModelEntry, keys: ApiKeys, token: vscode.CancellationToken,
-	onBatch: (done: number) => void, maxChars = 200,
-): Promise<Record<string, string>> {
-	const found: Record<string, string> = {};
-	let done = 0;
-	const pass = async (batches: SourceFile[][]) => {
-		let next = 0;
-		const worker = async () => {
-			while (next < batches.length && !token.isCancellationRequested) {
-				const batch = batches[next++];
-				const names = batch.map(f => f.path);
-				// Naming the keys matters: given one file, models otherwise summarise each function in it.
-				const text = `${batch.map(f => `=== ${f.path} ===\n${f.text}`).join('\n\n')}\n\nReply with a JSON object with exactly these keys: ${JSON.stringify(names)}`;
-				try {
-					Object.assign(found, parseSummaries(await ask(model, keys, system, text, token, BATCH_TIMEOUT_MS), names, maxChars));
-				} catch {
-					// Retried once below, then counted as missing by the caller.
-				}
-				done += batch.length;
-				onBatch(Math.min(done, items.length));
-			}
-		};
-		await Promise.all(Array.from({ length: Math.min(PARALLEL, batches.length) }, worker));
-	};
-	await pass(batchFiles(items));
-	const missing = items.filter(item => !found[item.path]);
-	if (missing.length && !token.isCancellationRequested) {
-		done = items.length - missing.length;
-		await pass(batchFiles(missing));
-	}
-	return found;
-}
+export { ask } from './analysisModel';
+import { summariseSourceFiles } from './fileSummaries';
+import { ask, plural, summarise, PART_SYSTEM, ARCHITECTURE_SYSTEM } from './analysisModel';
 
 /**
  * "Analyse this project": builds the brain from the code, summarises every file (long files piece by piece),
@@ -137,74 +44,9 @@ export async function analyseProject(keys: ApiKeys, proposals: Proposals, sink: 
 		return;
 	}
 
-	// Which files need a summary: new or changed since the last analysis, most-used first, secrets never sent.
-	const secretFiles = paths.filter(path => isSensitiveFile(path)).length;
-	const stale: { path: string; text: string; hash: string }[] = [];
-	for (const path of paths.filter(p => !isSensitiveFile(p))) {
-		const raw = await readText(vscode.Uri.joinPath(folder.uri, path));
-		if (!raw?.trim()) {
-			continue;
-		}
-		const hash = hashOf(raw);
-		if (built.files[path].summaryHash !== hash || !built.files[path].summary) {
-			stale.push({ path, text: redact(raw), hash });
-		}
-	}
-	stale.sort((a, b) => built.files[b.path].importedBy.length - built.files[a.path].importedBy.length || a.path.localeCompare(b.path));
-	const todo = stale.slice(0, MAX_SUMMARISED);
-	const upToDate = paths.length - secretFiles - stale.length;
-
-	// Short files go whole; long files go as pieces cut between definitions.
-	const items: SourceFile[] = [];
-	const piecesOf = new Map<string, FilePiece[]>();
-	const partlyRead: string[] = [];
-	for (const file of todo) {
-		if (file.text.length <= PIECE_CHARS) {
-			items.push({ path: file.path, text: file.text });
-			continue;
-		}
-		const { pieces, complete } = splitAtDefinitions(file.text, PIECE_CHARS, MAX_PIECES);
-		piecesOf.set(file.path, pieces);
-		if (!complete) {
-			partlyRead.push(file.path);
-		}
-		pieces.forEach((piece, i) => items.push({ path: `${file.path}#${i + 1}`, text: `(lines ${piece.start}–${piece.end})\n${piece.text}` }));
-	}
-	const pieceNote = piecesOf.size ? ` (${plural(piecesOf.size, 'long file')} in ${plural(items.length - (todo.length - piecesOf.size), 'piece')})` : '';
-	sink.progress(todo.length ? `Summarising ${plural(todo.length, 'file')}${pieceNote} with ${model.label}…` : 'Every file summary is up to date…');
-	const found = await summarise(items, SUMMARY_SYSTEM, model, keys, token, done => sink.progress(`Summarised ${done} of ${items.length}…`));
-
-	// Long files: combine their pieces into one line for the whole file.
-	const combineItems: SourceFile[] = [];
-	for (const [path, pieces] of piecesOf) {
-		const lines = pieces.map((p, i) => found[`${path}#${i + 1}`] ? `Lines ${p.start}–${p.end}: ${found[`${path}#${i + 1}`]}` : '').filter(Boolean);
-		if (lines.length) {
-			combineItems.push({ path, text: lines.join('\n') });
-		}
-	}
-	const combined = combineItems.length && !token.isCancellationRequested
-		? await summarise(combineItems, COMBINE_SYSTEM, model, keys, token, () => sink.progress('Putting the long files together…'))
-		: {};
-	const summaries: Record<string, FileSummary> = {};
-	for (const file of todo) {
-		const pieces = piecesOf.get(file.path);
-		if (!pieces) {
-			if (found[file.path]) {
-				summaries[file.path] = { summary: found[file.path], hash: file.hash };
-			}
-			continue;
-		}
-		const pieceSummaries = pieces.flatMap((p, i) => {
-			const summary = found[`${file.path}#${i + 1}`];
-			return summary ? [{ start: p.start, end: p.end, summary }] : [];
-		});
-		const whole = combined[file.path];
-		if (whole) {
-			summaries[file.path] = { summary: whole, hash: file.hash, pieces: pieceSummaries };
-		}
-	}
-	const failed = todo.length - Object.keys(summaries).length;
-	let map = await saveSummaries(summaries) ?? built;
+	const result = await summariseSourceFiles(built, paths, folder.uri, model, keys, token, sink);
+	const { summaries, upToDate, coverage } = result;
+	let { map } = result;
 	if (token.isCancellationRequested) {
 		sink.text(`Stopped. I summarised ${plural(Object.keys(summaries).length, 'file')} and kept them. Run **Analyse** again to continue from here.`);
 		sink.action('Continue', 'myEditor.analyseProject', []);
@@ -233,8 +75,7 @@ export async function analyseProject(keys: ApiKeys, proposals: Proposals, sink: 
 	}
 
 	const gaps = coverageLines({
-		tooLarge: built.tooLarge ?? [], fileLimitHit: !!built.fileLimitHit, secretFiles, inPieces: piecesOf.size, partlyRead,
-		leftForLater: stale.length - todo.length, failed,
+		tooLarge: built.tooLarge ?? [], fileLimitHit: !!built.fileLimitHit, ...coverage,
 	}, MAX_FILES);
 
 	// Architecture and file map: proposals the user keeps or undoes.
@@ -311,7 +152,7 @@ export async function analyseProject(keys: ApiKeys, proposals: Proposals, sink: 
 		'To split long files and add tests safely, use **Fix on a local branch**: every fix is checked and committed on a new '
 			+ 'local branch, and your own branch stays as it is.',
 	].join('\n\n'));
-	if (stale.length > todo.length || failed) {
+	if (coverage.leftForLater || coverage.failed) {
 		sink.action('Continue analysing', 'myEditor.analyseProject', []);
 	}
 	sink.action('Fix on a local branch', 'myEditor.aiReadyFix', []);

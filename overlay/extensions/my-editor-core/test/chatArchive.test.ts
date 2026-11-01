@@ -48,3 +48,15 @@ test('older pasted evidence can be found without trusting earlier assistant tool
 	assert.doesNotMatch(chatArchiveIndex(archive), /"action":"tools"/);
 	assert.match(modelHistoryTurns(archive.slice(-2), 200_000)[1].text, /not a verified finding/);
 });
+
+test('earlier assistant planning decisions remain searchable after compaction', () => {
+	const archive = [
+		{ role: 'assistant' as const, text: 'Sections the architecture doc must define: root, contracts, notifications.' },
+		{ role: 'assistant' as const, text: '{"action":"tool","name":"search_chat","arguments":{"query":"notifications"}}' },
+		{ role: 'user' as const, text: 'Use those sections.' },
+	];
+	assert.match(searchChatMessages(archive, 'notifications'), /3 turns ago \(assistant\)/);
+	assert.doesNotMatch(searchChatMessages(archive, 'notifications'), /2 turns ago/);
+	assert.match(readChatMessage(archive, { turnsAgo: 3 }), /root, contracts, notifications/);
+	assert.match(searchChatMessages(archive, 'missing'), /search_records/);
+});

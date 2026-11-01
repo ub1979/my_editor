@@ -62,9 +62,9 @@ test('screening settles fixes before any model call: no passing build, never spl
 	assert.equal(await screen(fix('store/a.go', 'tests')), undefined);
 	assert.match((await screen(fix('gone.go')))?.step.reason ?? '', /cannot parse gone\.go/);
 	mkdirSync(path.join(root, 'store'));
-	writeFileSync(path.join(root, 'store', 'a.go'), 'x\n'.repeat(363));
+	writeFileSync(path.join(root, 'store', 'a.go'), 'x\n'.repeat(263));
 	const short = await screen(fix('store/a.go'));
-	assert.deepEqual([short?.step.status, short?.step.reason, short?.step.early], ['skipped', 'Already 363 lines on this branch (the limit is 400).', true]);
+	assert.deepEqual([short?.step.status, short?.step.reason, short?.step.early], ['skipped', 'Already 263 lines on this branch (the limit is 300).', true]);
 	writeFileSync(path.join(root, 'store', 'a.go'), 'x\n'.repeat(401));
 	assert.equal(await screen(fix('store/a.go')), undefined);
 });
@@ -170,8 +170,8 @@ test('a refactor is settled early when nothing needs one now or its build is blo
 	assert.equal(blocked?.unchecked, true);
 	assert.match(blocked?.step.reason ?? '', /^Nothing here can compile \.\/engine to check this refactor: its build already fails/);
 	mkdirSync(path.join(root, 'store'));
-	writeFileSync(path.join(root, 'store', 'big.go'), 'x\n'.repeat(380));
-	assert.equal((await screen('store/big.go'))?.step.reason, 'Already 380 lines on this branch (the limit is 400).');
+	writeFileSync(path.join(root, 'store', 'big.go'), 'x\n'.repeat(280));
+	assert.equal((await screen('store/big.go'))?.step.reason, 'Already 280 lines on this branch (the limit is 300).');
 });
 
 test('a step\'s follow-up fix runs next and counts in the progress', async () => {

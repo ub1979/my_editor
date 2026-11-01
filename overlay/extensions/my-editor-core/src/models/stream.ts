@@ -38,7 +38,8 @@ export async function streamModel(entry: ModelEntry, keys: ApiKeys, call: ModelC
 		case 'custom':
 			return streamOpenAICompatible('custom', settings.get('custom.baseUrl', ''), await keys.get('custom'), request);
 		case 'ollama':
-			return streamOllama(settings.get('ollama.baseUrl', 'http://localhost:11434'), settings.get('ollama.think', false), request);
+			return streamOllama(settings.get('ollama.baseUrl', 'http://localhost:11434'), settings.get('ollama.think', false), request,
+				Math.max(10, Math.min(600, settings.get<number>('ollama.requestTimeoutSeconds', 180))) * 1000);
 		case 'lmstudio':
 			return streamOpenAICompatible('lmstudio', settings.get('lmstudio.baseUrl', 'http://localhost:1234/v1'), undefined, request);
 		case 'claude-cli': {

@@ -27,7 +27,7 @@ function realTools(): Promise<GoTools | string> {
 	return tools;
 }
 
-test('the refactor target is the largest declaration over 400 lines, and only a function', () => {
+test('the refactor target is the largest declaration over 300 lines, and only a function', () => {
 	const hooks = createGoRefactor('/p', FAKE);
 	assert.deepEqual(hooks.target(info(goDecl('func', ['small'], 30), goDecl('method', ['StepVerification'], 452, 'Store'), goDecl('var', ['x', 'y'], 410))),
 		{ name: 'StepVerification', receiver: 'Store', lines: 452 });

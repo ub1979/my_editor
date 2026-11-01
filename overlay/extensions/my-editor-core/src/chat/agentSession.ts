@@ -15,7 +15,8 @@ import { evidenceEntry, EvidenceEntry } from './investigationRecord';
 import { configuredReasoningEffort, mergeTurns } from './modelTurns';
 import { ObservationRunner } from './observationRunner';
 import { characterPrompt } from './characters';
-import { mayProposeFile } from './projectToolPolicy';
+import { mayProposeFile, mayUsePlanningTool } from './projectToolPolicy';
+import { proposeDoc } from './engineEdit';
 import { pairWebAccess, WEB_ACCESS_NOTE } from '../models/webAccess';
 
 /** The locate-only turn: map where a change belongs, open the files, and propose nothing. */
@@ -54,6 +55,7 @@ export async function runPairAgent(options: AgentSessionOptions): Promise<string
 	const chatArchive = input.chatArchive ?? initial.slice(0, -1);
 	const evidence: EvidenceEntry[] = [];
 	const web = pairWebAccess(entry);
+	const planning = options.mode.writes === 'doc';
 	const system = [
 			systemPrompt(options.mode, conventions, brain, vscode.workspace.workspaceFolders?.[0]?.uri.fsPath),
 			characterPrompt(input.characterId),
@@ -67,9 +69,16 @@ export async function runPairAgent(options: AgentSessionOptions): Promise<string
 		chatArchiveIndex(chatArchive),
 		web ? WEB_ACCESS_NOTE : '',
 		AGENT_INSTRUCTION,
+		planning ? 'For this planning turn, only read-only tools are available: list_files, search, read_file, git_history, '
+			+ 'read_chat, search_chat and search_records. Retrieve earlier agreed decisions when needed. '
+			+ 'Return your response in action=final; its message must include the complete fenced document when ready, '
+			+ 'as required by this planning mode. The host prepares a Keep/Undo proposal for the designated document. '
+			+ 'Do not call propose_file or propose_delete, and do not claim the document is already saved.' : '',
 	].filter(Boolean).join('\n\n');
 	const last = await runAgentLoop({
 		initial,
+		toolsAvailable: !!vscode.workspace.workspaceFolders?.length,
+		deferredProposal: planning,
 		requireCheck: options.mode.id === 'review' ? call => call.name === 'read_file' || call.name === 'search' : undefined,
 		cancelled: () => token.isCancellationRequested,
 		progress: message => sink.progress(message),
@@ -88,7 +97,8 @@ export async function runPairAgent(options: AgentSessionOptions): Promise<string
 			return response;
 		},
 		execute: async call => {
-			if (call.name === 'propose_file' && !mayProposeFile(options.mode.id, !!input.locateOnly)) { return READ_ONLY_TURN; }
+			if (planning && !mayUsePlanningTool(call.name)) { return 'Planning allows only read-only retrieval. Return the complete document in the final message for Keep/Undo.'; }
+			if (['propose_file', 'propose_delete'].includes(call.name) && !mayProposeFile(options.mode.id, !!input.locateOnly)) { return READ_ONLY_TURN; }
 			if (call.name === 'read_chat') { return readChatMessage(chatArchive, call.arguments); }
 			if (call.name === 'search_chat') { return searchChatMessages(chatArchive, call.arguments.query); }
 			const result = await tools.execute(call.name, call.arguments);
@@ -101,7 +111,15 @@ export async function runPairAgent(options: AgentSessionOptions): Promise<string
 		onObservation: (call, result) => { evidence.push(evidenceEntry(call.name, call.arguments, result)); },
 	});
 	sink.progress('');
-	if (last) { sink.text(last); }
+	if (last && planning && !token.isCancellationRequested) {
+		try { await proposeDoc(proposals, options.mode, last, sink); }
+		catch (error) {
+			sink.error(error instanceof Error ? error.message : String(error));
+			// Still record the reply and retrieved decisions when validation refuses a draft.
+			return last;
+		}
+		sink.text(last.split('```')[0].trim());
+	} else if (last) { sink.text(last); }
 	if (last && !token.isCancellationRequested && input.requestId) {
 		try {
 			await saveInvestigation({

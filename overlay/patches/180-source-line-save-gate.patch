@@ -15,8 +15,8 @@ diff --git a/src/vs/workbench/services/textfile/common/textFileEditorModel.ts b/
 +				const sourceLineCount = this.textEditorModel.getLineCount();
 +				const lastLineIsEmpty = this.textEditorModel.getLineContent(sourceLineCount).length === 0;
 +				const effectiveLineCount = sourceLineCount - (lastLineIsEmpty ? 1 : 0);
-+				if (effectiveLineCount > 400) {
-+					this.logService.warn(`[my_editor] Save blocked: ${this.resource.toString()} has ${effectiveLineCount} source lines (limit 400).`);
++				if (effectiveLineCount > 300) {
++					this.logService.warn(`[my_editor] Save blocked: ${this.resource.toString()} has ${effectiveLineCount} source lines (limit 300).`);
 +					return;
 +				}
 +			}

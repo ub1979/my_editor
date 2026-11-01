@@ -1,5 +1,6 @@
 import type { ChatTurn } from '../models/types';
 import { AgentToolCall, looksLikeAgentProtocol, parseAgentStep } from './agentProtocol';
+import { recoveryForFinal } from './agentRecovery';
 
 /** A safety bound for a single request, rather than a practical limit on normal project work. */
 export const MAX_PROJECT_TOOL_CALLS = 60;
@@ -31,6 +32,9 @@ export interface AgentLoopOptions {
 	readonly cancelled: () => boolean;
 	readonly onObservation?: (call: AgentToolCall, result: string) => void;
 	readonly requireCheck?: (call: AgentToolCall) => boolean;
+	readonly toolsAvailable?: boolean;
+	/** Document modes create their reviewed proposal from the final reply, after this loop. */
+	readonly deferredProposal?: boolean;
 }
 
 /** Keep recent evidence intact while bounding old findings in long project investigations. */
@@ -62,7 +66,7 @@ function labelFor(call: AgentToolCall): string {
 			: call.name === 'observe' ? String(args.id ?? '')
 			: call.name === 'list_files' ? String(args.glob ?? '')
 				: call.name === 'git_history' ? String(args.question ?? '')
-					: call.name === 'propose_file' ? String(args.path ?? '')
+						: call.name === 'propose_file' || call.name === 'propose_delete' ? String(args.path ?? '')
 						: call.name === 'run_tests' ? String(args.command ?? '') : '';
 	return `${call.name}(${detail.slice(0, 100)})`;
 }
@@ -81,6 +85,8 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<string> {
 	const observations: Observation[] = [];
 	let used = 0;
 	let requiredCheckDone = false;
+	let repairedConclusion = false;
+	let proposed = false;
 	while (!options.cancelled()) {
 		const remaining = MAX_PROJECT_TOOL_CALLS - used;
 		const finalOnly = remaining === 0;
@@ -93,7 +99,7 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<string> {
 		let response = await options.ask(turns, finalOnly, remaining);
 		if (options.cancelled()) { return ''; }
 		let parsed = parseAgentStep(response);
-		if (!parsed && looksLikeAgentProtocol(response)) {
+		if (!parsed) {
 			options.progress('Clarifying a project check…');
 			response = await options.ask([
 				...turns,
@@ -102,7 +108,7 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<string> {
 			], finalOnly, remaining);
 			if (options.cancelled()) { return ''; }
 			parsed = parseAgentStep(response);
-			if (!parsed && looksLikeAgentProtocol(response)) {
+			if (!parsed) {
 				return 'I could not read the model’s project check. No further checks were completed. Please retry this request.';
 			}
 		}
@@ -119,9 +125,27 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<string> {
 		}
 		if (!parsed) { return response.trim() || fallback(observations); }
 		if (parsed.action === 'final') {
-			return looksLikeAgentProtocol(parsed.message)
-				? 'I could not turn the model’s internal project request into an answer. Please retry this request.'
-				: parsed.message;
+			const correction = options.deferredProposal ? undefined : recoveryForFinal(parsed.message, proposed, options.toolsAvailable ?? true);
+			if (correction && (repairedConclusion || finalOnly)) {
+				return proposed ? 'File proposals are ready for review. Use Keep to apply them.' : 'No file action completed. No file was changed.';
+			}
+			if (correction && !repairedConclusion && !finalOnly) {
+				repairedConclusion = true;
+				const corrected = await options.ask([...turns, { role: 'assistant', text: response },
+					{ role: 'user', text: correction }], false, remaining);
+				const step = parseAgentStep(corrected);
+				if (options.cancelled()) { return ''; }
+				if (!step || step.action === 'final' && recoveryForFinal(step.message, proposed, options.toolsAvailable ?? true)) {
+					return proposed ? 'File proposals are ready for review. Use Keep to apply them.'
+						: 'The model did not complete a file action. No file was changed. Please retry, or choose another model.';
+				}
+				if (step.action !== 'final') { parsed = step; }
+				else { return step.message; }
+			} else {
+				return looksLikeAgentProtocol(parsed.message)
+					? 'I could not turn the model’s internal project request into an answer. Please retry this request.'
+					: parsed.message;
+			}
 		}
 		if (finalOnly) { return fallback(observations); }
 		const requested = parsed.action === 'tools' ? parsed.calls : [parsed];
@@ -135,6 +159,7 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<string> {
 		for (let index = 0; index < calls.length; index++) {
 			const call = calls[index];
 			const result = results[index];
+			if (result.startsWith('Proposed ')) { proposed = true; }
 			if (options.requireCheck?.(call)) { requiredCheckDone = true; }
 			options.onObservation?.(call, result);
 			const clipped = result.length > MAX_RESULT_CHARS

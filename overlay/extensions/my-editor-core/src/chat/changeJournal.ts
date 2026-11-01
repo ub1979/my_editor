@@ -33,7 +33,7 @@ export async function saveProposalEvent(requestId: string, proposal: Proposal, e
 		at, requestId, proposalId: proposal.id, event,
 		file: redact(proposal.relativePath), gitHead: head, branch,
 		baseHash: hash(proposal.base), appliedHash: applied,
-		added: proposal.added, removed: proposal.removed, isNewFile: proposal.isNewFile,
+		added: proposal.added, removed: proposal.removed, isNewFile: proposal.isNewFile, operation: proposal.operation ?? 'write',
 	};
 	const name = `${at.replace(/[:.]/g, '-')}-${randomBytes(4).toString('hex')}.json`;
 	await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(dir, name), new TextEncoder().encode(JSON.stringify(record, null, 2) + '\n'));

@@ -9,6 +9,7 @@ import { redact } from '../records/redact';
 import { isSensitiveFile } from '../records/sensitive';
 import { searchProjectRecords } from '../records/search';
 import { safeRelativePath, testSpec } from './agentProtocol';
+import { checkedProjectPath } from './projectPath';
 import { Proposals } from './proposals';
 import { ObservationRunner } from './observationRunner';
 
@@ -43,6 +44,11 @@ export class AgentTools {
 				case 'observe': return { text: await this.observations.run(args.id, this.token) };
 				case 'run_tests': return { text: await this.runTests(args.command) };
 				case 'propose_file': return this.proposeFile(args.path, args.content);
+				case 'propose_delete': {
+					const { uri, relative } = this.file(args.path);
+					const proposal = await this.proposals.propose(uri, '', 'delete');
+					return { text: `Proposed deletion of ${relative}. The file stays until the user chooses Keep.`, proposalId: proposal.id };
+				}
 				default: return { text: `Unknown tool: ${name}. Choose a tool from the system instructions.` };
 			}
 		} catch (error) {
@@ -60,13 +66,7 @@ export class AgentTools {
 		const relative = safeRelativePath(value);
 		if (!relative || isSensitiveFile(relative)) { throw new Error('Use a non-sensitive path relative to the open project.'); }
 		const root = this.workspace().uri.fsPath;
-		const target = path.resolve(root, relative);
-		const boundary = realpathSync(root);
-		const existing = creating ? path.dirname(target) : target;
-		let resolved: string;
-		try { resolved = realpathSync(existing); }
-		catch { throw new Error(creating ? 'The parent directory must already exist.' : 'That file does not exist.'); }
-		if (resolved !== boundary && !resolved.startsWith(boundary + path.sep)) { throw new Error('Path is outside the project.'); }
+		const target = checkedProjectPath(root, relative, creating);
 		return { uri: vscode.Uri.file(target), relative };
 	}
 
@@ -118,15 +118,17 @@ export class AgentTools {
 
 	private async readFile(value: unknown, startValue: unknown, linesValue: unknown): Promise<string> {
 		const { uri, relative } = this.file(value);
-		const stat = await vscode.workspace.fs.stat(uri);
-		if (stat.size > MAX_READ_BYTES) { return `${relative} is over 400 KB. Search for a specific symbol or inspect it in the editor.`; }
-		const source = new TextDecoder('utf-8', { fatal: true }).decode(await vscode.workspace.fs.readFile(uri));
+		const open = vscode.workspace.textDocuments.find(document => document.uri.toString() === uri.toString());
+		if (!open && (await vscode.workspace.fs.stat(uri)).size > MAX_READ_BYTES) { return `${relative} is over 400 KB. Search for a specific symbol or inspect it in the editor.`; }
+		// The user's unsaved buffer is the current source while coding; disk may still hold an older version.
+		const source = open ? open.getText() : new TextDecoder('utf-8', { fatal: true }).decode(await vscode.workspace.fs.readFile(uri));
+		if (Buffer.byteLength(source, 'utf8') > MAX_READ_BYTES) { return `${relative} is over 400 KB. Select a smaller part in the editor.`; }
 		if (source.includes('\0')) { return 'Binary files cannot be read by Pair.'; }
 		const all = source.split('\n');
 		const start = Number.isInteger(startValue) ? Math.max(1, Math.min(Number(startValue), all.length)) : 1;
 		const count = Number.isInteger(linesValue) ? Math.max(1, Math.min(Number(linesValue), MAX_READ_LINES)) : 100;
 		const selected = all.slice(start - 1, start - 1 + count).map((line, index) => `${start + index}| ${line}`).join('\n');
-		return `File: ${relative} (lines ${start}–${Math.min(all.length, start + count - 1)} of ${all.length})\n${redact(selected).slice(0, 16_000)}`;
+		return `File: ${relative}${open?.isDirty ? ' (unsaved editor buffer)' : ''} (lines ${start}–${Math.min(all.length, start + count - 1)} of ${all.length})\n${redact(selected).slice(0, 16_000)}`;
 	}
 
 	/** Open verified source locations as tabs, with the best starting point in focus. */

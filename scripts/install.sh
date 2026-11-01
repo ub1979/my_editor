@@ -22,6 +22,10 @@ case "${1:-}" in
     # The editor reuses its cached list of built-in extensions while this folder's mtime is unchanged, so an update
     # inside it would keep the old manifests (and versions) until the next change; touching it invalidates the cache.
     touch "${APP}/Contents/Resources/app/extensions"
+    # Refresh product configuration, including the built-in extension's editor inset capability.
+    product="${APP}/Contents/Resources/app/product.json"
+    jq -s '.[0] * .[1]' "${product}" "${ROOT}/overlay/product.json" > "${product}.tmp"
+    mv "${product}.tmp" "${product}"
     echo "Updated built-in extensions. Editor core patches require scripts/install.sh --full."
     ;;
   --full)

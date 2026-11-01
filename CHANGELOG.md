@@ -2,6 +2,14 @@
 
 my_editor uses the version in `overlay/extensions/my-editor-core/package.json` as its own release number. The Home page displays that version. The underlying editor shell keeps its upstream version independently.
 
+## 0.0.24 alpha — 2026-11-01
+
+- Claude subscription models are discovered from the installed CLI, with resolved version labels and explicit version selections. Existing aliases and custom IDs remain supported.
+- Requirements, Architecture and File Tree can retrieve older chat messages and saved project records. Chat search includes assistant decisions; saved replies retain complete document content with secret redaction.
+- “Write it now” choices use the described document to select the planning mode. Planning prompts receive saved-file validation results, and complete documents still require Keep.
+- This local release snapshots the current editor source, including the existing coding assistance, Python inline output and source-helper changes.
+- Validation: build passed; 40 focused regression tests passed; planning and general editor-host smoke tests passed; real Claude discovery and response passed. The full suite passed 687 of 688 tests, with an existing Go split declaration-check failure in aiReadySteps.test.ts. This remains an alpha for local testing.
+
 ## 0.0.23 alpha — 2026-10-31
 
 - New Chat isolates cancelled replies; concurrent sends cannot start while chat persistence is pending. Project-stage refreshes respect an explicitly selected planning skill.
@@ -26,6 +34,18 @@ my_editor uses the version in `overlay/extensions/my-editor-core/package.json` a
 - Keeping a valid tree JSON proposal creates every missing planned file, including nested folders, and carries each role into supported file comments. Existing files are preserved.
 - Settings and Keyboard Shortcuts use readable text, selection, link and focus colors on their editor surfaces. Paper and Night secondary text and chat controls have improved contrast.
 - Source update; reinstall and final live UI checks remain pending.
+
+## 0.0.20 alpha — 2026-10-22
+
+- Ollama project actions recover ordinary prose and known shorthand tool replies. Unsupported file-access denials are redirected to the editor's tools; false claims of completed writes are rejected. Ordinary change requests may propose edits directly, while explicit location questions remain read-only. File reads prefer the current unsaved editor buffer, so coding-time changes stay visible to the model.
+- GLM 5 uses Ollama's separate reasoning channel to prevent planning examples from contaminating generated code. Flat GLM tool actions are accepted through the same validated host tools. A real-model installed-editor test checks brain reads, a Python file edit, and exactly one requested `#Ai` function with surrounding code preserved.
+- Reviewed proposals can create nested folders and delete files through Keep/Undo. New paths are checked against existing ancestors and symlinks; no target changes before Keep.
+- Python: Shift+Enter runs the selection or current line; Cmd+Enter (Ctrl+Enter elsewhere) runs a `# %%` cell. A persistent terminal uses the project's selected Python interpreter, retains variables and displays final expressions. A restart command clears the session.
+- Python Results shows each run's file and line range, printed output, final expression values and errors. The terminal remains interactive, and later selections can continue after an error. Live GLM assistance checks cover automatic bug findings, quiet manual mode and reviewed test suggestions that preserve production code.
+- Python output now appears directly below executed selections and cells, without opening a separate panel. Reruns replace their old output, edits above move it, and editing executed code invalidates its stale result. Outputs can be dismissed or cleared; the separate Results history remains available on demand. Native view-zone tests cover errors, tab switching and split editors without changing source files.
+- An Auto/Manual status control governs background coding assistance. Auto reviews after a quiet typing period; Review Selection or File Now works in either mode. Functions and classes offer optional test and accessor suggestions.
+- `#Ai <instruction>` comments offer a Generate Below action and Cmd+Alt+Enter (Ctrl+Alt+Enter elsewhere). In Auto mode, Enter after a completed directive starts a proposal. Only a bounded snippet is inserted below that line; surrounding code is preserved, and Keep applies it.
+- The source limit is 300 lines, with a warning at 270. Extension, parser helper and test files were split by responsibility, and a regression gate checks file size and one class per file. Editor-host smoke tests cover actual proposals, Python execution and assistance modes.
 
 ## 0.0.19 alpha — 2026-10-20
 

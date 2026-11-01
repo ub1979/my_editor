@@ -7,7 +7,7 @@ calm, writing-first interface.
 **Vision:** help humans make better programs with AI. **Mission:** give developers a project-aware pair
 programmer that consults them before coding, helps them spot and understand problems while they code, and
 offers changes they can review. The product aims for sound design, useful comments, focused files, and a
-400-line maximum for source files. The current source adds review choices, AI proposal checks, and a
+300-line maximum for source files. The current source adds review choices, AI proposal checks, and a
 VSCodium save gate for human edits. These are built into the installed app but still need live checks;
 see [vision, mission, and status](docs/vision-and-status.md).
 
@@ -35,12 +35,12 @@ All documentation is listed in [`docs/README.md`](docs/README.md). Start with:
   the minimap, breadcrumbs, most of the status bar and the Copilot prompts are gone.
 - **The Project view** (left sidebar): the build path (Requirements → Architecture → Flow & tree → Build → QA)
   with live status, memory (conventions, brain, decisions, chat history) and the active model.
-- **The Pair** (centered editor tab, with an optional right sidebar): my_editor's own chat. Shan the
-  panda, Soki the owl, Ada the moth, Lisko the lynx, Diji the hedgehog, Poppy the penguin, and Hopper
-  the frog switch with project stage and task. You can pin one or return to Auto. All share the same model,
+- **The Pair** (centered editor tab, with an optional right sidebar): my_editor's own chat. Requirement,
+  Architecture, Flow & tree, Build, Review, QA, Debug, and Project agents switch with project stage and task.
+  You can pin one or return to Auto. The A− and A+ buttons change chat text size. All share the same model,
   project context, and review rules. See [characters and change finder](docs/characters-and-change-finder.md).
   Open the skill menu for Plan:
-  Requirements, Architecture, Plan the files, Brainstorm; Build: Find a change, Next step, Add a feature, Change selection,
+  Requirements, Architecture, Flow & tree, Brainstorm; Build: Find a change, Next step, Add a feature, Change selection,
   Explain, Why; Fix: Review, Debug, Tests, Refactor; plus your own skills). Type `/` for commands.
   Code changes come back as proposals: review them in an inline diff, undo single parts with the gutter
   arrow, then **Keep** (writes and saves) or **Undo**. Nothing touches your file before Keep.
@@ -56,8 +56,8 @@ All documentation is listed in [`docs/README.md`](docs/README.md). Start with:
   Its Quick Fix lets you ask Pair for a reviewed suggestion or get steps to write the comment yourself.
   Toggle guidance with the speech-bubble button in the editor toolbar.
 - **Live quality guidance:** Navigator and structure findings offer the same reviewed-fix or manual-guidance
-  choice. Source files get a warning near 400 lines; AI proposals and Keep reject source files above 400 lines
-  or with multiple top-level classes. A VSCodium core patch blocks human saves above 400 lines after formatters;
+  choice. Source files get a warning near 300 lines; AI proposals and Keep reject source files above 300 lines
+  or with multiple top-level classes. A VSCodium core patch blocks human saves above 300 lines after formatters;
   its live app behavior remains to be checked.
 - **This file** (under the file tree): symbols, Pair notes and git history for the open file, in my_editor's style.
 - **A quiet window:** the left bar has only Files and Project; Search, Git, Run and Extensions still work
@@ -65,7 +65,8 @@ All documentation is listed in [`docs/README.md`](docs/README.md). Start with:
 - **Languages built in:** JavaScript/TypeScript, Python (basedpyright, debugpy), Rust (rust-analyzer),
   Go and C/C++ (clangd). Pinned in `overlay/bundled-extensions.json`, checksum-verified at build time.
 - **Models** — pick with **my_editor: Choose Default Model** (or *Change* in the Project view):
-  - **Claude subscription** through your Claude Code login (`claude` CLI): Opus, Sonnet, Haiku. The CLI runs
+  - **Claude subscription** through your Claude Code login (`claude` CLI): available models and version numbers are
+    discovered automatically, with aliases and explicit version choices. The CLI runs
     without file, shell or edit tools, MCP or a saved session; Pair's host tools are available in chat. API-key
     variables are removed so billing never switches silently.
   - **ChatGPT subscription** through your Codex login (`codex exec`, read-only sandbox, empty working folder).
@@ -76,17 +77,20 @@ All documentation is listed in [`docs/README.md`](docs/README.md). Start with:
   - **Local:** Ollama and LM Studio, listed whenever their servers are running.
   - **API keys** (kept in the macOS keychain): Anthropic, OpenAI, OpenRouter, any OpenAI-compatible URL.
 - **Visual project maps:** in Project, open **Architecture map** to see parts and their code links, or **File tree** to browse and search planned files. Both read the saved `.my_editor/specs/` documents.
-- **Navigator:** after each save it reviews only the changed lines and shows at most three notes, including
-  worthwhile correctness, performance, style, design, and comment issues. It never edits.
+- **Code together:** choose **AI: Auto** or **AI: Manual** in the status bar. Auto reviews after eight quiet seconds while you type; **Review Selection or File Now** works on demand. Functions and classes offer test/accessor actions in Auto mode.
+- **Python snippets:** **Shift+Enter** runs selected lines (or the current line); **Cmd+Enter** on macOS / **Ctrl+Enter** elsewhere runs a `# %%` cell. Printed text, final expression values and errors appear directly below each executed block. Rerunning replaces that block's output; editing its code clears the stale result. Use **Dismiss** on a result or **Python: Clear Inline Output** to clear the file's results. **Show Python Results** opens the full history separately. Variables stay in the interactive Python session; **Python: Restart Interactive Session** starts fresh. The selected Python extension environment is used, with `python.defaultInterpreterPath` as fallback.
+- **Inline requests:** write `#Ai <make a small function>` (or `// Ai ...`), then use **AI: generate below**, **Cmd+Alt+Enter** / **Ctrl+Alt+Enter**, or press Enter in Auto mode. Review and Keep the insertion. The model supplies one snippet of at most 100 lines; the rest of the file stays byte-for-byte intact.
+- **Navigator:** automatic review covers changed lines and shows at most three useful notes. You can pause it per file or session; it never applies edits itself.
 - **Project brain:** open a project that already has code and the pair asks first: *Shall I get to know this
   project?* If you say yes, it reads every file and writes `.my_editor/brain/`: a map of each file's imports,
   exports and a one-line summary, and a note per part. It also drafts `specs/architecture.md` and `specs/tree.json`
-  for you to Keep or Undo. Your code is never changed. Long files are read in pieces. Running it again only
+  for you to Keep or Undo. Keeping a file tree creates its missing planned files as role-commented stubs;
+  existing files are preserved. Long files are read in pieces. Running analysis again only
   redoes files that changed. Anything it could not cover (huge or generated files, very big projects) is listed,
   never skipped silently. The brain stays current on save, and the pair uses it as
   context. To run it again, use **Analyse** in the Project view or **my_editor: Analyse This Project**.
 - **AI-ready check:** opening a project my_editor did not create asks *Shall I get to know this project and check
-  how AI-ready it is?* Yes runs Analyse, then writes `.my_editor/ai-ready/report.md`: files over 400 lines, files with more than
+  how AI-ready it is?* Yes runs Analyse, then writes `.my_editor/ai-ready/report.md`: files over 300 lines, files with more than
   one class or job, untested files, the project's build and test commands, design notes and possible bugs at checked
   lines. Nothing in the code changes, and Stop still writes a partial report. Run it again from **Project → Health**
   or **my_editor: Check AI-Readiness**. For Go, TypeScript/JavaScript and Python projects, **Fix on a local branch** (after the report, or **my_editor: Fix on a
@@ -101,7 +105,7 @@ All documentation is listed in [`docs/README.md`](docs/README.md). Start with:
   refactor) are not offered again, and a run that commits nothing leaves `ai_fix` unchanged. Later runs start from
   **Project → Health → Fix remaining files**.
   Python moves are refused wherever Python could notice the difference. C#, Rust and C/C++ follow.
-  In Go, a file over 400 lines because of one long function can be refactored first: the model picks runs of
+  In Go, a file over 300 lines because of one long function can be refactored first: the model picks runs of
   statements and names them, my_editor writes them as helpers byte for byte, refuses what it cannot prove equivalent,
   checks the written file independently, runs build, vet and tests against the baseline, and splits the file in the
   same run. A refactor is ticked only when the project's tests ran that function last time; otherwise you tick it.
@@ -120,7 +124,7 @@ scripts/install.sh --full   # rebuild the whole editor and apply core patches, t
 
 Both install options copy the app to `/Applications/my_editor.app`.
 Run `scripts/install.sh` by itself for fast Pair, Project, and theme updates in the existing app bundle.
-Use `scripts/install.sh --full` for editor core patches, such as the save-time 400-line gate, or when no
+Use `scripts/install.sh --full` for editor core patches, such as the save-time 300-line gate, or when no
 app has been built yet. The full option compiles VSCodium and takes much longer. Both options stop if
 their build step fails. The installer signs and checks the finished app bundle before copying it.
 

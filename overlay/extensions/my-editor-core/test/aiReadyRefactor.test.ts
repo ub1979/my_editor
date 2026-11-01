@@ -26,7 +26,7 @@ const STEP_REASON = 'needs a real refactor: `StepVerification` is 452 lines by i
 const MIXED: FileInfo = { path: 'mixed.go', frame: [], imports: [],
 	declarations: [decl(0, 'Big', 420), ...Array.from({ length: 6 }, (_, i) => decl(i + 1, `f${i}`, 50))] };
 
-test('a file over 400 lines only because of one declaration needs a real refactor, not a split', () => {
+test('a file over 300 lines only because of one declaration needs a real refactor, not a split', () => {
 	assert.deepEqual(needsRefactor(STEP, 467), { file: STEP.path, lines: 467, reason: STEP_REASON });
 	const alone: FileInfo = { ...STEP, path: 'onboarding_plan.go', declarations: [decl(0, 'buildOnboardingPlanTx', 401)] };
 	assert.equal(needsRefactor(alone, 417)?.reason, 'needs a real refactor: `buildOnboardingPlanTx` is 401 lines by itself');
@@ -34,21 +34,21 @@ test('a file over 400 lines only because of one declaration needs a real refacto
 	assert.equal(needsRefactor(twoBig, 900)?.reason, 'needs a real refactor: `A` is 450 lines by itself');
 });
 
-test('a function under 400 lines that can\'t fit in a file with the other lines of its own needs a refactor', () => {
-	const after: FileInfo = { ...STEP, path: 'onboarding_plan.go', declarations: [decl(0, 'buildOnboardingPlanTx', 387), decl(1, 'appendWarnings', 20)] };
-	assert.equal(needsRefactor(after, 423)?.reason,
-		'needs a real refactor: `buildOnboardingPlanTx` is 387 lines, too long for a file with its 15 other lines');
+test('a function under 300 lines that can\'t fit in a file with the other lines of its own needs a refactor', () => {
+	const after: FileInfo = { ...STEP, path: 'onboarding_plan.go', declarations: [decl(0, 'buildOnboardingPlanTx', 287), decl(1, 'appendWarnings', 20)] };
+	assert.equal(needsRefactor(after, 323)?.reason,
+		'needs a real refactor: `buildOnboardingPlanTx` is 287 lines, too long for a file with its 15 other lines');
 	const small = Array.from({ length: 99 }, (_, i) => decl(i + 1, `f${i}`, 20));
-	const many: FileInfo = { ...STEP, path: 'engine.go', declarations: [decl(0, 'StartCampaign', 322), ...small] };
-	assert.equal(needsRefactor(many, 2322 + 99 + 20), undefined, 'blank lines between declarations move with them');
-	assert.equal(needsRefactor({ ...after, declarations: [decl(0, 'build', 300), decl(1, 'more', 110)] }, 426), undefined, 'room to split');
+	const many: FileInfo = { ...STEP, path: 'engine.go', declarations: [decl(0, 'StartCampaign', 222), ...small] };
+	assert.equal(needsRefactor(many, 2222 + 99 + 20), undefined, 'blank lines between declarations move with them');
+	assert.equal(needsRefactor({ ...after, declarations: [decl(0, 'build', 200), decl(1, 'more', 110)] }, 326), undefined, 'room to split');
 });
 
 test('a big declaration with plenty that can move out still splits; so does a file with no oversized declaration', () => {
 	assert.equal(needsRefactor(MIXED, 725), undefined);
 	assert.equal(needsRefactor({ ...MIXED, declarations: MIXED.declarations.slice(1) }, 310), undefined);
-	assert.equal(needsRefactor({ ...MIXED, declarations: [decl(0, 'a', 300), decl(1, 'b', 300)] }, 610), undefined);
-	assert.equal(needsRefactor(STEP, 380), undefined);
+	assert.equal(needsRefactor({ ...MIXED, declarations: [decl(0, 'a', 250), decl(1, 'b', 250)] }, 510), undefined);
+	assert.equal(needsRefactor(STEP, 280), undefined);
 });
 
 test('screening settles a needs-refactor split before any model call or check, with its Still over entry', async () => {
@@ -76,8 +76,8 @@ test('a split settled for a big declaration keeps it for later pickers only when
 	const big = { name: 'StepVerification', receiver: 'Store', lines: 452 };
 	const nothing = await screenFix(screener(() => big, stuck), root, {}, fix);
 	assert.deepEqual([nothing?.step.reason, nothing?.step.lasting], ['Nothing in it may move.', { big }], 'the target as the language names it');
-	const small: FileInfo = { ...STEP, declarations: [decl(0, 'a', 300, false), decl(1, 'b', 100, false)] };
-	assert.deepEqual((await screenFix(screener(() => big, small), root, {}, { ...fix, lines: 410 }))?.step.lasting, {},
+	const small: FileInfo = { ...STEP, declarations: [decl(0, 'a', 200, false), decl(1, 'b', 100, false)] };
+	assert.deepEqual((await screenFix(screener(() => big, small), root, {}, { ...fix, lines: 310 }))?.step.lasting, {},
 		'nothing over the limit, nothing to refactor');
 });
 
@@ -91,7 +91,7 @@ test('of the fixes nobody picked, only the ones that need a real refactor are ke
 	assert.deepEqual(await needingRefactor(fixes, fix => screenFix(adapter, root, {}, fix), () => true), []);
 });
 
-test('the change note lists a needs-refactor file under Still over 400 lines, not as skipped', () => {
+test('the change note lists a needs-refactor file under Still over 300 lines, not as skipped', () => {
 	const state: RunState = {
 		version: 1, root: '/p/shop', language: 'Go', worktree: { branch: 'ai_fix', path: '/p/w', base: '0123456789ab' }, startedAt: '',
 		approved: [], fixes: [{ file: STEP.path, kind: 'split', lines: 467 }], next: 1, baseline: {}, skippedFiles: [],
@@ -99,7 +99,7 @@ test('the change note lists a needs-refactor file under Still over 400 lines, no
 			over: [{ file: STEP.path, lines: 467, reason: STEP_REASON }] }],
 	};
 	const note = renderChangeNote(state, new Date('2026-10-09T12:00:00Z'));
-	assert.ok(note.includes(`## Still over 400 lines\n\n- \`${STEP.path}\`: 467 lines; ${STEP_REASON}.\n`), note);
+	assert.ok(note.includes(`## Still over 300 lines\n\n- \`${STEP.path}\`: 467 lines; ${STEP_REASON}.\n`), note);
 	assert.doesNotMatch(note, /Skipped or refused/);
 	assert.match(note, /No fix was committed\./);
 });
@@ -114,7 +114,7 @@ function sized(original: number, files: readonly number[]): LanguageAdapter {
 test('a plan that only moves the big function out, leaving as much over the limit as before, is rejected', () => {
 	const input = { source: text(467), info: STEP, existing: [] };
 	const problems = planProblems(sized(14, [468]), input, [{ file: 'verification_step.go', declarations: [2] }]);
-	assert.deepEqual(problems, ['The split would leave 1 file over 400 lines, 68 lines over in all; before it was 1 file, 67 lines over. '
+	assert.deepEqual(problems, ['The split would leave 1 file over 300 lines, 168 lines over in all; before it was 1 file, 167 lines over. '
 		+ 'A split must leave fewer files or fewer lines over the limit.']);
 });
 
@@ -125,7 +125,7 @@ test('moving the other declarations out of a file with a 420-line function is a 
 
 test('an oversized declaration may go to its own file only when the original ends under the limit', () => {
 	const input = { source: text(725), info: MIXED, existing: [] };
-	assert.deepEqual(planProblems(sized(305, [425]), input, [{ file: 'big.go', declarations: [0] }]), []);
+	assert.deepEqual(planProblems(sized(205, [425]), input, [{ file: 'big.go', declarations: [0] }]), []);
 	const twoBig: FileInfo = { ...MIXED, declarations: [decl(0, 'A', 450), decl(1, 'B', 430), decl(2, 'c', 100, false)] };
 	const problems = planProblems(sized(560, [435]), { source: text(990), info: twoBig, existing: [] }, [{ file: 'b.go', declarations: [1] }]);
 	assert.deepEqual(problems, ['"b.go" would hold `B` (430 lines) on its own while mixed.go stays over the limit.']);

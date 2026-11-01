@@ -1,5 +1,6 @@
 /** Commands a reply's buttons may run; anything else is ignored. */
-const ALLOWED_ACTIONS = new Set(['myEditor.saveDecision', 'myEditor.adaptFile', 'myEditor.analyseProject', 'myEditor.aiReadyFix']);
+const ALLOWED_ACTIONS = new Set(['myEditor.saveDecision', 'myEditor.adaptFile', 'myEditor.analyseProject', 'myEditor.aiReadyFix',
+	'myEditor.pushBranch']);
 const REASONING_EFFORTS = ['default', 'low', 'medium', 'high', 'xhigh'];
 
 /** A reply button may run only one of the allowed commands. */

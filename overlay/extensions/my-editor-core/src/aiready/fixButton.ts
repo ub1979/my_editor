@@ -61,11 +61,11 @@ export function fixButton(input: FixButtonInput): FixButton {
 	const uncoveredNote = uncoveredText(uncovered, offers);
 	if (left + offers === 0) {
 		const rest = [uncoveredNote, stuck].filter(Boolean).join(' ');
-		const done = rest ? `Nothing left to split here. ${rest}` : 'All files are within 400 lines.';
+		const done = rest ? `Nothing left to split here. ${rest}` : 'All files are within 300 lines.';
 		return { label, primary: false, disabled: false, text: `${opening} ${done}` };
 	}
 	const parts = [
-		...(left ? [`${files(left)} over 400 lines left to split.`] : []),
+		...(left ? [`${files(left)} over 300 lines left to split.`] : []),
 		...(offers ? [`${offers} long function${offers === 1 ? '' : 's'} to refactor into helpers.`] : []),
 		...(uncoveredNote ? [uncoveredNote] : []),
 		...(stuck ? [stuck] : []),

@@ -1,0 +1,78 @@
+diff --git a/src/vs/workbench/api/browser/mainThreadCodeInsets.ts b/src/vs/workbench/api/browser/mainThreadCodeInsets.ts
+--- a/src/vs/workbench/api/browser/mainThreadCodeInsets.ts
++++ b/src/vs/workbench/api/browser/mainThreadCodeInsets.ts
+@@ -58,6 +58,7 @@
+ 	private readonly _proxy: ExtHostEditorInsetsShape;
+ 	private readonly _disposables = new DisposableStore();
+ 	private readonly _insets = new Map<number, EditorWebviewZone>();
++	private readonly _insetDisposables = new Map<number, DisposableStore>();
+ 
+ 	constructor(
+ 		context: IExtHostContext,
+@@ -69,6 +70,9 @@
+ 
+ 	dispose(): void {
+ 		this._disposables.dispose();
++		for (const store of this._insetDisposables.values()) { store.dispose(); }
++		this._insetDisposables.clear();
++		this._insets.clear();
+ 	}
+ 
+ 	async $createEditorInset(handle: number, id: string, uri: UriComponents, line: number, height: number, options: IWebviewContentOptions, extensionId: ExtensionIdentifier, extensionLocation: UriComponents): Promise<void> {
+@@ -102,9 +106,10 @@
+ 		const webviewZone = new EditorWebviewZone(editor, line, height, webview);
+ 
+ 		const remove = () => {
++			if (!this._insets.delete(handle)) { return; }
++			this._insetDisposables.delete(handle);
+ 			disposables.dispose();
+ 			this._proxy.$onDidDispose(handle);
+-			this._insets.delete(handle);
+ 		};
+ 
+ 		disposables.add(editor.onDidChangeModel(remove));
+@@ -114,35 +119,30 @@
+ 		disposables.add(webview.onMessage(msg => this._proxy.$onDidReceiveMessage(handle, msg.message)));
+ 
+ 		this._insets.set(handle, webviewZone);
++		this._insetDisposables.set(handle, disposables);
+ 	}
+ 
+ 	$disposeEditorInset(handle: number): void {
+-		const inset = this.getInset(handle);
++		// Disposal can also originate in the editor; ignore its extension-host acknowledgement.
+ 		this._insets.delete(handle);
+-		inset.dispose();
++		this._insetDisposables.get(handle)?.dispose();
++		this._insetDisposables.delete(handle);
+ 	}
+ 
+ 	$setHtml(handle: number, value: string): void {
+-		const inset = this.getInset(handle);
+-		inset.webview.setHtml(value);
++		this._insets.get(handle)?.webview.setHtml(value);
+ 	}
+ 
+ 	$setOptions(handle: number, options: IWebviewContentOptions): void {
+-		const inset = this.getInset(handle);
+-		inset.webview.contentOptions = reviveWebviewContentOptions(options);
++		const inset = this._insets.get(handle);
++		if (inset) { inset.webview.contentOptions = reviveWebviewContentOptions(options); }
+ 	}
+ 
+ 	async $postMessage(handle: number, value: unknown): Promise<boolean> {
+-		const inset = this.getInset(handle);
++		const inset = this._insets.get(handle);
++		if (!inset) { return false; }
+ 		inset.webview.postMessage(value);
+ 		return true;
+ 	}
+ 
+-	private getInset(handle: number): EditorWebviewZone {
+-		const inset = this._insets.get(handle);
+-		if (!inset) {
+-			throw new Error('Unknown inset');
+-		}
+-		return inset;
+-	}
+ }

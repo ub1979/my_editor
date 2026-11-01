@@ -17,7 +17,8 @@ them to the pinned VS Code source (1.135.0, see `upstream.json`). Every changed 
 | 160 quiet activity bar | `parts/globalCompositeBar.ts`, `parts/paneCompositeBar.ts` | The accounts icon starts hidden. Search, Git, Run, Extensions, Remote, Testing and Chat appear in the bar only while open. | The left bar shows Files and Project only. The views still open from their shortcuts. |
 | 170 start on Home | `platform/windows/electron-main/windowsMainService.ts` | `window.restoreWindows` defaults to `none`. | The app starts on Home instead of reopening the last project. Reloads and updates still restore windows. |
 | 171 own style, hide Outline and Timeline | `workbench/browser/style.ts`, `outline.contribution.ts`, `timeline.contribution.ts` | Loads `my-editor.css` (from `overlay/src/`); Outline and Timeline start hidden. | The workbench matches the Paper style; the **This file** panel replaces Outline and Timeline. |
-| 180 source line save gate | `services/textfile/common/textFileEditorModel.ts` | A source file above 400 lines is not saved. The buffer stays dirty and a warning is logged. | Enforces the 400-line rule for human edits at the final save step, after formatters run. |
+| 180 source line save gate | `services/textfile/common/textFileEditorModel.ts` | A source file above 300 lines is not saved. The buffer stays dirty and a warning is logged. | Enforces the 300-line rule for human edits at the final save step, after formatters run. |
+| 190 inline output lifecycle | `api/browser/mainThreadCodeInsets.ts` | Disposes the native output view and webview together, accepts repeated disposal, and ignores late messages to closed outputs. | Reruns, tab changes and split editors must release output resources without reporting Unknown inset errors. |
 
 Since [decision 0002](decisions/0002-own-chat-panel.md), Pair is my_editor's own webview and VS Code's chat is
 switched off, so patches 100, 140 and 150 no longer affect Pair. They are harmless and stay until a cleanup.
@@ -31,7 +32,7 @@ switched off, so patches 100, 140 and 150 no longer affect Pair. They are harmle
   `// my_editor:` comment and add the patch to this table.
 - **Upgrade VS Code:** change the commit in `upstream.json`, run `scripts/build.sh`, and fix or regenerate any
   patch that no longer applies.
-- **Install:** patches need a full build (`scripts/install.sh --full`). The quick install only refreshes the
-  built-in extensions.
+- **Install:** patches need a full build (`scripts/install.sh --full`). The quick install refreshes built-in
+  extensions and product configuration.
 
 Related: [development guide](development.md), [README](../README.md).

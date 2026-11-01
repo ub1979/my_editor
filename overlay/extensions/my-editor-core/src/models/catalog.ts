@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { findCli } from './cli';
 import { listCodexModels } from './codexModels';
+import { claudeModelEntries, listClaudeModels } from './claudeModels';
 import { listLmStudioModels } from './lmstudio';
 import { listOllamaModels } from './ollama';
 import { ApiKeys } from './secrets';
@@ -37,14 +38,9 @@ export async function loadCatalog(keys: ApiKeys): Promise<ModelEntry[]> {
 			});
 		}
 	}
-	if (config().get<boolean>('claudeCli.enabled', true) && findCli('claude', config().get<string>('claudeCli.path', ''))) {
-		for (const model of config().get<string[]>('claudeCli.models', [])) {
-			entries.push({
-				key: `claude-cli:${model}`, provider: 'claude-cli', model,
-				label: `Claude ${model === 'default' ? '' : model[0].toUpperCase() + model.slice(1)}`.trim(),
-				detail: 'Claude subscription · CLI', maxInputTokens: 200_000, maxOutputTokens: 32_000,
-			});
-		}
+	const claude = config().get<boolean>('claudeCli.enabled', true) && findCli('claude', config().get<string>('claudeCli.path', ''));
+	if (claude) {
+		entries.push(...claudeModelEntries(config().get<string[]>('claudeCli.models', []), await listClaudeModels(claude)));
 	}
 	if (config().get<boolean>('codexCli.enabled', true) && findCli('codex', config().get<string>('codexCli.path', ''))) {
 		const discovered = await listCodexModels();
