@@ -43,7 +43,7 @@ export class ChatState {
 	snapshot(): SavedChat {
 		this.messages = this.messages.slice(-MAX_KEPT_MESSAGES);
 		return {
-			messages: this.messages.map(message => ({ ...message, proposals: [...message.proposals], actions: [...message.actions] })),
+			messages: this.messages.map(message => ({ ...message, proposals: message.proposals.map(proposal => ({ ...proposal })), actions: [...message.actions] })),
 			mode: this.mode,
 			memory: this.memory,
 			characterId: this.characterId,

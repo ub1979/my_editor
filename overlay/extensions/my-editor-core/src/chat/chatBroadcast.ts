@@ -3,7 +3,8 @@ import { ApiKeys } from '../models/secrets';
 import type { ActiveFile } from './activeFile';
 import { ANALYSE_ANSWERED } from './analysisOffer';
 import { chatInit } from './chatInit';
-import { ChatState, MAX_VISIBLE_MESSAGES } from './chatState';
+import { MAX_VISIBLE_MESSAGES } from './chatState';
+import { ChatConversations } from './chatConversations';
 import { labelFor, Message, render } from './presentation';
 import { editorContextMessage, modelListMessage } from './viewUpdates';
 
@@ -11,7 +12,7 @@ import { editorContextMessage, modelListMessage } from './viewUpdates';
 export interface BroadcastSource {
 	readonly context: vscode.ExtensionContext;
 	readonly keys: ApiKeys;
-	readonly state: ChatState;
+	readonly conversations: ChatConversations;
 	/** The open chat webviews: the sidebar, the centered tab, or both. */
 	readonly webviews: () => vscode.Webview[];
 	readonly activeFile: () => ActiveFile | undefined;
@@ -38,9 +39,12 @@ export class ChatBroadcast {
 		if (!this.open) {
 			return;
 		}
-		const { context, state } = this.source;
+		const { context, conversations } = this.source;
+		const state = conversations.state;
 		const message = await chatInit(context, state.messages, state.characterId, state.pinned, ANALYSE_ANSWERED, MAX_VISIBLE_MESSAGES);
-		this.postTo(target, message);
+		if (state !== conversations.state) { await this.init(target); return; }
+		this.postTo(target, { ...message, messages: state.visibleMessages().map(render), characterId: state.characterId, pinned: state.pinned, conversationId: conversations.id, chatLayout: conversations.layout,
+			mode: state.mode, label: state.mode ? labelFor(state.mode) : undefined, placeholder: state.pendingPlaceholder });
 		this.mode();
 		this.editorContext();
 		await this.models();
@@ -49,8 +53,18 @@ export class ChatBroadcast {
 		}
 	}
 
+	/** Switch transcript and identity together so a new agent never appears above the previous agent's messages. */
+	conversation(): void {
+		const { conversations } = this.source;
+		const state = conversations.state;
+		this.post({ type: 'conversation', conversationId: conversations.id, chatLayout: conversations.layout,
+			characterId: state.characterId, pinned: state.pinned, messages: state.visibleMessages().map(render),
+			mode: state.mode, label: state.mode ? labelFor(state.mode) : undefined, placeholder: state.pendingPlaceholder });
+		this.mode();
+	}
+
 	messages(): void {
-		this.post({ type: 'messages', messages: this.source.state.visibleMessages().map(render) });
+		this.post({ type: 'messages', messages: this.source.conversations.state.visibleMessages().map(render) });
 	}
 
 	message(message: Message): void {
@@ -58,7 +72,7 @@ export class ChatBroadcast {
 	}
 
 	mode(): void {
-		const { mode } = this.source.state;
+		const { mode } = this.source.conversations.state;
 		this.post({ type: 'mode', mode, label: mode ? labelFor(mode) : undefined, running: this.source.running() });
 	}
 
@@ -73,7 +87,7 @@ export class ChatBroadcast {
 	}
 
 	character(pinned: boolean, reason: string | undefined): void {
-		this.post({ type: 'character', characterId: this.source.state.characterId, pinned, reason });
+		this.post({ type: 'character', characterId: this.source.conversations.state.characterId, pinned, reason });
 	}
 
 	private postTo(target: vscode.Webview | undefined, message: unknown): void {

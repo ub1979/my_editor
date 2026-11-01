@@ -7,10 +7,8 @@ window.addEventListener('message', event => {
 			state.project = data.project ?? '';
 			state.projectPath = data.projectPath ?? '';
 			state.characters = data.characters ?? [];
-			state.characterId = data.characterId ?? 'bamboo';
-			state.pinned = !!data.pinned;
+			applyConversation(data);
 			state.otherChats = !!data.otherChats;
-			state.switchNote = '';
 			state.skills = data.skills;
 			state.messages = data.messages;
 			state.offer = data.offer;
@@ -18,6 +16,14 @@ window.addEventListener('message', event => {
 			renderScroll(true);
 			renderCharacter();
 			renderContext();
+			break;
+		case 'conversation':
+			applyConversation(data);
+			showSkills = false;
+			renderScroll(true);
+			renderCharacter();
+			renderContext();
+			renderSend();
 			break;
 		case 'offer':
 			state.offer = data.offer;
@@ -78,6 +84,26 @@ window.addEventListener('message', event => {
 			break;
 	}
 });
+
+/** Identity, skill and transcript change as one update; unsent drafts stay with their conversation. */
+function applyConversation(data) {
+	const id = data.conversationId ?? data.characterId ?? 'bamboo';
+	if (id !== state.conversationId) {
+		if (state.conversationId) { chatDrafts[state.conversationId] = input.value; }
+		input.value = chatDrafts[id] ?? '';
+		vscode.setState?.({ ...(vscode.getState?.() ?? {}), chatDrafts });
+		closeMenu();
+	}
+	state.conversationId = id;
+	state.chatLayout = data.chatLayout ?? 'agents';
+	state.characterId = data.characterId ?? 'bamboo';
+	state.pinned = !!data.pinned;
+	state.messages = data.messages ?? [];
+	state.mode = data.mode;
+	state.modeLabel = data.label;
+	state.placeholder = data.placeholder;
+	state.switchNote = state.chatLayout === 'agents' ? 'Separate conversation' : 'One conversation for all agents';
+}
 
 renderContext();
 renderSend();

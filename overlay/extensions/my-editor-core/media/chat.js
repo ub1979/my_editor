@@ -3,6 +3,8 @@ const vscode = acquireVsCodeApi();
 let chatTextSize = Math.max(12, Math.min(22, Number(vscode.getState?.()?.chatTextSize) || 13));
 let state = {
 	project: '',
+	conversationId: undefined,
+	chatLayout: 'agents',
 	projectPath: '',
 	characters: [],
 	characterId: 'bamboo',
@@ -29,7 +31,7 @@ let state = {
 const scroll = el('div', { class: 'scroll', role: 'log', 'aria-live': 'polite' });
 scroll.style.setProperty('--chat-text-size', `${chatTextSize}px`);
 const header = el('header', { class: 'character-header' });
-const rail = el('nav', { class: 'character-rail', 'aria-label': 'Choose a Pair character' });
+const rail = el('nav', { class: 'character-rail', 'aria-label': 'Agent chats' });
 const composer = el('form', { class: 'composer' });
 const context = el('div', { class: 'context' });
 const input = /** @type {HTMLTextAreaElement} */ (el('textarea', { rows: '1', 'aria-label': 'Message the pair' }));
@@ -39,6 +41,7 @@ const reasoningSelect = /** @type {HTMLSelectElement} */ (el('select', {
 }));
 const sendButton = /** @type {HTMLButtonElement} */ (el('button', { type: 'submit', class: 'send', 'aria-label': 'Send' }));
 let showSkills = false;
+const chatDrafts = { ...(vscode.getState?.()?.chatDrafts ?? {}) };
 
 composer.append(context, input, el('div', { class: 'row' }, [modelSelect, reasoningSelect, el('span', { class: 'spacer' }), sendButton]));
 app.append(header, scroll, composer, rail);
@@ -64,8 +67,18 @@ function renderCharacter() {
 		title: state.pinned ? 'Use automatic character switching' : 'Character switches with your task',
 		'aria-label': state.pinned ? 'Resume automatic character switching' : 'Automatic character switching is on' },
 		[state.pinned ? 'Pinned' : 'Auto']);
+	auto.hidden = state.chatLayout !== 'shared';
 	auto.disabled = state.running;
 	auto.addEventListener('click', () => { if (state.pinned) { vscode.postMessage({ type: 'autoCharacter' }); } });
+	const layout = el('select', { class: 'chat-layout', 'aria-label': 'Chat organization',
+		title: 'Separate agent conversations by default, or use one shared chat' });
+	for (const [value, label] of [['agents', 'Agent chats'], ['shared', 'Shared chat']]) {
+		const option = el('option', { value }, [label]);
+		if (state.chatLayout === value) { option.setAttribute('selected', ''); }
+		layout.append(option);
+	}
+	layout.disabled = state.running;
+	layout.addEventListener('change', () => vscode.postMessage({ type: 'chatLayout', id: layout.value }));
 	const textSize = el('span', { class: 'text-size-controls', 'aria-label': 'Chat text size' });
 	for (const [label, change, title] of [['A−', -1, 'Decrease chat text size'], ['A+', 1, 'Increase chat text size']]) {
 		const button = el('button', { type: 'button', class: 'header-action text-size-button', title, 'aria-label': title }, [label]);
@@ -81,23 +94,17 @@ function renderCharacter() {
 	header.replaceChildren(el('span', { class: 'header-face' }, [avatar(true, chosen.id)]),
 		el('span', { class: 'character-identity' }, [el('strong', {}, [chosen.name]), el('small', {}, [chosen.role]),
 			...(state.switchNote ? [el('span', { class: 'switch-note' }, [state.switchNote])] : [])]),
-		el('span', { class: 'header-actions' }, [auto, textSize, skills, wide, side]));
-	rail.replaceChildren(el('span', { class: 'rail-title' }, ['SWITCH CHARACTER']));
+		el('span', { class: 'header-actions' }, [auto, textSize, skills, wide, side, layout]));
+	rail.replaceChildren(el('span', { class: 'rail-title' }, [state.chatLayout === 'shared' ? 'AGENTS IN SHARED CHAT' : 'AGENT CHATS']));
 	const choices = el('div', { class: 'character-choices' });
 	for (const item of state.characters) {
 		const selected = item.id === state.characterId;
 		const button = el('button', { type: 'button', class: `character-choice${selected ? ' selected' : ''}`,
-			title: `${item.name} · ${item.role}`, 'aria-label': `${item.name}, ${item.role}`, 'aria-pressed': String(selected) }, [avatar(false, item.id)]);
+			title: `${item.name} · ${item.role}`, 'aria-label': `${item.name}, ${item.role}`, 'aria-pressed': String(selected) }, [avatar(false, item.id), el('span', {}, [item.role])]);
 		button.disabled = state.running;
 		button.addEventListener('click', () => {
 			if (state.running) { return; }
-			state.characterId = item.id;
-			state.pinned = true;
-			state.switchNote = 'Chosen by you';
 			vscode.postMessage({ type: 'character', id: item.id });
-			renderCharacter();
-			if (!state.messages.length || showSkills) { renderScroll(); }
-			renderContext();
 		});
 		choices.append(button);
 	}

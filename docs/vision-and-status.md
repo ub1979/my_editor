@@ -1,7 +1,7 @@
 # my_editor: vision, mission, and current status
 
 - **As of:** 1 November 2026
-- **Current version:** 0.0.29 alpha (component-aware architecture validation, explicit model errors and retained-document recovery); 713 automated tests and exact-response editor replay passed. Local installation and archive prepared; user acceptance pending.
+- **Current version:** 0.0.30 alpha (separate saved chats for every agent by default, with optional Shared chat); 724 automated tests and editor-host isolation, planning and recovery checks passed. Local installation and archive prepared; user acceptance pending.
 - **Stage:** Working macOS alpha; still being validated on real projects
 
 ## Vision

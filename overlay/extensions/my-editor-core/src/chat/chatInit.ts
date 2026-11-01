@@ -9,7 +9,7 @@ export { saveConversation } from './otherChats';
 
 /** The shared starting state for the sidebar and centered Pair tab. */
 export async function chatInit(context: vscode.ExtensionContext, messages: readonly Message[], characterId: CharacterId,
-	pinned: boolean, answeredKey: string, visibleLimit: number): Promise<unknown> {
+	pinned: boolean, answeredKey: string, visibleLimit: number) {
 	return {
 		type: 'init',
 		project: vscode.workspace.workspaceFolders?.[0]?.name,

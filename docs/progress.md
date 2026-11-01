@@ -3,6 +3,10 @@
 Status of the requirements in [`plans/my_editor-plan-v2.md`](plans/my_editor-plan-v2.md). The original checklist is from 2026-09-23; the additions below are from 2026-09-25.
 ✅ done and verified in the app · 🟡 partly done · ⬜ not started.
 
+## 0.0.30 alpha separate agent chats — 1 November 2026
+
+Agent chats now retain independent transcripts and working briefs by default. A visible Shared chat option restores the combined workflow explicitly. Migration preserves the complete prior chat and copies identifiable exchanges into the corresponding agents, including full document recovery. Returning to an agent resumes without generation; drafts and New chat are scoped to the active conversation, while saved specs remain shared project evidence. All 724 automated tests passed. Real editor-host tests verified eight requests across isolated and shared chats, plus the existing planning suite and captured architecture Keep/recovery replay. Local installation and archive are prepared for user acceptance testing.
+
 ## 0.0.29 alpha architecture recovery — 1 November 2026
 
 The validator had mistaken general anchored topics for components, and the error UI matched the word model inside data-models. Component groups now determine validation scope, model recovery is an explicit host action, and complete retained replies can reopen for Keep without regeneration. Saved tree section values are supplied in full. All 713 automated tests passed. The user's exact latest architecture response was replayed and kept in a disposable editor, including a second review with zero model calls; requirements, tree and selected model were preserved. The original project was only read. Its saved failed message renders the new Review saved architecture action after restart.

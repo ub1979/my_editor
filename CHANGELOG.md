@@ -2,6 +2,14 @@
 
 my_editor uses the version in `overlay/extensions/my-editor-core/package.json` as its own release number. The Home page displays that version. The underlying editor shell keeps its upstream version independently.
 
+## 0.0.30 alpha — 2026-11-01
+
+- Each agent has its own saved conversation and working brief by default. Agent buttons open the corresponding chat; returning resumes it without another planning kickoff. Explicit document requests switch to the correct agent before assembling history.
+- The Chat organization menu offers Shared chat as an explicit alternative. Shared and individual conversations persist separately; changing this option never combines or deletes them. Saved project documents remain available to every agent.
+- Existing mixed conversations are preserved in Shared chat and their identifiable exchanges copied to the appropriate agent. Complete retained documents and recovery actions survive migration; mixed working briefs stay only in Shared chat.
+- Unsent drafts stay with their chat when switching. New chat clears only the active conversation. Keep/Undo updates proposal cards even when their agent chat is hidden, without inserting them into another transcript.
+- Validation: 724 automated tests passed. Real editor-host requests verified isolation, resuming without generation, explicit sharing, independent resets and unchanged model selection. Shared planning retrieval and the exact captured architecture Keep/recovery replay also passed in disposable projects.
+
 ## 0.0.29 alpha — 2026-11-01
 
 - Architecture validation follows component groups and separates general document anchors from component interfaces. Overview, Stack, APIs, Data models and Events no longer need per-component requirement/interface descriptions. Nested API headings stay part of their owning component; all anchors remain available for links.

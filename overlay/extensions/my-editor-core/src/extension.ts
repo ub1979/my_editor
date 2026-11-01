@@ -73,6 +73,8 @@ export function activate(context: vscode.ExtensionContext): void {
 		vscode.window.registerWebviewViewProvider(ThisFileView.id, new ThisFileView(context)),
 		vscode.commands.registerCommand('myEditor.chat.start', (skill: string) => chat.startSkill(skill)),
 		vscode.commands.registerCommand('myEditor.chat.ask', (text: string) => chat.ask(text)),
+		vscode.commands.registerCommand('myEditor.chat.agent', async (id: string) => { await chat.openLounge(); chat.chooseCharacter(id); }),
+		vscode.commands.registerCommand('myEditor.chat.layout', (layout: string) => chat.setChatLayout(layout)),
 		vscode.commands.registerCommand('myEditor.reviewPlanningReply', (stage: string, reply: string) =>
 			chat.runTask(`Review saved ${stage}`, sink => reviewPlanningReply(proposals, stage, reply, sink))),
 		vscode.commands.registerCommand('myEditor.chat.skills', () => chat.toggleSkills()),

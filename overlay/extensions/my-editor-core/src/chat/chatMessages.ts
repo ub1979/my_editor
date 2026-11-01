@@ -23,6 +23,7 @@ export interface ChatHandlers {
 	openSidebar(): Promise<void>;
 	chooseCharacter(id: string | undefined): void;
 	autoCharacter(): Promise<void>;
+	setChatLayout(layout: string | undefined): void;
 	pickSkill(id: string): Promise<void>;
 	clearMode(): void;
 	analyse(aiReady?: boolean): Promise<void>;
@@ -41,6 +42,7 @@ export async function handleChatMessage(message: WebviewMessage, sender: vscode.
 		case 'openLounge': return chat.openLounge();
 		case 'openSidebar': return chat.openSidebar();
 		case 'character': return chat.chooseCharacter(message.id);
+		case 'chatLayout': return chat.setChatLayout(message.id);
 		case 'autoCharacter': return chat.autoCharacter();
 		case 'skill': return chat.pickSkill(message.id ?? '');
 		case 'clearMode': return chat.clearMode();

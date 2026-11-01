@@ -91,8 +91,9 @@ test('split chat webview loads in order and renders a Codex model selection', ()
 	runInContext('header.children[2].children[1].children[0].click()', context);
 	assert.equal(savedViewState.chatTextSize, 13);
 	runInContext('rail.children[1].children[5].click()', context);
-	assert.equal(runInContext('state.pinned', context), true);
+	assert.equal(runInContext('state.characterId', context), 'ada', 'Wait for the host before changing the visible agent');
 	assert.equal(sent.at(-1)?.type, 'character');
+	receive?.({ data: { type: 'conversation', conversationId: 'shared', chatLayout: 'shared', characterId: 'diji', pinned: true, messages: [] } });
 	runInContext('header.children[2].children[0].click()', context);
 	assert.equal(sent.at(-1)?.type, 'autoCharacter');
 
@@ -105,6 +106,26 @@ test('split chat webview loads in order and renders a Codex model selection', ()
 	const count = sent.length;
 	runInContext("scroll.children[0].children[1].children.find(node => node.attributes?.get('class') === 'reply-choices').children[0].click()", context);
 	assert.equal(sent.length, count);
+
+	// Separate chats replace the transcript and preserve a draft per agent; the model stays selected.
+	runInContext("input.value = 'shared draft'", context);
+	receive?.({ data: { type: 'conversation', conversationId: 'soki', chatLayout: 'agents', characterId: 'soki', pinned: true,
+		mode: 'requirements', label: 'Requirements', messages: [] } });
+	assert.equal(runInContext('state.messages.length', context), 0);
+	assert.equal(runInContext('input.value', context), '');
+	assert.equal(runInContext('header.children[2].children[0].hidden', context), true);
+	runInContext("input.value = 'requirements draft'", context);
+	receive?.({ data: { type: 'conversation', conversationId: 'lisko', chatLayout: 'agents', characterId: 'lisko', mode: 'architecture', messages: [] } });
+	assert.equal(runInContext('input.value', context), '');
+	assert.equal(runInContext('state.mode', context), 'architecture');
+	receive?.({ data: { type: 'conversation', conversationId: 'soki', chatLayout: 'agents', characterId: 'soki', mode: 'requirements', messages: [] } });
+	assert.equal(runInContext('input.value', context), 'requirements draft');
+	assert.equal(runInContext('state.model', context), 'claude-cli:opus');
+	runInContext("header.children[2].children[5].value = 'shared'; header.children[2].children[5].listeners.get('change')()", context);
+	assert.deepEqual(JSON.parse(JSON.stringify(sent.at(-1))), { type: 'chatLayout', id: 'shared' });
+	receive?.({ data: { type: 'conversation', conversationId: 'shared', chatLayout: 'shared', characterId: 'diji', messages: [] } });
+	assert.equal(runInContext('input.value', context), 'shared draft');
+	receive?.({ data: { type: 'messages', messages: [{ id: 'end', role: 'assistant', html: '<p>Done</p>', done: true, proposals: [], actions: [] }] } });
 
 	// Background refreshes must preserve the reading position; new messages follow the conversation.
 	runInContext('scroll.scrollHeight = 2000; scroll.clientHeight = 300; scroll.scrollTop = 240; renderScroll()', context);

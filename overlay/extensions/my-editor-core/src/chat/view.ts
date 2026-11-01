@@ -1,25 +1,22 @@
 import * as vscode from 'vscode';
-import { readProjectState } from '../project/state';
 import { ApiKeys } from '../models/secrets';
 import { ActiveFileTracker } from './activeFile';
 import { analysisTask, closeAnalysisOffer } from './analysisOffer';
 import { recordProposal } from './proposalRecord';
-import { character } from './characters';
-import { projectCharacter, routeCharacter } from './characterRouting';
 import { ChatBroadcast } from './chatBroadcast';
 import { saveConversation } from './chatInit';
 import { allowedAction } from './chatGuards';
 import { ChatHandlers, handleChatMessage } from './chatMessages';
 import { ChatPanels } from './chatPanels';
 import { PendingRequest, pendingAnalysis, pendingStart } from './chatPending';
-import { ChatState, SavedChat } from './chatState';
+import { agentMode, ChatConversations, SavedConversations } from './chatConversations';
+import { ChatNavigation } from './chatNavigation';
 import { CONVERSATIONAL, PairEngine, Sink } from './engine';
 import { Message } from './presentation';
 import { Proposal, Proposals } from './proposals';
 import { runChatTurn } from './replyRun';
 import { runReplyJob } from './replyJob';
 import { ReplySession } from './replySession';
-import { skillCards } from './skillCards';
 import { newChatId } from './viewUpdates';
 import { answerReplyChoice } from './replyChoices';
 import { replyActions } from './replyActions';
@@ -28,13 +25,14 @@ const STATE_KEY = 'myEditor.chat.state';
 
 type ReplyJob = (sink: Sink, token: vscode.CancellationToken) => Promise<void>;
 
-/** The Pair conversation shared by the sidebar and centered editor tab. */
+/** Agent conversations presented in the sidebar or centered editor tab. */
 export class ChatView implements vscode.WebviewViewProvider, ChatHandlers {
 	static readonly id = 'myEditor.chat';
 	private readonly panels: ChatPanels;
-	private readonly state: ChatState;
+	private readonly conversations: ChatConversations;
+	private readonly navigation: ChatNavigation;
+	private get state() { return this.conversations.state; }
 	private readonly broadcast: ChatBroadcast;
-	private projectRoot = vscode.workspace.workspaceFolders?.[0]?.uri.toString();
 	private readonly activeFile = new ActiveFileTracker();
 	private readonly replies = new ReplySession(runReplyJob);
 	private pending: PendingRequest | undefined;
@@ -47,22 +45,24 @@ export class ChatView implements vscode.WebviewViewProvider, ChatHandlers {
 		private readonly keys: ApiKeys,
 	) {
 		this.panels = new ChatPanels(context.extensionUri, (message, sender) => void handleChatMessage(message, sender, this));
-		this.state = new ChatState(context.workspaceState.get<SavedChat>(STATE_KEY));
+		this.conversations = new ChatConversations(context.workspaceState.get<SavedConversations>(STATE_KEY));
 		this.broadcast = new ChatBroadcast({
-			context, keys, state: this.state,
+			context, keys, conversations: this.conversations,
 			webviews: () => this.panels.webviews(),
 			activeFile: () => this.activeFile.current,
 			running: () => this.replies.running,
 		});
+		this.navigation = new ChatNavigation({ context, conversations: this.conversations, broadcast: this.broadcast,
+			running: () => this.replies.running, save: () => this.save(), send: (text, kickoff) => this.send(text, kickoff), analyse: () => this.analyse() });
 		context.subscriptions.push(
 			this.activeFile,
 			proposals.onDidChange(proposal => this.onProposalChanged(proposal)),
 			this.activeFile.onDidChange(() => this.broadcast.editorContext()),
-			vscode.workspace.onDidChangeWorkspaceFolders(() => void this.selectForProject()),
+			vscode.workspace.onDidChangeWorkspaceFolders(() => void this.navigation.selectForProject()),
 			vscode.workspace.onDidChangeConfiguration(e => e.affectsConfiguration('myEditor') && this.broadcast.models()),
 			context.secrets.onDidChange(() => this.broadcast.models()),
 		);
-		void this.selectForProject();
+		void this.navigation.selectForProject();
 	}
 
 	resolveWebviewView(view: vscode.WebviewView): void {
@@ -132,6 +132,7 @@ export class ChatView implements vscode.WebviewViewProvider, ChatHandlers {
 	async newChat(): Promise<void> {
 		this.replies.reset();
 		this.state.reset();
+		if (this.conversations.layout === 'agents') { this.state.mode = agentMode(this.state.characterId); }
 		this.save();
 		await this.broadcast.init();
 	}
@@ -153,20 +154,11 @@ export class ChatView implements vscode.WebviewViewProvider, ChatHandlers {
 		}
 	}
 
-	chooseCharacter(id: string | undefined): void {
-		if (this.replies.running) {
-			return;
-		}
-		this.state.characterId = character(id).id;
-		this.state.pinned = true;
-		this.save();
-		this.broadcast.character(true, 'Chosen by you');
-	}
+	chooseCharacter(id: string | undefined): void { this.navigation.chooseCharacter(id); }
 
-	async autoCharacter(): Promise<void> {
-		this.state.pinned = false;
-		await this.selectForProject();
-	}
+	setChatLayout(layout: string | undefined): void { this.navigation.setLayout(layout); }
+
+	autoCharacter(): Promise<void> { return this.navigation.autoCharacter(); }
 
 	clearMode(): void {
 		this.state.clearMode();
@@ -178,47 +170,14 @@ export class ChatView implements vscode.WebviewViewProvider, ChatHandlers {
 		this.replies.stop();
 	}
 
-	async pickSkill(id: string): Promise<void> {
-		const card = (await skillCards(this.context.extensionUri)).find(c => c.id === id);
-		if (!card || this.replies.running) {
-			return;
-		}
-		if (id === 'analyse') {
-			this.state.mode = undefined;
-			this.save();
-			this.broadcast.mode();
-			await this.analyse();
-			return;
-		}
-		this.state.mode = card.id;
-		const route = routeCharacter('', card.id, this.state.characterId, false);
-		if (route.reason) {
-			this.state.characterId = route.id; this.state.pinned = false;
-			this.broadcast.character(false, route.reason);
-		}
-		this.state.pendingPlaceholder = card.start === 'compose' ? card.placeholder : undefined;
-		this.save();
-		this.broadcast.mode();
-		if (card.start === 'kickoff') {
-			await this.send('', true);
-		} else if (card.start === 'run') {
-			await this.send('');
-		} else {
-			this.broadcast.post({ type: 'focusComposer', placeholder: this.state.pendingPlaceholder });
-		}
-	}
+	pickSkill(id: string): Promise<void> { return this.navigation.pickSkill(id); }
+
 	async send(text: string, kickoff = false): Promise<void> {
 		if (this.replies.running) {
 			return;
 		}
+		const route = this.navigation.prepare(text);
 		const state = this.state;
-		if (state.selectPlanningMode(text)) { this.broadcast.mode(); }
-		const route = routeCharacter(text, state.mode, state.characterId, state.pinned);
-		if (route.id !== state.characterId) {
-			state.characterId = route.id;
-			this.save();
-			this.broadcast.character(false, route.reason);
-		}
 		state.pendingPlaceholder = undefined;
 		const mode = state.mode;
 		if (!kickoff) {
@@ -252,26 +211,6 @@ export class ChatView implements vscode.WebviewViewProvider, ChatHandlers {
 		}
 	}
 
-	/** The project's stage picks the character, unless the user pinned one. */
-	private async selectForProject(): Promise<void> {
-		const root = vscode.workspace.workspaceFolders?.[0]?.uri.toString();
-		if (root !== this.projectRoot) {
-			this.projectRoot = root;
-			this.state.pinned = false;
-		}
-		if (this.state.pinned) {
-			return;
-		}
-		const id = projectCharacter(await readProjectState());
-		// The folder may have changed, or the user pinned a character, while the state was read.
-		if (root !== vscode.workspace.workspaceFolders?.[0]?.uri.toString() || this.state.pinned) {
-			return;
-		}
-		this.state.characterId = this.state.mode ? routeCharacter('', this.state.mode, this.state.characterId, false).id : id;
-		this.save();
-		this.broadcast.character(false, 'Project stage');
-	}
-
 	/** Runs one job that writes into a reply: streamed text, progress, proposal cards, buttons and a Stop button. */
 	private async runReply(reply: Message, job: ReplyJob): Promise<void> {
 		await this.replies.run(reply, job, {
@@ -283,9 +222,11 @@ export class ChatView implements vscode.WebviewViewProvider, ChatHandlers {
 	}
 
 	private onProposalChanged(proposal: Proposal): void {
-		for (const message of this.state.applyProposal(proposal)) {
-			this.broadcast.message(message);
-			if (proposal.state !== 'open') {
+		const recorded = new Set<string>();
+		for (const message of this.conversations.applyProposal(proposal)) {
+			if (this.state.messages.includes(message)) { this.broadcast.message(message); }
+			if (proposal.state !== 'open' && !recorded.has(message.id)) {
+				recorded.add(message.id);
 				recordProposal(message.id, proposal, proposal.state);
 			}
 		}
@@ -293,7 +234,7 @@ export class ChatView implements vscode.WebviewViewProvider, ChatHandlers {
 	}
 
 	private save(): void {
-		const snapshot = this.state.snapshot();
+		const snapshot = this.conversations.snapshot();
 		this.saveQueue = this.saveQueue.catch(() => undefined).then(() => saveConversation(this.context, STATE_KEY, snapshot));
 	}
 }

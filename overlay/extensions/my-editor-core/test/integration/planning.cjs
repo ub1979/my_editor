@@ -107,6 +107,8 @@ exports.run = async function () {
 			await config.update(key, value, vscode.ConfigurationTarget.Global);
 		}
 		await vscode.extensions.getExtension('my-editor.my-editor-core').activate();
+		// Cross-agent history retrieval is available when the user explicitly chooses Shared chat.
+		await vscode.commands.executeCommand('myEditor.chat.layout', 'shared');
 		await vscode.commands.executeCommand('myEditor.chat.ask', '/chat Recall the section-agreement.');
 		await until(() => calls.length || fs.readdirSync(path.join(root, '.my_editor/chats')).length > 1, 'Initial chat did not finish');
 		await vscode.commands.executeCommand('myEditor.chat.ask', '/requirements Finalize using the saved section-agreement.');

@@ -235,3 +235,10 @@ body.lounge .character-rail { padding-bottom: 17px; }
 	body.lounge { padding: 0; }
 	body.lounge #app { height: 100vh; border: 0; border-radius: 0; }
 }
+
+/* Each agent opens a saved conversation; the selector explicitly opts into a shared one. */
+.chat-layout { max-width: 135px; padding: 5px 7px; border: 1px solid #71839a; border-radius: 6px; background: #24364b; color: #fff; }
+.header-actions { flex-wrap: wrap; }
+.character-choice { display: flex; align-items: center; width: auto; height: auto; min-width: 64px; flex-basis: auto; flex-direction: column; gap: 4px; padding: 7px; border-radius: 10px; }
+.character-choice span { font-size: 10px; white-space: nowrap; }
+.character-choices { justify-content: flex-start; }
