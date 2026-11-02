@@ -35,6 +35,8 @@ export interface AgentLoopOptions {
 	readonly toolsAvailable?: boolean;
 	/** Document modes create their reviewed proposal from the final reply, after this loop. */
 	readonly deferredProposal?: boolean;
+	/** A bounded correction for a prematurely deferred, already authorized document request. */
+	readonly finalRecovery?: { correction: (message: string) => string | undefined; failure: string };
 }
 
 /** Keep recent evidence intact while bounding old findings in long project investigations. */
@@ -87,12 +89,13 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<string> {
 	let requiredCheckDone = false;
 	let repairedConclusion = false;
 	let proposed = false;
+	const continuation: ChatTurn[] = [];
 	while (!options.cancelled()) {
 		const remaining = MAX_PROJECT_TOOL_CALLS - used;
 		const finalOnly = remaining === 0;
 		options.progress(finalOnly ? 'Summarizing the project work…'
 			: used ? `Checking the project (${used}/${MAX_PROJECT_TOOL_CALLS})…` : 'Reading project context…');
-		const turns = agentTurns(options.initial, observations);
+		const turns = agentTurns([...options.initial, ...continuation], observations);
 		if (finalOnly) {
 			turns.push({ role: 'user', text: FINAL_ANSWER_REQUEST });
 		}
@@ -125,19 +128,23 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<string> {
 		}
 		if (!parsed) { return response.trim() || fallback(observations); }
 		if (parsed.action === 'final') {
-			const correction = options.deferredProposal ? undefined : recoveryForFinal(parsed.message, proposed, options.toolsAvailable ?? true);
-			if (correction && (repairedConclusion || finalOnly)) {
-				return proposed ? 'File proposals are ready for review. Use Keep to apply them.' : 'No file action completed. No file was changed.';
+			const correctionFor = (message: string) => options.finalRecovery?.correction(message)
+				?? (options.deferredProposal ? undefined : recoveryForFinal(message, proposed, options.toolsAvailable ?? true));
+			const correction = correctionFor(parsed.message);
+			if (correction && (repairedConclusion || finalOnly && !options.finalRecovery)) {
+				return options.finalRecovery?.failure ?? (proposed ? 'File proposals are ready for review. Use Keep to apply them.' : 'No file action completed. No file was changed.');
 			}
-			if (correction && !repairedConclusion && !finalOnly) {
+			if (correction && !repairedConclusion) {
 				repairedConclusion = true;
+				if (options.finalRecovery) { continuation.push({ role: 'user', text: correction }); }
+				options.progress(options.finalRecovery ? 'Finishing the requested planning document…' : 'Completing the file action…');
 				const corrected = await options.ask([...turns, { role: 'assistant', text: response },
-					{ role: 'user', text: correction }], false, remaining);
+					{ role: 'user', text: correction }], finalOnly, remaining);
 				const step = parseAgentStep(corrected);
 				if (options.cancelled()) { return ''; }
-				if (!step || step.action === 'final' && recoveryForFinal(step.message, proposed, options.toolsAvailable ?? true)) {
-					return proposed ? 'File proposals are ready for review. Use Keep to apply them.'
-						: 'The model did not complete a file action. No file was changed. Please retry, or choose another model.';
+				if (!step || step.action === 'final' && correctionFor(step.message) || finalOnly && step.action !== 'final') {
+					return options.finalRecovery?.failure ?? (proposed ? 'File proposals are ready for review. Use Keep to apply them.'
+						: 'The model did not complete a file action. No file was changed. Please retry, or choose another model.');
 				}
 				if (step.action !== 'final') { parsed = step; }
 				else { return step.message; }

@@ -2,6 +2,12 @@
 
 my_editor uses the version in `overlay/extensions/my-editor-core/package.json` as its own release number. The Home page displays that version. The underlying editor shell keeps its upstream version independently.
 
+## 0.0.35 alpha — 2026-11-02
+
+- Fixed the long-tree generation loop: saved planning files are supplied whole within the model context budget, and remain available across project checks. Tree JSON is compacted without dropping entries or properties. Documents that exceed the budget are explicitly identified instead of presenting a truncated beginning as a complete baseline.
+- An explicit planning write request already authorizes preparation. If the model nevertheless asks for “continue” or another Generate click, the host makes one bounded correction in the same run, preserving the correction through further retrieval. Repeated deferral reports failure without claiming a document is ready; genuine missing decisions and read-only discussions remain separate.
+- Validation: 754 automated tests passed. A real editor-host fixture used a saved tree over 30,000 characters, retained all 150 entries through repeated checks, recovered a premature “continue” reply, and produced a full Keep proposal from one Generate request. Keep preserved existing source and both prerequisite documents. The reported project's complete planning context was checked read-only and fits the selected Claude model's budget. Existing planning retrieval and plan-stability editor-host regressions also passed. Live model acceptance remains pending.
+
 ## 0.0.34 alpha — 2026-11-02
 
 - Flow now plans complete implementations across focused files before scaffolding, estimates final source sizes with headroom, and explicitly splits responsibilities expected to exceed 300 lines. The limit never authorizes omitted behavior or compressed formatting. Estimates remain forecasts that may need revisiting during implementation.

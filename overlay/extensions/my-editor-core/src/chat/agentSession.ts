@@ -17,7 +17,8 @@ import { ObservationRunner } from './observationRunner';
 import { characterPrompt } from './characters';
 import { mayProposeFile, mayUsePlanningTool } from './projectToolPolicy';
 import { proposeDoc } from './engineEdit';
-import { mayRevisePlanningPath, READ_ONLY_REQUEST_NOTE } from './requestPolicy';
+import { mayRevisePlanningPath, READ_ONLY_REQUEST_NOTE, requestsRevision } from './requestPolicy';
+import { planningRecovery, PLANNING_INCOMPLETE } from './planningRecovery';
 import { documentFromReply } from '../pair/codeBlock';
 import { planningReplyPreview } from '../pair/fencedBlocks';
 import { pairWebAccess, WEB_ACCESS_NOTE } from '../models/webAccess';
@@ -86,6 +87,8 @@ export async function runPairAgent(options: AgentSessionOptions): Promise<string
 		initial,
 		toolsAvailable: !!vscode.workspace.workspaceFolders?.length,
 		deferredProposal: planning && !reviewing,
+		finalRecovery: planning && !reviewing && requestsRevision(input.text, chatArchive)
+			? { correction: message => planningRecovery(message, options.mode.doc!), failure: PLANNING_INCOMPLETE } : undefined,
 		requireCheck: options.mode.id === 'review' ? call => call.name === 'read_file' || call.name === 'search' : undefined,
 		cancelled: () => token.isCancellationRequested,
 		progress: message => sink.progress(message),

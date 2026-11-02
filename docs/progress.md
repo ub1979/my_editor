@@ -3,6 +3,10 @@
 Status of the requirements in [`plans/my_editor-plan-v2.md`](plans/my_editor-plan-v2.md). The original checklist is from 2026-09-23; the additions below are from 2026-09-25.
 ✅ done and verified in the app · 🟡 partly done · ⬜ not started.
 
+## 0.0.35 alpha planning completion — 2 November 2026
+
+The saved investigation records confirmed two runs exhausted 60 checks while rereading a long tree whose initial context and older tool results were shortened. Complete planning evidence now remains in the initial context, with compact JSON preserving every value and explicit handling of oversized documents. Authorized writes recover a redundant continuation request once, without extending the tool budget or bypassing Keep. All 754 automated tests and the long-tree, existing planning and plan-stability editor-host regressions passed. The actual social-media project was only read; local installation and archive are prepared for acceptance testing.
+
 ## 0.0.34 alpha guided build sequence — 2 November 2026
 
 Flow’s saved tree can now carry source-size estimates, the real entry point and ordered implementation/testing steps. A native Build guide and Start here action lead from foundations and libraries to consumers and integration, with per-file context in File chat. Confirmations are explicit user evidence tied to source and prerequisite versions; dirty/missing files and unchanged stubs cannot be confirmed. Configured test tasks run on user selection, and step checks remain explicit. Legacy trees keep their validity and offer an optional reviewed guidance upgrade. All 745 automated tests and build-guide/planning editor-host checks passed. Local installation and archive are prepared for acceptance testing.

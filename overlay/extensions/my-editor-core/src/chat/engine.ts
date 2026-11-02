@@ -141,7 +141,7 @@ export class PairEngine {
 		const [
 			conventions, brain, specs, neighbours, evidence, changes, plans, projectState, availableObservations, previousInvestigations,
 		] = await Promise.all([
-			readProjectNote('conventions.md'), readProjectNote('brain/index.md', 12_000), readSpecs(mode),
+			readProjectNote('conventions.md'), readProjectNote('brain/index.md', 12_000), readSpecs(mode, entry.maxInputTokens),
 			file ? neighbourSummary(file.relativePath) : Promise.resolve(''),
 			mode.id === 'chat' ? projectEvidence(evidenceQuery, Math.round(entry.maxInputTokens * 0.45)) : Promise.resolve(''),
 			mode.id === 'chat' ? changeContext(prompt, file?.relativePath) : Promise.resolve(''),

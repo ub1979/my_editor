@@ -3,6 +3,7 @@ import { readProjectNote } from '../pair/context';
 import type { Mode } from '../pair/prompts';
 import { readPlanningDocuments } from '../project/planningFiles';
 import { planningProblems, PlanningStage, savedTreeSections } from '../project/planning';
+import { planningEvidence } from './planningEvidence';
 
 export async function qaSubject(prompt: string): Promise<string> {
 	const reportPath = /\.my_editor\/qa\/\S+\.md/.exec(prompt)?.[0];
@@ -30,14 +31,12 @@ export async function qaSubject(prompt: string): Promise<string> {
 	return [`Fit report (${reportPath}):\n${report}`, architecture ? `Architecture:\n${architecture}` : '', ...contents].filter(Boolean).join('\n\n');
 }
 
-export async function specs(mode: Mode): Promise<string> {
-	const parts = await Promise.all((mode.reads ?? []).map(async path => {
-		const text = await readProjectNote(path.replace(/^\.my_editor\//, ''), 30_000);
-		return text ? `${path}:\n${text}` : '';
-	}));
+export async function specs(mode: Mode, maxInputTokens = 150_000): Promise<string> {
+	const parts: string[] = [];
 	const root = vscode.workspace.workspaceFolders?.[0]?.uri;
 	if (root && ['requirements', 'architecture', 'tree'].includes(mode.id)) {
 		const docs = await readPlanningDocuments(root);
+		parts.push(...planningEvidence(mode.reads ?? [], docs, maxInputTokens));
 		const problems = planningProblems(mode.id as PlanningStage, docs);
 		const sections = savedTreeSections(docs.tree);
 		if (sections.length) {
@@ -48,6 +47,11 @@ export async function specs(mode: Mode): Promise<string> {
 			+ (problems.length ? problems.map(problem => `- ${problem.reason}`).join('\n')
 				+ '\nDo not claim these stages are complete. Finish the current document if its prerequisites are valid; '
 				+ 'otherwise explain which prerequisite needs finalizing and Keep first.' : 'The saved prerequisite chain passes validation.'));
+	} else {
+		parts.push(...await Promise.all((mode.reads ?? []).map(async path => {
+			const text = await readProjectNote(path.replace(/^\.my_editor\//, ''), 30_000);
+			return text ? `${path}:\n${text}` : '';
+		})));
 	}
 	return parts.filter(Boolean).join('\n\n');
 }
