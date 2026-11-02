@@ -3,6 +3,10 @@
 Status of the requirements in [`plans/my_editor-plan-v2.md`](plans/my_editor-plan-v2.md). The original checklist is from 2026-09-23; the additions below are from 2026-09-25.
 ✅ done and verified in the app · 🟡 partly done · ⬜ not started.
 
+## 0.0.33 alpha inline class recovery — 2 November 2026
+
+The reported //AI directive is valid. Removed the separate 100-line snippet limit in favor of the remaining source-file budget, separated the rejection reasons, and added one bounded correction attempt plus redacted response inspection. Prompts preserve the planned public API and request complete typed error handling. All 741 automated tests passed, plus an editor-host replay of the reported stub with a 111-line class, correction, failure and concurrent-edit cases. The user's project was only read. Local installation and archive are prepared for testing.
+
 ## 0.0.32 alpha file-local pair programming — 1 November 2026
 
 File chat follows the active source file and retains separate transcripts and drafts. Planned-file rationale comes from linked saved planning evidence, and Review/Explain use the selection or unsaved file with brief replies by default. Existing inline AI directives now include linked plan context and style instructions, with stale-buffer protection and reviewed Keep. Opening files does not invoke a model. All 735 automated tests and the file-chat and coding editor-host suites passed. The screen-inspection tool timed out, so visual acceptance remains pending. Local installation and archive are prepared for user testing.

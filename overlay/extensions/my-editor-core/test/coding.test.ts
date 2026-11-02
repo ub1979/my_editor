@@ -13,7 +13,7 @@ test('AI snippets insert only below their directive and retain the surrounding b
 		'class A:\r\n    #Ai <make a method>\r\n    def value(self):\r\n        return 2\r\n    old = 1\r\n');
 	assert.equal(aiMarker('print("#Ai do something")', 0), undefined);
 	assert.throws(() => insertAiSnippet(source, marker, '```py\nx = 1\n```\n```py\ny = 2\n```'), /exactly one/);
-	assert.throws(() => insertAiSnippet(source, marker, '```py\n' + 'x\n'.repeat(101) + '```'), /oversized/);
+	assert.throws(() => insertAiSnippet(source, marker, '```py\n' + 'x\n'.repeat(301) + '```'), /301 lines.*room for/);
 	assert.throws(() => insertAiSnippet('changed', marker, '```py\nx = 1\n```'), /directive changed/);
 });
 

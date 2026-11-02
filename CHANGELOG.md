@@ -2,6 +2,14 @@
 
 my_editor uses the version in `overlay/extensions/my-editor-core/package.json` as its own release number. The Home page displays that version. The underlying editor shell keeps its upstream version independently.
 
+## 0.0.33 alpha — 2026-11-02
+
+- Inline class generation uses the remaining space under the 300-line source-file limit instead of a separate 100-line snippet cap. It preserves every surrounding byte, including the planned header and existing exports.
+- Empty output, unfinished fences, multiple blocks, omission placeholders and line overflow now have distinct errors. Fences are parsed by full lines so backticks inside source strings do not cut snippets short. The one-class-per-file policy is checked before opening a proposal.
+- Invalid responses get one automatic correction attempt with the precise failed check. Source edits, cancellation and provider failures stop generation without retrying; a second invalid response cannot become a proposal. Redacted replies are retained in the AI snippets output channel with a View response action.
+- The prompt preserves APIs named in the file header (including a promised factory when implementing it with a class), asks for all methods and error handling, and recommends types/interfaces for typed errors instead of extra classes.
+- Validation: 741 automated tests passed. A disposable editor replayed the reported client.ts stub with a deterministic 111-line class, reached Keep, recovered from an omission response, rejected a second invalid response and preserved a concurrent unsaved edit. The user's actual client.ts was only read; its original rejected response was not retained by the previous release, so the exact failed check cannot be recovered.
+
 ## 0.0.32 alpha — 2026-11-01
 
 - File chat follows the source editor with an independent saved transcript and draft for every file URI. It resumes when returning to a file; New chat clears only that file. Project agents retain their separate chats. Automatic following can be turned off in settings.
