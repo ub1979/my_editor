@@ -1,7 +1,7 @@
 # my_editor: vision, mission, and current status
 
 - **As of:** 2 November 2026
-- **Current version:** 0.0.33 alpha (inline classes use the available file budget; precise rejection reasons, one correction attempt and response inspection); 741 automated tests and reported-stub editor-host checks passed. Local installation and archive prepared; user acceptance pending.
+- **Current version:** 0.0.34 alpha (Flow size estimates and dependency-aware build guidance, Start here, explicit source-bound check confirmations and configured test tasks); 745 automated tests and build-guide/planning editor-host checks passed. Local installation and archive prepared; user acceptance pending.
 - **Stage:** Working macOS alpha; still being validated on real projects
 
 ## Vision

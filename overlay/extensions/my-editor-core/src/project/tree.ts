@@ -4,7 +4,7 @@ import { promises as fs } from 'fs';
 import { checkedProjectPath } from '../chat/projectPath';
 import { safeRelativePath } from '../chat/agentProtocol';
 import { serial } from '../util/serial';
-import { nextFile, parseTree, stubContent, TreeFile, validateTreePlan } from './stubs';
+import { parseTree, stubContent, TreeFile, validateTreePlan } from './stubs';
 import { assertPlanningReady } from './planningFiles';
 
 const TREE = '.my_editor/specs/tree.json';
@@ -122,24 +122,7 @@ export async function scaffoldFromTree(): Promise<void> {
 
 /** Opens the next file with its own focused conversation. */
 export async function openNextFile(): Promise<void> {
-	const tree = await load();
-	if (!tree) {
-		return;
-	}
-	const file = nextFile(tree.files);
-	if (!file) {
-		void vscode.window.showInformationMessage('Every planned file is done.');
-		return;
-	}
-	const uri = vscode.Uri.joinPath(tree.root, file.path);
-	if (!await exists(uri)) {
-		await scaffoldFromTree();
-		if (!await exists(uri)) {
-			return;
-		}
-	}
-	await vscode.window.showTextDocument(uri);
-	await vscode.commands.executeCommand('myEditor.fileChat.open');
+	await vscode.commands.executeCommand('myEditor.buildGuide.next');
 }
 
 /** Marks the active file done (or back in progress) in the tree. */

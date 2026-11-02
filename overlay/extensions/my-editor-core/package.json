@@ -2,7 +2,7 @@
   "name": "my-editor-core",
   "displayName": "my_editor Core",
   "description": "Built-in core of my_editor: project brain, skills, pair mode.",
-  "version": "0.0.33-alpha.0",
+  "version": "0.0.34-alpha.0",
   "publisher": "my-editor",
   "license": "MIT",
   "private": true,
@@ -242,6 +242,42 @@
         "title": "New Chat for This File",
         "category": "my_editor",
         "icon": "$(add)"
+      },
+      {
+        "command": "myEditor.buildGuide.open",
+        "title": "Open Build Guide",
+        "category": "my_editor",
+        "icon": "$(list-ordered)"
+      },
+      {
+        "command": "myEditor.buildGuide.next",
+        "title": "Start / Continue the Next Build Step",
+        "category": "my_editor",
+        "icon": "$(play)"
+      },
+      {
+        "command": "myEditor.buildGuide.plan",
+        "title": "Plan Build Order and Test Checks",
+        "category": "my_editor",
+        "icon": "$(list-tree)"
+      },
+      {
+        "command": "myEditor.buildGuide.confirm",
+        "title": "Confirm This Step\u2019s Checks Passed",
+        "category": "my_editor",
+        "icon": "$(pass)"
+      },
+      {
+        "command": "myEditor.buildGuide.test",
+        "title": "Run a Configured Test Task",
+        "category": "my_editor",
+        "icon": "$(beaker)"
+      },
+      {
+        "command": "myEditor.buildGuide.refresh",
+        "title": "Refresh Build Guide",
+        "category": "my_editor",
+        "icon": "$(refresh)"
       }
     ],
     "configuration": {
@@ -471,6 +507,10 @@
           "type": "webview",
           "id": "myEditor.project",
           "name": "Project"
+        },
+        {
+          "id": "myEditor.buildGuide",
+          "name": "Build guide"
         }
       ],
       "myEditorPair": [
@@ -603,6 +643,26 @@
           "command": "myEditor.fileChat.new",
           "when": "view == myEditor.fileChat",
           "group": "navigation@1"
+        },
+        {
+          "command": "myEditor.buildGuide.next",
+          "when": "view == myEditor.buildGuide",
+          "group": "navigation@0"
+        },
+        {
+          "command": "myEditor.buildGuide.test",
+          "when": "view == myEditor.buildGuide",
+          "group": "navigation@1"
+        },
+        {
+          "command": "myEditor.buildGuide.plan",
+          "when": "view == myEditor.buildGuide",
+          "group": "navigation@2"
+        },
+        {
+          "command": "myEditor.buildGuide.refresh",
+          "when": "view == myEditor.buildGuide",
+          "group": "navigation@3"
         }
       ],
       "editor/context": [
@@ -640,6 +700,13 @@
           "command": "myEditor.fileChat.explain",
           "when": "resourceScheme == file",
           "group": "myEditorCoding@2"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "myEditor.buildGuide.confirm",
+          "when": "view == myEditor.buildGuide && viewItem == buildStepReady",
+          "group": "inline"
         }
       ]
     },

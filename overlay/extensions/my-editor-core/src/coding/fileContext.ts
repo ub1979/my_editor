@@ -48,7 +48,13 @@ export async function filePlan(uri: vscode.Uri): Promise<string> {
 	const file = await plannedFile(uri);
 	const folder = vscode.workspace.getWorkspaceFolder(uri);
 	if (!file || !folder) { return 'No saved tree entry found. Do not invent the original planning rationale.'; }
-	const [architecture, requirements] = await Promise.all([note(folder.uri, 'architecture.md'), note(folder.uri, 'requirements.md')]);
+	const [architecture, requirements, tree] = await Promise.all([note(folder.uri, 'architecture.md'), note(folder.uri, 'requirements.md'), note(folder.uri, 'tree.json')]);
+	let build = '';
+	try {
+		const steps = JSON.parse(tree)?.buildPlan?.steps;
+		const step = Array.isArray(steps) && steps.find(item => Array.isArray(item?.files) && item.files.includes(file.path));
+		if (step) { build = `\nSaved build step (checks are planned, not evidence that tests passed):\n${bounded(JSON.stringify(step), 6000)}`; }
+	} catch { /* Legacy or unavailable build guidance. */ }
 	const section = planningSections(architecture).find(item => item.anchor === file.section);
 	const ids = new Set(file.requirements ?? []);
 	const lines = requirements.split(/\r?\n/);
@@ -56,7 +62,7 @@ export async function filePlan(uri: vscode.Uri): Promise<string> {
 		? [lines.slice(i, Math.min(lines.length, i + 4)).join('\n')] : []);
 	return redact(`Saved tree entry: ${JSON.stringify(file)}\nArchitecture #${file.section ?? '(none)'}:\n`
 		+ bounded(section?.body ?? 'Linked section unavailable.', 10000) + '\nLinked requirement excerpts:\n'
-		+ bounded(relevant.join('\n\n') || 'No linked requirement text found.', 6000));
+		+ bounded(relevant.join('\n\n') || 'No linked requirement text found.', 6000) + build);
 }
 
 export function bounded(text: string, limit: number): string {

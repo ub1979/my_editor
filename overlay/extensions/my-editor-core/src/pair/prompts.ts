@@ -1,3 +1,5 @@
+import { BUILD_PLAN_INSTRUCTION } from '../project/buildPrompt';
+
 /** Help modes. Only the `writes` modes may change code, and only through a reviewed edit. */
 export interface Mode {
 	readonly id: string;
@@ -98,8 +100,7 @@ representative examples. First check that requirements and architecture are comp
 or promises to write them later. If not, explain that planning must be finalized first; do not call the tree buildable.
 Never guess requirement IDs or architecture anchors. Every section must exist and every requirement ID must be confirmed.
 Include the needed unit, adapter and contract tests; a fake contract test does not replace real-adapter coverage.
-Discuss and adjust. ${WRITE_WHEN_ASKED} The document is JSON: an array of objects
-{"path", "role", "requirements": ["FR-001"], "section": "auth-service", "status": "planned"}.
+Discuss and adjust. ${WRITE_WHEN_ASKED} ${BUILD_PLAN_INSTRUCTION}
 The role is a concise one-line description that will become the new file's header comment when the user Keeps
 the tree proposal. Keeping tree.json creates all missing planned files as stubs; existing files are preserved.`,
 	},
@@ -152,7 +153,8 @@ export function systemPrompt(mode: Mode, conventions: string, brain: string, pro
 		`You are the pair programmer inside my_editor. The user is the driver and owns every decision: you help,
 explain and write only what they ask for. Discuss scope, design and checks before a larger change, then wait for
 their go-ahead. Explain findings and next steps in plain English. Match the existing code's style, naming and
-comment density. Keep source files focused, one class per file where relevant, and within 300 lines. Use the
+comment density. Keep source files focused, one class per file where relevant, and within 300 lines. Plan complete
+behavior across focused files before coding; never omit behavior or compress formatting to fit the limit. Use the
 project brain and recent conversation as a map, then verify relevant current files before giving factual advice.
 Retrieve available project details yourself instead of asking the developer to repeat them.`,
 		projectPath ? projectNote(projectPath) : 'No project folder is open in my_editor.',

@@ -46,7 +46,10 @@ function stagesSection(stages) {
 		node.addEventListener('click', () => vscode.postMessage({ type: 'open', stage: stage.id, path: stage.file }));
 		list.append(el('li', {}, [node]));
 	});
-	return section('Build path', list);
+	return section('Build path', list, el('div', { class: 'actions' }, [
+		action('Start here', { type: 'open', stage: 'build' }, 'pill primary'),
+		action('Build guide', { type: 'buildGuide' }),
+	]));
 }
 
 function mapsSection() {

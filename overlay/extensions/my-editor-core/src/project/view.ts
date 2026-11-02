@@ -196,6 +196,9 @@ export class ProjectView implements vscode.WebviewViewProvider {
 			case 'chat':
 				await vscode.commands.executeCommand('myEditor.chat.openLounge');
 				return;
+			case 'buildGuide':
+				await vscode.commands.executeCommand('myEditor.buildGuide.open');
+				return;
 		}
 	}
 

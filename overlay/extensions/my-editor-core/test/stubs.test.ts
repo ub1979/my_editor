@@ -36,4 +36,5 @@ test('nextFile prefers work in progress, then stubs, then anything not done', ()
 	assert.equal(nextFile(files)?.path, 'c');
 	assert.equal(nextFile([...files, { path: 'd', status: 'in-progress' }])?.path, 'd');
 	assert.equal(nextFile([{ path: 'a', status: 'done' }]), undefined);
+	assert.equal(nextFile([{ path: 'a', status: 'implemented' }, { path: 'b', status: 'planned' }])?.path, 'b');
 });

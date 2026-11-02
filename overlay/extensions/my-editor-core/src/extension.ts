@@ -29,6 +29,7 @@ import { pushBranch, type PushRequest } from './project/pushCommand';
 import { closeProject } from './project/closeProject';
 import { registerCoding } from './coding/register';
 import { FileChat } from './coding/fileChat';
+import { BuildGuide } from './project/buildGuide';
 
 /** Entry point of the built-in core. */
 export function activate(context: vscode.ExtensionContext): void {
@@ -59,6 +60,7 @@ export function activate(context: vscode.ExtensionContext): void {
 		keys,
 		registerCoding(keys, proposals, navigator),
 		new FileChat(context, keys),
+		new BuildGuide(),
 		log,
 		navigator,
 		vscode.languages.registerCodeActionsProvider({ scheme: 'file' }, new GuidanceActions(),

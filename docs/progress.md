@@ -3,6 +3,10 @@
 Status of the requirements in [`plans/my_editor-plan-v2.md`](plans/my_editor-plan-v2.md). The original checklist is from 2026-09-23; the additions below are from 2026-09-25.
 ✅ done and verified in the app · 🟡 partly done · ⬜ not started.
 
+## 0.0.34 alpha guided build sequence — 2 November 2026
+
+Flow’s saved tree can now carry source-size estimates, the real entry point and ordered implementation/testing steps. A native Build guide and Start here action lead from foundations and libraries to consumers and integration, with per-file context in File chat. Confirmations are explicit user evidence tied to source and prerequisite versions; dirty/missing files and unchanged stubs cannot be confirmed. Configured test tasks run on user selection, and step checks remain explicit. Legacy trees keep their validity and offer an optional reviewed guidance upgrade. All 745 automated tests and build-guide/planning editor-host checks passed. Local installation and archive are prepared for acceptance testing.
+
 ## 0.0.33 alpha inline class recovery — 2 November 2026
 
 The reported //AI directive is valid. Removed the separate 100-line snippet limit in favor of the remaining source-file budget, separated the rejection reasons, and added one bounded correction attempt plus redacted response inspection. Prompts preserve the planned public API and request complete typed error handling. All 741 automated tests passed, plus an editor-host replay of the reported stub with a 111-line class, correction, failure and concurrent-edit cases. The user's project was only read. Local installation and archive are prepared for testing.

@@ -1,6 +1,7 @@
 import { planningSections } from './planningSections';
 import { architectureAnchors, architectureComponentSections, hasComponentContract } from './architectureSections';
 import { validateTreePlan } from './stubs';
+import { buildPlanProblems } from './buildPlan';
 
 export type PlanningStage = 'requirements' | 'architecture' | 'tree';
 export interface PlanningDocuments { requirements?: string; architecture?: string; tree?: string }
@@ -87,6 +88,7 @@ export function planningProblems(stage: PlanningStage, docs: PlanningDocuments):
 	if (stage === 'architecture') { return problems; }
 	try {
 		const files = validateTreePlan(docs.tree ?? '');
+		problems.push(...buildPlanProblems(JSON.parse(docs.tree ?? ''), files).map(reason => ({ stage: 'tree' as const, reason })));
 		const anchors = architectureAnchors(docs.architecture ?? '');
 		if (!files.length) { problems.push({ stage: 'tree', reason: 'the tree has no planned files' }); }
 		const paths = new Set<string>();

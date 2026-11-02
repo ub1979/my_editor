@@ -4,6 +4,7 @@ export interface TreeFile {
 	role?: string;
 	requirements?: string[];
 	section?: string;
+	estimatedLines?: number;
 	status?: 'planned' | 'stub' | 'in-progress' | 'done' | string;
 }
 
@@ -82,5 +83,5 @@ export function stubContent(file: TreeFile): string {
 export function nextFile(files: TreeFile[]): TreeFile | undefined {
 	return files.find(f => f.status === 'in-progress')
 		?? files.find(f => f.status === 'stub')
-		?? files.find(f => f.status !== 'done');
+		?? files.find(f => f.status !== 'done' && f.status !== 'implemented');
 }

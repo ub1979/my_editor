@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { planningProblems } from './planning';
 import { parseTree, TreeFile } from './stubs';
+import { readBuildGuide } from './buildStore';
 
 /** One stage of the guided build, with a line of live status derived from the files that exist. */
 export interface Stage {
@@ -90,6 +91,11 @@ export async function readProjectStateAt(root: vscode.Uri, name: string): Promis
 	const architectureProblems = planningProblems('architecture', docs);
 	const treeProblems = planningProblems('tree', docs);
 	const treeReady = files.length > 0 && !treeProblems.length;
+	let guided: { total: number; verified: number } | undefined;
+	if (treeReady && tree && JSON.parse(tree).buildPlan) {
+		const guide = await readBuildGuide(root);
+		guided = { total: guide.steps.length, verified: guide.steps.filter(step => step.status === 'verified').length };
+	}
 
 	const stages: Stage[] = [
 		{
@@ -111,8 +117,9 @@ export async function readProjectStateAt(root: vscode.Uri, name: string): Promis
 				? plural(files.length, 'planned file') : `Draft · ${treeProblems[0]?.reason ?? 'no planned files'}`,
 		},
 		{
-			id: 'build', title: 'Build', state: !treeReady ? 'empty' : done === files.length ? 'done' : 'started',
-			status: !treeReady && files.length ? 'Finalize the planning documents first' : files.length
+			id: 'build', title: 'Build', state: !treeReady ? 'empty' : guided
+				? guided.total > 0 && guided.verified === guided.total ? 'done' : 'started' : done === files.length ? 'done' : 'started',
+			status: guided ? `${guided.verified} of ${guided.total} step checks confirmed` : !treeReady && files.length ? 'Finalize the planning documents first' : files.length
 				? `${done} of ${files.length} done${started ? ` · ${started} in progress` : ''}` : 'File by file, at your pace',
 		},
 		{

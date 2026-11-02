@@ -2,6 +2,15 @@
 
 my_editor uses the version in `overlay/extensions/my-editor-core/package.json` as its own release number. The Home page displays that version. The underlying editor shell keeps its upstream version independently.
 
+## 0.0.34 alpha — 2026-11-02
+
+- Flow now plans complete implementations across focused files before scaffolding, estimates final source sizes with headroom, and explicitly splits responsibilities expected to exceed 300 lines. The limit never authorizes omitted behavior or compressed formatting. Estimates remain forecasts that may need revisiting during implementation.
+- Tree JSON can include buildPlan version 1 with a real application/library entry point, dependency-aware steps, assigned files, implementation tasks and observable checks. Validation rejects oversized/missing source estimates, invalid references, duplicate assignments and dependency cycles when guidance is supplied. Legacy trees remain valid and are not silently regenerated or downgraded.
+- Project now offers Start here and a native Build guide. The guide orders libraries before consumers, distinguishes the runtime entry from the first build step, lists each step’s files/tasks/checks, and opens files in their own chats. Existing trees offer an explicit reviewed upgrade through Flow. File chat and inline snippets receive the saved step’s guidance.
+- Build progress is separate from the tree in .my_editor/build-progress.json. Confirm checks passed records explicit user evidence for the exact step, source and prerequisite versions; missing/dirty files and unchanged stubs cannot be confirmed. Later source or step changes invalidate confirmation and block dependants. File status alone never claims tests passed.
+- Run a configured test task lets the user select an existing VS Code test task. Model-written check text is displayed as guidance and is never executed automatically. Task exit alone does not prove that every step check passed; the user confirms the listed expected outcomes. Project Build status reflects step confirmations when guidance exists.
+- Validation: 745 automated tests passed. A real editor-host test exercised dependency-first navigation, a real passing Node test task, stub rejection, explicit progress recording, source-edit invalidation, and a reviewed legacy-tree upgrade that preserved requirements and architecture. The existing planning editor-host regression also passed. User acceptance remains pending.
+
 ## 0.0.33 alpha — 2026-11-02
 
 - Inline class generation uses the remaining space under the 300-line source-file limit instead of a separate 100-line snippet cap. It preserves every surrounding byte, including the planned header and existing exports.
