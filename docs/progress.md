@@ -3,6 +3,10 @@
 Status of the requirements in [`plans/my_editor-plan-v2.md`](plans/my_editor-plan-v2.md). The original checklist is from 2026-09-23; the additions below are from 2026-09-25.
 ✅ done and verified in the app · 🟡 partly done · ⬜ not started.
 
+## 0.0.36 alpha natural planning approvals — 2 November 2026
+
+Saved chat evidence showed both the explicit delegated test choice and “ok do it” were incorrectly classified read-only. Approval recognition now uses the immediately preceding concrete offer or matching edit choice. It preserves read-only and stage protections, and changes still require Keep. All 757 automated tests and the editor-host approval and plan-stability replays passed. The social-media project was only read. Local installation and archive are prepared for acceptance testing.
+
 ## 0.0.35 alpha planning completion — 2 November 2026
 
 The saved investigation records confirmed two runs exhausted 60 checks while rereading a long tree whose initial context and older tool results were shortened. Complete planning evidence now remains in the initial context, with compact JSON preserving every value and explicit handling of oversized documents. Authorized writes recover a redundant continuation request once, without extending the tool budget or bypassing Keep. All 754 automated tests and the long-tree, existing planning and plan-stability editor-host regressions passed. The actual social-media project was only read; local installation and archive are prepared for acceptance testing.

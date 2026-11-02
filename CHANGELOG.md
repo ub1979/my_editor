@@ -2,6 +2,12 @@
 
 my_editor uses the version in `overlay/extensions/my-editor-core/package.json` as its own release number. The Home page displays that version. The underlying editor shell keeps its upstream version independently.
 
+## 0.0.36 alpha — 2026-11-02
+
+- Fixed saved planning turns treating a selected “Decide for me: I'd add…” choice and a subsequent “ok do it” as read-only. Concrete choice selections and natural approvals of the immediately preceding edit offer now authorize a reviewed proposal without requiring a rewritten slash command.
+- Unrelated acknowledgements, older offers, explicit no-change instructions and opening a planning stage do not authorize edits. Generic code turns still cannot use these acknowledgements to rewrite a different planning document. Keep remains required.
+- Validation: 757 automated tests passed. An editor-host replay exercised the reported delegated choice and natural approval, confirmed both produced proposals, verified no save before Keep, and rejected a replacement during an explicit read-only check. The existing plan-stability editor-host suite also passed. The actual social-media project was only inspected; the missing publish_failed pause behavior in its architecture remains a separate planning discrepancy with FR-011.
+
 ## 0.0.35 alpha — 2026-11-02
 
 - Fixed the long-tree generation loop: saved planning files are supplied whole within the model context budget, and remain available across project checks. Tree JSON is compacted without dropping entries or properties. Documents that exceed the budget are explicitly identified instead of presenting a truncated beginning as a complete baseline.

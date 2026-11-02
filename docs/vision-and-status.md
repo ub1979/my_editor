@@ -1,7 +1,7 @@
 # my_editor: vision, mission, and current status
 
 - **As of:** 2 November 2026
-- **Current version:** 0.0.35 alpha (complete retained planning context and bounded recovery of redundant “continue” requests); 754 automated tests and the long-tree editor-host regression passed. Local installation and archive prepared; user acceptance pending.
+- **Current version:** 0.0.36 alpha (natural approvals and concrete delegated choices can prepare planning proposals); 757 automated tests and the editor-host approval replay passed. Local installation and archive prepared; user acceptance pending.
 - **Stage:** Working macOS alpha; still being validated on real projects
 
 ## Vision

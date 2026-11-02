@@ -1,5 +1,6 @@
 import type { PlanningDocuments, PlanningStage } from '../project/planning';
 import type { Turn } from './engineTypes';
+import { approvesRevision } from './revisionApproval';
 
 const EDIT = '(?:fix|repair|change|edit|update|revise|rewrite|replace|regenerate|generate|write|produce|create|make|add|remove|delete|implement|apply|finali[sz]e|complete|restore|rebuild)';
 const REQUEST = new RegExp(`(?:^|[.!?;:,]\\s*|\\b(?:and|then|but)\\s+)(?:(?:please|now|also|just)\\s+|(?:can|could|would|will)\\s+you\\s+|I(?:'d| would)\\s+like\\s+you\\s+to\\s+)*${EDIT}\\b`, 'i');
@@ -12,9 +13,7 @@ export function requestsRevision(text: string, history: readonly Turn[] = []): b
 		.replace(/\b(?:write|produce|prepare|generate|create|make)\s+(?:(?:me|a|an|the|only|short|detailed)\s+)*(?:report|review|assessment|summary|list|recommendations|findings|explanation|checklist)\b/gi, 'report');
 	if (NO_EDIT.test(plain)) { return false; }
 	if (REQUEST.test(plain) || /^(?:please\s+)?prepare\s+(?:(?:a|the|full|complete|saved)\s+)*(?:requirements|architecture|tree|document)\b/i.test(plain)) { return true; }
-	if (!/^(?:yes(?:[,!\s]+(?:please|go ahead|do it))?|go ahead|do it|decide for me|approved)[.!\s]*$/i.test(plain)) { return false; }
-	const previous = history.at(-1);
-	return previous?.role === 'assistant' && /(?:(?:shall|should|may|can) I|would you like me to)\s+(?:apply|update|fix|revise|write|generate|prepare)\b[^?]*\?/i.test(previous.text);
+	return approvesRevision(plain, history);
 }
 
 export function inspectionRequest(text: string, history: readonly Turn[] = []): boolean {

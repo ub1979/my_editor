@@ -39,6 +39,43 @@ test('a direct yes retains authorization only for the immediately preceding conc
 	assert.equal(inspectionRequest('check and fix it'), false);
 });
 
+test('natural approvals accept a concrete next-step offer without another magic phrase', () => {
+	const history = [{ role: 'assistant' as const, text: '**Next step:** ask me to write the updated tree, and I’ll send the complete tree.json for Keep.' }];
+	for (const text of ['ok do it', 'Okay, do it.', 'yes please', 'sure, go ahead', 'continue', 'do it please']) {
+		assert.equal(requestsRevision(text, history), true, text);
+		assert.equal(readOnlyRequest(text, 'tree', docs, false, history), false, text);
+	}
+	assert.equal(requestsRevision('ok do it', [{ role: 'assistant', text: 'To get the update, send this message:\n\n'
+		+ '`/tree Update only tree.json to add the two test files to their build steps. Preserve everything else.`' }]), true);
+});
+
+test('the reported Decide for me choice authorizes its concrete test additions', () => {
+	const history = [{ role: 'assistant' as const, text: 'Which tests do you want to add to the plan?\n'
+		+ '- **Only the X publish tests:** adds one file for the riskiest gap.\n'
+		+ '- **Keep the plan as is:** fastest to build.\n'
+		+ "- **Decide for me:** I'd add the X publish tests plus home-dirs for its chmod 700 rule." }];
+	for (const text of ['Decide for me', "Decide for me: I'd add the X publish tests plus home-dirs for its chmod 700 rule."]) {
+		assert.equal(requestsRevision(text, history), true);
+		assert.equal(readOnlyRequest(text, 'tree', docs, false, history), false);
+	}
+	assert.equal(requestsRevision('Keep the plan as is', history), false);
+});
+
+test('approvals and delegated choices do not authorize unrelated or read-only work', () => {
+	for (const text of ['ok do it', 'continue', 'Decide for me', 'yes']) {
+		assert.equal(requestsRevision(text), false);
+		assert.equal(requestsRevision(text, [{ role: 'assistant', text: 'Is the app for one person?' }]), false);
+		assert.equal(requestsRevision(text, [{ role: 'user', text: 'Ask me to write the tree.' }]), false);
+		assert.equal(requestsRevision(text, [{ role: 'assistant', text: 'Should I update the tree?' },
+			{ role: 'assistant', text: 'Do you use a Mac?' }]), false);
+	}
+	const history = [{ role: 'assistant' as const, text: 'Should I update the tree?' }];
+	assert.equal(requestsRevision('ok do it, but do not change files', history), false);
+	assert.equal(requestsRevision('yes, explain first', history), false);
+	assert.equal(mayRevisePlanningPath('.my_editor/specs/architecture.md', 'ok do it', history), false);
+	assert.equal(readOnlyRequest('ok do it', 'tree', docs, true, history), true);
+});
+
 test('moving to tree changes the target even inside the actual saved answer choices', () => {
 	for (const text of ['Move on to tree.json: apply those fixes so every entry links to a section that exists.',
 		"Decide for me: keep v1.0.1, switch to the tree step, and I'll apply all seven fixes.", 'Check and fix tree.json', 'Continue to Architecture']) {
