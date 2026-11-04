@@ -22,6 +22,7 @@ import { planningRecovery, PLANNING_INCOMPLETE } from './planningRecovery';
 import { documentFromReply } from '../pair/codeBlock';
 import { planningReplyPreview } from '../pair/fencedBlocks';
 import { pairWebAccess, WEB_ACCESS_NOTE } from '../models/webAccess';
+import { buildBatchProblem } from '../project/buildBatchGuard';
 
 /** The locate-only turn: map where a change belongs, open the files, and propose nothing. */
 const CHANGE_MAP_NOTE = 'This turn is a change map. Search and read the current project, follow relevant callers and tests, and open '
@@ -74,6 +75,13 @@ export async function runPairAgent(options: AgentSessionOptions): Promise<string
 		chatArchiveIndex(chatArchive),
 		web ? WEB_ACCESS_NOTE : '',
 		AGENT_INSTRUCTION,
+		input.buildFiles ? 'This is an authorized batch in a whole-project build. The host continues subsequent batches after Keep. '
+			+ 'Use the complete saved planning documents in the initial context; do not repeatedly read them in small ranges. '
+			+ 'Prepare complete implementations for the requested paths using propose_file, preserving existing contracts. '
+			+ 'Do not stop to ask for continue, permission to code, or which planned file comes next. '
+			+ 'Only read-only retrieval and propose_file are available. Tests are a separate verification phase; never claim they passed. '
+			+ 'If a required design conflict or missing external fixture prevents implementation, state that exact blocker. '
+			+ 'Never substitute a placeholder or invented real-world fixture for complete behavior.' : '',
 		planning ? `The active planning target is ${options.mode.doc}. Only propose that document in this turn. `
 			+ 'If another stage should come next, explain it and offer a choice; do not generate another document under this target. '
 			+ 'For this planning turn, only read-only tools are available: list_files, search, read_file, git_history, '
@@ -106,6 +114,13 @@ export async function runPairAgent(options: AgentSessionOptions): Promise<string
 			return response;
 		},
 		execute: async call => {
+			if (input.buildFiles && !mayUsePlanningTool(call.name)) {
+				if (call.name !== 'propose_file' || !input.buildFiles.includes(String(call.arguments.path))) {
+					return 'This build batch can propose only its requested file paths. No other writes, deletions or commands are authorized here.';
+				}
+				const problem = await buildBatchProblem(String(call.arguments.path), call.arguments.content, input.buildHashes?.[String(call.arguments.path)]);
+				if (problem) { return problem; }
+			}
 			if (reviewing && !mayUsePlanningTool(call.name) && call.name !== 'open_files') { return READ_ONLY_TURN; }
 			if (['propose_file', 'propose_delete'].includes(call.name)
 				&& !mayRevisePlanningPath(call.arguments.path, input.text, chatArchive)) { return 'This request does not authorize revising that planning document. Report the issue with its path and requirement IDs.'; }

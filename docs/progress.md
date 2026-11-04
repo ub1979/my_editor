@@ -3,6 +3,10 @@
 Status of the requirements in [`plans/my_editor-plan-v2.md`](plans/my_editor-plan-v2.md). The original checklist is from 2026-09-23; the additions below are from 2026-09-25.
 ✅ done and verified in the app · 🟡 partly done · ⬜ not started.
 
+## 0.0.38 alpha continuous project build — 4 November 2026
+
+The saved project evidence showed a normal chat run spending 47 of its 59 tool calls on retrieval and preparing seven root setup files before stopping. Those setup files were then saved, but navigation still treated unconfirmed checks as a coding blocker. Build now advances to unfinished coding files from saved prerequisites. Whole-project requests use a persistent dependency-ordered queue with full planning context, scoped file proposals and automatic continuation after Keep. Review, pause and resume remain visible; reopening does not silently restart generation. Existing content stays intact and code presence never invents test verification. All 765 automated tests and the project-build, build-start, file-chat and build-guide editor-host suites passed. The real social-media project was only read. Local installation and archive are prepared for acceptance testing.
+
 ## 0.0.37 alpha first-file build guidance — 4 November 2026
 
 The saved social-media plan starts with package.json, currently an empty object, before workspace and TypeScript setup. Build previously opened that file with an empty chat and no orientation. A saved-plan card now supplies the step, role, tasks, checks and file order immediately. Help me start gives a brief next action; Prepare this file creates a complete proposal requiring Keep, with JSON and stale-source guards. File navigation never claims verification. All 760 automated tests and the build-start, existing file-chat and build-guide editor-host checks passed. The original project was only read. Local installation and archive are prepared for acceptance testing.

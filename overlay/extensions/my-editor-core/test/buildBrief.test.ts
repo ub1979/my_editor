@@ -34,8 +34,10 @@ test('resume chooses unfinished work without treating existing content as checke
 test('blocked, completed and absent files do not receive a misleading start instruction', () => {
 	const guide = fixture();
 	guide.steps[0].status = 'blocked';
+	guide.steps[0].step.dependsOn = ['missing'];
 	assert.equal(buildFileBrief(guide, 'package.json')!.blocked, true);
-	assert.match(buildFileBrief(guide, 'package.json')!.instruction, /prerequisites/);
+	assert.match(buildFileBrief(guide, 'package.json')!.instruction, /Prerequisite implementation/);
+	guide.steps[0].step.dependsOn = [];
 	guide.steps[0].status = 'verified';
 	assert.match(buildFileBrief(guide, 'package.json')!.instruction, /You confirmed/);
 	assert.equal(buildFileBrief(guide, 'unplanned.ts'), undefined);

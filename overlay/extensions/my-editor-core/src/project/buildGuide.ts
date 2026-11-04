@@ -5,6 +5,8 @@ import { StepState } from './buildProgress';
 import { nextFile } from './stubs';
 import { GuideItem } from './buildGuideItem';
 import { firstBuildFile } from './buildBrief';
+import { canImplement, nextImplementation } from './buildWork';
+import type { ProjectBuildState } from './projectBuild';
 
 /** A quiet, deterministic roadmap: opening it reads saved guidance; only explicit actions invoke agents or tasks. */
 export class BuildGuide implements vscode.TreeDataProvider<GuideItem>, vscode.Disposable {
@@ -56,6 +58,24 @@ export class BuildGuide implements vscode.TreeDataProvider<GuideItem>, vscode.Di
 		if (!root) { return [this.note('Open a project to see its build guide.', 'info')]; }
 		const guide = this.guide = await readBuildGuide(root);
 		const result: GuideItem[] = [];
+		const build = await vscode.commands.executeCommand<ProjectBuildState>('myEditor.projectBuild.status');
+		const action = (label: string, command: string) => {
+			const item = this.note(label, 'tools'); item.command = { command, title: label }; result.push(item);
+		};
+		if (build) {
+			result.push(this.note(build.message, build.status === 'error' ? 'warning' : 'info'));
+			for (const proposal of build.pending) {
+				const item = this.note(`Review pending: ${proposal.path}`, 'diff');
+				item.command = { command: 'myEditor.projectBuild.review', title: 'Review file', arguments: [proposal.id] }; result.push(item);
+			}
+			if (build.status === 'review') {
+				action('Review current batch', 'myEditor.projectBuild.review');
+				action('Keep reviewed batch and continue', 'myEditor.projectBuild.keep');
+			}
+			if (['paused', 'error'].includes(build.status)) { action('Resume project build', 'myEditor.projectBuild.resume'); }
+			if (['running', 'review'].includes(build.status)) { action('Pause project build', 'myEditor.projectBuild.pause'); }
+		}
+		if (!build || ['complete', 'error', 'paused'].includes(build.status)) { action('Build whole project', 'myEditor.projectBuild.start'); }
 		this.view.description = guide.plan ? `${guide.steps.filter(step => step.status === 'verified').length}/${guide.steps.length} checked` : 'Saved file order';
 		if (guide.problems.length) { return guide.problems.map(problem => this.note(problem, 'warning')); }
 		if (!guide.plan) {
@@ -70,12 +90,15 @@ export class BuildGuide implements vscode.TreeDataProvider<GuideItem>, vscode.Di
 		if (next) {
 			const start = this.file(firstBuildFile(guide, next), root.toString());
 			start.label = `Start here: ${next.step.title}`; start.iconPath = new vscode.ThemeIcon('play'); result.push(start);
-		} else if (guide.plan && guide.steps.every(step => step.status === 'verified')) {
-			result.push(this.note('All step checks confirmed. Run the final project integration checks.', 'check-all'));
+		} else if (guide.plan) {
+			result.push(this.note(guide.steps.every(step => step.status === 'verified')
+				? 'All step checks confirmed. Run the final project integration checks.'
+				: 'No unchanged stubs remain. Review existing code and run the step checks; implementation is not verification.', 'check-all'));
 		}
 		for (const [index, state] of guide.steps.entries()) {
 			const step = new GuideItem(`${index + 1}. ${state.step.title}`, 'step', state, undefined, root.toString());
-			step.description = ({ ready: 'To build / check', blocked: 'Waiting for prerequisites', verified: 'Checks confirmed by you', changed: 'Changed · recheck' })[state.status];
+			step.description = state.status === 'blocked' && canImplement(guide, state) ? 'Coding available · prerequisite checks pending'
+				: ({ ready: 'To build / check', blocked: 'Waiting for prerequisite code / checks', verified: 'Checks confirmed by you', changed: 'Changed · recheck' })[state.status];
 			step.iconPath = new vscode.ThemeIcon(({ ready: 'circle-outline', blocked: 'lock', verified: 'pass', changed: 'refresh' })[state.status]);
 			step.contextValue = guide.plan && ['ready', 'changed'].includes(state.status) ? 'buildStepReady' : 'buildStep';
 			step.tooltip = [...state.step.tasks, ...state.step.checks.map(check => `Verify: ${check}`)].join('\n');
@@ -93,7 +116,7 @@ export class BuildGuide implements vscode.TreeDataProvider<GuideItem>, vscode.Di
 		item.command = { command: 'myEditor.buildGuide.file', title: 'Open file', arguments: [item] }; return item;
 	}
 	private nextState(guide: BuildGuideState): StepState | undefined {
-		if (guide.plan) { return guide.steps.find(step => step.status === 'ready' || step.status === 'changed'); }
+		if (guide.plan) { return nextImplementation(guide); }
 		const file = nextFile(guide.files); return guide.steps.find(step => step.step.files.includes(file?.path ?? ''));
 	}
 
@@ -111,7 +134,7 @@ export class BuildGuide implements vscode.TreeDataProvider<GuideItem>, vscode.Di
 		const guide = await readBuildGuide(root), path = vscode.workspace.asRelativePath(uri, false);
 		const state = guide.steps.find(state => state.step.files.includes(path));
 		const next = state?.step.files[state.step.files.indexOf(path) + 1];
-		if (next && state?.status !== 'blocked') { await this.openFile(this.file(next, root.toString())); }
+		if (next && state && canImplement(guide, state)) { await this.openFile(this.file(next, root.toString())); }
 		else { await this.open(); }
 	}
 
@@ -142,7 +165,7 @@ export class BuildGuide implements vscode.TreeDataProvider<GuideItem>, vscode.Di
 		try {
 			const guide = await readBuildGuide(root);
 			if (item && item.root !== root.toString()) { return; }
-			const state = item?.state ?? this.nextState(guide);
+			const state = item?.state ?? guide.steps.find(step => step.status === 'ready' || step.status === 'changed');
 			if (!state) { return; }
 			await confirmBuildStep(root, state.step.id, state.signature);
 			this.refresh();

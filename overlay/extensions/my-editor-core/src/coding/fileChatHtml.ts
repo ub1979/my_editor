@@ -17,7 +17,7 @@ export function fileChatHtml(webview: vscode.Webview, media: vscode.Uri): string
 <div class="controls"><button data-action="start">Help me start</button><button id="prepare" data-action="implement">Prepare this file</button></div>
 <details><summary>Step tasks and checks</summary><p>Build these files, then run the checks for the whole step.</p>
 <ul id="buildTasks"></ul><strong>Checks to run</strong><ul id="buildChecks"></ul><strong>File order</strong><ol id="buildFiles"></ol></details>
-<div class="controls"><button id="buildNext">Next file in this step</button><button id="buildGuide">Build guide</button></div>
+<div class="controls"><button id="buildNext">Next file in this step</button><button id="buildGuide">Build guide</button><button id="buildProject">Build whole project</button></div>
 <p class="hint">Next file only navigates. Confirm the step’s checks in Build guide after running them.</p>
 </section>
 <nav aria-label="File actions"><button data-action="why">Why this file?</button><button data-action="explain">Explain</button><button data-action="review">Review code</button></nav>

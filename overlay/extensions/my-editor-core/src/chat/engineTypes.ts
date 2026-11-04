@@ -18,6 +18,9 @@ export interface Turn {
 }
 
 export interface RunInput {
+	/** Host-owned whole-project worker batch; writes are restricted to these saved-plan paths. */
+	readonly buildFiles?: readonly string[];
+	readonly buildHashes?: Readonly<Record<string, string | undefined>>;
 	/** What the user typed; may start with a /command. */
 	readonly text: string;
 	/** The skill chosen in the panel (sticky), e.g. `requirements` or `skill:debug`. */

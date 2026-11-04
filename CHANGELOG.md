@@ -2,6 +2,14 @@
 
 my_editor uses the version in `overlay/extensions/my-editor-core/package.json` as its own release number. The Home page displays that version. The underlying editor shell keeps its upstream version independently.
 
+## 0.0.38 alpha — 2026-11-04
+
+- Fixed Build navigation revisiting saved setup files because prerequisite test confirmations were missing. Coding readiness now follows saved prerequisite implementation, while check confirmations remain separate. Within a ready step, unfinished source is preferred over manifests; the Project Build action always uses the guide even if its row carries a file path.
+- Added Build whole project in Project, File chat and Build guide. Explicit requests such as “ok code everything for me” start a persistent queue in saved dependency order, using the selected chat model. Remaining stubs are prepared as complete reviewed proposals; Keep reviewed batch automatically prepares the next batch, including when a model finishes only part of a step. There is no five-file project cap.
+- Queue state, remaining counts, review links and pause/resume controls are visible in Build guide. Reopening pauses safely and regenerates only unkept work after Resume. Full saved planning context stays available to each worker; writes are restricted to that batch, and existing implemented files and planning documents are preserved. Empty/unchanged proposals, invalid JSON and concurrent developer edits are rejected. Source-size rules remain enforced; no code is truncated to fit.
+- Completion means no unchanged planned stubs remain, not that tests passed. Generation failures stop visibly; Undo pauses the queue. Project verification remains explicit and separate.
+- Validation: 765 automated tests passed. The whole-project editor-host fixture generated seven remaining files across four partial batches without another chat prompt, exercised source-first navigation, reviewed Keep, scoped writes, pause/resume, cancellation, Undo, empty replies and concurrent edits. Existing build-start, file-chat and build-guide regressions passed. The social-media project was only read; live-model acceptance remains pending.
+
 ## 0.0.37 alpha — 2026-11-04
 
 - Build now opens the selected planned file with a visible file-chat guide: its step, file position, saved purpose, next action, tasks, checks and file order. Configuration comes first when the saved plan requires it; the view explains that order instead of opening an unexplained empty JSON file. Opening the guide does not invoke a model.

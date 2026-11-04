@@ -98,6 +98,7 @@ export class FileChat implements vscode.WebviewViewProvider, vscode.CodeLensProv
 			else if (message.type === 'model') { void vscode.commands.executeCommand('myEditor.chooseModel'); }
 			else if (message.type === 'buildNext' && !this.running.has(key)) { void vscode.commands.executeCommand('myEditor.buildGuide.following', this.editor!.document.uri); }
 			else if (message.type === 'buildGuide') { void vscode.commands.executeCommand('myEditor.buildGuide.open'); }
+			else if (message.type === 'buildProject' && !this.running.has(key)) { void vscode.commands.executeCommand('myEditor.projectBuild.start'); }
 			else if (message.type === 'project') { void vscode.commands.executeCommand('myEditor.chat.openLounge'); }
 		});
 		this.post();

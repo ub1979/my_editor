@@ -2,7 +2,7 @@
   "name": "my-editor-core",
   "displayName": "my_editor Core",
   "description": "Built-in core of my_editor: project brain, skills, pair mode.",
-  "version": "0.0.37-alpha.0",
+  "version": "0.0.38-alpha.0",
   "publisher": "my-editor",
   "license": "MIT",
   "private": true,
@@ -278,6 +278,36 @@
         "title": "Refresh Build Guide",
         "category": "my_editor",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "myEditor.projectBuild.start",
+        "title": "Build Whole Project",
+        "category": "my_editor",
+        "icon": "$(tools)"
+      },
+      {
+        "command": "myEditor.projectBuild.resume",
+        "title": "Resume Project Build",
+        "category": "my_editor",
+        "icon": "$(play)"
+      },
+      {
+        "command": "myEditor.projectBuild.pause",
+        "title": "Pause Project Build",
+        "category": "my_editor",
+        "icon": "$(debug-pause)"
+      },
+      {
+        "command": "myEditor.projectBuild.review",
+        "title": "Review Current Build Batch",
+        "category": "my_editor",
+        "icon": "$(diff)"
+      },
+      {
+        "command": "myEditor.projectBuild.keep",
+        "title": "Keep Reviewed Build Batch and Continue",
+        "category": "my_editor",
+        "icon": "$(check)"
       }
     ],
     "configuration": {

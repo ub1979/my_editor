@@ -199,6 +199,9 @@ export class ProjectView implements vscode.WebviewViewProvider {
 			case 'buildGuide':
 				await vscode.commands.executeCommand('myEditor.buildGuide.open');
 				return;
+			case 'buildProject':
+				await vscode.commands.executeCommand('myEditor.projectBuild.start');
+				return;
 		}
 	}
 
@@ -206,6 +209,10 @@ export class ProjectView implements vscode.WebviewViewProvider {
 	private async openOrStart(stage: string, path: string | undefined): Promise<void> {
 		if (stage === 'requirements' || stage === 'architecture' || stage === 'tree') {
 			await vscode.commands.executeCommand('myEditor.chat.start', stage);
+			return;
+		}
+		if (stage === 'build') {
+			await vscode.commands.executeCommand('myEditor.nextFile');
 			return;
 		}
 		const root = vscode.workspace.workspaceFolders?.[0]?.uri;
@@ -218,10 +225,6 @@ export class ProjectView implements vscode.WebviewViewProvider {
 			} catch {
 				// Not written yet: start the conversation instead.
 			}
-		}
-		if (stage === 'build') {
-			await vscode.commands.executeCommand('myEditor.nextFile');
-			return;
 		}
 		if (stage === 'qa') {
 			await vscode.commands.executeCommand('myEditor.checkFit', root);

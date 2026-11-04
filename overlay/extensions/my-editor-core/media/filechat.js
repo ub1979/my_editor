@@ -80,5 +80,5 @@ for (const button of document.querySelectorAll('[data-action]')) {
 	button.addEventListener('click', () => post('action', { action: button.dataset.action }));
 }
 byId('new').addEventListener('click', () => { post('new'); question.value = ''; drafts.set(key, ''); });
-for (const type of ['stop', 'model', 'project', 'buildNext', 'buildGuide']) { byId(type).addEventListener('click', () => post(type)); }
+for (const type of ['stop', 'model', 'project', 'buildNext', 'buildGuide', 'buildProject']) { byId(type).addEventListener('click', () => post(type)); }
 vscode.postMessage({ type: 'ready' });

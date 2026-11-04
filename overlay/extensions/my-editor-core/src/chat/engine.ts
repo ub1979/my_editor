@@ -6,7 +6,8 @@ import { streamModel } from '../models/stream';
 import { ChatTurn } from '../models/types';
 import { BRIEF_SYSTEM, briefRequest, cleanBrief } from './memory';
 import { describeFile, FileContext, readProjectNote } from '../pair/context';
-import { systemPrompt } from '../pair/prompts';
+import { MODES, systemPrompt } from '../pair/prompts';
+import { wantsProjectBuild } from '../project/buildWork';
 import { computeImpact } from '../project/impact';
 import { projectEvidence } from '../project/evidence';
 import { changeContext } from '../project/gitHistory';
@@ -76,6 +77,11 @@ export class PairEngine {
 	}
 
 	async run(input: RunInput, history: readonly Turn[], sink: Sink, token: vscode.CancellationToken): Promise<RunResult> {
+		if (!input.buildFiles && wantsProjectBuild(input.text) && !input.kickoff && !input.readOnly && !input.locateOnly) {
+			const reply = await vscode.commands.executeCommand<string>('myEditor.projectBuild.start', input.modelKey);
+			sink.text(reply ?? 'Open Build guide to see the project build queue.');
+			return { mode: 'chat', reply: reply ?? '' };
+		}
 		const parsed = /^\/([\w:-]+)\s*([\s\S]*)$/.exec(input.text.trim());
 		let modeId = parsed ? parsed[1] : planningIntent(input.text) ?? input.mode ?? 'chat';
 		let prompt = parsed ? parsed[2] : input.text;
@@ -141,7 +147,7 @@ export class PairEngine {
 		const [
 			conventions, brain, specs, neighbours, evidence, changes, plans, projectState, availableObservations, previousInvestigations,
 		] = await Promise.all([
-			readProjectNote('conventions.md'), readProjectNote('brain/index.md', 12_000), readSpecs(mode, entry.maxInputTokens),
+			readProjectNote('conventions.md'), readProjectNote('brain/index.md', 12_000), readSpecs(input.buildFiles ? MODES.tree : mode, entry.maxInputTokens),
 			file ? neighbourSummary(file.relativePath) : Promise.resolve(''),
 			mode.id === 'chat' ? projectEvidence(evidenceQuery, Math.round(entry.maxInputTokens * 0.45)) : Promise.resolve(''),
 			mode.id === 'chat' ? changeContext(prompt, file?.relativePath) : Promise.resolve(''),
@@ -150,7 +156,7 @@ export class PairEngine {
 			mode.id === 'chat' ? this.observations.summary() : Promise.resolve(''),
 			mode.id === 'chat' ? recentInvestigationContext(prompt) : Promise.resolve('')]);
 		const records = mode.id === 'why' && file ? await recordsAbout(file.relativePath) : '';
-		const subject = mode.id === 'qa'
+		const subject = input.buildFiles ? specs : mode.id === 'qa'
 			? await qaSubject(prompt)
 			: mode.id === 'why' && file
 				? [
