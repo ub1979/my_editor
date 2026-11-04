@@ -18,3 +18,10 @@ textarea { box-sizing: border-box; width: 100%; resize: vertical; padding: 8px; 
 code { font-family: var(--vscode-editor-font-family); }
 footer { margin-top: 18px; }
 [hidden] { display: none !important; }
+#build { border: 1px solid var(--vscode-panel-border); border-left: 3px solid var(--vscode-focusBorder); border-radius: 5px; padding: 12px; margin-bottom: 16px; line-height: 1.5; }
+#build p { margin: 8px 0; }
+#build details { margin-top: 12px; }
+#build summary { cursor: pointer; }
+#build ul, #build ol { padding-left: 20px; overflow-wrap: anywhere; }
+#build li { margin: 6px 0; }
+#build button { max-width: 100%; overflow-wrap: anywhere; text-align: left; }

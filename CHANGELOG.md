@@ -2,6 +2,13 @@
 
 my_editor uses the version in `overlay/extensions/my-editor-core/package.json` as its own release number. The Home page displays that version. The underlying editor shell keeps its upstream version independently.
 
+## 0.0.37 alpha — 2026-11-04
+
+- Build now opens the selected planned file with a visible file-chat guide: its step, file position, saved purpose, next action, tasks, checks and file order. Configuration comes first when the saved plan requires it; the view explains that order instead of opening an unexplained empty JSON file. Opening the guide does not invoke a model.
+- Help me start requests a brief, concrete first action for the current file. Prepare this file uses its saved planning context to create a complete reviewed proposal in the file-local workflow, including JSON files that cannot contain inline AI comments. The source stays unchanged until Keep; incomplete code fences, elisions, invalid JSON and stale-source replies are rejected, and the existing source-size policy applies.
+- Next file navigates within the current step without confirming checks. Build selects a dirty file or remaining stub before revisiting existing content. Existing code is not evidence that tests passed; dependency and manual check-confirmation rules remain intact.
+- Validation: 760 automated tests passed. Editor-host tests exercised the visible first-file guide, no model on open, brief help, JSON generation and Keep, remaining-stub navigation, isolated file chats, stale actions, edits during generation and invalid JSON. Existing file-chat and build-guide regressions passed. The social-media project was only read. Local acceptance remains pending.
+
 ## 0.0.36 alpha — 2026-11-02
 
 - Fixed saved planning turns treating a selected “Decide for me: I'd add…” choice and a subsequent “ok do it” as read-only. Concrete choice selections and natural approvals of the immediately preceding edit offer now authorize a reviewed proposal without requiring a rewritten slash command.

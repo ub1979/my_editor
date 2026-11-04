@@ -11,6 +11,15 @@ export function fileChatHtml(webview: vscode.Webview, media: vscode.Uri): string
 <header><strong id="file">File chat</strong><span id="scope"></span></header>
 <p id="empty">Open a project file to chat about it.</p>
 <main id="content" hidden>
+<section id="build" hidden aria-label="Current build step">
+<strong id="buildTitle"></strong><p id="buildPosition" class="hint"></p>
+<p id="buildPurpose"></p><p id="buildInstruction"></p>
+<div class="controls"><button data-action="start">Help me start</button><button id="prepare" data-action="implement">Prepare this file</button></div>
+<details><summary>Step tasks and checks</summary><p>Build these files, then run the checks for the whole step.</p>
+<ul id="buildTasks"></ul><strong>Checks to run</strong><ul id="buildChecks"></ul><strong>File order</strong><ol id="buildFiles"></ol></details>
+<div class="controls"><button id="buildNext">Next file in this step</button><button id="buildGuide">Build guide</button></div>
+<p class="hint">Next file only navigates. Confirm the step’s checks in Build guide after running them.</p>
+</section>
 <nav aria-label="File actions"><button data-action="why">Why this file?</button><button data-action="explain">Explain</button><button data-action="review">Review code</button></nav>
 <p class="hint">Each file has its own chat. Short answers first; ask for more when you need it.</p>
 <div id="messages" role="log" aria-live="polite"></div><p id="error" role="alert"></p>

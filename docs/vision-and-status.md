@@ -1,7 +1,7 @@
 # my_editor: vision, mission, and current status
 
-- **As of:** 2 November 2026
-- **Current version:** 0.0.36 alpha (natural approvals and concrete delegated choices can prepare planning proposals); 757 automated tests and the editor-host approval replay passed. Local installation and archive prepared; user acceptance pending.
+- **As of:** 4 November 2026
+- **Current version:** 0.0.37 alpha (visible first-file build guidance, concise startup help and file-local reviewed generation); 760 automated tests and build-start/file-chat/build-guide editor-host checks passed. Local installation and archive prepared; user acceptance pending.
 - **Stage:** Working macOS alpha; still being validated on real projects
 
 ## Vision

@@ -4,6 +4,7 @@ import { BuildGuideState, confirmBuildStep, readBuildGuide } from './buildStore'
 import { StepState } from './buildProgress';
 import { nextFile } from './stubs';
 import { GuideItem } from './buildGuideItem';
+import { firstBuildFile } from './buildBrief';
 
 /** A quiet, deterministic roadmap: opening it reads saved guidance; only explicit actions invoke agents or tasks. */
 export class BuildGuide implements vscode.TreeDataProvider<GuideItem>, vscode.Disposable {
@@ -26,6 +27,7 @@ export class BuildGuide implements vscode.TreeDataProvider<GuideItem>, vscode.Di
 			vscode.workspace.onDidChangeWorkspaceFolders(() => this.refresh()),
 			vscode.commands.registerCommand('myEditor.buildGuide.open', () => this.open()),
 			vscode.commands.registerCommand('myEditor.buildGuide.next', () => this.next()),
+			vscode.commands.registerCommand('myEditor.buildGuide.following', (uri: vscode.Uri) => this.following(uri)),
 			vscode.commands.registerCommand('myEditor.buildGuide.file', (item: GuideItem) => this.openFile(item)),
 			vscode.commands.registerCommand('myEditor.buildGuide.plan', () => this.plan()),
 			vscode.commands.registerCommand('myEditor.buildGuide.confirm', (item?: GuideItem) => this.confirm(item)),
@@ -66,7 +68,7 @@ export class BuildGuide implements vscode.TreeDataProvider<GuideItem>, vscode.Di
 		}
 		const next = this.nextState(guide);
 		if (next) {
-			const start = this.file(next.step.files[0], root.toString());
+			const start = this.file(firstBuildFile(guide, next), root.toString());
 			start.label = `Start here: ${next.step.title}`; start.iconPath = new vscode.ThemeIcon('play'); result.push(start);
 		} else if (guide.plan && guide.steps.every(step => step.status === 'verified')) {
 			result.push(this.note('All step checks confirmed. Run the final project integration checks.', 'check-all'));
@@ -100,7 +102,17 @@ export class BuildGuide implements vscode.TreeDataProvider<GuideItem>, vscode.Di
 		if (!root) { return; }
 		const guide = await readBuildGuide(root), next = this.nextState(guide);
 		await this.open();
-		if (next) { await this.openFile(this.file(next.step.files[0], root.toString())); }
+		if (next) { await this.openFile(this.file(firstBuildFile(guide, next), root.toString())); }
+	}
+
+	private async following(uri?: vscode.Uri): Promise<void> {
+		const root = vscode.workspace.workspaceFolders?.[0]?.uri;
+		if (!root || !uri || vscode.workspace.getWorkspaceFolder(uri)?.uri.toString() !== root.toString()) { return; }
+		const guide = await readBuildGuide(root), path = vscode.workspace.asRelativePath(uri, false);
+		const state = guide.steps.find(state => state.step.files.includes(path));
+		const next = state?.step.files[state.step.files.indexOf(path) + 1];
+		if (next && state?.status !== 'blocked') { await this.openFile(this.file(next, root.toString())); }
+		else { await this.open(); }
 	}
 
 	private async openFile(item: GuideItem): Promise<void> {
@@ -113,7 +125,7 @@ export class BuildGuide implements vscode.TreeDataProvider<GuideItem>, vscode.Di
 			try { await vscode.workspace.fs.stat(uri); }
 			catch { await vscode.commands.executeCommand('myEditor.scaffold'); }
 			await vscode.window.showTextDocument(uri, { preview: false });
-			await vscode.commands.executeCommand('myEditor.fileChat.open');
+			await vscode.commands.executeCommand('myEditor.fileChat.open', uri);
 		} catch (error) { void vscode.window.showWarningMessage(String(error instanceof Error ? error.message : error)); }
 	}
 

@@ -3,6 +3,10 @@
 Status of the requirements in [`plans/my_editor-plan-v2.md`](plans/my_editor-plan-v2.md). The original checklist is from 2026-09-23; the additions below are from 2026-09-25.
 ✅ done and verified in the app · 🟡 partly done · ⬜ not started.
 
+## 0.0.37 alpha first-file build guidance — 4 November 2026
+
+The saved social-media plan starts with package.json, currently an empty object, before workspace and TypeScript setup. Build previously opened that file with an empty chat and no orientation. A saved-plan card now supplies the step, role, tasks, checks and file order immediately. Help me start gives a brief next action; Prepare this file creates a complete proposal requiring Keep, with JSON and stale-source guards. File navigation never claims verification. All 760 automated tests and the build-start, existing file-chat and build-guide editor-host checks passed. The original project was only read. Local installation and archive are prepared for acceptance testing.
+
 ## 0.0.36 alpha natural planning approvals — 2 November 2026
 
 Saved chat evidence showed both the explicit delegated test choice and “ok do it” were incorrectly classified read-only. Approval recognition now uses the immediately preceding concrete offer or matching edit choice. It preserves read-only and stage protections, and changes still require Keep. All 757 automated tests and the editor-host approval and plan-stability replays passed. The social-media project was only read. Local installation and archive are prepared for acceptance testing.

@@ -4,6 +4,7 @@ const byId = id => document.getElementById(id);
 const question = /** @type {HTMLTextAreaElement} */ (byId('question'));
 let key;
 let busy = false;
+let buildKey;
 const drafts = new Map();
 const post = (type, extra = {}) => vscode.postMessage({ type, key, ...extra });
 
@@ -21,6 +22,7 @@ function message(role, text) {
 
 window.addEventListener('message', event => {
 	const state = event.data;
+	if (state?.type === 'buildFocus') { if (state.key === key) { window.scrollTo(0, 0); } return; }
 	if (state?.type === 'reset') {
 		drafts.delete(state.key); if (state.key === key) { question.value = ''; } return;
 	}
@@ -45,7 +47,22 @@ window.addEventListener('message', event => {
 	byId('send').disabled = busy;
 	byId('new').disabled = busy;
 	for (const button of document.querySelectorAll('[data-action]')) { button.disabled = busy; }
-	if (nearBottom) { window.scrollTo(0, document.body.scrollHeight); }
+	const build = state.build;
+	byId('build').hidden = !build;
+	byId('buildTitle').textContent = build?.title ?? '';
+	byId('buildPosition').textContent = build?.position ?? '';
+	byId('buildPurpose').textContent = build?.purpose ?? '';
+	byId('buildInstruction').textContent = build?.instruction ?? '';
+	for (const [id, values] of [['buildTasks', build?.tasks], ['buildChecks', build?.checks], ['buildFiles', build?.files]]) {
+		byId(id).replaceChildren(...(values ?? []).map(value => {
+			const item = document.createElement('li'); item.textContent = value; return item;
+		}));
+	}
+	byId('prepare').disabled = busy || !build || !!build.blocked;
+	byId('buildNext').disabled = busy || !build?.next || !!build.blocked;
+	byId('buildNext').textContent = build?.next ? `Next: ${build.next}` : 'Last file — review step checks';
+	if (build && buildKey !== key) { buildKey = key; window.scrollTo(0, 0); }
+	else if (nearBottom) { window.scrollTo(0, document.body.scrollHeight); }
 });
 
 question.addEventListener('input', () => { drafts.set(key, question.value); post('draft', { text: question.value }); });
@@ -63,5 +80,5 @@ for (const button of document.querySelectorAll('[data-action]')) {
 	button.addEventListener('click', () => post('action', { action: button.dataset.action }));
 }
 byId('new').addEventListener('click', () => { post('new'); question.value = ''; drafts.set(key, ''); });
-for (const type of ['stop', 'model', 'project']) { byId(type).addEventListener('click', () => post(type)); }
+for (const type of ['stop', 'model', 'project', 'buildNext', 'buildGuide']) { byId(type).addEventListener('click', () => post(type)); }
 vscode.postMessage({ type: 'ready' });

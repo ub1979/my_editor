@@ -59,7 +59,7 @@ export function activate(context: vscode.ExtensionContext): void {
 	context.subscriptions.push(
 		keys,
 		registerCoding(keys, proposals, navigator),
-		new FileChat(context, keys),
+		new FileChat(context, keys, proposals),
 		new BuildGuide(),
 		log,
 		navigator,
