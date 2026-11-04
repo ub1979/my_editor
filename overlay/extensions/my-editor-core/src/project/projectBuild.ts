@@ -34,6 +34,7 @@ export class ProjectBuild implements vscode.Disposable {
 		}
 		this.status.command = 'myEditor.buildGuide.open';
 		this.disposables.push(this.status, proposals.onDidChange(proposal => { void this.changed(proposal); }),
+			vscode.workspace.onDidChangeWorkspaceFolders(() => { void this.pause(); }),
 			vscode.commands.registerCommand('myEditor.projectBuild.start', (modelKey?: string) => this.start(modelKey)),
 			vscode.commands.registerCommand('myEditor.projectBuild.resume', () => this.resume()),
 			vscode.commands.registerCommand('myEditor.projectBuild.pause', () => this.pause()),
@@ -91,6 +92,9 @@ export class ProjectBuild implements vscode.Disposable {
 	async resume(): Promise<void> {
 		if (this.active && this.state?.status === 'running') { return; }
 		if (this.active) { await this.active; }
+		if (this.state && !this.snapshot()) {
+			void vscode.window.showWarningMessage('Reopen the original project to resume its build queue.'); return;
+		}
 		if (!this.snapshot()) { await this.start(); return; }
 		this.state!.pending = this.state!.pending.filter(item => this.proposals.get(item.id)?.state === 'open');
 		if (this.state!.pending.length) { this.state!.status = 'review'; await this.save(); await this.review(); return; }
