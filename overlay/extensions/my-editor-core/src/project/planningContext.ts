@@ -4,13 +4,13 @@ import { redact } from '../records/redact';
 import { queryTerms, sourceExcerpt } from './relevance';
 
 /** A small, refreshed slice of project plans and accepted decisions for ordinary chat. */
-export async function planningContext(question: string): Promise<string> {
+export async function planningContext(question: string, includePlans = true): Promise<string> {
 	const root = vscode.workspace.workspaceFolders?.[0]?.uri;
 	if (!root) { return ''; }
 	const terms = queryTerms(question);
 	const [architecture, requirements] = await Promise.all([
-		readProjectNote('specs/architecture.md', 60_000),
-		readProjectNote('specs/requirements.md', 60_000),
+		includePlans ? readProjectNote('specs/architecture.md', 60_000) : Promise.resolve(''),
+		includePlans ? readProjectNote('specs/requirements.md', 60_000) : Promise.resolve(''),
 	]);
 	const parts = [
 		architecture ? `Architecture plan (selected lines):\n${redact(sourceExcerpt(architecture, terms, 3800))}` : '',

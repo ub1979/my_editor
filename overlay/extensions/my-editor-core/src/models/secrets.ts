@@ -21,6 +21,12 @@ export class ApiKeys {
 		return this.secrets.get(`myEditor.apiKey.${provider}`);
 	}
 
+	/** Model discovery needs key names, not decrypted credentials. Only a selected API call reads a value. */
+	async configuredProviders(): Promise<ReadonlySet<string>> {
+		const prefix = 'myEditor.apiKey.';
+		return new Set((await this.secrets.keys()).filter(key => key.startsWith(prefix)).map(key => key.slice(prefix.length)));
+	}
+
 	/** Command: pick a provider, then paste (or clear) its key. */
 	async promptAndStore(): Promise<void> {
 		const pick = await vscode.window.showQuickPick(

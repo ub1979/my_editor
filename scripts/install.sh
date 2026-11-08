@@ -39,6 +39,18 @@ esac
 [[ -d "${APP}" ]] || { echo "Build did not produce my_editor.app." >&2; exit 1; }
 codesign --force --deep --sign - "${APP}"
 codesign --verify --deep --strict "${APP}"
+# The running main process caches product checksums. Replacing its core files can
+# produce a false corruption warning even after Reload Window.
+if pgrep -f '^/Applications/my_editor[.]app/Contents/MacOS/my_editor( |$)' >/dev/null; then
+  echo "The rebuilt app is ready. Quit /Applications/my_editor.app, then rerun scripts/install.sh to install it cleanly." >&2
+  exit 1
+else
+  app_process_status=$?
+  if [[ "${app_process_status}" -ne 1 ]]; then
+    echo "Cannot verify whether my_editor is running. No installed app files were replaced." >&2
+    exit 1
+  fi
+fi
 rsync -a --delete "${APP}/" "/Applications/my_editor.app/"
 codesign --verify --deep --strict "/Applications/my_editor.app"
 echo "Installed /Applications/my_editor.app"

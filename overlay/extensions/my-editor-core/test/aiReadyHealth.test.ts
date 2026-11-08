@@ -55,8 +55,8 @@ test('needsTests checks TS/JS, Python, Go and Rust source only', () => {
 
 test('scanHealth flags long files, extra classes and untested files', () => {
 	const stats = [
-		fileStats('src/big.ts', 'x\n'.repeat(450)),
-		fileStats('src/near.ts', 'x\n'.repeat(280)),
+		fileStats('src/big.ts', 'x\n'.repeat(750)),
+		fileStats('src/near.ts', 'x\n'.repeat(580)),
 		fileStats('src/two.ts', 'class A {}\nclass B {}\n'),
 		fileStats('src/cart.ts', 'export const total = 1;\n'),
 		fileStats('src/lib.rs', 'fn a() {}\n#[cfg(test)]\nmod tests {}\n'),

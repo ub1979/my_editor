@@ -1,0 +1,140 @@
+{
+  "nativeCombined": {
+    "ok": true,
+    "moduleCount": 2,
+    "testFailureRepairLoop": true,
+    "dependencyFreshness": true,
+    "reviewTimeDependencyFreshness": true,
+    "testSourceFreshness": true,
+    "unavailableSelectedModelStops": true,
+    "decisionReferences": true,
+    "mixedCheckpointEvidence": true,
+    "coordinatedRepairs": true,
+    "repairPauseResume": true,
+    "savedDecisionRecovery": true,
+    "evidenceBackedQuestions": true,
+    "unattendedBuildQA": true,
+    "upfrontConsent": true,
+    "executionRevocation": true,
+    "buildThenQA": true,
+    "existingCodeDeferredToQA": true,
+    "sequentialBuild": true,
+    "dependencyOrder": true,
+    "completedPreviewClosed": true,
+    "perRunSavingPermission": true,
+    "automaticCompanionTests": true,
+    "finalTestCheckpoint": true,
+    "failedTestsBlockCompletion": true,
+    "unverifiedCompletionBlocked": true,
+    "automaticApply": true,
+    "actualNodeTests": true,
+    "moduleTestScope": true,
+    "runModelScope": true,
+    "plainFileReview": true,
+    "nativeToolRequests": true,
+    "qaAll": true,
+    "selectedFileReview": true,
+    "contextVerified": true,
+    "preSaveDataGuard": true,
+    "cancellation": true,
+    "staleEditRejected": true,
+    "planProtected": true,
+    "runtime": "opencode",
+    "version": "1.19.3",
+    "runtimeSessions": 299
+  },
+  "constrainedEditing": {
+    "passed": true,
+    "checks": [
+      "inline insertion and Keep",
+      "automatic AI directive on Enter",
+      "persistent Python selections",
+      "automatic and manual review",
+      "test/accessor offers",
+      "host file reads and brain context",
+      "nested file creation",
+      "reviewed deletion"
+    ],
+    "requests": 12,
+    "runtime": "opencode",
+    "version": "1.19.3",
+    "runtimeSessions": 3
+  },
+  "readOnlyRefusal": {
+    "ok": true,
+    "independentSpecialists": 3,
+    "currentSourceRead": true,
+    "writesRefused": true,
+    "noGeneratedPlanningPrerequisite": true,
+    "runtime": "opencode",
+    "version": "1.19.3",
+    "runtimeSessions": 3
+  },
+  "selectedModel": {
+    "ok": true,
+    "selectedModel": "codex-cli:gpt-5.6-sol",
+    "results": [
+      {
+        "runtime": "builtin",
+        "elapsedMs": 47113,
+        "turns": 4,
+        "reproducedFailure": true,
+        "keepUndo": true,
+        "testsPreserved": true,
+        "passingSavedTests": true
+      },
+      {
+        "runtime": "opencode",
+        "elapsedMs": 64002,
+        "turns": 4,
+        "reproducedFailure": true,
+        "keepUndo": true,
+        "testsPreserved": true,
+        "passingSavedTests": true
+      }
+    ],
+    "testPermissions": 4,
+    "runtime": "opencode",
+    "version": "1.19.3",
+    "runtimeSessions": 4
+  },
+  "installation": {
+    "version": "0.0.85-alpha.0",
+    "checksums": {
+      "vs/base/parts/sandbox/electron-browser/preload.js": true,
+      "vs/workbench/workbench.desktop.main.js": true,
+      "vs/workbench/workbench.desktop.main.css": true,
+      "vs/workbench/api/node/extensionHostProcess.js": true,
+      "vs/code/electron-browser/workbench/workbench.html": true,
+      "vs/code/electron-browser/workbench/workbench.js": true,
+      "vs/sessions/sessions.desktop.main.js": true,
+      "vs/sessions/sessions.desktop.main.css": true,
+      "vs/sessions/electron-browser/sessions.html": true,
+      "vs/sessions/electron-browser/sessions.js": true
+    },
+    "extensionMatches": true,
+    "testedCandidateUnchanged": true,
+    "signatureVerified": true,
+    "qaStatus": "paused",
+    "qaUnchanged": true,
+    "settingsUnchanged": true
+  },
+  "sourceHashes": {
+    "/Users/u/funcoding/my_editor/overlay/extensions/my-editor-core/src/chat/requestPolicy.ts": "5f8b774b276e7f499ec85d4c130be25f6a926fd0cc8cde00a655d56d2cb761e1",
+    "/Users/u/funcoding/my_editor/overlay/extensions/my-editor-core/src/project/testRepairPlan.ts": "43244dba2dae0886522cf850480c36ca64a0222b011cd5c78bb097db6d9daf46",
+    "/Users/u/funcoding/my_editor/overlay/extensions/my-editor-core/src/project/projectVerification.ts": "9928a7d3d6809c60370cf40d9365d6235bfabcb095de37711c81a50c6aa2048f",
+    "/Users/u/funcoding/my_editor/overlay/extensions/my-editor-core/test/requestPolicy.test.ts": "9fd9a3a912090e51aa24a45891d86081db3a2af45b023a9e74e6e169223cfb51",
+    "/Users/u/funcoding/my_editor/overlay/extensions/my-editor-core/test/testRepairPlan.test.ts": "762ee4c551e74a07fde59dd56e11261f3a44381840462f55eb42006debdebf81",
+    "/Users/u/funcoding/my_editor/overlay/extensions/my-editor-core/test/integration/verificationStrategy.cjs": "e875f48f8d7cf9e4d5d17c919a77b9f1d62e7b2cd0726d0f894909181b01c560",
+    "/Users/u/funcoding/my_editor/overlay/extensions/my-editor-core/test/integration/testRepairLoop.cjs": "50f5fd42ed411967a5728cd4d945ebb810f9d7d895f6f924f246e5c513b421c1",
+    "/Users/u/funcoding/my_editor/overlay/extensions/my-editor-core/test/integration/coding.cjs": "3c1861b3c4ae204b3ee805858c4b53c7dde920a49f6068cd9336540747ea2be0",
+    "/Users/u/funcoding/my_editor/overlay/extensions/my-editor-core/test/integration/openCodeCodex.cjs": "ae61be95deb41390e7c080738ab7cfd589743beaa327e8a3866dba6c1ccb0eab",
+    "/Users/u/funcoding/my_editor/overlay/extensions/my-editor-core/dist/extension.js": "fb1394fe1031e9b7ae4fb8660fc1eb78d0e72a531ab60058e1b07a4f8266c176"
+  },
+  "limits": [
+    "macOS validation only",
+    "concurrent startup timeout observed; sequential rerun passed",
+    "long-duration reliability and all specialist task quality unverified",
+    "no independent security certification"
+  ]
+}

@@ -11,7 +11,7 @@ import { earlyText } from '../src/aiready/fixText';
 import type { CheckCommand, FileInfo } from '../src/aiready/language';
 
 const run = (command: string, code: number, tail = ''): CheckResult => ({ command, code, failures: [], tail, log: '' });
-const fix = (file: string, kind: 'split' | 'tests' = 'split'): FixChoice => ({ file, kind, lines: 900 });
+const fix = (file: string, kind: 'split' | 'tests' = 'split'): FixChoice => ({ file, kind, lines: 1200 });
 
 /** `./engine` fails to build at baseline; `./store` builds. */
 const BASELINE = {
@@ -64,8 +64,8 @@ test('screening settles fixes before any model call: no passing build, never spl
 	mkdirSync(path.join(root, 'store'));
 	writeFileSync(path.join(root, 'store', 'a.go'), 'x\n'.repeat(263));
 	const short = await screen(fix('store/a.go'));
-	assert.deepEqual([short?.step.status, short?.step.reason, short?.step.early], ['skipped', 'Already 263 lines on this branch (the limit is 300).', true]);
-	writeFileSync(path.join(root, 'store', 'a.go'), 'x\n'.repeat(401));
+	assert.deepEqual([short?.step.status, short?.step.reason, short?.step.early], ['skipped', 'Already 263 lines on this branch (the limit is 600).', true]);
+	writeFileSync(path.join(root, 'store', 'a.go'), 'x\n'.repeat(701));
 	assert.equal(await screen(fix('store/a.go')), undefined);
 });
 
@@ -158,9 +158,9 @@ test('the queue stops on Stop, and a thrown error counts as an attempted skip', 
 
 test('a refactor is settled early when nothing needs one now or its build is blocked', async () => {
 	const root = mkdtempSync(path.join(os.tmpdir(), 'my-editor-screen-'));
-	const big = { declarations: [{ id: 0, names: ['Big'], kind: 'func', lines: 452, movable: true }] } as unknown as Partial<FileInfo>;
+	const big = { declarations: [{ id: 0, names: ['Big'], kind: 'func', lines: 752, movable: true }] } as unknown as Partial<FileInfo>;
 	const go = adapter({ 'engine/big.go': big, 'store/big.go': big, 'store/small.go': {}, 'store/gen.go': { ...big, skip: 'generated code' } });
-	const refactor = (file: string): FixChoice => ({ file, kind: 'refactor', lines: 460, target: { name: 'Big', lines: 452 } });
+	const refactor = (file: string): FixChoice => ({ file, kind: 'refactor', lines: 760, target: { name: 'Big', lines: 752 } });
 	const screen = (file: string) => screenFix(go, root, BASELINE, refactor(file));
 	assert.equal(await screen('store/big.go'), undefined);
 	const small = await screen('store/small.go');
@@ -171,19 +171,19 @@ test('a refactor is settled early when nothing needs one now or its build is blo
 	assert.match(blocked?.step.reason ?? '', /^Nothing here can compile \.\/engine to check this refactor: its build already fails/);
 	mkdirSync(path.join(root, 'store'));
 	writeFileSync(path.join(root, 'store', 'big.go'), 'x\n'.repeat(280));
-	assert.equal((await screen('store/big.go'))?.step.reason, 'Already 280 lines on this branch (the limit is 300).');
+	assert.equal((await screen('store/big.go'))?.step.reason, 'Already 280 lines on this branch (the limit is 600).');
 });
 
 test('a step\'s follow-up fix runs next and counts in the progress', async () => {
 	const state = { ...queueState(['early.go', 'r.go', 'b.go']), next: 1, screened: 1 };
-	state.fixes[1] = { file: 'r.go', kind: 'refactor', lines: 460, target: { name: 'Big', lines: 452 } };
+	state.fixes[1] = { file: 'r.go', kind: 'refactor', lines: 760, target: { name: 'Big', lines: 752 } };
 	const seen: string[] = [];
 	const ran: string[] = [];
 	await runQueue(state, {
 		run: async f => {
 			ran.push(`${f.file} ${f.kind}`);
 			return f.kind === 'refactor'
-				? { file: f.file, kind: 'refactor', status: 'committed', followUp: { file: f.file, kind: 'split', lines: 470 } }
+				? { file: f.file, kind: 'refactor', status: 'committed', followUp: { file: f.file, kind: 'split', lines: 770 } }
 				: { file: f.file, kind: f.kind, status: 'committed' };
 		},
 		cancelled: () => false, progress: text => seen.push(text), record: () => undefined,
@@ -196,10 +196,10 @@ test('a step\'s follow-up fix runs next and counts in the progress', async () =>
 test('Continue after a saved refactor commit runs its split next', async () => {
 	const storage = mkdtempSync(path.join(os.tmpdir(), 'my-editor-continue-'));
 	const state = { ...queueState(['r.go', 'b.go']), root: storage };
-	state.fixes[0] = { file: 'r.go', kind: 'refactor', lines: 460, target: { name: 'Big', lines: 452 } };
+	state.fixes[0] = { file: 'r.go', kind: 'refactor', lines: 760, target: { name: 'Big', lines: 752 } };
 	let stop = false;
 	await runQueue(state, {
-		run: async f => ({ file: f.file, kind: 'refactor', status: 'committed', followUp: { file: f.file, kind: 'split', lines: 470 } }),
+		run: async f => ({ file: f.file, kind: 'refactor', status: 'committed', followUp: { file: f.file, kind: 'split', lines: 770 } }),
 		cancelled: () => stop, progress: () => undefined, record: () => { saveState(storage, state); stop = true; },
 	});
 	const saved = loadState(storage, storage);

@@ -7,7 +7,7 @@ calm, writing-first interface.
 **Vision:** help humans make better programs with AI. **Mission:** give developers a project-aware pair
 programmer that consults them before coding, helps them spot and understand problems while they code, and
 offers changes they can review. The product aims for sound design, useful comments, focused files, and a
-300-line maximum for source files. The current source adds review choices, AI proposal checks, and a
+600-line maximum for source files. The current source adds review choices, AI proposal checks, and a
 VSCodium save gate for human edits. These are built into the installed app but still need live checks;
 see [vision, mission, and status](docs/vision-and-status.md).
 
@@ -35,15 +35,21 @@ All documentation is listed in [`docs/README.md`](docs/README.md). Start with:
   the minimap, breadcrumbs, most of the status bar and the Copilot prompts are gone.
 - **The Project view** (left sidebar): the build path (Requirements → Architecture → Flow & tree → Build → QA)
   with live status, memory (conventions, brain, decisions, chat history) and the active model.
+- **Build and QA** work through one file at a time. Open either stage in Project to see the module and file counts.
+  Choose the whole run, a checkpoint after one or two modules, a checkpoint after every file, or a single file.
+  Choose **Review each change** or **Apply validated changes automatically** for that run. At a checkpoint, choose a
+  test task, review its exit result and the saved files, then continue. Right-click a project file in Explorer or
+  Build guide to build or QA it directly. Completed QA reports are saved in `.my_editor/qa/`.
 - **The Pair** (centered editor tab, with an optional right sidebar): my_editor's own chat. Requirement,
   Architecture, Flow & tree, Build, Review, QA, Debug, and Project agents switch with project stage and task.
+  [OpenCode can run project-agent turns](docs/opencode-runtime.md) through an optional supervised backend, retaining the selected model, permissions and Keep/Undo.
   You can pin one or return to Auto. The A− and A+ buttons change chat text size. All share the same model,
   project context, and review rules. See [characters and change finder](docs/characters-and-change-finder.md).
   Open the skill menu for Plan:
   Requirements, Architecture, Flow & tree, Brainstorm; Build: Find a change, Next step, Add a feature, Change selection,
   Explain, Why; Fix: Review, Debug, Tests, Refactor; plus your own skills). Type `/` for commands.
   Code changes come back as proposals: review them in an inline diff, undo single parts with the gutter
-  arrow, then **Keep** (writes and saves) or **Undo**. Nothing touches your file before Keep.
+  arrow, then **Keep** (writes and saves) or **Undo**. Build and QA also offer automatic application when you select it for a run.
 - **Project-aware chat:** ordinary Pair requests can search and read more project files as needed, inspect
   Git history, and propose changes to several files in one conversation. Test commands run only after you
   approve them in the editor. Tests use the current workspace, so keep a proposal before testing that change.
@@ -56,8 +62,8 @@ All documentation is listed in [`docs/README.md`](docs/README.md). Start with:
   Its Quick Fix lets you ask Pair for a reviewed suggestion or get steps to write the comment yourself.
   Toggle guidance with the speech-bubble button in the editor toolbar.
 - **Live quality guidance:** Navigator and structure findings offer the same reviewed-fix or manual-guidance
-  choice. Source files get a warning near 300 lines; AI proposals and Keep reject source files above 300 lines
-  or with multiple top-level classes. A VSCodium core patch blocks human saves above 300 lines after formatters;
+  choice. Source files get a warning near 600 lines; AI proposals and Keep reject source files above 600 lines
+  or with multiple top-level classes. A VSCodium core patch blocks human saves above 600 lines after formatters;
   its live app behavior remains to be checked.
 - **This file** (under the file tree): symbols, Pair notes and git history for the open file, in my_editor's style.
 - **A quiet window:** the left bar has only Files and Project; Search, Git, Run and Extensions still work
@@ -90,7 +96,7 @@ All documentation is listed in [`docs/README.md`](docs/README.md). Start with:
   never skipped silently. The brain stays current on save, and the pair uses it as
   context. To run it again, use **Analyse** in the Project view or **my_editor: Analyse This Project**.
 - **AI-ready check:** opening a project my_editor did not create asks *Shall I get to know this project and check
-  how AI-ready it is?* Yes runs Analyse, then writes `.my_editor/ai-ready/report.md`: files over 300 lines, files with more than
+  how AI-ready it is?* Yes runs Analyse, then writes `.my_editor/ai-ready/report.md`: files over 600 lines, files with more than
   one class or job, untested files, the project's build and test commands, design notes and possible bugs at checked
   lines. Nothing in the code changes, and Stop still writes a partial report. Run it again from **Project → Health**
   or **my_editor: Check AI-Readiness**. For Go, TypeScript/JavaScript and Python projects, **Fix on a local branch** (after the report, or **my_editor: Fix on a
@@ -105,7 +111,7 @@ All documentation is listed in [`docs/README.md`](docs/README.md). Start with:
   refactor) are not offered again, and a run that commits nothing leaves `ai_fix` unchanged. Later runs start from
   **Project → Health → Fix remaining files**.
   Python moves are refused wherever Python could notice the difference. C#, Rust and C/C++ follow.
-  In Go, a file over 300 lines because of one long function can be refactored first: the model picks runs of
+  In Go, a file over 600 lines because of one long function can be refactored first: the model picks runs of
   statements and names them, my_editor writes them as helpers byte for byte, refuses what it cannot prove equivalent,
   checks the written file independently, runs build, vet and tests against the baseline, and splits the file in the
   same run. A refactor is ticked only when the project's tests ran that function last time; otherwise you tick it.
@@ -124,7 +130,7 @@ scripts/install.sh --full   # rebuild the whole editor and apply core patches, t
 
 Both install options copy the app to `/Applications/my_editor.app`.
 Run `scripts/install.sh` by itself for fast Pair, Project, and theme updates in the existing app bundle.
-Use `scripts/install.sh --full` for editor core patches, such as the save-time 300-line gate, or when no
+Use `scripts/install.sh --full` for editor core patches, such as the save-time 600-line gate, or when no
 app has been built yet. The full option compiles VSCodium and takes much longer. Both options stop if
 their build step fails. The installer signs and checks the finished app bundle before copying it.
 

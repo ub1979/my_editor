@@ -26,7 +26,7 @@ interface SnippetRequest {
 export async function requestSnippet(request: SnippetRequest): Promise<string> {
 	const { source, marker, filePath, language, plan, checkCurrent, generate } = request;
 	const budget = snippetLineBudget(source);
-	if (!budget) { throw new Error('This file has no room under the 300-line source limit. Move the new class or function to its own file.'); }
+	if (!budget) { throw new Error('This file has no room under the 600-line source limit. Move the new class or function to its own file.'); }
 	const turns: ChatTurn[] = [{ role: 'user', text:
 		`Language: ${language}\nInsert below line ${marker.line + 1}.\nAvailable lines for the entire snippet: ${budget}.\n`
 		+ `Request: ${redact(marker.instruction)}\n\nSource:\n${redact(source)}\n\nSaved plan:\n${plan}` }];

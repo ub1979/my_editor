@@ -1,0 +1,281 @@
+{
+  "version": "0.0.86-alpha.0",
+  "recordedAt": "2026-11-08T14:05:02.261329+00:00",
+  "platform": "macOS arm64; 24 GiB RAM; 14 logical CPUs",
+  "unit": {
+    "passed": 852,
+    "failed": 0,
+    "log": "/tmp/editor-load-unit-isolated.log",
+    "cache": "disposable GOCACHE; default sandbox Go cache was denied"
+  },
+  "nativeContract": {
+    "cases": 9,
+    "ok": true,
+    "log": "/tmp/editor-load-runtime-contract.log"
+  },
+  "startupFaults": {
+    "ok": true,
+    "cases": [
+      {
+        "mode": "cancel",
+        "elapsedMs": 1441,
+        "childrenGone": true,
+        "ownedRootRemoved": true,
+        "privateHome": true,
+        "explicitPort": 60216
+      },
+      {
+        "mode": "silent",
+        "elapsedMs": 15071,
+        "childrenGone": true,
+        "ownedRootRemoved": true,
+        "privateHome": true,
+        "explicitPort": 60219
+      },
+      {
+        "mode": "wrong-listener",
+        "elapsedMs": 125,
+        "childrenGone": true,
+        "ownedRootRemoved": true,
+        "privateHome": true,
+        "explicitPort": 60436
+      },
+      {
+        "mode": "bind-failure",
+        "elapsedMs": 123,
+        "childrenGone": true,
+        "ownedRootRemoved": true,
+        "privateHome": true,
+        "explicitPort": 60439
+      },
+      {
+        "mode": "cancel-port-reservation",
+        "attempts": 50,
+        "rejected": true
+      },
+      {
+        "mode": "native-default-port-occupied",
+        "healthy": true,
+        "ownedRootRemoved": true
+      }
+    ]
+  },
+  "load": [
+    {
+      "profile": "/tmp/my-editor-integration.VLUU5E",
+      "kind": "soak",
+      "reportHash": "cf64655db9dfba351f76b54232c0f72e09aa131fb0c771e9e4e1e5c8c5d570cc",
+      "ok": true,
+      "starts": 256,
+      "runtimeSessions": 256,
+      "cycles": 64,
+      "elapsedMs": 1213671,
+      "startupMs": {
+        "p50": 1020,
+        "p95": 1334,
+        "max": 2202
+      },
+      "childrenExited": true,
+      "ownedRootsRemoved": true,
+      "assertions": {
+        "ok": true
+      },
+      "selectedModel": null
+    },
+    {
+      "profile": "/tmp/my-editor-integration.6telb9",
+      "kind": "soak",
+      "reportHash": "d8c6c9ffd8b943f5ec1edc571e378cfa13a4a3bd6fcfb3314d5f9d527bdd6134",
+      "ok": true,
+      "starts": 256,
+      "runtimeSessions": 256,
+      "cycles": 64,
+      "elapsedMs": 1211648,
+      "startupMs": {
+        "p50": 1024,
+        "p95": 1275,
+        "max": 1788
+      },
+      "childrenExited": true,
+      "ownedRootsRemoved": true,
+      "assertions": {
+        "ok": true
+      },
+      "selectedModel": null
+    },
+    {
+      "profile": "/tmp/my-editor-integration.APAW79",
+      "kind": "soak",
+      "reportHash": "bbaf7fb0497d9d9b2fb4e68cb14788c227984cc01fe81d5bd411e97ed2e2829f",
+      "ok": true,
+      "starts": 256,
+      "runtimeSessions": 256,
+      "cycles": 64,
+      "elapsedMs": 1214506,
+      "startupMs": {
+        "p50": 1048,
+        "p95": 1222,
+        "max": 1611
+      },
+      "childrenExited": true,
+      "ownedRootsRemoved": true,
+      "assertions": {
+        "ok": true
+      },
+      "selectedModel": null
+    },
+    {
+      "profile": "/tmp/my-editor-integration.f7S4FE",
+      "kind": "combined",
+      "reportHash": "c0daacf092438a3316b7ca62952018d2760314bfba7968bd1f4db6649fc6bd21",
+      "ok": true,
+      "starts": 302,
+      "runtimeSessions": 299,
+      "cycles": null,
+      "elapsedMs": null,
+      "startupMs": {
+        "p50": 922,
+        "p95": 1156,
+        "max": 2508
+      },
+      "childrenExited": true,
+      "ownedRootsRemoved": true,
+      "assertions": {
+        "ok": true,
+        "testFailureRepairLoop": true,
+        "dependencyFreshness": true,
+        "reviewTimeDependencyFreshness": true,
+        "testSourceFreshness": true,
+        "unavailableSelectedModelStops": true,
+        "decisionReferences": true,
+        "mixedCheckpointEvidence": true,
+        "coordinatedRepairs": true,
+        "repairPauseResume": true,
+        "savedDecisionRecovery": true,
+        "evidenceBackedQuestions": true,
+        "unattendedBuildQA": true,
+        "upfrontConsent": true,
+        "executionRevocation": true,
+        "buildThenQA": true,
+        "existingCodeDeferredToQA": true,
+        "sequentialBuild": true,
+        "dependencyOrder": true,
+        "completedPreviewClosed": true,
+        "perRunSavingPermission": true,
+        "automaticCompanionTests": true,
+        "finalTestCheckpoint": true,
+        "failedTestsBlockCompletion": true,
+        "unverifiedCompletionBlocked": true,
+        "automaticApply": true,
+        "actualNodeTests": true,
+        "moduleTestScope": true,
+        "runModelScope": true,
+        "plainFileReview": true,
+        "nativeToolRequests": true,
+        "qaAll": true,
+        "selectedFileReview": true,
+        "contextVerified": true,
+        "preSaveDataGuard": true,
+        "cancellation": true,
+        "staleEditRejected": true,
+        "planProtected": true
+      },
+      "selectedModel": null
+    },
+    {
+      "profile": "/tmp/my-editor-integration.KtX9Ur",
+      "kind": "selected-model",
+      "reportHash": "ec76d6409f0f120811a4af1e64c8cf3393647721c52187cc32e5fc4d954b4256",
+      "ok": true,
+      "starts": 4,
+      "runtimeSessions": 4,
+      "cycles": null,
+      "elapsedMs": null,
+      "startupMs": {
+        "p50": 1216,
+        "p95": 1264,
+        "max": 1264
+      },
+      "childrenExited": true,
+      "ownedRootsRemoved": true,
+      "assertions": {
+        "ok": true
+      },
+      "selectedModel": "codex-cli:gpt-5.6-sol"
+    }
+  ],
+  "occupiedPortStress": {
+    "ok": true,
+    "workers": 4,
+    "seconds": 180,
+    "elapsedMs": 185761,
+    "attempts": 84,
+    "passed": 84,
+    "failed": 0,
+    "startupMs": {
+      "p50": 1095,
+      "p95": 1649,
+      "max": 2613
+    },
+    "clean": true
+  },
+  "soakHostMemory": {
+    "5644": {
+      "firstMiB": 152.6,
+      "lastMiB": 94.2,
+      "peakMiB": 175.6
+    },
+    "5645": {
+      "firstMiB": 154.4,
+      "lastMiB": 108.8,
+      "peakMiB": 180.2
+    },
+    "5646": {
+      "firstMiB": 154.5,
+      "lastMiB": 79.6,
+      "peakMiB": 180.1
+    }
+  },
+  "startupStallsSampled": [],
+  "sourceHashes": {
+    "overlay/extensions/my-editor-core/src/runtime/openCodeConfig.ts": "4c83b3d89fdf8063eaccd429193bb98caa381945094a12a20821c8ac175db3f8",
+    "overlay/extensions/my-editor-core/src/runtime/openCodeServer.ts": "820ce13479f3f300c4bd139fc1c6acbba1e6c318ae3ba398c364f27fbb971dc0",
+    "overlay/extensions/my-editor-core/src/runtime/openCodeStartup.ts": "6cb8dbe9b67677f66b58d6003065ecd00e5cc063daa61a47a1a7d61cefd2b7de",
+    "overlay/extensions/my-editor-core/dist/extension.js": "4a823fc8098c30651d300776b2140f903ff8a585ba83fd0238f94d5ab9d4f2c3",
+    "overlay/extensions/my-editor-core/package.json": "58e8e538457439e093f8752b9fd655b8c6e9bb0be4a6d6f3f8c15f757f62b24e"
+  },
+  "limits": [
+    "Historical 15-second startup stall did not naturally reproduce; early OS user lookup is a lead, not a proved blocking stack.",
+    "Baseline combined harness exceeded its 120-second phase wait while progressing at file 27/32; candidate uses an explicit bounded 300-second fixture-only wait. Production deadlines unchanged.",
+    "First candidate combined run was deliberately terminated to correct the load harness budget and is excluded from passing results.",
+    "A finite concurrency test on this Mac does not establish indefinite or cross-platform reliability.",
+    "No social application QA or recurring monitoring was started."
+  ],
+  "installation": {
+    "version": "0.0.86-alpha.0",
+    "signatureVerified": true,
+    "checksums": {
+      "vs/base/parts/sandbox/electron-browser/preload.js": true,
+      "vs/workbench/workbench.desktop.main.js": true,
+      "vs/workbench/workbench.desktop.main.css": true,
+      "vs/workbench/api/node/extensionHostProcess.js": true,
+      "vs/code/electron-browser/workbench/workbench.html": true,
+      "vs/code/electron-browser/workbench/workbench.js": true,
+      "vs/sessions/sessions.desktop.main.js": true,
+      "vs/sessions/sessions.desktop.main.css": true,
+      "vs/sessions/electron-browser/sessions.html": true,
+      "vs/sessions/electron-browser/sessions.js": true
+    },
+    "extensionMatches": true,
+    "testedCandidateUnchanged": true,
+    "qaStatus": "paused",
+    "qaUnchanged": true,
+    "settingsBytesUnchanged": true,
+    "homeUiVersionVerified": "0.0.86 alpha",
+    "previewRestoredViaEditorTerminal": true,
+    "previewUrl": "http://127.0.0.1:4300/accounts",
+    "previewObserved": "Social Hub Accounts; existing not-linked account and optional fake-platform unavailable states"
+  },
+  "totalMeasuredStarts": 1158,
+  "maxStartupMsOverall": 2613
+}

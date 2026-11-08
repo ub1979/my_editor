@@ -31,7 +31,7 @@ export function buildFileBrief(guide: BuildGuideState, path: string): BuildFileB
 		position: `File ${at + 1} of ${step.files.length} in this step`, purpose: file.role || 'No file purpose is recorded in the saved tree.',
 		instruction: blocked ? 'Prerequisite implementation is still missing. Build whole project can prepare the setup and dependencies for you.'
 			: status === 'verified' ? 'You confirmed this step’s checks for the current files.'
-				: unfinished ? `${setup ? 'Set up this configuration before the code that uses it. ' : ''}Start with the purpose above. Choose “Help me start” for a small first action, or “Prepare this file” for a complete change to review.`
+				: unfinished ? `${setup ? 'Set up this configuration before the code that uses it. ' : ''}Start with the purpose above. Choose “Help me start” for a small first action, or “Build this file with AI” for a complete change to review.`
 					: 'This file already has content. Review it against the saved tasks before adding more. Existing content does not mean its checks passed.',
 		tasks: step.tasks, checks: step.checks, files: step.files, next: step.files[at + 1], blocked,
 	};

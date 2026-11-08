@@ -13,19 +13,19 @@ const testRun = (code: number, outcome: 'pass' | 'fail'): CheckResult =>
 	({ command: 'go test -count=1 -json ./a', code, failures: [], tests: { tests: { 'm TestF': outcome }, packages: {} }, tail: '', log: '' });
 
 test('fix choices: Go files only, never-split files left out, biggest first, splits pre-selected', async () => {
-	const stats = [fileStats('a.go', 'x\n'.repeat(900)), fileStats('b.go', 'x\n'.repeat(500)), fileStats('c.ts', 'x\n'.repeat(700)),
-		fileStats('gen.go', 'x\n'.repeat(800))];
+	const stats = [fileStats('a.go', 'x\n'.repeat(1200)), fileStats('b.go', 'x\n'.repeat(800)), fileStats('c.ts', 'x\n'.repeat(1000)),
+		fileStats('gen.go', 'x\n'.repeat(1100))];
 	const findings = [
 		{ kind: 'too-long' as const, file: 'b.go', text: '' }, { kind: 'too-long' as const, file: 'a.go', text: '' },
 		{ kind: 'untested' as const, file: 'b.go', text: '' }, { kind: 'too-long' as const, file: 'c.ts', text: '' },
 		{ kind: 'too-long' as const, file: 'gen.go', text: '' }, { kind: 'design' as const, file: 'a.go', text: '' },
 	];
 	const choices = fixChoices(findings, stats, ['.go'], new Map([['gen.go', 'generated code']]));
-	assert.deepEqual(choices, [fix('a.go', 'split', 900), fix('b.go', 'split', 500), fix('b.go', 'tests', 500)]);
+	assert.deepEqual(choices, [fix('a.go', 'split', 1200), fix('b.go', 'split', 800), fix('b.go', 'tests', 800)]);
 	let shown: { picked: boolean; description: string }[] = [];
 	const picked = await pickFixes(choices, async items => { shown = items.filter(isPickItem); return shown.filter(item => item.picked) as PickItem[]; });
 	assert.deepEqual(shown.map(item => item.picked), [true, true, false]);
-	assert.equal(shown[0].description, '900 lines · split into focused files');
+	assert.equal(shown[0].description, '1200 lines · split into focused files');
 	assert.deepEqual(picked, choices.slice(0, 2));
 	assert.equal(await pickFixes(choices, async () => undefined), undefined);
 });
@@ -40,17 +40,17 @@ test('the picker pre-selects every split, however many, and names no per-run lim
 	assert.ok(options.placeHolder.length <= 50, options.placeHolder);
 });
 
-test('the change note shows plan attempts and lists only skipped files over 300 lines', () => {
+test('the change note shows plan attempts and lists only skipped files over 600 lines', () => {
 	const run = state('/p/shop');
 	run.steps[0] = { ...run.steps[0], plan: { attempts: 2, rejected: ['Declaration 9 does not exist.'] } };
 	run.steps[2] = { ...run.steps[2], plan: { attempts: 2, rejected: ['a', 'b'] } };
-	(run as { skippedFiles: unknown }).skippedFiles = [{ file: 'gen.go', reason: 'generated code', lines: 900 },
+	(run as { skippedFiles: unknown }).skippedFiles = [{ file: 'gen.go', reason: 'generated code', lines: 1200 },
 		{ file: 'x.go', reason: 'cgo', lines: 120 }, { file: 'y.go', reason: 'cgo', lines: 50 }];
 	const note = renderChangeNote(run, new Date('2026-10-09T12:34:00Z'));
 	assert.match(note, /Plan: 2 attempts; rejected: Declaration 9 does not exist\./);
 	assert.match(note, /`c\.go` \(split\): refused\. The move check failed: Rule 2\. Plan: 2 attempts; rejected: a \/ b/);
-	assert.match(note, /## Files never split\n\n- 1 file \(`gen\.go`\): generated code\.\n- plus 2 files under 300 lines that need no split\. /);
-	assert.match(note, /under 300 lines that need no split\. They have no tests and cannot be given any, so the picker does not offer them/);
+	assert.match(note, /## Files never split\n\n- 1 file \(`gen\.go`\): generated code\.\n- plus 2 files under 600 lines that need no split\. /);
+	assert.match(note, /under 600 lines that need no split\. They have no tests and cannot be given any, so the picker does not offer them/);
 	assert.doesNotMatch(note, /x\.go/);
 });
 
@@ -58,15 +58,15 @@ function state(root: string): RunState {
 	return {
 		version: 1, root, language: 'Go', worktree: { branch: 'ai_fix', path: `${root}.ai-ready`, base: '0123456789abcdef' },
 		startedAt: '2026-10-09T10:00:00Z', approved: ['go build ./...'], next: 3,
-		fixes: [fix('a.go', 'split', 900), fix('b.go', 'tests', 500), fix('c.go', 'split', 450), fix('d.go', 'split', 420)],
+		fixes: [fix('a.go', 'split', 1200), fix('b.go', 'tests', 800), fix('c.go', 'split', 750), fix('d.go', 'split', 720)],
 		steps: [
 			{ file: 'a.go', kind: 'split', status: 'committed', commit: 'abcdef123', moved: [{ file: 'a_query.go', names: ['Find', 'List'] }],
-				checks: '`go build ./...`: passed.', notes: ['a.go stays at 450 lines: func Big alone is 430 lines and needs a real refactor.'] },
+				checks: '`go build ./...`: passed.', notes: ['a.go stays at 750 lines: func Big alone is 730 lines and needs a real refactor.'] },
 			{ file: 'b.go', kind: 'tests', status: 'committed', commit: 'fedcba987', testFile: 'b_ai_test.go', dropped: ['TestAiSlow'] },
 			{ file: 'c.go', kind: 'split', status: 'refused', reason: 'The move check failed: Rule 2.' },
 		],
 		baseline: { 'go test -count=1 -json ./a': [testRun(1, 'pass'), testRun(0, 'fail')] },
-		skippedFiles: [{ file: 'gen.go', reason: 'generated code', lines: 800 }],
+		skippedFiles: [{ file: 'gen.go', reason: 'generated code', lines: 1100 }],
 	};
 }
 
@@ -74,7 +74,7 @@ test('the change note lists commits, refusals, flaky tests, what is left and how
 	const note = renderChangeNote(state('/p/shop'), new Date('2026-10-09T12:34:00Z'), GO_LANGUAGE.mayDiffer);
 	for (const pattern of [/^# AI-ready changes: shop/, /`abcdef1` Split `a.go` into `a_query.go` \(Find, List\)/, /Checks: `go build/,
 		/`fedcba9` Added tests for `b.go` in `b_ai_test.go`; dropped failing tests TestAiSlow/, /`c.go` \(split\): refused. The move check failed/,
-		/## Not run yet\n\n- `d.go` \(split\)/, /1 file \(`gen.go`\): generated code/, /- m TestF/, /stays at 450 lines/, /glob\.\.funcN/,
+		/## Not run yet\n\n- `d.go` \(split\)/, /1 file \(`gen.go`\): generated code/, /- m TestF/, /stays at 750 lines/, /glob\.\.funcN/,
 		/already failed before the run[\s\S]*- `go test -count=1 -json \.\/a`/, /git diff 0123456789ab\.\.\.ai_fix/, /Nothing was pushed/]) {
 		assert.match(note, pattern);
 	}
@@ -97,9 +97,9 @@ test('discarding the rest records each fix as discarded by the user, in the note
 });
 
 test('skipped files carry their line counts from the file stats, and the note says a failed check proves nothing', () => {
-	const stats = [fileStats('big.go', 'x\n'.repeat(900)), fileStats('small.go', 'x\n'.repeat(30))];
+	const stats = [fileStats('big.go', 'x\n'.repeat(1200)), fileStats('small.go', 'x\n'.repeat(30))];
 	assert.deepEqual(skippedWithLines(new Map([['big.go', 'generated'], ['small.go', 'cgo']]), stats),
-		[{ file: 'big.go', reason: 'generated', lines: 900 }, { file: 'small.go', reason: 'cgo', lines: 30 }]);
+		[{ file: 'big.go', reason: 'generated', lines: 1200 }, { file: 'small.go', reason: 'cgo', lines: 30 }]);
 	assert.match(renderChangeNote(state('/p/shop'), new Date('2026-10-09T12:34:00Z')),
 		/already failed before the run is marked "not a check" on its commit: it proves nothing about that commit/);
 });
@@ -113,7 +113,7 @@ test('the change note names what may differ in the run\'s language, as its adapt
 
 test('a refactor fix reads as a refactor in the refused, not run and discarded lists', () => {
 	const run: RunState = { ...state('/p/shop'), next: 1,
-		fixes: [{ file: 'a.go', kind: 'refactor', lines: 450 }, { file: 'b.go', kind: 'refactor', lines: 430 }],
+		fixes: [{ file: 'a.go', kind: 'refactor', lines: 750 }, { file: 'b.go', kind: 'refactor', lines: 730 }],
 		steps: [{ file: 'a.go', kind: 'refactor', status: 'refused', reason: 'The extract check failed: x.' },
 			{ file: 'c.go', kind: 'refactor', status: 'discarded' }] };
 	const note = renderChangeNote(run, new Date('2026-10-09T12:34:00Z'));
@@ -123,9 +123,9 @@ test('a refactor fix reads as a refactor in the refused, not run and discarded l
 });
 
 test('refactor rows say what they do and are ticked only when allowed', async () => {
-	const target = (name: string) => ({ name, lines: 425 });
+	const target = (name: string) => ({ name, lines: 725 });
 	const refactor = (file: string, lines: number, name: string) => ({ file, kind: 'refactor' as const, lines, target: target(name) });
-	const choices = [refactor('a.go', 430, 'Run'), fix('a.go', 'tests', 430), refactor('b.go', 420, 'Step'), refactor('c.go', 410, 'Big')];
+	const choices = [refactor('a.go', 730, 'Run'), fix('a.go', 'tests', 730), refactor('b.go', 720, 'Step'), refactor('c.go', 710, 'Big')];
 	const unticked = new Map([['a.go', 'no test here runs `Run` yet']]);
 	const blocked = new Map([['c.go', 'can\'t be checked here']]);
 	let shown: { picked: boolean; description: string; detail?: string }[] = [];
@@ -134,7 +134,7 @@ test('refactor rows say what they do and are ticked only when allowed', async ()
 		return shown.filter(item => item.picked) as PickItem[];
 	};
 	const picked = await pickFixes(choices, show, blocked, unticked);
-	assert.equal(shown[0].description, '430 lines · refactor `Run` (425 lines) into helpers, then split');
+	assert.equal(shown[0].description, '730 lines · refactor `Run` (725 lines) into helpers, then split');
 	assert.deepEqual(shown.map(item => item.picked), [false, true, false, false], 'refactors first, then the tests row');
 	assert.deepEqual(shown.map(item => item.detail), ['no test here runs `Run` yet', undefined, 'can\'t be checked here', undefined]);
 	assert.deepEqual(picked, [choices[2]]);
@@ -146,7 +146,7 @@ function refactored(ran?: boolean): RunState {
 		{ name: 'queryRows', params: ['ctx', 'tx', 'req'], outputs: ['rows', 'err'], returns: false },
 		{ name: 'stepSource', params: ['stepCtx', '*p', 'err'], outputs: ['err'], returns: true },
 	];
-	return { ...state('/p/shop'), next: 2, fixes: [{ file: 'store/step.go', kind: 'refactor', lines: 467 }, fix('store/step.go', 'split', 470)],
+	return { ...state('/p/shop'), next: 2, fixes: [{ file: 'store/step.go', kind: 'refactor', lines: 767 }, fix('store/step.go', 'split', 770)],
 		steps: [{ file: 'store/step.go', kind: 'refactor', status: 'committed', commit: 'abc1234567', checks: '`go build ./store`: passed.',
 			refactor: { target: 'Step', helpers, lines: 283, ...(ran === undefined ? {} : { ran }) } },
 		{ file: 'store/step.go', kind: 'split', status: 'committed', commit: 'def7654321', moved: [{ file: 'store/step_source.go', names: ['stepSource'] }] }] };

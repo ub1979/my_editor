@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import { ChatFilePass } from './chatFilePass';
+import { character } from './characters';
 import { ApiKeys } from '../models/secrets';
 import { ActiveFileTracker } from './activeFile';
 import { analysisTask, closeAnalysisOffer } from './analysisOffer';
@@ -30,6 +32,7 @@ export class ChatView implements vscode.WebviewViewProvider, ChatHandlers {
 	static readonly id = 'myEditor.chat';
 	private readonly panels: ChatPanels;
 	private readonly conversations: ChatConversations;
+	private readonly filePass: ChatFilePass;
 	private readonly navigation: ChatNavigation;
 	private get state() { return this.conversations.state; }
 	private readonly broadcast: ChatBroadcast;
@@ -44,7 +47,8 @@ export class ChatView implements vscode.WebviewViewProvider, ChatHandlers {
 		readonly proposals: Proposals,
 		private readonly keys: ApiKeys,
 	) {
-		this.panels = new ChatPanels(context.extensionUri, (message, sender) => void handleChatMessage(message, sender, this));
+		this.panels = new ChatPanels(context.extensionUri, (message, sender) => void handleChatMessage(message, sender, this),
+			() => character(this.state.characterId).name);
 		this.conversations = new ChatConversations(context.workspaceState.get<SavedConversations>(STATE_KEY));
 		this.broadcast = new ChatBroadcast({
 			context, keys, conversations: this.conversations,
@@ -52,12 +56,15 @@ export class ChatView implements vscode.WebviewViewProvider, ChatHandlers {
 			activeFile: () => this.activeFile.current,
 			running: () => this.replies.running,
 		});
+		this.filePass = new ChatFilePass({ character: () => this.state.characterId, file: () => this.activeFile.current,
+			busy: () => this.replies.running, post: message => this.broadcast.post(message), sidebar: () => this.panels.openSidebar(),
+			columns: () => this.panels.sidebarVisible });
 		this.navigation = new ChatNavigation({ context, conversations: this.conversations, broadcast: this.broadcast,
 			running: () => this.replies.running, save: () => this.save(), send: (text, kickoff) => this.send(text, kickoff), analyse: () => this.analyse() });
 		context.subscriptions.push(
-			this.activeFile,
+			this.activeFile, this.filePass,
 			proposals.onDidChange(proposal => this.onProposalChanged(proposal)),
-			this.activeFile.onDidChange(() => this.broadcast.editorContext()),
+			this.activeFile.onDidChange(() => { this.broadcast.editorContext(); void this.filePass.refresh(); }),
 			vscode.workspace.onDidChangeWorkspaceFolders(() => void this.navigation.selectForProject()),
 			vscode.workspace.onDidChangeConfiguration(e => e.affectsConfiguration('myEditor') && this.broadcast.models()),
 			context.secrets.onDidChange(() => this.broadcast.models()),
@@ -71,8 +78,16 @@ export class ChatView implements vscode.WebviewViewProvider, ChatHandlers {
 
 	/** Shows the chat as a centered editor tab and closes the sidebar. */
 	openLounge(): Promise<void> { return this.panels.openLounge(); }
+	async openAgent(id: string): Promise<void> {
+		this.chooseCharacter(id);
+		if (this.panels.sidebarVisible) { await this.openSidebar(); } else { await this.openLounge(); }
+	}
 
-	openSidebar(): Promise<void> { return this.panels.openSidebar(); }
+	async openSidebar(): Promise<void> {
+		await this.panels.openSidebar();
+		if (['ada', 'poppy'].includes(this.state.characterId)) { await this.filePass.openFile(); }
+		else if (this.activeFile.current) { await vscode.window.showTextDocument(this.activeFile.current.uri, { preserveFocus: true }); }
+	}
 
 	/** Opens the chat on a skill, e.g. from the Project view or after creating a project. */
 	async startSkill(id: string): Promise<void> {
@@ -139,6 +154,7 @@ export class ChatView implements vscode.WebviewViewProvider, ChatHandlers {
 
 	async ready(sender?: vscode.Webview): Promise<void> {
 		await this.broadcast.init(sender);
+		await this.filePass.refresh();
 		const pending = this.pending;
 		if (!pending) {
 			return;
@@ -154,7 +170,7 @@ export class ChatView implements vscode.WebviewViewProvider, ChatHandlers {
 		}
 	}
 
-	chooseCharacter(id: string | undefined): void { this.navigation.chooseCharacter(id); }
+	chooseCharacter(id: string | undefined): void { this.navigation.chooseCharacter(id); void this.filePass.refresh(); }
 
 	setChatLayout(layout: string | undefined): void { this.navigation.setLayout(layout); }
 
@@ -170,13 +186,14 @@ export class ChatView implements vscode.WebviewViewProvider, ChatHandlers {
 		this.replies.stop();
 	}
 
-	pickSkill(id: string): Promise<void> { return this.navigation.pickSkill(id); }
+	async pickSkill(id: string): Promise<void> { await this.navigation.pickSkill(id); await this.filePass.refresh(); }
 
 	async send(text: string, kickoff = false): Promise<void> {
 		if (this.replies.running) {
 			return;
 		}
 		const route = this.navigation.prepare(text);
+		void this.filePass.refresh();
 		const state = this.state;
 		state.pendingPlaceholder = undefined;
 		const mode = state.mode;
@@ -201,6 +218,10 @@ export class ChatView implements vscode.WebviewViewProvider, ChatHandlers {
 			await runChatTurn(turn, context, sink, token);
 		});
 	}
+	filePassAction(action: string, agent?: string, root?: string, path?: string): Promise<void> {
+		return this.filePass.action(action, agent, root, path);
+	}
+
 	async chooseAnswer(messageId: string, index: number): Promise<void> {
 		await answerReplyChoice(this.state, messageId, index, this.replies.running, text => this.send(text));
 	}

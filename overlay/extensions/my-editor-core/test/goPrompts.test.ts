@@ -20,10 +20,10 @@ function declarationLines(text: string): Record<string, unknown>[] {
 	return block.split('\n').map(line => JSON.parse(line) as Record<string, unknown>);
 }
 
-test('a Go split prompt names the file, its package and length, and asks for files of at most 300 lines', () => {
+test('a Go split prompt names the file, its package and length, and asks for files of at most 600 lines', () => {
 	const prompt = goSplitPrompt(info('internal/shop/store.go', [decl({ id: 0, names: ['Store'] })]), 812);
 	assert.match(prompt.text, /^File: internal\/shop\/store\.go \(package shop, 812 lines\)\n/);
-	assert.match(prompt.text, /Plan new files so store\.go and every new file are at most 300 lines\.$/);
+	assert.match(prompt.text, /Plan new files so store\.go and every new file are at most 600 lines\.$/);
 	assert.match(prompt.system, /Refer to declarations only by their numeric "id"/);
 	assert.match(prompt.system, /Never end a name in _test\.go or in a GOOS or GOARCH name/);
 	assert.match(prompt.system, /Reply with only a JSON array/);

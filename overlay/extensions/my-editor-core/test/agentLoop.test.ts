@@ -4,6 +4,50 @@ import { agentTurns, MAX_PROJECT_TOOL_CALLS, runAgentLoop } from '../src/chat/ag
 
 const initial = [{ role: 'user' as const, text: 'Inspect and fix this project.' }];
 
+test('file progress describes relevant context without presenting a tool budget as file progress', async () => {
+	const progress: string[] = [];
+	let asked = 0;
+	await runAgentLoop({ initial, fileReview: true, cancelled: () => false, progress: message => progress.push(message),
+		ask: async () => JSON.stringify(asked++ === 0
+			? { action: 'tool', name: 'read_file', arguments: { path: 'tsconfig.base.json' } }
+			: { action: 'final', message: 'FILE_REVIEWED\nChecked inherited configuration.' }),
+		execute: async () => '{}',
+	});
+	assert.ok(progress.includes('Reading related context: tsconfig.base.json…'));
+	assert.ok(progress.includes('Reviewing the context for this file…'));
+	assert.doesNotMatch(progress.join('\n'), /Checking the project|\d+\/60|read_file\(/);
+});
+
+test('a valid file-pass conclusion never falls through to ordinary chat Keep guidance', async () => {
+	let asks = 0;
+	const conclusion = 'FILE_REVIEWED\nI updated the proposed manifest to match its dependencies. Test execution remains separate.';
+	const result = await runAgentLoop({ initial, fileReview: true, cancelled: () => false, progress: () => undefined,
+		finalRecovery: { correction: message => message.startsWith('FILE_REVIEWED\n') ? undefined : 'Return FILE_REVIEWED.', failure: 'Review incomplete.' },
+		ask: async () => JSON.stringify(asks++ === 0 ? { action: 'tool', name: 'propose_file', arguments: { path: 'package.json', content: '{}' } }
+			: { action: 'final', message: conclusion }),
+		execute: async () => 'Proposed package.json for this file pass.',
+	});
+	assert.equal(result, conclusion);
+	assert.equal(asks, 2);
+});
+
+test('larger read-only batches finish with at most four concurrent checks', async () => {
+	let asks = 0, active = 0, peak = 0;
+	const checked: string[] = [];
+	const calls = Array.from({ length: 6 }, (_, i) => ({ name: 'read_file', arguments: { path: `src/${i}.ts` } }));
+	const result = await runAgentLoop({ initial, cancelled: () => false, progress: () => undefined,
+		ask: async () => JSON.stringify(asks++ ? { action: 'final', message: 'Checked all six files.' } : { action: 'tools', calls }),
+		execute: async call => {
+			active++; peak = Math.max(peak, active);
+			await new Promise(resolve => setTimeout(resolve, 5));
+			active--; checked.push(String(call.arguments.path)); return 'source';
+		},
+	});
+	assert.equal(result, 'Checked all six files.');
+	assert.equal(checked.length, 6);
+	assert.equal(peak, 4);
+});
+
 test('Review requests a source check before accepting a conclusion', async () => {
 	let requests = 0;
 	let checks = 0;
@@ -133,15 +177,39 @@ test('Pair repairs malformed internal JSON once and never shows it as an answer'
 });
 
 test('Pair fails in plain English if malformed tool JSON cannot be repaired', async () => {
+	const malformed: string[] = [];
 	const reply = await runAgentLoop({
 		initial,
 		cancelled: () => false,
 		progress: () => undefined,
 		ask: async () => '{"action":"tools","calls":[',
+		onMalformedReply: reply => { malformed.push(reply); },
 		execute: async () => { throw new Error('No tool should run.'); },
 	});
 	assert.match(reply, /could not read the model’s project check/);
 	assert.doesNotMatch(reply, /"action"/);
+	assert.deepEqual(malformed, ['{"action":"tools","calls":[', '{"action":"tools","calls":[']);
+});
+
+test('tool history keeps valid JSON actions and complete proposals within its evidence budget', async () => {
+	let requests = 0;
+	const content = 'export const value = 1;\n';
+	await runAgentLoop({ initial, cancelled: () => false, progress: () => undefined,
+		ask: async turns => {
+			requests++;
+			if (requests === 1) { return JSON.stringify({ action: 'tool', name: 'read_file', arguments: { path: 'a.ts' } }); }
+			const history = turns.filter(turn => turn.role === 'assistant').map(turn => JSON.parse(turn.text));
+			assert.equal(history[0].name, 'read_file');
+			if (requests === 2) { return JSON.stringify({ action: 'tool', name: 'propose_file', arguments: { path: 'a.ts', content } }); }
+			assert.equal(history[1].arguments.content, content);
+			return JSON.stringify({ action: 'final', message: 'File proposal is ready for review.' });
+		}, execute: async call => call.name === 'read_file' ? 'Existing source' : 'Proposed a.ts',
+	});
+	const huge = { label: 'propose_file(large.ts)', call: JSON.stringify({ action: 'tool', name: 'propose_file',
+		arguments: { path: 'large.ts', content: 'x'.repeat(80000) } }), result: 'Proposed large.ts' };
+	const turns = agentTurns(initial, [huge], 12000);
+	assert.ok(turns.every(turn => turn.text.length < 12000));
+	assert.ok(turns.some(turn => turn.text.includes('Proposed large.ts')));
 });
 
 test('Pair requests an evidence-based final answer at the safety bound', async () => {
@@ -186,4 +254,19 @@ test('older project checks stay bounded and retain the checked paths', () => {
 	assert.ok(older.text.length < 11_000);
 	assert.ok(older.text.includes('read_file(src/45.go:1)'));
 	assert.ok(turns.some(turn => turn.text.includes('result 49')));
+});
+
+test('file passes retain dependency bodies beyond four reads without growing on repeated reads', () => {
+	const dependencies = Array.from({ length: 10 }, (_, index) => ({
+		label: `read_file(contract-${index}.ts:1)`, call: `Read contract ${index}`,
+		result: `contract-${index}: ` + 'x'.repeat(900) + `\nexport type Contract${index} = { value: string };`,
+	}));
+	const observations = [...dependencies, ...dependencies.map(item => ({ ...item }))];
+	const turns = agentTurns(initial, observations, 12_000);
+	for (let index = 0; index < 10; index++) {
+		assert.equal(turns.filter(turn => turn.text.includes(`export type Contract${index} =`)).length, 1);
+	}
+	const bounded = agentTurns(initial, observations, 2_000);
+	assert.ok(bounded.filter(turn => turn.role === 'assistant').length <= 2);
+	assert.ok(bounded.some(turn => turn.text.includes('export type Contract9 =')));
 });

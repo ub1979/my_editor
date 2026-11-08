@@ -15,7 +15,7 @@ Rules:
 - "readsWhenDefined" lists ids it reads while it is being defined (defaults, decorators, base classes, values): those must move to
   the same new module and come before it.
 - Names starting with _ are private but may move; the original re-imports every moved name.
-- Every new module and the original must end up at 300 lines or fewer. Leave the definitions that belong to the original's main job in it.
+- Every new module and the original must end up at 600 lines or fewer. Leave the definitions that belong to the original's main job in it.
 - New module names: lowercase letters, digits and underscores ending in .py; not the name of a file, folder or name already in the
   package, not a standard or installed module, not test_*, *_test, conftest, setup, models, views, urls, tasks or settings.
 Reply with only a JSON array, for example: [{"file":"rows.py","declarations":[3,7]}]`;
@@ -48,7 +48,7 @@ export function pySplitPrompt(info: PyFileInfo, totalLines: number, folder: read
 		system: SPLIT_SYSTEM,
 		text: `Module: ${info.context.module} (${info.path}, ${totalLines} lines)\nFiles and folders already in its folder: ${folder.join(', ')}\n`
 			+ `Declarations:\n${declarations.map(d => JSON.stringify(d)).join('\n')}\n\n`
-			+ `Plan new modules so ${path.posix.basename(info.path)} and every new module are at most 300 lines.`,
+			+ `Plan new modules so ${path.posix.basename(info.path)} and every new module are at most 600 lines.`,
 	};
 }
 

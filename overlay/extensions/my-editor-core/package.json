@@ -2,7 +2,7 @@
   "name": "my-editor-core",
   "displayName": "my_editor Core",
   "description": "Built-in core of my_editor: project brain, skills, pair mode.",
-  "version": "0.0.38-alpha.0",
+  "version": "0.0.86-alpha.0",
   "publisher": "my-editor",
   "license": "MIT",
   "private": true,
@@ -18,6 +18,11 @@
   ],
   "contributes": {
     "commands": [
+      {
+        "command": "myEditor.projectBuild.buildFirst",
+        "title": "Build Missing Files First, Then QA",
+        "category": "my_editor"
+      },
       {
         "command": "myEditor.home",
         "title": "Home",
@@ -159,7 +164,7 @@
       },
       {
         "command": "myEditor.chat.openLounge",
-        "title": "Open Pair in Editor",
+        "title": "Open Agent Chat in Editor",
         "category": "my_editor",
         "icon": "$(open-preview)"
       },
@@ -280,6 +285,21 @@
         "icon": "$(refresh)"
       },
       {
+        "command": "myEditor.projectBuild.file",
+        "title": "Build This File with AI\u2026",
+        "category": "my_editor"
+      },
+      {
+        "command": "myEditor.projectQA.file",
+        "title": "QA This File\u2026",
+        "category": "my_editor"
+      },
+      {
+        "command": "myEditor.projectQA.start",
+        "title": "QA Whole Project\u2026",
+        "category": "my_editor"
+      },
+      {
         "command": "myEditor.projectBuild.start",
         "title": "Build Whole Project",
         "category": "my_editor",
@@ -299,15 +319,20 @@
       },
       {
         "command": "myEditor.projectBuild.review",
-        "title": "Review Current Build Batch",
+        "title": "Review Current File",
         "category": "my_editor",
         "icon": "$(diff)"
       },
       {
         "command": "myEditor.projectBuild.keep",
-        "title": "Keep Reviewed Build Batch and Continue",
+        "title": "Keep Reviewed File and Continue",
         "category": "my_editor",
         "icon": "$(check)"
+      },
+      {
+        "command": "myEditor.projectAgents.runtime",
+        "title": "Choose Project Agent Runtime",
+        "category": "my_editor"
       }
     ],
     "configuration": {
@@ -528,6 +553,22 @@
           "type": "boolean",
           "default": true,
           "description": "Show the current file\u2019s own chat when switching source files, keeping keyboard focus in the editor. Project agent chats remain separate."
+        },
+        "myEditor.projectAgents.runtime": {
+          "type": "string",
+          "enum": [
+            "builtin",
+            "opencode"
+          ],
+          "default": "builtin",
+          "scope": "application",
+          "description": "Runtime for project-agent turns. Both use the selected my_editor model and host permissions. OpenCode never writes application files directly."
+        },
+        "myEditor.projectAgents.openCodePath": {
+          "type": "string",
+          "default": "",
+          "scope": "application",
+          "description": "Absolute path to OpenCode 1.19.3. Empty uses ~/.opencode/bin/opencode. Other versions stop without fallback."
         }
       }
     },
@@ -547,7 +588,7 @@
         {
           "type": "webview",
           "id": "myEditor.chat",
-          "name": "Pair"
+          "name": "Agent chat"
         }
       ],
       "explorer": [
@@ -577,7 +618,7 @@
       "secondarySidebar": [
         {
           "id": "myEditorPair",
-          "title": "Pair",
+          "title": "Agent chats",
           "icon": "media/pair-icon.svg"
         },
         {
@@ -615,6 +656,16 @@
         }
       ],
       "explorer/context": [
+        {
+          "command": "myEditor.projectBuild.file",
+          "group": "7_modification@7",
+          "when": "resourceScheme == file && !explorerResourceIsFolder && !listMultiSelection"
+        },
+        {
+          "command": "myEditor.projectQA.file",
+          "group": "7_modification@8",
+          "when": "resourceScheme == file && !explorerResourceIsFolder && !listMultiSelection"
+        },
         {
           "command": "myEditor.checkFit",
           "group": "7_modification@9",
@@ -733,6 +784,16 @@
         }
       ],
       "view/item/context": [
+        {
+          "command": "myEditor.projectBuild.file",
+          "when": "view == myEditor.buildGuide && viewItem == buildGuideFile",
+          "group": "build"
+        },
+        {
+          "command": "myEditor.projectQA.file",
+          "when": "view == myEditor.buildGuide && viewItem == buildGuideFile",
+          "group": "build"
+        },
         {
           "command": "myEditor.buildGuide.confirm",
           "when": "view == myEditor.buildGuide && viewItem == buildStepReady",

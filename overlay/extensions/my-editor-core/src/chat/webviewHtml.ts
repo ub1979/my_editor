@@ -8,12 +8,14 @@ export function chatWebviewHtml(webview: vscode.Webview, media: vscode.Uri, layo
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="${csp}">
 <link rel="stylesheet" href="${asset('chat-foundation.css')}"><link rel="stylesheet" href="${asset('chat-messages.css')}">
-<link rel="stylesheet" href="${asset('chat-controls.css')}"><link rel="stylesheet" href="${asset('chat-lounge.css')}"></head>
+<link rel="stylesheet" href="${asset('chat-controls.css')}"><link rel="stylesheet" href="${asset('chat-lounge.css')}">
+<link rel="stylesheet" href="${asset('chat-file-pass.css')}"></head>
 <body class="${layout}"><div id="app"></div>
 <script nonce="${nonce}" src="${asset('chatDom.js')}"></script>
 <script nonce="${nonce}" src="${asset('chatFaces.js')}"></script>
 <script nonce="${nonce}" src="${asset('chatCards.js')}"></script>
 <script nonce="${nonce}" src="${asset('chatMenu.js')}"></script>
 <script nonce="${nonce}" src="${asset('chat.js')}"></script>
+<script nonce="${nonce}" src="${asset('chatFilePass.js')}"></script>
 <script nonce="${nonce}" src="${asset('chatEvents.js')}"></script></body></html>`;
 }

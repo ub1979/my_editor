@@ -9,16 +9,16 @@ import type { FileInfo, LanguageAdapter, RefactorBuild, RefactorHooks } from '..
 import { runRefactor } from '../src/aiready/refactorStep';
 import type { StepContext } from '../src/aiready/steps';
 
-const BEFORE = 'x\n'.repeat(460);
-const AFTER = 'y\n'.repeat(470);
+const BEFORE = 'x\n'.repeat(760);
+const AFTER = 'y\n'.repeat(770);
 const HELPER = { name: 'addMany', params: ['n', '*total'], outputs: ['n'], returns: false };
-const FIX = { file: 'big.txt', kind: 'refactor' as const, lines: 460, target: { name: 'Big', lines: 450 } };
+const FIX = { file: 'big.txt', kind: 'refactor' as const, lines: 760, target: { name: 'Big', lines: 750 } };
 const ok = (command: string, code = 0): CheckResult => ({ command, code, failures: code ? ['broken'] : [], tail: code ? 'broken' : '', log: '' });
 
 /** What the fake refactor hooks saw. */
 interface Seen { built: string[]; checked: number; abandoned: number }
 
-/** A Git repository with a 460-line `big.txt` holding one 450-line function, and a step context on it. */
+/** A Git repository with a 760-line `big.txt` holding one 750-line function, and a step context on it. */
 function setup(options: { check?: string[]; build?: (name: string) => RefactorBuild; code?: number; cancelled?: () => boolean } = {}) {
 	const root = mkdtempSync(path.join(os.tmpdir(), 'my-editor-refactor-step-'));
 	const git = (...args: string[]) => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
@@ -33,7 +33,7 @@ function setup(options: { check?: string[]; build?: (name: string) => RefactorBu
 		? { problems: ['bad: not a run of statements.'] }
 		: { problems: [], text: Buffer.from(AFTER), helpers: [HELPER], functionLines: 300, facts: '{}' }));
 	const hooks: RefactorHooks = {
-		target: () => ({ name: 'Big', lines: 450 }),
+		target: () => ({ name: 'Big', lines: 750 }),
 		coverage: () => { throw new Error('not here'); },
 		ran: async () => false,
 		prompt: async () => ({ system: 'plan', text: 'Big' }),
@@ -43,7 +43,7 @@ function setup(options: { check?: string[]; build?: (name: string) => RefactorBu
 		mayDiffer: '', approvalNote: '',
 	};
 	const info: FileInfo = { path: 'big.txt', frame: [], imports: [], declarations: [
-		{ id: 0, kind: 'func', names: ['Big'], span: { start: 0, end: 0 }, lines: 450, doc: '', docText: '', uses: [], movable: true }] };
+		{ id: 0, kind: 'func', names: ['Big'], span: { start: 0, end: 0 }, lines: 750, doc: '', docText: '', uses: [], movable: true }] };
 	const adapter = {
 		label: 'Fake', extensions: ['.txt'], refactor: hooks, parse: async () => info, testFileName: (file: string) => file,
 		checks: () => [{ label: 'build', command: 'build .', verifies: true }], unformatted: async () => [],
@@ -66,7 +66,7 @@ test('a refactor is planned, built, extract-checked, compared with the baseline 
 	assert.equal(seen.checked, 1);
 	assert.deepEqual(step.plan, { attempts: 2, rejected: ['bad: not a run of statements.'] });
 	assert.deepEqual(step.refactor, { target: 'Big', helpers: [HELPER], lines: 300, ran: true });
-	assert.deepEqual(step.followUp, { file: 'big.txt', kind: 'split', lines: 470 });
+	assert.deepEqual(step.followUp, { file: 'big.txt', kind: 'split', lines: 770 });
 	assert.equal(step.commit, git('rev-parse', 'HEAD'));
 	assert.equal(git('log', '-1', '--format=%s'), 'my_editor: extract 1 helper from Big (big.txt)');
 	assert.match(git('log', '-1', '--format=%b'), /- addMany\(n, \*total\) → n\n\nExtract check: passed\. Coverage: the package's tests ran Big/);

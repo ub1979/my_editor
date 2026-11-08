@@ -67,7 +67,7 @@ bash scripts/test-python-inline.sh      # installed native inline output; no pro
 | `brain/` | Fact extraction, Analyse, the brain index and file map, fit checks |
 | `navigator/` | Quiet-period and manual review of changed lines and its Quick Fix actions |
 | `coding/` | Persistent Python execution, bounded inline generation and optional declaration suggestions |
-| `comments/`, `quality/` | Comment guidance and the 300-line / one-class source policy |
+| `comments/`, `quality/` | Comment guidance and the 600-line / one-class source policy |
 | `project/` | Home, clone, the Project view, Git history and sync, impact, visual maps, This file |
 | `records/`, `qa/`, `skills/` | Saved records and redaction, QA fit reports, the SKILL.md loader |
 
@@ -81,7 +81,7 @@ Built-in extensions may use proposed APIs; their typings are in `typings/`.
 `src/dev/testHooks.ts` supports automated UI runs. It does nothing unless `MY_EDITOR_TEST_REPORT`,
 `MY_EDITOR_TEST_QUERY` or `MY_EDITOR_TEST_COMMAND` is set.
 
-Keep each source file focused and under 300 lines; my_editor applies the same rule to itself.
+Keep each source file focused and under 600 lines; my_editor applies the same rule to itself.
 
 ## Releasing
 

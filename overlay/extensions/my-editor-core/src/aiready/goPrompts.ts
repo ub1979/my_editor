@@ -10,7 +10,7 @@ const SPLIT_SYSTEM = [
 	'The host moves whole declarations byte for byte and rebuilds imports; you only choose groups.',
 	'Rules:',
 	'- Refer to declarations only by their numeric "id". Never move one marked "movable": false.',
-	"- Every new file and the original must end up at 300 lines or fewer. Leave declarations that belong to the original's main job in it.",
+	"- Every new file and the original must end up at 600 lines or fewer. Leave declarations that belong to the original's main job in it.",
 	'- Group by responsibility: a type with its methods and constructors, a query with its row scanning helpers, and so on.',
 	"- New file names: lower-case letters, digits and underscores, ending in .go, starting with the original's base "
 		+ 'name and an underscore (for example store_query.go). Never end a name in _test.go or in a GOOS or GOARCH name such '
@@ -40,7 +40,7 @@ export function goSplitPrompt(info: GoFileInfo, totalLines: number): Prompt {
 		system: SPLIT_SYSTEM,
 		text: `File: ${info.path} (package ${info.go.package}, ${totalLines} lines)\n`
 			+ `Declarations:\n${declarations.map(d => JSON.stringify(d)).join('\n')}\n\n`
-			+ `Plan new files so ${path.posix.basename(info.path)} and every new file are at most 300 lines.`,
+			+ `Plan new files so ${path.posix.basename(info.path)} and every new file are at most 600 lines.`,
 	};
 }
 

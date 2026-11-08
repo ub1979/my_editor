@@ -81,10 +81,10 @@ test('plans refer to IDs: unknown, repeated, unmovable and over-long plans are r
 	assert.match(problems, /2 \(var counter\) may not move: an initialized package variable/);
 	assert.match(problems, /"shop_yaml.go" already exists/);
 	assert.match(problems, /_linux, which Go treats as a build constraint/);
-	const long = `package shop\n\n${Array.from({ length: 450 }, (_, i) => `func f${i}() {}`).join('\n')}\n`;
+	const long = `package shop\n\n${Array.from({ length: 750 }, (_, i) => `func f${i}() {}`).join('\n')}\n`;
 	const big = (await goInfo('shop/big.go', long))!;
 	assert.match(planProblems(adapter, { source: big.source, info: big.info, existing: [] }, [{ file: 'big_a.go', declarations: [0] }]).join(' '),
-		/big.go would still have 451 lines/);
+		/big.go would still have 751 lines/);
 	assert.deepEqual(parsePlan('Here: [{"file":"a.go","declarations":[1,2]}]'), [{ file: 'a.go', declarations: [1, 2] }]);
 	assert.equal(parsePlan('[{"file":"a.go","declarations":["x"]}]'), undefined);
 });

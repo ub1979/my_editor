@@ -7,6 +7,10 @@ mkdir -p "${RUN_DIR}/project" "${RUN_DIR}/user/User"
 cat > "${RUN_DIR}/user/User/settings.json" <<'JSON'
 {"security.workspace.trust.enabled":false,"workbench.startupEditor":"none","window.restoreWindows":"none"}
 JSON
+if [[ "${MY_EDITOR_INTEGRATION_SUITE:-}" == "openCode" ]]; then
+  jq '. + {"myEditor.projectAgents.runtime":"opencode"}' "${RUN_DIR}/user/User/settings.json" > "${RUN_DIR}/settings.json"
+  mv "${RUN_DIR}/settings.json" "${RUN_DIR}/user/User/settings.json"
+fi
 export MY_EDITOR_INTEGRATION_REPORT="${RUN_DIR}/report.json"
 [[ "${1:-}" == "--save-gate" ]] && export MY_EDITOR_ASSERT_SAVE_GATE=1
 "${ROOT}/app/my_editor.app/Contents/MacOS/my_editor" \

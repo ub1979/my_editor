@@ -15,7 +15,7 @@ test('the prompt numbers the function\'s lines and gives the outline, the limits
 	const prompt = goRefactorPrompt('internal/store/plan.go', SOURCE, outline(17, 20, '*Store'));
 	assert.ok(typeof prompt !== 'string');
 	if (typeof prompt === 'string') { return; }
-	for (const part of ['at most 6 parameters', '"from":177', 'at most 3', 'refused', 'lowerCamelCase', 'line budget', 'under 200 lines', '300 lines']) {
+	for (const part of ['at most 6 parameters', '"from":177', 'at most 3', 'refused', 'lowerCamelCase', 'line budget', 'under 200 lines', '600 lines']) {
 		assert.ok(prompt.system.includes(part), part);
 	}
 	assert.ok(prompt.text.startsWith('File: internal/store/plan.go\nFunction: build (*Store), lines 17–20 (4 lines); it must end at 383 lines or fewer.\n'));

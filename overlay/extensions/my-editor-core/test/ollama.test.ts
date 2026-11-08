@@ -47,3 +47,31 @@ test('GLM 5 uses native thinking separation even when the general thinking prefe
 	await streamOllama('http://fixture', false, { ...base, entry: { ...base.entry, model: 'glm-5.3-flash:cloud' } });
 	assert.equal(text, '```python\ndef doubled(value):\n    return value * 2\n```');
 });
+
+test('Ollama forwards native tool requests separately from content and private thinking', async t => {
+	const original = globalThis.fetch; t.after(() => { globalThis.fetch = original; });
+	globalThis.fetch = async () => new Response(JSON.stringify({ message: { content: '', thinking: 'private',
+		tool_calls: [{ function: { name: 'read_file', arguments: { path: 'a.ts', start: 1 } } }] }, done: true }) + '\n');
+	const calls: unknown[] = [];
+	let text = '';
+	await streamOllama('http://fixture', false, { ...request(chunk => { text += chunk; }), onToolCalls: items => calls.push(...items) });
+	assert.equal(text, '');
+	assert.deepEqual(calls, [{ name: 'read_file', arguments: { path: 'a.ts', start: 1 } }]);
+	await assert.rejects(streamOllama('http://fixture', false, request(() => undefined)), /without project tools/);
+	globalThis.fetch = async () => new Response(JSON.stringify({ message: { tool_calls: [
+		{ function: { name: 'read_file', arguments: { arguments: { path: 'b.ts' } } } },
+	] }, done: true }) + '\n');
+	const wrapped: unknown[] = [];
+	await streamOllama('http://fixture', false, { ...request(() => undefined), onToolCalls: items => wrapped.push(...items) });
+	assert.deepEqual(wrapped, [{ name: 'read_file', arguments: { path: 'b.ts' } }]);
+});
+
+test('Ollama rejects malformed native arguments instead of treating them as executable requests', async t => {
+	const original = globalThis.fetch; t.after(() => { globalThis.fetch = original; });
+	for (const args of [null, [], 42, { arguments: null }, { arguments: [] }]) {
+		globalThis.fetch = async () => new Response(JSON.stringify({ message: {
+			tool_calls: [{ function: { name: 'read_file', arguments: args } }] }, done: true }) + '\n');
+		await assert.rejects(streamOllama('http://fixture', false, { ...request(() => undefined),
+			onToolCalls: () => assert.fail('Malformed arguments cannot reach the agent') }), /malformed native tool arguments/);
+	}
+});

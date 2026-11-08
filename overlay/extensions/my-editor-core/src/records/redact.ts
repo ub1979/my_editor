@@ -15,6 +15,11 @@ export function redact(text: string): string {
 		text);
 }
 
+/** Recognizable credential formats apply everywhere, including comments and reference names. */
+export function redactKnownSecrets(text: string): string {
+	return SECRET_PATTERNS.slice(0, -1).reduce((out, pattern) => out.replace(pattern, '[REDACTED]'), text);
+}
+
 /** Replaces fenced code blocks with a one-line note, so chat records stay small in git. */
 export function collapseCode(text: string): string {
 	return text.replace(/```[^\n]*\n([\s\S]*?)(?:```|$)/g, (_match, body: string) => {

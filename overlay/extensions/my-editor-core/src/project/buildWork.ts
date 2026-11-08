@@ -28,7 +28,7 @@ export function isCodingFile(path: string): boolean {
 		&& !/(?:^|\/)(?:[^/]*config[^/]*|vitest\.shared)\.[^/]+$/i.test(path);
 }
 
-export function buildPlanIdentity(guide: BuildGuideState): string {
+export function buildPlanIdentity(guide: Pick<BuildGuideState, 'plan' | 'files'>): string {
 	return digest(JSON.stringify({ plan: guide.plan, files: guide.files.map(({ status, ...file }) => file) }));
 }
 
@@ -36,4 +36,15 @@ export function buildPlanIdentity(guide: BuildGuideState): string {
 export function wantsProjectBuild(text: string): boolean {
 	const plain = text.replace(/^\/chat\s+/i, '').trim();
 	return /^(?:(?:ok(?:ay)?|yes|please|now|just)[,\s]+)*(?:code|build|implement|write)\s+(?:all(?:\s+(?:the|remaining))?\s+(?:code|files)|everything|(?:the\s+)?(?:whole|entire)\s+(?:project|app|application|software))(?:\s+(?:for me|now|please))*[.!\s]*$/i.test(plain);
+}
+
+/** Only direct whole-project requests open the chooser. Questions and planning turns stay in chat. */
+export function projectPassIntent(text: string): 'Build' | 'QA' | undefined {
+	if (/^(?:\/build|(?:please )?(?:start )?build(?:ing)?)(?: (?:now|please))?[.!\s]*$/i.test(text.trim())) { return 'Build'; }
+	if (/^(?:\/qa|(?:please )?(?:start |run )?qa)[.!\s]*$/i.test(text.trim())) { return 'QA'; }
+	if (wantsProjectBuild(text)) { return 'Build'; }
+	const plain = text.replace(/^\/chat\s+/i, '').trim().replace(/^(?:(?:please|ok(?:ay)?|now)[,\s]+)+/i, '');
+	if (/^(?:run\s+)?qa(?:\s+(?:on|for))?\s+(?:everything|all(?: the)? files|(?:the )?(?:whole|entire) project)[.!\s]*$/i.test(plain)) { return 'QA'; }
+	const cadence = /^(build|implement|qa) (?:the )?(?:(?:first|next) )?(?:one|two|1|2) (?:modules?|files?)(?: first)?(?:,? (?:then|and) (?:test|review)(?: (?:it|them))?)?[.!\s]*$/i.exec(plain);
+	return cadence ? cadence[1].toLowerCase() === 'qa' ? 'QA' : 'Build' : undefined;
 }

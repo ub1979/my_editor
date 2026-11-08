@@ -1,3 +1,4 @@
+import { chooseProjectRuntime } from './runtime/projectRuntime';
 import * as vscode from 'vscode';
 import { fixOnBranch, FixOptions } from './aiready/fixRun';
 import { choosePythonCommand } from './aiready/pyPick';
@@ -12,7 +13,7 @@ import { Proposals } from './chat/proposals';
 import { ChatView } from './chat/view';
 import { runTestHooks } from './dev/testHooks';
 import { applyFirstRunLayout } from './layout';
-import { chooseDefaultModel } from './models/catalog';
+import { chooseDefaultModel, chooseRunModel } from './models/catalog';
 import { ApiKeys } from './models/secrets';
 import { Navigator } from './navigator/navigator';
 import { GuidanceActions } from './navigator/actions';
@@ -79,7 +80,8 @@ export function activate(context: vscode.ExtensionContext): void {
 		vscode.window.registerWebviewViewProvider(ThisFileView.id, new ThisFileView(context)),
 		vscode.commands.registerCommand('myEditor.chat.start', (skill: string) => chat.startSkill(skill)),
 		vscode.commands.registerCommand('myEditor.chat.ask', (text: string) => chat.ask(text)),
-		vscode.commands.registerCommand('myEditor.chat.agent', async (id: string) => { await chat.openLounge(); chat.chooseCharacter(id); }),
+		vscode.commands.registerCommand('myEditor.chat.agent', (id: string) => chat.openAgent(id)),
+		vscode.commands.registerCommand('myEditor.chat.openSidebar', () => chat.openSidebar()),
 		vscode.commands.registerCommand('myEditor.chat.layout', (layout: string) => chat.setChatLayout(layout)),
 		vscode.commands.registerCommand('myEditor.reviewPlanningReply', (stage: string, reply: string) =>
 			chat.runTask(`Review saved ${stage}`, sink => reviewPlanningReply(proposals, stage, reply, sink))),
@@ -98,7 +100,9 @@ export function activate(context: vscode.ExtensionContext): void {
 		vscode.commands.registerCommand('myEditor.navigator.muteFile', () => navigator.toggleFile(vscode.window.activeTextEditor?.document.uri)),
 		vscode.commands.registerCommand('myEditor.navigator.clear', () => navigator.clear()),
 		vscode.commands.registerCommand('myEditor.setApiKey', () => keys.promptAndStore()),
+		vscode.commands.registerCommand('myEditor.projectAgents.runtime', () => chooseProjectRuntime()),
 		vscode.commands.registerCommand('myEditor.chooseModel', () => chooseDefaultModel(keys)),
+		vscode.commands.registerCommand('myEditor.pickRunModel', (current?: string) => chooseRunModel(keys, current)),
 		vscode.commands.registerCommand('myEditor.configureObservations', () => openObservationProfile()),
 		vscode.commands.registerCommand('myEditor.visualizeProject', (tab?: 'architecture' | 'tree') => visuals.show(tab)),
 		vscode.commands.registerCommand('myEditor.home', () => home.show()),

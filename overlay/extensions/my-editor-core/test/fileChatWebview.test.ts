@@ -61,11 +61,14 @@ test('file chat UI replaces history, scopes actions and drafts, and renders mode
 	assert.equal(get('build').hidden, false);
 	assert.equal(get('buildPurpose').textContent, 'Configure scripts');
 	assert.equal(get('buildTasks').children[0].textContent, '<script>inert()</script>');
-	assert.equal(get('prepare').disabled, false);
+	assert.equal(get('buildFile').disabled, false);
 	get('buildNext').listeners.get('click')!();
 	assert.equal(sent.at(-1)?.key, 'package.json');
 	assert.equal(sent.at(-1)?.type, 'buildNext');
 	state('unplanned.py', 'No build card');
 	assert.equal(get('build').hidden, true);
-	assert.equal(get('prepare').disabled, true);
+	assert.equal(get('buildFile').disabled, false);
+	get('qaFile').listeners.get('click')!();
+	assert.equal(sent.at(-1)?.key, 'unplanned.py');
+	assert.equal(sent.at(-1)?.type, 'qaFile');
 });

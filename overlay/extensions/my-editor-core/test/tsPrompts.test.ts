@@ -17,7 +17,7 @@ function prompt(src: string, context: Partial<TsFileContext> = {}) {
 test('the split prompt names the file, its size, its folder and the 400-line goal', () => {
 	const { system, text } = prompt('export function a() { return 1; }\n');
 	assert.match(text, /^File: src\/shop\/cart\.ts \(812 lines\)\nFiles already in its folder: cart\.ts, rows\.ts\nDeclarations:\n/);
-	assert.match(text, /Plan new files so cart\.ts and every new file are at most 300 lines\.$/);
+	assert.match(text, /Plan new files so cart\.ts and every new file are at most 600 lines\.$/);
 	assert.match(system, /Refer to declarations only by their numeric "id"/);
 	assert.match(system, /Reply with only a JSON array/);
 });

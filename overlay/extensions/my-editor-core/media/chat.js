@@ -28,7 +28,7 @@ let state = {
 
 /* Layout: header, scroll area, composer. Built once; parts update in place. */
 
-const scroll = el('div', { class: 'scroll', role: 'log', 'aria-live': 'polite' });
+const scroll = el('div', { class: 'scroll', role: 'region', 'aria-label': 'Conversation and file activity' });
 scroll.style.setProperty('--chat-text-size', `${chatTextSize}px`);
 const header = el('header', { class: 'character-header' });
 const rail = el('nav', { class: 'character-rail', 'aria-label': 'Agent chats' });
@@ -52,15 +52,16 @@ function activeCharacter() {
 }
 
 function renderCharacter() {
+	renderFilePass();
 	const chosen = activeCharacter();
 	const skills = el('button', { type: 'button', class: 'header-action', title: 'Explore skills', 'aria-label': 'Explore skills' }, [icon('grid')]);
 	skills.addEventListener('click', () => { showSkills = !showSkills; renderScroll(); });
 	const wide = el('button', {
-		type: 'button', class: 'header-action', title: 'Open Pair in the editor', 'aria-label': 'Open Pair in the editor',
+		type: 'button', class: 'header-action', title: 'Expand agent chat', 'aria-label': 'Expand agent chat',
 	}, [icon('expand')]);
 	wide.addEventListener('click', () => vscode.postMessage({ type: 'openLounge' }));
 	const side = el('button', {
-		type: 'button', class: 'header-action', title: 'Show Pair in the sidebar', 'aria-label': 'Show Pair in the sidebar',
+		type: 'button', class: 'header-action', title: 'Show file and chat in columns', 'aria-label': 'Show file and chat in columns',
 	}, [icon('sidebar')]);
 	side.addEventListener('click', () => vscode.postMessage({ type: 'openSidebar' }));
 	const auto = el('button', { type: 'button', class: `auto-character${state.pinned ? ' pinned' : ''}`,
@@ -97,6 +98,7 @@ function renderCharacter() {
 		el('span', { class: 'header-actions' }, [auto, textSize, skills, wide, side, layout]));
 	rail.replaceChildren(el('span', { class: 'rail-title' }, [state.chatLayout === 'shared' ? 'AGENTS IN SHARED CHAT' : 'AGENT CHATS']));
 	const choices = el('div', { class: 'character-choices' });
+	let selectedChoice;
 	for (const item of state.characters) {
 		const selected = item.id === state.characterId;
 		const button = el('button', { type: 'button', class: `character-choice${selected ? ' selected' : ''}`,
@@ -107,8 +109,10 @@ function renderCharacter() {
 			vscode.postMessage({ type: 'character', id: item.id });
 		});
 		choices.append(button);
+		if (selected) { selectedChoice = button; }
 	}
 	rail.append(choices);
+	selectedChoice?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
 }
 
 
@@ -124,6 +128,8 @@ function renderScroll(follow = false) {
 			scroll.append(renderMessage(message));
 		}
 	}
+	scroll.append(filePassPanel);
+	filePassPanel.hidden = showSkills || !['ada', 'poppy'].includes(state.characterId);
 	// The skills start at the top; a conversation follows its newest message.
 	scroll.scrollTop = !state.messages.length || showSkills ? 0 : follow || atBottom ? scroll.scrollHeight : position;
 }
@@ -161,7 +167,9 @@ function renderContext() {
 		clear.addEventListener('click', () => vscode.postMessage({ type: 'clearMode' }));
 		context.append(el('span', { class: 'ctx mode' }, [el('span', {}, [state.modeLabel ?? state.mode]), clear]));
 	}
-	if (state.file) {
+	const activeFileRun = typeof filePassState !== 'undefined' && filePassState?.agent === state.characterId
+		&& ['running', 'review'].includes(filePassState.run?.status);
+	if (state.file && !activeFileRun) {
 		const name = state.file.split('/').pop() + (state.selection ? ` · lines ${state.selection}` : '');
 		context.append(el('span', { class: 'ctx', title: state.file }, [icon('file'), el('span', {}, [name])]));
 	}

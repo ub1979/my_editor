@@ -1,5 +1,6 @@
 import { readLines } from './openaiCompatible';
 import { ModelEntry, ProviderError, StreamRequest } from './types';
+import { cloudContextTokens } from './ollamaMetadata';
 
 interface OllamaTag { readonly name: string; readonly remote_host?: string }
 
@@ -11,7 +12,7 @@ export async function listOllamaModels(baseUrl: string): Promise<ModelEntry[]> {
 			return [];
 		}
 		const { models } = await response.json() as { models: OllamaTag[] };
-		return models.map(tag => {
+		return Promise.all(models.map(async tag => {
 			const cloud = tag.name.endsWith(':cloud') || tag.name.endsWith('-cloud') || !!tag.remote_host;
 			return {
 				key: `ollama:${tag.name}`,
@@ -19,10 +20,10 @@ export async function listOllamaModels(baseUrl: string): Promise<ModelEntry[]> {
 				model: tag.name,
 				label: tag.name,
 				detail: cloud ? 'Ollama cloud' : 'Ollama · local',
-				maxInputTokens: 32_000,
+				maxInputTokens: cloud ? await cloudContextTokens(baseUrl, tag.name) : 32_000,
 				maxOutputTokens: 8_000,
 			} satisfies ModelEntry;
-		});
+		}));
 	} catch {
 		return [];
 	}
@@ -61,6 +62,22 @@ export async function streamOllama(baseUrl: string, think: boolean, request: Str
 				throw new ProviderError('ollama', chunk.error);
 			}
 			if (chunk.done_reason === 'length') { throw new ProviderError('ollama', 'Reply cut off at the output limit. Ask for a smaller change.'); }
+			const calls = chunk.message?.tool_calls;
+			if (Array.isArray(calls) && calls.length) {
+				if (!request.onToolCalls) { throw new ProviderError('ollama', 'The model requested a tool in a turn without project tools. Retry this request in agent chat.'); }
+				request.onToolCalls(calls.map(call => {
+					const fn = call?.function;
+					let args: unknown = typeof fn?.arguments === 'string' ? JSON.parse(fn.arguments) : fn?.arguments;
+					// Some cloud templates wrap our JSON protocol's arguments inside native arguments.
+					if (args && typeof args === 'object' && Object.keys(args).length === 1 && 'arguments' in args) {
+						args = args.arguments;
+					}
+					if (typeof fn?.name !== 'string' || !args || typeof args !== 'object' || Array.isArray(args)) {
+						throw new ProviderError('ollama', 'The model returned malformed native tool arguments. Retry the request.');
+					}
+					return { name: fn.name, arguments: args as Record<string, unknown> };
+				}));
+			}
 			const text = chunk.message?.content;
 			if (typeof text === 'string' && text) {
 				request.onText(text);

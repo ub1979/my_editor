@@ -5,13 +5,14 @@ import { findCli, streamClaudeCli, streamCodexCli } from './cli';
 import { streamOllama } from './ollama';
 import { streamOpenAICompatible } from './openaiCompatible';
 import { ApiKeys } from './secrets';
-import { ChatTurn, ModelEntry, ProviderError, ReasoningEffort, StreamRequest } from './types';
+import { ChatTurn, ModelEntry, NativeToolCall, ProviderError, ReasoningEffort, StreamRequest } from './types';
 
 export interface ModelCall {
 	readonly system?: string;
 	readonly turns: readonly ChatTurn[];
 	readonly token: vscode.CancellationToken;
 	readonly onText: (text: string) => void;
+	readonly onToolCalls?: (calls: readonly NativeToolCall[]) => void;
 	readonly reasoningEffort?: ReasoningEffort;
 	readonly webAccess?: boolean;
 	readonly onActivity?: (label: string) => void;
@@ -23,7 +24,7 @@ export async function streamModel(entry: ModelEntry, keys: ApiKeys, call: ModelC
 	const effortKey = effortSetting(entry.provider);
 	const effort = supportedEffort(entry, call.reasoningEffort ?? (effortKey ? settings.get(effortKey, 'default') : 'default'));
 	const request: StreamRequest = { entry, system: call.system, turns: call.turns, token: call.token, onText: call.onText,
-		reasoningEffort: effort, webAccess: call.webAccess, onActivity: call.onActivity };
+		reasoningEffort: effort, webAccess: call.webAccess, onActivity: call.onActivity, onToolCalls: call.onToolCalls };
 	const requireKey = async (provider: 'anthropic' | 'openai' | 'openrouter') => {
 		const key = await keys.get(provider);
 		if (!key) {

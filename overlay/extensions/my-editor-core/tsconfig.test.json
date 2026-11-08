@@ -9,6 +9,7 @@
   },
   "include": [
     "test",
+    "src/runtime/openCodeLoop.ts",
     "src/pair/codeBlock.ts",
     "src/records/redact.ts",
     "src/skills/frontmatter.ts",

@@ -35,7 +35,7 @@ test('split chat webview loads in order and renders a Codex model selection', ()
 		acquireVsCodeApi: () => ({ postMessage: (message: { type: string }) => sent.push(message),
 			getState: () => savedViewState, setState: (value: { chatTextSize?: number }) => { savedViewState = value; } }),
 	});
-	for (const file of ['chatDom.js', 'chatFaces.js', 'chatCards.js', 'chatMenu.js', 'chat.js', 'chatEvents.js']) {
+	for (const file of ['chatDom.js', 'chatFaces.js', 'chatCards.js', 'chatMenu.js', 'chat.js', 'chatFilePass.js', 'chatEvents.js']) {
 		runInContext(readFileSync(join(process.cwd(), 'media', file), 'utf8'), context, { filename: file });
 	}
 	receive?.({ data: { type: 'init', project: 'm_dialer', projectPath: '/projects/m_dialer', skills: [], messages: [],
@@ -68,6 +68,65 @@ test('split chat webview loads in order and renders a Codex model selection', ()
 	assert.equal(runInContext('state.reasoning', context), 'default');
 	runInContext("modelSelect.value = 'claude-cli:opus'; modelSelect.listeners.get('change')()", context);
 	assert.equal(runInContext('state.reasoning', context), 'low');
+
+	receive?.({ data: { type: 'character', characterId: 'ada' } });
+	receive?.({ data: { type: 'filePass', agent: 'ada', root: 'file:///project', counts: '2 modules · 3 files',
+		run: { options: { kind: 'Build' }, status: 'error', remaining: 3, message: 'claude-cli: OAuth session expired' } } });
+	assert.equal(runInContext('filePassPanel.hidden', context), false);
+	runInContext(`(() => {
+		const buttons = filePassPanel.children.flatMap(node => node.children || []);
+		buttons.find(node => node.children?.includes('Resume')).click();
+	})()`, context);
+	assert.equal((sent.at(-1) as unknown as { id: string }).id, 'resume');
+	assert.equal((sent.at(-1) as unknown as { key: string }).key, 'ada');
+	receive?.({ data: { type: 'character', characterId: 'soki' } });
+	assert.equal(runInContext('filePassPanel.hidden', context), true);
+	receive?.({ data: { type: 'character', characterId: 'poppy' } });
+	receive?.({ data: { type: 'filePass', agent: 'poppy', root: 'file:///project', counts: '2 modules · 3 files' } });
+	runInContext("filePassPanel.children[1].children[0].click()", context);
+	assert.equal((sent.at(-1) as unknown as { id: string }).id, 'start');
+	assert.equal((sent.at(-1) as unknown as { key: string }).key, 'poppy');
+	assert.equal(runInContext('app.children.includes(filePassPanel)', context), false, 'Run controls must not sit over the conversation');
+	assert.equal(runInContext('scroll.children.includes(filePassPanel)', context), true);
+	const activity = { type: 'filePass', agent: 'poppy', root: 'file:///project', run: { options: { kind: 'QA' }, status: 'running',
+		currentFile: { path: 'src/worker.ts', role: 'Process one job.' }, activity: 'Reading callers', total: 3, remaining: 2,
+		results: [{ path: 'src/store.ts', outcome: 'saved', note: 'Added validation. Tests have not run.' }], message: 'Working' } };
+	runInContext('scroll.scrollHeight = 2000; scroll.clientHeight = 600; scroll.scrollTop = 500', context);
+	receive?.({ data: activity });
+	assert.equal(runInContext('scroll.scrollTop', context), 2000, 'The initial run must be revealed when it arrives after the transcript');
+	runInContext('scroll.scrollTop = 500', context);
+	assert.match(runInContext('JSON.stringify(filePassPanel.children)', context), /src\/store.ts/);
+	assert.match(runInContext('JSON.stringify(filePassPanel.children)', context), /Added validation/);
+	assert.match(runInContext('JSON.stringify(filePassPanel.children)', context), /src\/worker.ts/);
+	assert.match(runInContext("JSON.stringify(filePassPanel.children.find(node => node.attributes?.get('class') === 'pass-current'))", context), /1 of 3 files finished · 2 left/);
+	runInContext('globalThis.beforeProgress = filePassPanel.children.at(-1)', context);
+	receive?.({ data: { ...activity, run: { ...activity.run, activity: 'Preparing proposal' } } });
+	assert.equal(runInContext('filePassPanel.children.at(-1) === beforeProgress', context), true, 'Live progress must preserve focused controls');
+	assert.equal(runInContext('passActivity.textContent', context), 'Preparing proposal');
+	receive?.({ data: { ...activity, following: true, run: { ...activity.run, preview: { path: 'src/worker.ts', content: 'export const worker = () => 1;\n' } } } });
+	assert.equal(runInContext('scroll.scrollTop', context), 500, 'Later file updates must preserve a reader’s manual scroll position');
+	assert.match(runInContext('JSON.stringify(filePassPanel.children)', context), /Prepared code · 1 line · not saved/);
+	assert.match(runInContext('JSON.stringify(filePassPanel.children)', context), /export const worker/);
+	assert.match(runInContext('JSON.stringify(filePassPanel.children)', context), /Hide file preview/);
+	assert.equal(runInContext("filePassPanel.children.find(node => node.attributes?.get('class') === 'pass-current').children.find(node => node.attributes?.get('class') === 'pass-preview').attributes.has('open')", context), false);
+	assert.equal(runInContext("filePassPanel.children.findIndex(node => node.attributes?.get('class') === 'pass-current') < filePassPanel.children.findIndex(node => node.attributes?.get('class') === 'pass-earlier')", context), true);
+	const beforeHelp = sent.length;
+	runInContext("filePassPanel.children.find(node => node.attributes?.get('class') === 'pass-help').listeners.get('toggle')()", context);
+	assert.equal(sent.length, beforeHelp, 'Opening help must not issue a host command or pause the run');
+	assert.equal(runInContext("filePassPanel.children.find(node => node.attributes?.get('class') === 'actions run-actions').children.every(button => !!button.title)", context), true);
+	receive?.({ data: { type: 'context', file: '/project/unrelated.ts' } });
+	assert.doesNotMatch(runInContext('JSON.stringify(context.children)', context), /unrelated.ts/);
+	assert.equal(runInContext("activityLabel({activity:'Checking the project (10/60) · latest: read_file(old.ts:1)…'})", context), 'Reviewing the context for this file…');
+	runInContext("filePassPanel.children.find(node => node.attributes?.get('class') === 'pass-earlier').children[1].children.at(-1).click()", context);
+	assert.deepEqual(JSON.parse(JSON.stringify(sent.at(-1))), { type: 'filePass', id: 'open', key: 'poppy', text: 'file:///project', href: 'src/store.ts' });
+	assert.equal(runInContext("fileProgress({phase:'build',total:3,remaining:1,results:[{outcome:'saved'},{outcome:'existing'}]})", context),
+		'2 of 3 files processed · 1 left to build (1 saved, 1 already present, 0 previously reviewed) · QA follows');
+	assert.equal(runInContext("fileProgress({phase:'qa',total:3,remaining:2,results:[{outcome:'reviewed'}]})", context),
+		'1 of 3 files reviewed · 2 left in QA (0 edits saved; verification tracked separately)');
+	receive?.({ data: { ...activity, run: { ...activity.run, currentFile: { path: 'src/store.ts' },
+		repairQueue: [{ path: 'src/store.ts', origin: 'src/worker.ts', reason: 'Align the approved ID contract.' }] } } });
+	assert.match(runInContext("JSON.stringify(filePassPanel.children.find(node => node.attributes?.get('class') === 'pass-current'))", context), /Repairing/);
+	assert.match(runInContext('JSON.stringify(filePassPanel.children)', context), /Coordinated repair/);
 
 	// A selected model stays selected after validation errors mentioning a data-models section.
 	for (const errorAction of [undefined, 'chooseModel']) {

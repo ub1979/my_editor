@@ -42,7 +42,7 @@ function lines(text: string): Record<string, unknown>[] {
 test('a Python split prompt names the module, its file and length, the folder, and the 400-line goal', () => {
 	const prompt = pySplitPrompt(info([decl({ id: 0, names: ['parse'] })]), 640, ['__init__.py', 'report.py', 'rows']);
 	assert.match(prompt.text, /^Module: pkg\.report \(pkg\/report\.py, 640 lines\)\nFiles and folders already in its folder: __init__\.py, report\.py, rows\n/);
-	assert.match(prompt.text, /Plan new modules so report\.py and every new module are at most 300 lines\.$/);
+	assert.match(prompt.text, /Plan new modules so report\.py and every new module are at most 600 lines\.$/);
 	assert.match(prompt.system, /leaves a re-export line in the original/);
 	assert.match(prompt.system, /not test_\*, \*_test, conftest, setup/);
 	assert.match(prompt.system, /Reply with only a JSON array/);

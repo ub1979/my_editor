@@ -42,6 +42,9 @@ exports.run = async function () {
 			'lmstudio.enabled': false, 'assistance.mode': 'manual', 'autoComments.enabled': false })) {
 			await config.update(key, value, vscode.ConfigurationTarget.Global);
 		}
+		if (process.env.MY_EDITOR_UI_RUNTIME) {
+			await config.update('projectAgents.runtime', process.env.MY_EDITOR_UI_RUNTIME, vscode.ConfigurationTarget.Global);
+		}
 		await vscode.extensions.getExtension('my-editor.my-editor-core').activate();
 		// Open the UI before running requests so its initial ready handshake has finished.
 		await invoke('start', 'requirements');
@@ -74,10 +77,36 @@ exports.run = async function () {
 		const preserved = await ask('/requirements Continue REQ_ONLY_77');
 		assert.ok(includes(preserved, 'REQ_ONLY_17'), 'New chat must not clear another agent');
 		assert.ok(!includes(preserved, 'NEW_ARCH_11'));
+		await invoke('agent', 'iris');
+		const design = await ask('Inspect the UI/UX for UI_ONLY_83; describe a responsive design plan.');
+		assert.ok(includes(design, 'UI/UX agent'));
+		assert.ok(includes(design, 'Class names without loaded CSS are incomplete'));
+		assert.ok(includes(design, 'visual verification as unverified'));
+		assert.ok(!includes(design, 'REQ_ONLY_17'));
+		await invoke('agent', 'lisko');
+		const cleanArch = await ask('Discuss architecture boundaries.');
+		assert.ok(!includes(cleanArch, 'UI_ONLY_83'));
+		assert.ok(!includes(cleanArch, 'Ground your designs in the subject matter'));
+
+		const specialists = ['researcher', 'spec', 'proj-manager', 'oop-restructurer', 'ux-writer',
+			'a11y-auditor', 'security-auditor', 'devops-engineer', 'benchmark', 'tech-writer', 'health', 'context-save', 'learn'];
+		const names = ['Research', 'Specification', 'Project planning', 'Restructuring', 'UX writing', 'Accessibility', 'Security', 'Deployment', 'Performance', 'Documentation', 'Project health', 'Project memory', 'Controlled learning'];
+		for (const [index, id] of specialists.entries()) {
+			await invoke('agent', id);
+			const payload = await ask(`Discuss SPECIALIST_MARKER_${index}_END`);
+			assert.ok(includes(payload, `You are ${names[index]} agent`), `Wrong role delivered for ${id}`);
+			assert.ok(includes(payload, 'This role grants no additional permissions'));
+			assert.ok(includes(payload, 'All file changes remain proposals under Keep/Undo'));
+			assert.ok(!includes(payload, 'UI_ONLY_83'));
+			for (let prior = 0; prior < index; prior++) {
+				// Saved project investigations are intentionally shared; live conversation turns are not.
+				assert.ok(!JSON.stringify(payload.messages.filter(message => message.role !== 'system')).includes(`SPECIALIST_MARKER_${prior}_END`), `${id} leaked another specialist history`);
+			}
+		}
 		assert.equal(vscode.workspace.getConfiguration('myEditor').get('models.default'), 'ollama:agent-chats');
 		assert.equal(fs.readFileSync(path.join(root, '.my_editor/specs/requirements.md'), 'utf8'), requirements);
 		fs.writeFileSync(process.env.MY_EDITOR_INTEGRATION_REPORT, JSON.stringify({ ok: true, modelRequests: calls.length,
-			isolatedHistories: true, resumedWithoutGeneration: true, explicitSharedChat: true,
+			specialistsVerified: specialists, isolatedHistories: true, resumedWithoutGeneration: true, explicitSharedChat: true,
 			newChatOnlyClearsActive: true, savedRequirementsAvailable: true, modelSelectionUnchanged: true }, null, 2));
 	} finally { server.close(); }
 };

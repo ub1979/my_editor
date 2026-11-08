@@ -14,7 +14,7 @@ const SPLIT_SYSTEM = [
 	"- A declaration may use an exported id that moves to another new file, but two new files must not use each other's "
 		+ 'values. It may not use an id that stays in the original, except an exported type through "typeNeeds".',
 	'- Code that stays may only use moved declarations that are exported.',
-	"- Every new file and the original must end up at 300 lines or fewer. Leave the declarations that belong to the original's main job in it.",
+	"- Every new file and the original must end up at 600 lines or fewer. Leave the declarations that belong to the original's main job in it.",
 	"- New file names: the original's extension; letters, digits, dots, dashes and underscores; not index, not a test, "
 		+ 'story or config name, and not the name (ignoring the extension) of a file or folder already in the folder. Follow '
 		+ "the folder's naming style.",
@@ -44,7 +44,7 @@ export function tsSplitPrompt(info: TsFileInfo, totalLines: number, folder: read
 		system: SPLIT_SYSTEM,
 		text: `File: ${info.path} (${totalLines} lines)\nFiles already in its folder: ${folder.join(', ')}\n`
 			+ `Declarations:\n${declarations.map(d => JSON.stringify(d)).join('\n')}\n\n`
-			+ `Plan new files so ${path.posix.basename(info.path)} and every new file are at most 300 lines.`,
+			+ `Plan new files so ${path.posix.basename(info.path)} and every new file are at most 600 lines.`,
 	};
 }
 

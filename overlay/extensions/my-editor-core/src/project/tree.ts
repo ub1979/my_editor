@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { promises as fs } from 'fs';
+import { randomUUID } from 'crypto';
 import { checkedProjectPath } from '../chat/projectPath';
 import { safeRelativePath } from '../chat/agentProtocol';
 import { serial } from '../util/serial';
@@ -32,7 +33,16 @@ async function save(root: vscode.Uri, files: TreeFile[]): Promise<void> {
 		if (current) { current.status = file.status; }
 	}
 	const updated = Array.isArray(raw) ? entries : { ...raw, files: entries };
-	await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode(JSON.stringify(updated, null, '\t') + '\n'));
+	const content = new TextEncoder().encode(JSON.stringify(updated, null, '\t') + '\n');
+	if (uri.scheme !== 'file') { await vscode.workspace.fs.writeFile(uri, content); return; }
+	// A running build can read the plan while save tracking updates a file's status.
+	// Replace the local file atomically so readers never see an empty or partial plan.
+	const temporary = `${uri.fsPath}.${randomUUID()}.tmp`;
+	try {
+		const stat = await fs.stat(uri.fsPath);
+		await fs.writeFile(temporary, content, { flag: 'wx', mode: stat.mode });
+		await fs.rename(temporary, uri.fsPath);
+	} finally { await fs.rm(temporary, { force: true }); }
 }
 
 async function exists(uri: vscode.Uri): Promise<boolean> {

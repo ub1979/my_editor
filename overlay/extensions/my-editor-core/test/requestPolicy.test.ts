@@ -93,6 +93,36 @@ test('generic code requests cannot incidentally rewrite planning files', () => {
 	assert.equal(mayRevisePlanningPath('src/parser.ts', 'Fix the parser'), true);
 });
 
+test('a named-file repair can exclude other files without becoming read-only', () => {
+	for (const text of [
+		'Repair ONLY test/bus.test.ts; do not change production bus.ts or any other file.',
+		'Please fix `src/parser.ts`, but do not edit `architecture.md`.',
+		'Repair test/bus.test.ts. Read only the current test file for context.',
+		'Fix test/bus.test.ts; read only test/bus.test.ts.',
+		'Fix test/bus.test.ts and test/server.test.ts. Read only these two test files.',
+		'Fix test/bus.test.ts. Read only the following files for context.',
+	]) {
+		assert.equal(requestsRevision(text), true, text);
+		assert.equal(inspectionRequest(text), false, text);
+		assert.equal(readOnlyRequest(text, 'chat', docs, false), false, text);
+		assert.equal(mayRevisePlanningPath('.my_editor/specs/architecture.md', text), false, text);
+	}
+	for (const text of [
+		'Fix test/bus.test.ts but do not change anything.',
+		'Fix test/bus.test.ts without changing files.',
+		'Fix test/bus.test.ts; do not change bus.test.ts.',
+		'Fix test/bus.test.ts; report only; do not change bus.ts.',
+		'Review test/bus.test.ts; do not change bus.ts.',
+		'Read only test/bus.test.ts.',
+		'Read only these two test files.',
+		'Fix test/bus.test.ts; this is read only.',
+		'Fix test/bus.test.ts in read-only mode.',
+	]) {
+		assert.equal(requestsRevision(text), false, text);
+		assert.equal(readOnlyRequest(text, 'chat', docs, false), true, text);
+	}
+});
+
 test('read-only planning replies do not add an automatic Finalize action', () => {
 	const result = replyChoices({ role: 'assistant', done: true, mode: 'architecture', markdown: 'The links match the saved plan.',
 		readOnly: true, proposals: [] });
@@ -106,4 +136,23 @@ test('creating saved planned files is distinct from generating or reviewing thei
 	for (const text of ['Check the files', 'Create a new tree', 'Create the files and redesign the architecture', 'Do not create files']) {
 		assert.equal(requestsPlannedFiles(text), false, text);
 	}
+});
+
+
+test('explicit implementation preserves narrow invariants without becoming an audit', () => {
+ for (const text of ['Please patch fixture in nested/hello.txt. Do not change source-size policy or dependencies. Read-only inspection verified the current contents.',
+  'Continue implementing the redesign. Do not change source-size policy or dependencies.',
+  'Implement styles.css. Do not change existing permissions.',
+  'Repair launcher/src/nats.ts. Read-only inspection verified the public error type.']) {
+  assert.equal(requestsRevision(text), true, text); assert.equal(inspectionRequest(text), false, text);
+ }
+ for (const text of ['Patch styles.css. Do not patch any files.',
+  'Patch styles.css without patching styles.css.',
+  'Implement styles.css. Do not change anything.',
+  'Implement styles.css. Do not change existing permissions or any files.',
+  'Implement styles.css. This turn is read-only.',
+  'Review styles.css. Do not change source-size policy or dependencies.',
+  'Continue implementing styles.css without changing files.']) {
+  assert.equal(readOnlyRequest(text, 'chat', docs, false), true, text);
+ }
 });

@@ -15,7 +15,7 @@ const lines = (n: number) => 'x\n'.repeat(n);
 const never: StepRecord = { file: 'big_test.go', kind: 'split', status: 'skipped', reason: 'Never split: test files are not split.', early: true,
 	lasting: { skip: 'test files are not split' } };
 const refactor: StepRecord = { file: 'solo.go', kind: 'split', status: 'skipped', reason: 'Needs a real refactor.', early: true,
-	over: [{ file: 'solo.go', lines: 430, reason: 'needs a real refactor' }], lasting: {} };
+	over: [{ file: 'solo.go', lines: 730, reason: 'needs a real refactor' }], lasting: {} };
 const unchecked: StepRecord = { file: 'engine.go', kind: 'split', status: 'skipped', reason: 'Nothing here can compile ./ to check this split.', early: true };
 
 function decl(id: number, size: number): Declaration {
@@ -29,12 +29,12 @@ function diverged(): { root: string; git: (...args: string[]) => string } {
 	git('init', '--quiet', '-b', 'main');
 	git('config', 'user.email', 'test@example.com');
 	git('config', 'user.name', 'Test');
-	for (const [name, size] of [['big_test.go', 900], ['solo.go', 430], ['c.go', 450]] as const) { writeFileSync(path.join(root, name), lines(size)); }
+	for (const [name, size] of [['big_test.go', 1200], ['solo.go', 730], ['c.go', 750]] as const) { writeFileSync(path.join(root, name), lines(size)); }
 	git('add', '.');
 	git('commit', '--quiet', '-m', 'first');
 	git('branch', 'ai_fix');
-	writeFileSync(path.join(root, 'big_test.go'), lines(901));
-	writeFileSync(path.join(root, 'solo.go'), lines(431));
+	writeFileSync(path.join(root, 'big_test.go'), lines(1201));
+	writeFileSync(path.join(root, 'solo.go'), lines(731));
 	git('commit', '--quiet', '-am', 'the user goes on');
 	return { root, git };
 }
@@ -46,7 +46,7 @@ function factory(parsed: string[]) {
 		parse: async (file: string): Promise<FileInfo> => {
 			readFileSync(path.join(root, file));
 			parsed.push(file);
-			const declarations = file === 'solo.go' ? [decl(0, 425)] : [decl(0, 200), decl(1, 200), decl(2, 50)];
+			const declarations = file === 'solo.go' ? [decl(0, 725)] : [decl(0, 200), decl(1, 200), decl(2, 50)];
 			return { path: file, declarations, frame: [], imports: [], ...(file.endsWith('_test.go') ? { skip: 'test files are not split' } : {}) };
 		},
 	}) as unknown as LanguageAdapter;
@@ -98,7 +98,7 @@ test('a file in the folder where nothing may move is never offered for a split',
 	git('init', '--quiet', '-b', 'main');
 	git('config', 'user.email', 'test@example.com');
 	git('config', 'user.name', 'Test');
-	writeFileSync(path.join(root, 'stuck.go'), lines(500));
+	writeFileSync(path.join(root, 'stuck.go'), lines(800));
 	git('add', '.');
 	git('commit', '--quiet', '-m', 'first');
 	const pinned = (dir: string) => ({
@@ -138,7 +138,7 @@ test('a first run that committed nothing leaves no ai_fix branch behind', async 
 	git('init', '--quiet', '-b', 'main');
 	git('config', 'user.email', 'test@example.com');
 	git('config', 'user.name', 'Test');
-	writeFileSync(path.join(root, 'solo.go'), lines(430));
+	writeFileSync(path.join(root, 'solo.go'), lines(730));
 	git('add', '.');
 	git('commit', '--quiet', '-m', 'first');
 	const worktree = await prepare(root, `${root}.ai-ready`);
@@ -161,7 +161,7 @@ test('without ai_fix the picker reads blob ids from HEAD, so a remembered file i
 });
 
 test('a split settled as needing a refactor keeps its big function by blob', () => {
-	const big = { name: 'Step', receiver: 'Store', lines: 425 };
+	const big = { name: 'Step', receiver: 'Store', lines: 725 };
 	const cache = settledCache([{ ...refactor, lasting: { big } }, never], new Map([['solo.go', 's1'], ['big_test.go', 'b1']]));
 	assert.deepEqual(cache.files['solo.go'], { blob: 's1', big });
 	assert.deepEqual(cache.files['big_test.go'], { blob: 'b1', skip: 'test files are not split' });

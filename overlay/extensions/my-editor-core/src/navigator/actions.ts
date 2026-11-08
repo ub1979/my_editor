@@ -7,7 +7,7 @@ export function guidancePrompt(path: string, line: number, finding: string, fix:
 	return fix
 		? `Please inspect ${location} and the relevant project conventions. Finding: ${finding} `
 			+ 'Explain the cause and approach, then propose a focused, reviewable fix. '
-			+ 'Keep every source file within 300 lines and one class per file.'
+			+ 'Keep every source file within 600 lines and one class per file.'
 		: `Please guide me through fixing the finding at ${location} myself. Finding: ${finding} `
 			+ 'Inspect the relevant source, explain why it matters, and give me concrete steps and a way to check my change. '
 			+ 'Do not propose or edit files.';

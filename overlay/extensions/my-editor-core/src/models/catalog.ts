@@ -28,7 +28,8 @@ function listed(provider: ProviderId, ids: string[], detail: string): ModelEntry
 /** Every model the user can pick right now, given their keys, settings and a running Ollama. */
 export async function loadCatalog(keys: ApiKeys): Promise<ModelEntry[]> {
 	const entries: ModelEntry[] = [];
-	if (await keys.get('anthropic')) {
+	const configured = await keys.configuredProviders();
+	if (configured.has('anthropic')) {
 		for (const model of config().get<string[]>('anthropic.models', [])) {
 			const known = ANTHROPIC_DETAILS[model];
 			entries.push({
@@ -54,10 +55,10 @@ export async function loadCatalog(keys: ApiKeys): Promise<ModelEntry[]> {
 			});
 		}
 	}
-	if (await keys.get('openai')) {
+	if (configured.has('openai')) {
 		entries.push(...listed('openai', config().get<string[]>('openai.models', []), 'OpenAI'));
 	}
-	if (await keys.get('openrouter')) {
+	if (configured.has('openrouter')) {
 		entries.push(...listed('openrouter', config().get<string[]>('openrouter.models', []), 'OpenRouter'));
 	}
 	if (config().get<string>('custom.baseUrl')) {
@@ -88,28 +89,38 @@ export function pickDefault(entries: readonly ModelEntry[]): ModelEntry | undefi
 
 /** Command: pick the default chat model from everything available; saved as `myEditor.models.default`. */
 export async function chooseDefaultModel(keys: ApiKeys): Promise<void> {
+	const key = await chooseAvailableModel(keys);
+	if (key) { await config().update('models.default', key, vscode.ConfigurationTarget.Global); }
+}
+
+/** A run can recover with another provider without changing the user's default for other chats. */
+export function chooseRunModel(keys: ApiKeys, current?: string): Promise<string | undefined> {
+	return chooseAvailableModel(keys, { current });
+}
+
+async function chooseAvailableModel(keys: ApiKeys, run?: { current?: string }): Promise<string | undefined> {
 	const entries = await loadCatalog(keys);
-	const current = pickDefault(entries);
+	const current = entries.find(entry => entry.key === run?.current) ?? pickDefault(entries);
 	const items: (vscode.QuickPickItem & { key?: string; action?: 'keys' })[] = [
 		...entries.map(entry => ({
 			label: entry.label,
 			description: entry.detail,
-			detail: entry === current ? 'Current default' : undefined,
+			detail: entry === current ? run ? 'Current run model' : 'Current default' : undefined,
 			key: entry.key,
 		})),
 		{ label: '', kind: vscode.QuickPickItemKind.Separator },
 		{ label: '$(key) Add an API key…', description: 'Anthropic, OpenAI, OpenRouter, custom endpoint', action: 'keys' as const },
 	];
 	const picked = await vscode.window.showQuickPick(items, {
-		title: 'Default model',
-		placeHolder: entries.length ? 'Used by chat unless you pick another there' : 'No models found yet — add a key, log in to a CLI, or start Ollama / LM Studio',
+		title: run ? 'Build or QA run model' : 'Default model',
+		placeHolder: entries.length ? run ? 'Applies to this run only; other chats keep their default' : 'Used by chat unless you pick another there'
+			: 'No models found yet — add a key, log in to a CLI, or start Ollama / LM Studio',
 		matchOnDescription: true,
 	});
 	if (picked?.action === 'keys') {
 		await keys.promptAndStore();
-	} else if (picked?.key) {
-		await vscode.workspace.getConfiguration('myEditor').update('models.default', picked.key, vscode.ConfigurationTarget.Global);
 	}
+	return picked?.key;
 }
 
 /** A model for small, frequent jobs (navigator, auto comments): local first, then Haiku, then the default. */

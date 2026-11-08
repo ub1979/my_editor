@@ -1,6 +1,6 @@
 # Pair agents and change finder
 
-Pair shows eight agents named for their jobs. Every agent uses the same chosen model, project tools, source evidence, 300-line rule, and Keep/Undo review.
+Pair shows eight agents named for their jobs. Every agent uses the same chosen model, project tools, source evidence, 600-line rule, and Keep/Undo review.
 
 | Agent | Focus | Working habit |
 |---|---|---|

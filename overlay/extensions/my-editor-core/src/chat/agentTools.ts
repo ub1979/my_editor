@@ -12,9 +12,10 @@ import { safeRelativePath, testSpec } from './agentProtocol';
 import { checkedProjectPath } from './projectPath';
 import { Proposals } from './proposals';
 import { ObservationRunner } from './observationRunner';
+import { applyExactEdits } from './exactEdits';
 
 const MAX_READ_BYTES = 400_000;
-const MAX_READ_LINES = 160;
+const MAX_READ_LINES = 600;
 const MAX_SEARCH_FILES = 1_500;
 
 export interface ToolResult {
@@ -26,7 +27,7 @@ export interface ToolResult {
 export class AgentTools {
 	private testsRun = 0;
 	constructor(private readonly proposals: Proposals, private readonly token: vscode.CancellationToken,
-		private readonly observations: ObservationRunner) {}
+		private readonly observations: ObservationRunner, private readonly onSourceRead?: (path: string, source: string) => void) {}
 
 	async execute(name: string, args: Record<string, unknown>): Promise<ToolResult> {
 		if (this.token.isCancellationRequested) { return { text: 'Stopped.' }; }
@@ -44,6 +45,11 @@ export class AgentTools {
 				case 'observe': return { text: await this.observations.run(args.id, this.token) };
 				case 'run_tests': return { text: await this.runTests(args.command) };
 				case 'propose_file': return this.proposeFile(args.path, args.content);
+				case 'propose_edit': {
+					const edit = await this.prepareEdit(args.path, args.edits);
+					const proposal = await this.proposals.propose(edit.uri, edit.content, 'write', false, undefined, edit.base);
+					return { text: `Proposed exact edits to ${edit.relative}. Review and Keep the diff before it changes the project.`, proposalId: proposal.id };
+				}
 				case 'propose_delete': {
 					const { uri, relative } = this.file(args.path);
 					const proposal = await this.proposals.propose(uri, '', 'delete');
@@ -124,11 +130,14 @@ export class AgentTools {
 		const source = open ? open.getText() : new TextDecoder('utf-8', { fatal: true }).decode(await vscode.workspace.fs.readFile(uri));
 		if (Buffer.byteLength(source, 'utf8') > MAX_READ_BYTES) { return `${relative} is over 400 KB. Select a smaller part in the editor.`; }
 		if (source.includes('\0')) { return 'Binary files cannot be read by Pair.'; }
+		this.onSourceRead?.(relative, source);
 		const all = source.split('\n');
 		const start = Number.isInteger(startValue) ? Math.max(1, Math.min(Number(startValue), all.length)) : 1;
 		const count = Number.isInteger(linesValue) ? Math.max(1, Math.min(Number(linesValue), MAX_READ_LINES)) : 100;
 		const selected = all.slice(start - 1, start - 1 + count).map((line, index) => `${start + index}| ${line}`).join('\n');
-		return `File: ${relative}${open?.isDirty ? ' (unsaved editor buffer)' : ''} (lines ${start}–${Math.min(all.length, start + count - 1)} of ${all.length})\n${redact(selected).slice(0, 16_000)}`;
+		const body = redact(selected);
+		return `File: ${relative}${open?.isDirty ? ' (unsaved editor buffer)' : ''} (lines ${start}–${Math.min(all.length, start + count - 1)} of ${all.length})\n${body.slice(0, 30_000)}`
+			+ (body.length > 30_000 ? '\n[Character budget reached; read a later line range for the remaining source.]' : '');
 	}
 
 	/** Open verified source locations as tabs, with the best starting point in focus. */
@@ -187,6 +196,17 @@ export class AgentTools {
 				+ 'The user must review and Keep this proposal before it changes the project.',
 			proposalId: proposal.id,
 		};
+	}
+
+	/** Build the complete candidate locally so models need only reproduce the changed snippets. */
+	async prepareEdit(value: unknown, edits: unknown) {
+		const { uri, relative } = this.file(value);
+		const document = await vscode.workspace.openTextDocument(uri);
+		const base = document.getText();
+		this.onSourceRead?.(relative, base);
+		const content = applyExactEdits(base, edits);
+		if (elidesCode(content)) { throw new Error('The proposal contains omitted-code placeholders. Provide the actual replacement code.'); }
+		return { uri, relative, base, content };
 	}
 
 	private async runTests(value: unknown): Promise<string> {

@@ -3,6 +3,8 @@
 window.addEventListener('message', event => {
 	const data = event.data;
 	switch (data?.type) {
+		case 'filePass':
+			filePassState = data; renderFilePass(); renderContext(); break;
 		case 'init':
 			state.project = data.project ?? '';
 			state.projectPath = data.projectPath ?? '';
@@ -13,15 +15,15 @@ window.addEventListener('message', event => {
 			state.messages = data.messages;
 			state.offer = data.offer;
 			showSkills = false;
-			renderScroll(true);
 			renderCharacter();
+			renderScroll(true);
 			renderContext();
 			break;
 		case 'conversation':
 			applyConversation(data);
 			showSkills = false;
-			renderScroll(true);
 			renderCharacter();
+			renderScroll(true);
 			renderContext();
 			renderSend();
 			break;

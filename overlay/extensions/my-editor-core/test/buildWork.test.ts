@@ -1,6 +1,6 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
-import { buildPlanIdentity, canImplement, nextImplementation, wantsProjectBuild } from '../src/project/buildWork';
+import { buildPlanIdentity, canImplement, nextImplementation, projectPassIntent, wantsProjectBuild } from '../src/project/buildWork';
 import { firstBuildFile } from '../src/project/buildBrief';
 import type { BuildGuideState } from '../src/project/buildStore';
 
@@ -49,4 +49,16 @@ test('build queue plan identity ignores routine status writes but detects scope 
 	assert.equal(buildPlanIdentity(guide), before);
 	guide.files[0].role = 'A changed responsibility';
 	assert.notEqual(buildPlanIdentity(guide), before);
+});
+
+test('chat routes direct project QA and module requests into setup while leaving questions in chat', () => {
+	assert.equal(projectPassIntent('build'), 'Build');
+	assert.equal(projectPassIntent('/build'), 'Build');
+	assert.equal(projectPassIntent('start building'), 'Build');
+	assert.equal(projectPassIntent('why build?'), undefined);
+	assert.equal(projectPassIntent('/chat run QA on the whole project'), 'QA');
+	assert.equal(projectPassIntent('build two modules first and test'), 'Build');
+	for (const question of ['can you explain QA?', 'do not QA everything', 'why build 2 modules?', '/tree build one module']) {
+		assert.equal(projectPassIntent(question), undefined);
+	}
 });

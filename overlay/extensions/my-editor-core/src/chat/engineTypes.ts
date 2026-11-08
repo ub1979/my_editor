@@ -18,9 +18,16 @@ export interface Turn {
 }
 
 export interface RunInput {
-	/** Host-owned whole-project worker batch; writes are restricted to these saved-plan paths. */
-	readonly buildFiles?: readonly string[];
-	readonly buildHashes?: Readonly<Record<string, string | undefined>>;
+	/** Stage a candidate in memory for a permission-scoped Build or QA run. */
+	readonly stageFile?: (path: unknown, content: unknown) => Promise<string>;
+	/** The scoped worker can require a real proposal before accepting a completion claim. */
+	readonly fileResultProblem?: () => string | undefined;
+	/** A blocker recovery must explain the inspected evidence and recommend alternatives. */
+	readonly fileBlockedProblem?: (message: string) => string | undefined;
+	/** Host snapshot for a focused Build/QA brief; never inferred from a model-supplied path. */
+	readonly fileTarget?: { readonly path: string; readonly source: string };
+	/** Record source used by scoped workers so dependency changes invalidate staged work. */
+	readonly onSourceRead?: (path: string, source: string) => void;
 	/** What the user typed; may start with a /command. */
 	readonly text: string;
 	/** The skill chosen in the panel (sticky), e.g. `requirements` or `skill:debug`. */

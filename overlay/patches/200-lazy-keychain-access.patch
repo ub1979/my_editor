@@ -1,0 +1,137 @@
+diff --git a/src/vs/platform/secrets/common/secrets.ts b/src/vs/platform/secrets/common/secrets.ts
+index 4e7e3265..6824498d 100644
+--- a/src/vs/platform/secrets/common/secrets.ts
++++ b/src/vs/platform/secrets/common/secrets.ts
+@@ -117,6 +117,9 @@ export class BaseSecretStorageService extends Disposable implements ISecretStora
+ 		@ILogService protected readonly _logService: ILogService,
+ 	) {
+ 		super();
++		if (!this._useInMemoryStorage) {
++			this.listenToStorage(this._storageService);
++		}
+ 	}
+ 
+ 	protected useSharedStorage(key: string): boolean {
+@@ -138,6 +141,12 @@ export class BaseSecretStorageService extends Disposable implements ISecretStora
+ 
+ 	get(key: string): Promise<string | undefined> {
+ 		return this._sequencer.queue(key, async () => {
++			// An empty lookup needs no encryption key. On macOS even checking encryption
++			// availability can prompt and block the app after a development update.
++			if (!this._useInMemoryStorage && this._type === 'unknown'
++				&& !this.getValueFromStorage(key, secretStorageKey(key), this._storageService)) {
++				return undefined;
++			}
+ 			const storageService = await this.resolvedStorageService;
+ 
+ 			try {
+@@ -181,7 +190,7 @@ export class BaseSecretStorageService extends Disposable implements ISecretStora
+ 
+ 	delete(key: string): Promise<void> {
+ 		return this._sequencer.queue(key, async () => {
+-			const storageService = await this.resolvedStorageService;
++			const storageService = await this.metadataStorageService;
+ 
+ 			const fullKey = secretStorageKey(key);
+ 			this._logService.trace('[secrets] deleting secret for key:', fullKey);
+@@ -192,7 +201,7 @@ export class BaseSecretStorageService extends Disposable implements ISecretStora
+ 
+ 	keys(): Promise<string[]> {
+ 		return this._sequencer.queue('__keys__', async () => {
+-			const storageService = await this.resolvedStorageService;
++			const storageService = await this.metadataStorageService;
+ 			this._logService.trace('[secrets] fetching keys of all secrets');
+ 			const allKeys = storageService.keys(StorageScope.APPLICATION, StorageTarget.MACHINE);
+ 			this._logService.trace('[secrets] fetched keys of all secrets');
+@@ -200,6 +209,12 @@ export class BaseSecretStorageService extends Disposable implements ISecretStora
+ 		});
+ 	}
+ 
++	/** Key names and deletion do not expose plaintext; preserve explicit in-memory mode. */
++	private get metadataStorageService(): Promise<IStorageService> {
++		return !this._useInMemoryStorage && this._type === 'unknown'
++			? Promise.resolve(this._storageService) : this.resolvedStorageService;
++	}
++
+ 	private getValueFromStorage(key: string, fullKey: string, storageService: IStorageService): string | undefined {
+ 		if (this.useSharedStorage(key)) {
+ 			this._logService.trace(`[SecretStorageService] Fetching value for cross-app shared secret: ${fullKey}`);
+@@ -238,6 +253,11 @@ export class BaseSecretStorageService extends Disposable implements ISecretStora
+ 			storageService = this._register(new InMemoryStorageService());
+ 		}
+ 
++		this.listenToStorage(storageService);
++		return storageService;
++	}
++
++	private listenToStorage(storageService: IStorageService): void {
+ 		this._onDidChangeValueDisposable.clear();
+ 		this._onDidChangeValueDisposable.add(Event.any<IStorageValueChangeEvent>(
+ 			storageService.onDidChangeValue(StorageScope.APPLICATION, undefined, this._onDidChangeValueDisposable),
+@@ -245,7 +265,6 @@ export class BaseSecretStorageService extends Disposable implements ISecretStora
+ 		)(e => {
+ 			this.onDidChangeValue(e.key);
+ 		}));
+-		return storageService;
+ 	}
+ 
+ 	protected reinitialize(): void {
+diff --git a/src/vs/platform/secrets/test/common/secrets.test.ts b/src/vs/platform/secrets/test/common/secrets.test.ts
+index ace8145f..131b292f 100644
+--- a/src/vs/platform/secrets/test/common/secrets.test.ts
++++ b/src/vs/platform/secrets/test/common/secrets.test.ts
+@@ -62,6 +62,54 @@ class TestNoEncryptionService implements IEncryptionService {
+ suite('secrets', () => {
+ 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+ 
++	suite('lazy Keychain access', () => {
++		test('empty reads, metadata and deletion do not initialize encryption', async () => {
++			const storage = store.add(new InMemoryStorageService());
++			const encryption = sinon.spy(new TestEncryptionService());
++			const service = store.add(new BaseSecretStorageService(false, storage, encryption, store.add(new NullLogService())));
++			assert.strictEqual(await service.get('missing'), undefined);
++			assert.deepStrictEqual(await service.keys(), []);
++			await service.delete('missing');
++			assert.strictEqual(encryption.isEncryptionAvailable.callCount, 0);
++			assert.strictEqual(encryption.decrypt.callCount, 0);
++		});
++
++		test('metadata does not decrypt a stored value but an actual read still does', async () => {
++			const storage = store.add(new InMemoryStorageService());
++			storage.store(secretStorageKey('fixture'), 'encrypted+test-only', StorageScope.APPLICATION, StorageTarget.MACHINE);
++			const encryption = sinon.spy(new TestEncryptionService());
++			const service = store.add(new BaseSecretStorageService(false, storage, encryption, store.add(new NullLogService())));
++			assert.deepStrictEqual(await service.keys(), ['fixture']);
++			assert.strictEqual(encryption.isEncryptionAvailable.callCount, 0);
++			assert.strictEqual(encryption.decrypt.callCount, 0);
++			assert.strictEqual(await service.get('fixture'), 'test-only');
++			assert.strictEqual(encryption.isEncryptionAvailable.callCount, 1);
++			assert.strictEqual(encryption.decrypt.callCount, 1);
++		});
++
++		test('metadata changes remain observable before the first credential read', async () => {
++			const storage = store.add(new InMemoryStorageService());
++			const encryption = sinon.spy(new TestEncryptionService());
++			const service = store.add(new BaseSecretStorageService(false, storage, encryption, store.add(new NullLogService())));
++			const changed: string[] = [];
++			store.add(service.onDidChangeSecret(key => changed.push(key)));
++			storage.store(secretStorageKey('fixture'), 'encrypted+test-only', StorageScope.APPLICATION, StorageTarget.MACHINE);
++			await service.delete('fixture');
++			assert.deepStrictEqual(changed, ['fixture', 'fixture']);
++			assert.strictEqual(encryption.isEncryptionAvailable.callCount, 0);
++		});
++
++		test('explicit in-memory mode does not enumerate persisted credential names', async () => {
++			const storage = store.add(new InMemoryStorageService());
++			storage.store(secretStorageKey('persisted'), 'encrypted+test-only', StorageScope.APPLICATION, StorageTarget.MACHINE);
++			const encryption = sinon.spy(new TestEncryptionService());
++			const service = store.add(new BaseSecretStorageService(true, storage, encryption, store.add(new NullLogService())));
++			assert.deepStrictEqual(await service.keys(), []);
++			assert.strictEqual(await service.get('persisted'), undefined);
++			assert.strictEqual(encryption.isEncryptionAvailable.callCount, 0);
++		});
++	});
++
+ 	suite('BaseSecretStorageService useInMemoryStorage=true', () => {
+ 		let service: BaseSecretStorageService;
+ 		let spyEncryptionService: sinon.SinonSpiedInstance<TestEncryptionService>;

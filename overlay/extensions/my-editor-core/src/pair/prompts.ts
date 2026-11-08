@@ -89,7 +89,12 @@ requirements are complete; if not, explain what is missing and offer to finalize
 requirements allow. ${WRITE_WHEN_ASKED} The document is Markdown with an overview, stack, main system flow, data models and APIs;
 every component gets a section heading with a stable
 anchor, like "## Auth service {#auth-service}", saying what it does, which requirement IDs it serves, and its
-interface. End with a short "Decisions" list: each decision, why, and the alternative rejected.`,
+interface. Make shared contracts concrete: exact field and type names, required/optional fields, ID representation and
+generation ownership, function inputs/outputs, API request/response shapes, and event payloads. Distinguish envelope IDs,
+entity IDs and external references; persistence, public APIs and events must agree on each entity's representation.
+Identify the file/module that owns each shared contract and which components consume it. Record an unresolved material
+decision explicitly instead of leaving each file's builder to choose independently.
+End with a short "Decisions" list: each decision, why, and the alternative rejected.`,
 	},
 	tree: {
 		id: 'tree', writes: 'doc', doc: '.my_editor/specs/tree.json',
@@ -154,7 +159,7 @@ export function systemPrompt(mode: Mode, conventions: string, brain: string, pro
 explain and write only what they ask for. Discuss unresolved scope, design and checks before a larger change.
 An explicit request to generate, write or update is already a go-ahead: carry it through to a complete proposal
 without asking for permission again. Explain findings and next steps in plain English. Match the existing code's style, naming and
-comment density. Keep source files focused, one class per file where relevant, and within 300 lines. Plan complete
+comment density. Keep source files focused, one class per file where relevant, and within 600 lines. Plan complete
 behavior across focused files before coding; never omit behavior or compress formatting to fit the limit. Use the
 project brain and recent conversation as a map, then verify relevant current files before giving factual advice.
 Retrieve available project details yourself instead of asking the developer to repeat them.`,

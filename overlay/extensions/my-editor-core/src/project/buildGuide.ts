@@ -5,6 +5,7 @@ import { StepState } from './buildProgress';
 import { nextFile } from './stubs';
 import { GuideItem } from './buildGuideItem';
 import { firstBuildFile } from './buildBrief';
+import { checkpointFiles } from './filePassPlan';
 import { canImplement, nextImplementation } from './buildWork';
 import type { ProjectBuildState } from './projectBuild';
 
@@ -69,15 +70,35 @@ export class BuildGuide implements vscode.TreeDataProvider<GuideItem>, vscode.Di
 				item.command = { command: 'myEditor.projectBuild.review', title: 'Review file', arguments: [proposal.id] }; result.push(item);
 			}
 			if (build.status === 'review') {
-				action('Review current batch', 'myEditor.projectBuild.review');
-				action('Keep reviewed batch and continue', 'myEditor.projectBuild.keep');
+				action('Review file diff', 'myEditor.projectBuild.review');
+				action('Keep reviewed file and continue', 'myEditor.projectBuild.keep');
 			}
-			if (['paused', 'error'].includes(build.status)) { action('Resume project build', 'myEditor.projectBuild.resume'); }
-			if (['running', 'review'].includes(build.status)) { action('Pause project build', 'myEditor.projectBuild.pause'); }
+			if (build.status === 'checkpoint') {
+				if (build.lastTest) { result.push(this.note(build.lastTest, 'beaker')); }
+				const file = build.results?.at(-1)?.path;
+				for (const path of file ? checkpointFiles(build.modules ?? [], file, build.options?.interval ?? 'file') : []) {
+					const row = this.note(`Review saved file: ${path}`, 'file-code');
+					row.command = { command: 'myEditor.fileChat.open', title: 'Review file', arguments: [vscode.Uri.joinPath(root, path)] }; result.push(row);
+				}
+				action('Run checkpoint tests…', 'myEditor.projectBuild.test');
+				if (build.lastTestStatus === 'failed') {
+					result.push(this.note('Tests failed. Fix the failures and rerun tests before continuing.', 'warning'));
+				} else {
+					action(build.lastTestStatus !== 'passed' ? 'Continue with tests unverified'
+						: build.remaining ? 'Continue after review' : 'Finish after review', 'myEditor.projectBuild.resume');
+				}
+			}
+			if (build.needsAnswer) { action('Answer question and retry…', 'myEditor.projectBuild.answer'); }
+			if (build.status !== 'complete') { action('Saving permissions for this run…', 'myEditor.projectBuild.saving'); }
+			action('Show file results', 'myEditor.projectBuild.report');
+			if (['paused', 'error'].includes(build.status)) { action('Resume run', 'myEditor.projectBuild.resume'); }
+			if (['running', 'review', 'checkpoint'].includes(build.status)) { action('Stop run', 'myEditor.projectBuild.pause'); }
 		}
-		if (!build || ['complete', 'error', 'paused'].includes(build.status)) { action('Build whole project', 'myEditor.projectBuild.start'); }
+		if (!build || ['complete', 'error', 'paused'].includes(build.status)) {
+			action('Build everything…', 'myEditor.projectBuild.start'); action('QA everything…', 'myEditor.projectQA.start');
+		}
 		this.view.description = guide.plan ? `${guide.steps.filter(step => step.status === 'verified').length}/${guide.steps.length} checked` : 'Saved file order';
-		if (guide.problems.length) { return guide.problems.map(problem => this.note(problem, 'warning')); }
+		if (guide.problems.length) { return [...result, ...guide.problems.map(problem => this.note(problem, 'warning'))]; }
 		if (!guide.plan) {
 			const add = this.note(guide.files.length ? 'Add build order and test checks' : 'Plan the files with Flow', 'list-ordered');
 			add.command = { command: 'myEditor.buildGuide.plan', title: 'Plan build steps' }; result.push(add);
@@ -112,6 +133,7 @@ export class BuildGuide implements vscode.TreeDataProvider<GuideItem>, vscode.Di
 	}
 	private file(path: string, root: string): GuideItem {
 		const item = new GuideItem(path, 'file', undefined, path, root);
+		item.contextValue = 'buildGuideFile'; item.resourceUri = vscode.Uri.joinPath(vscode.Uri.parse(root), path);
 		item.iconPath = new vscode.ThemeIcon('file-code');
 		item.command = { command: 'myEditor.buildGuide.file', title: 'Open file', arguments: [item] }; return item;
 	}
@@ -156,7 +178,7 @@ export class BuildGuide implements vscode.TreeDataProvider<GuideItem>, vscode.Di
 		await vscode.commands.executeCommand('myEditor.chat.ask', '/tree Update only tree.json to add a dependency-aware buildPlan '
 			+ 'with a real entry point, ordered build steps, implementation tasks, test checks and per-source-file estimatedLines. '
 			+ 'Preserve saved paths, roles, requirement links, architecture anchors and statuses. Split responsibilities expected to exceed '
-			+ '300 lines with a concrete reason; preserve all behavior. Keep requirements and architecture as saved.');
+			+ '600 lines with a concrete reason; preserve all behavior. Keep requirements and architecture as saved.');
 	}
 
 	private async confirm(item?: GuideItem): Promise<void> {

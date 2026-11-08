@@ -232,6 +232,17 @@ async function writeBrain(map: BrainMap, rewriteIndex = true): Promise<void> {
 	}
 }
 
+/** Keep project notes and the target's dependency map without sending the generated whole-project index. */
+export async function fileBrainContext(path: string): Promise<string> {
+	const uri = brainUri('index.md');
+	const index = uri && await readText(uri);
+	const notes = index?.replace(/<!-- my_editor:auto[\s\S]*?<!-- \/my_editor:auto -->/g, '').trim();
+	const neighbours = await neighbourSummary(path);
+	return [notes ? `Project brain notes:\n${notes.slice(0, 5000)}` : '',
+		neighbours ? `Brain dependency map (verify against current source):\n${neighbours.slice(0, 7000)}` : 'No brain dependency map for this file yet; use the planned lookup paths.']
+		.filter(Boolean).join('\n\n');
+}
+
 /** What the pair should know about a file's neighbours: files it uses and files that use it. */
 export async function neighbourSummary(path: string, limit = 16): Promise<string> {
 	const map = await readMap();

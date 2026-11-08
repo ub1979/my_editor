@@ -115,7 +115,7 @@ svg.icon {
 	flex: 1;
 	overflow-y: auto;
 	padding: 6px 14px 16px;
-	scroll-behavior: smooth;
+	scroll-behavior: auto;
 }
 
 /* Welcome: the skills, front and centre */

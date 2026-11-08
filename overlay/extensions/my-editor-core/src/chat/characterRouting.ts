@@ -8,6 +8,7 @@ export interface CharacterRoute {
 }
 
 const MODE_ROLES: Record<string, CharacterId> = {
+	"researcher": "researcher", "spec": "spec", "proj-manager": "proj-manager", "oop-restructurer": "oop-restructurer", "ux-writer": "ux-writer", "a11y-auditor": "a11y-auditor", "security-auditor": "security-auditor", "devops-engineer": "devops-engineer", "benchmark": "benchmark", "tech-writer": "tech-writer", "health": "health", "context-save": "context-save", "learn": "learn",
 	requirements: 'soki', brainstorm: 'soki', architecture: 'lisko', tree: 'flow',
 	feature: 'ada', change: 'ada', file: 'ada', next: 'ada', 'skill:refactor': 'lisko',
 	review: 'diji', qa: 'poppy', 'skill:tests': 'poppy', 'skill:debug': 'hopper',
@@ -32,6 +33,20 @@ export function routeCharacter(text: string, mode: string | undefined, current: 
 	if (fromMode) { return { id: fromMode, reason: `Working on ${chosenMode?.replace(/^skill:/, '')}`, locateOnly }; }
 	if (locateOnly) { return { id: 'bamboo', reason: 'Finding the change', locateOnly }; }
 	const intent: [RegExp, CharacterId, string][] = [
+		[/\b(research sources|compare vendors|technical research)\b/i, 'researcher', 'Working on researcher'],
+		[/\b(write a spec|spec this|technical specification)\b/i, 'spec', 'Working on spec'],
+		[/\b(sprint planning|milestones|project planning|backlog)\b/i, 'proj-manager', 'Working on proj-manager'],
+		[/\b(restructure|refactor to classes|modularize)\b/i, 'oop-restructurer', 'Working on oop-restructurer'],
+		[/\b(microcopy|ux writing|button labels)\b/i, 'ux-writer', 'Working on ux-writer'],
+		[/\b(accessibility audit|a11y|screen reader|keyboard navigation)\b/i, 'a11y-auditor', 'Working on a11y-auditor'],
+		[/\b(security audit|threat model|security review)\b/i, 'security-auditor', 'Working on security-auditor'],
+		[/\b(deployment|rollback|ci\/cd|devops)\b/i, 'devops-engineer', 'Working on devops-engineer'],
+		[/\b(benchmark|core web vitals|performance test)\b/i, 'benchmark', 'Working on benchmark'],
+		[/\b(write docs|documentation|readme|user guide)\b/i, 'tech-writer', 'Working on tech-writer'],
+		[/\b(project health|code health|health report)\b/i, 'health', 'Working on health'],
+		[/\b(save project context|project memory|handoff notes)\b/i, 'context-save', 'Working on context-save'],
+		[/\b(lesson learned|record this pattern|controlled learning)\b/i, 'learn', 'Working on learn'],
+		[/\b(ui\/?ux|user interface|visual design|stylesheet|typography|responsive layout|design tokens|accessibility audit|redesign)\b/i, 'iris', 'Designing the interface'],
 		[/\b(requirements?|acceptance criteria|what should (?:it|this) do)\b/i, 'soki', 'Working out requirements'],
 		[/\b(flow|file tree|plan the files)\b/i, 'flow', 'Planning the flow and files'],
 		[/\b(architecture|design|module boundaries)\b/i, 'lisko', 'Planning the design'],

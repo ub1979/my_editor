@@ -42,6 +42,9 @@ exports.run = async function () {
 		}
 		else if (last.includes('Host tool result')) { content = '{"action":"final","message":"The file proposal is ready for Keep."}'; }
 		else if (last.includes('delete fixture')) { content = '{"action":"tool","name":"propose_delete","arguments":{"path":"nested/hello.txt"}}'; }
+		else if (last.includes('patch fixture')) { content = JSON.stringify({ action: 'tool', name: 'propose_edit', arguments: {
+			path: 'nested/hello.txt', edits: [{ oldText: 'Hello world', newText: 'Hello friend' }],
+		} }); }
 		else if (last.includes('create fixture')) {
 			assert.ok(system.includes('Brain fixture: sample.py defines the demonstration function.'), 'The model must receive the project brain');
 			content = '{"action":"tool","name":"read_file","arguments":{"path":"sample.py"}}';
@@ -77,6 +80,15 @@ exports.run = async function () {
 		fs.writeFileSync(python.fsPath, 'answer = 40\nwith open("python-state.txt", "w") as result:\n    result.write(str(answer + 2))\n');
 		const pyDocument = await vscode.workspace.openTextDocument(python);
 		const editor = await vscode.window.showTextDocument(pyDocument);
+		// Use a reproducible reference interpreter instead of racing automatic discovery of
+		// the developer's Conda/Homebrew environments in a fresh test profile.
+		const pythonApi = await vscode.extensions.getExtension('ms-python.python').activate();
+		const executable = process.env.MY_EDITOR_FIXTURE_PYTHON || '/usr/bin/python3';
+		await pythonApi.environments.updateActiveEnvironmentPath(executable, python);
+		await until(async () => {
+			const active = (await pythonApi.environments.resolveEnvironment(pythonApi.environments.getActiveEnvironmentPath(python)))?.executable?.uri?.fsPath;
+			return active && fs.realpathSync(active) === fs.realpathSync(executable);
+		}, 'Reference Python interpreter was not selected');
 		editor.selection = new vscode.Selection(0, 0, 1, 0);
 		await vscode.commands.executeCommand('myEditor.python.runSelection');
 		editor.selection = new vscode.Selection(1, 0, 3, 0);
@@ -122,10 +134,14 @@ exports.run = async function () {
 			fs.writeFileSync(large.fsPath, '// original\n');
 			const largeDoc = await vscode.workspace.openTextDocument(large);
 			const largeEditor = await vscode.window.showTextDocument(largeDoc);
-			await largeEditor.edit(edit => edit.replace(new vscode.Range(0, 0, largeDoc.lineCount, 0), '// line\n'.repeat(301)));
+			await largeEditor.edit(edit => edit.replace(new vscode.Range(0, 0, largeDoc.lineCount, 0), '// line\n'.repeat(600)));
+			assert.equal(await largeDoc.save(), true, 'Exactly 600 source lines must save');
+			assert.equal(largeDoc.isDirty, false);
+			assert.equal(fs.readFileSync(large.fsPath, 'utf8'), '// line\n'.repeat(600));
+			await largeEditor.edit(edit => edit.replace(new vscode.Range(0, 0, largeDoc.lineCount, 0), '// line\n'.repeat(601)));
 			await largeDoc.save();
-			assert.ok(largeDoc.isDirty, 'Saving 301 source lines must keep the buffer dirty');
-			assert.equal(fs.readFileSync(large.fsPath, 'utf8'), '// original\n');
+			assert.ok(largeDoc.isDirty, 'Saving 601 source lines must keep the buffer dirty');
+			assert.equal(fs.readFileSync(large.fsPath, 'utf8'), '// line\n'.repeat(600));
 			await vscode.commands.executeCommand('workbench.action.revertAndCloseActiveEditor');
 		}
 		const sourceEditor = await vscode.window.showTextDocument(document);
@@ -139,11 +155,16 @@ exports.run = async function () {
 		await vscode.commands.executeCommand('myEditor.proposal.keep', created.input.modified);
 		assert.equal(fs.readFileSync(path.join(root, 'nested/hello.txt'), 'utf8'), 'Hello world\n');
 		assert.ok(requests.some(request => request.messages.some(message => message.content.includes('Host tool result for read_file(sample.py:1)'))));
+		await vscode.commands.executeCommand('myEditor.chat.ask', 'Please patch fixture in nested/hello.txt. Do not change source-size policy or dependencies. Read-only inspection verified the current contents.');
+		const patched = await until(proposalTab, 'No exact-edit proposal');
+		assert.equal(fs.readFileSync(path.join(root, 'nested/hello.txt'), 'utf8'), 'Hello world\n', 'Exact edits must wait for Keep');
+		await vscode.commands.executeCommand('myEditor.proposal.keep', patched.input.modified);
+		assert.equal(fs.readFileSync(path.join(root, 'nested/hello.txt'), 'utf8'), 'Hello friend\n', 'Exact edits preserve untouched newlines');
 		await vscode.commands.executeCommand('myEditor.chat.ask', 'Please delete fixture nested/hello.txt.');
 		const deleted = await until(proposalTab, 'No deletion proposal');
 		await vscode.commands.executeCommand('myEditor.proposal.keep', deleted.input.modified);
 		assert.equal(fs.existsSync(path.join(root, 'nested/hello.txt')), false);
-		if (report) { fs.writeFileSync(report, JSON.stringify({ passed: true, checks: ['inline insertion and Keep', 'automatic AI directive on Enter', 'persistent Python selections', 'automatic and manual review', 'test/accessor offers', 'host file reads and brain context', 'nested file creation', 'reviewed deletion', ...(process.env.MY_EDITOR_ASSERT_SAVE_GATE ? ['300-line save gate'] : [])], requests: requests.length })); }
+		if (report) { fs.writeFileSync(report, JSON.stringify({ passed: true, checks: ['inline insertion and Keep', 'automatic AI directive on Enter', 'persistent Python selections', 'automatic and manual review', 'test/accessor offers', 'host file reads and brain context', 'nested file creation', 'reviewed deletion', ...(process.env.MY_EDITOR_ASSERT_SAVE_GATE ? ['600-line save gate'] : [])], requests: requests.length })); }
 	} catch (error) {
 		if (report) { fs.writeFileSync(report, JSON.stringify({ passed: false, error: String(error), stack: error.stack, requests: requests.map(item => item.messages.at(-1)) })); }
 		throw error;

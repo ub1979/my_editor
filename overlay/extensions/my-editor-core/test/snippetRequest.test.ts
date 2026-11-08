@@ -12,14 +12,14 @@ const longClass = 'export class AiClient {\n' + Array.from({ length: 110 }, (_, 
 
 test('the reported TypeScript stub accepts a complete class longer than 100 lines and preserves its source', () => {
 	assert.equal(marker.instruction, 'make the class');
-	assert.equal(snippetLineBudget(source), 292);
+	assert.equal(snippetLineBudget(source), 592);
 	const result = insertAiSnippet(source, marker, fence(longClass), 'client.ts');
 	assert.equal(result, source.replace('//AI make the class \n', '//AI make the class \n' + longClass + '\n'));
 	assert.ok(result.endsWith('\nexport {};\n'));
 });
 
 test('snippet budget uses existing source lines and reports exact overflow without truncation', () => {
-	const text = '//AI add a method\n' + '// existing\n'.repeat(295);
+	const text = '//AI add a method\n' + '// existing\n'.repeat(595);
 	const at = aiMarker(text.split('\n')[0], 0)!;
 	assert.equal(snippetLineBudget(text), 4);
 	assert.doesNotThrow(() => insertAiSnippet(text, at, fence('a();\nb();\nc();\nd();')));
@@ -43,7 +43,7 @@ test('invalid model output gets one corrective turn with the exact issue and ori
 		} });
 	assert.equal(calls.length, 2);
 	assert.match(calls[1][2].text, /omitted-code placeholder/);
-	assert.match(calls[1][0].text, /Available lines for the entire snippet: 292/);
+	assert.match(calls[1][0].text, /Available lines for the entire snippet: 592/);
 	assert.match(calls[1][0].text, /createAiClient/);
 	assert.ok(result.includes(longClass));
 });
@@ -65,7 +65,7 @@ test('a second invalid reply stops; source edits and provider errors never retry
 test('extra error classes trigger correction and a full file does not call the model', async () => {
 	assert.throws(() => insertAiSnippet(source, marker, fence('class Client {}\nclass ClientError extends Error {}'), 'client.ts'), /contains 2 classes/);
 	let called = false;
-	await assert.rejects(requestSnippet({ source: '//AI request\n' + '// full\n'.repeat(299), marker: aiMarker('//AI request', 0)!,
+	await assert.rejects(requestSnippet({ source: '//AI request\n' + '// full\n'.repeat(599), marker: aiMarker('//AI request', 0)!,
 		filePath: 'client.ts', language: 'typescript', plan: '', checkCurrent() {},
 		generate: async () => { called = true; return ''; } }), /no room/);
 	assert.equal(called, false);

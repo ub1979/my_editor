@@ -1,14 +1,15 @@
 import * as path from 'path';
 
-export const MAX_SOURCE_LINES = 300;
-export const WARN_SOURCE_LINES = 270;
+export const MAX_SOURCE_LINES = 600;
+export const WARN_SOURCE_LINES = 540;
 
 const SOURCE_EXTENSIONS = new Set([
 	'.ts', '.tsx', '.mts', '.cts', '.js', '.jsx', '.mjs', '.cjs', '.py', '.rs', '.go',
 	'.c', '.h', '.cc', '.cpp', '.cxx', '.hh', '.hpp', '.hxx', '.java', '.cs', '.swift',
 	'.css', '.scss', '.sass', '.less', '.vue', '.svelte',
 ]);
-const CLASS_EXTENSIONS = new Set(['.ts', '.tsx', '.mts', '.cts', '.js', '.jsx', '.mjs', '.cjs', '.py', '.java', '.cs', '.swift']);
+const CLASS_EXTENSIONS = new Set(['.ts', '.tsx', '.mts', '.cts', '.js', '.jsx', '.mjs', '.cjs', '.py', '.java', '.cs', '.swift',
+	'.kt', '.kts', '.cpp', '.cc', '.cxx', '.h', '.hpp', '.hxx', '.rb', '.php', '.dart']);
 
 export function sourceLines(text: string): number {
 	if (!text) { return 0; }
@@ -43,10 +44,20 @@ export function classNames(text: string, filePath: string): string[] {
 /** Hard checks used both before an AI proposal is shown and before its edited form is Kept. */
 export function sourcePolicyError(filePath: string, text: string): string | undefined {
 	if (!isSourceFile(filePath)) { return undefined; }
+	if (/^\s*(?:(?:\/\/|#)\s*)?(?:placeholder|todo|tbd|not implemented)\s*[.;]?\s*$/i.test(text)) {
+		return 'The model returned a placeholder instead of source code. Propose the complete implementation or explain what is blocked.';
+	}
+	if (/^\s*(?:ERROR|BLOCKED):\s*(?:unable to|cannot\s+\w+|could not|failed to|I (?:cannot|can't))\b/i.test(text)) {
+		return 'The model returned a failure message instead of source code. Return a final explanation or propose valid code.';
+	}
 	const lines = sourceLines(text);
 	if (lines > MAX_SOURCE_LINES) {
 		return `${filePath} would have ${lines} lines. Source files are limited to ${MAX_SOURCE_LINES}; split it into focused files first.`;
 	}
+	return classPolicyError(filePath, text);
+}
+
+export function classPolicyError(filePath: string, text: string): string | undefined {
 	const classes = classNames(text, filePath);
 	if (classes.length > 1) {
 		return `${filePath} contains ${classes.length} classes (${classes.join(', ')}). Keep one class per file and move the others into focused files.`;

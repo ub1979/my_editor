@@ -24,12 +24,19 @@ export interface ChatTurn {
 	readonly text: string;
 }
 
+/** Provider-native tool intent; the agent host still validates the name, arguments and permission. */
+export interface NativeToolCall {
+	readonly name: string;
+	readonly arguments: Record<string, unknown>;
+}
+
 export interface StreamRequest {
 	readonly entry: ModelEntry;
 	readonly system: string | undefined;
 	readonly turns: readonly ChatTurn[];
 	readonly token: vscode.CancellationToken;
 	readonly onText: (text: string) => void;
+	readonly onToolCalls?: (calls: readonly NativeToolCall[]) => void;
 	readonly reasoningEffort?: ReasoningEffort;
 	/** Lets a subscription CLI use its own web search and page reading. Other providers ignore it. */
 	readonly webAccess?: boolean;

@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { agentChatVisible } from '../chat/chatVisibility';
 import { ApiKeys } from '../models/secrets';
 import { loadCatalog, pickDefault } from '../models/catalog';
 import { streamModel } from '../models/stream';
@@ -63,17 +64,18 @@ export class FileChat implements vscode.WebviewViewProvider, vscode.CodeLensProv
 			vscode.commands.registerCommand('myEditor.fileChat.explain', () => this.action('explain')),
 			vscode.commands.registerCommand('myEditor.fileChat.new', () => this.reset()),
 		);
-		this.follow(vscode.window.activeTextEditor);
+		// Restore file context without replacing the sidebar the user left open.
+		this.follow(vscode.window.activeTextEditor, false);
 	}
 
-	private follow(editor?: vscode.TextEditor): void {
+	private follow(editor?: vscode.TextEditor, reveal = true): void {
 		// Focusing a webview or proposal should retain the source file and its selection.
 		if (!editor || editor.document.uri.scheme !== 'file') { return; }
 		const previous = this.editor?.document.uri.toString();
 		this.editor = chatFile(editor.document) ? editor : undefined;
 		if (previous !== this.editor?.document.uri.toString()) { this.build = undefined; void this.refreshBuild(); }
 		this.post();
-		if (this.editor && previous !== this.editor.document.uri.toString()
+		if (reveal && this.editor && !agentChatVisible() && previous !== this.editor.document.uri.toString()
 			&& vscode.workspace.getConfiguration('myEditor').get('fileChat.followEditor', true)) {
 			void vscode.commands.executeCommand(`${FileChat.id}.focus`, { preserveFocus: true });
 		}
@@ -96,6 +98,9 @@ export class FileChat implements vscode.WebviewViewProvider, vscode.CodeLensProv
 			else if (message.type === 'stop') { this.running.get(key)?.cancel(); }
 			else if (message.type === 'new') { this.reset(); }
 			else if (message.type === 'model') { void vscode.commands.executeCommand('myEditor.chooseModel'); }
+			else if (['buildFile', 'qaFile'].includes(message.type) && !this.running.has(key)) {
+				void vscode.commands.executeCommand(message.type === 'buildFile' ? 'myEditor.projectBuild.file' : 'myEditor.projectQA.file', this.editor!.document.uri);
+			}
 			else if (message.type === 'buildNext' && !this.running.has(key)) { void vscode.commands.executeCommand('myEditor.buildGuide.following', this.editor!.document.uri); }
 			else if (message.type === 'buildGuide') { void vscode.commands.executeCommand('myEditor.buildGuide.open'); }
 			else if (message.type === 'buildProject' && !this.running.has(key)) { void vscode.commands.executeCommand('myEditor.projectBuild.start'); }

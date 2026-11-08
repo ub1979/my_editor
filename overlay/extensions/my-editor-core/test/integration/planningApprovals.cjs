@@ -21,6 +21,11 @@ exports.run = async function () {
 			const messages = JSON.parse(body).messages;
 			const system = messages.find(message => message.role === 'system').content;
 			requests++;
+			if (system.includes('Missing planning documents are an evidence limit') && !JSON.stringify(messages).includes('Host tool result for read_file(')) {
+				res.end(JSON.stringify({ message: { content: JSON.stringify({ action: 'tool', name: 'read_file',
+					arguments: { path: '.my_editor/specs/tree.json' } }) }, done: true }) + '\n');
+				return;
+			}
 			let message;
 			if (phase === 'choices') {
 				assert.ok(system.includes('This request is a read-only check'));

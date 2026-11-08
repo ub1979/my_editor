@@ -5,17 +5,34 @@ import { projectCharacter, routeCharacter, wantsChangeMap } from '../src/chat/ch
 import type { ProjectState } from '../src/project/state';
 import { classNames, sourceLines, sourcePolicyError } from '../src/quality/sourcePolicy';
 
-test('source policy allows 300 lines and rejects 301, including an edited proposal at Keep', () => {
+test('source policy allows 600 lines and rejects 601, including an edited proposal at Keep', () => {
 	assert.equal(sourceLines('a\nb\n'), 2);
-	assert.equal(sourcePolicyError('src/a.ts', 'x\n'.repeat(300)), undefined);
-	assert.match(sourcePolicyError('src/a.ts', 'x\n'.repeat(301)) ?? '', /301 lines/);
-	assert.equal(sourcePolicyError('src/a.md', 'x\n'.repeat(301)), undefined);
+	assert.equal(sourcePolicyError('src/a.ts', 'x\n'.repeat(600)), undefined);
+	assert.match(sourcePolicyError('src/a.ts', 'x\n'.repeat(601)) ?? '', /601 lines/);
+	assert.equal(sourcePolicyError('src/a.md', 'x\n'.repeat(601)), undefined);
 });
 
 test('source policy rejects two classes in one file and ignores CSS selectors', () => {
 	assert.deepEqual(classNames('export class A {}\nclass B {}\n', 'src/a.ts'), ['A', 'B']);
 	assert.match(sourcePolicyError('src/a.ts', 'export class A {}\nclass B {}\n') ?? '', /2 classes/);
 	assert.equal(sourcePolicyError('styles/a.css', '.a {}\n.b {}\n'), undefined);
+});
+
+test('a model failure explanation cannot replace source code', () => {
+	assert.match(sourcePolicyError('test/automation.test.ts', 'ERROR: Unable to safely reconstruct the complete 492-line file.') ?? '', /failure message/);
+	assert.equal(sourcePolicyError('src/a.ts', 'const message = "ERROR: Unable to connect";\n'), undefined);
+	assert.equal(sourcePolicyError('src/a.ts', '// ERROR: Unable to connect\nexport const retry = true;\n'), undefined);
+	assert.equal(sourcePolicyError('src/a.ts', 'ERROR: failed();\n'), undefined);
+});
+
+test('a bare placeholder cannot replace a source file, while placeholder names and strings remain valid', () => {
+	for (const value of ['placeholder', 'PLACEHOLDER\n', '// TODO', '# not implemented', 'TBD.']) {
+		assert.match(sourcePolicyError('src/main.ts', value) ?? '', /placeholder/);
+	}
+	for (const value of ['const placeholder = "Type here";', 'export const text = "placeholder";', '// TODO: improve caching\nexport const ready = true;']) {
+		assert.equal(sourcePolicyError('src/main.ts', value), undefined);
+	}
+	assert.equal(sourcePolicyError('notes.md', 'placeholder'), undefined);
 });
 
 test('characters change presentation while preserving the review rules', () => {

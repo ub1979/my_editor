@@ -47,9 +47,10 @@ function stagesSection(stages) {
 		list.append(el('li', {}, [node]));
 	});
 	return section('Build path', list, el('div', { class: 'actions' }, [
-		action('Start here', { type: 'open', stage: 'build' }, 'pill primary'),
+		action('Start here', { type: 'nextFile' }, 'pill primary'),
 		action('Build guide', { type: 'buildGuide' }),
-		action('Build whole project', { type: 'buildProject' }),
+		action('Build everything…', { type: 'buildProject' }),
+		action('QA everything…', { type: 'qaProject' }),
 	]));
 }
 

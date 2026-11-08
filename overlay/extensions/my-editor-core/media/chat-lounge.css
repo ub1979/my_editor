@@ -36,10 +36,12 @@ body {
 
 #app {
 	min-width: 0;
+	min-height: 0;
 	background: var(--bg);
 }
 
 .character-header {
+	flex: none;
 	display: flex;
 	align-items: center;
 	gap: 12px;
@@ -104,8 +106,8 @@ body {
 }
 .header-action:hover { background: rgba(255,255,255,.28); }
 .header-action .icon { width: 15px; height: 15px; }
-body.sidebar .header-action[title='Show Pair in the sidebar'] { display: none; }
-body.lounge .header-action[title='Open Pair in the editor'] { display: none; }
+body.sidebar .header-action[title='Show file and chat in columns'] { display: none; }
+body.lounge .header-action[title='Expand agent chat'] { display: none; }
 
 .scroll {
 	min-height: 0;
@@ -150,6 +152,7 @@ body.lounge .header-action[title='Open Pair in the editor'] { display: none; }
 .proposal { background: var(--bg); }
 
 .composer {
+	flex: none;
 	margin: 0;
 	padding: 10px 16px;
 	border: 0;
@@ -199,25 +202,17 @@ body.lounge .header-action[title='Open Pair in the editor'] { display: none; }
 .character-choice:disabled { opacity: .55; cursor: default; transform: none; }
 
 body.lounge {
-	display: grid;
-	place-items: center;
-	padding: 26px;
-	background: radial-gradient(circle at 15% 15%, #b6c0ba, transparent 36%),
-		radial-gradient(circle at 85% 75%, #a5adb7, transparent 38%), #8f9799;
+	padding: 0;
+	background: var(--bg);
 }
 body.lounge #app {
-	width: min(100%, 680px);
-	height: min(760px, calc(100vh - 52px));
-	min-height: 320px;
-	border: 1px solid rgba(255,255,255,.35);
-	border-radius: 23px;
-	box-shadow: 0 28px 80px rgba(22,31,42,.33);
+	width: 100%;
+	height: 100vh;
 	overflow: hidden;
 }
-body.lounge .character-header { min-height: 120px; padding: 20px 24px; }
-body.lounge .scroll { padding: 18px 26px; }
-body.lounge .composer { padding: 13px 22px; }
-body.lounge .character-rail { padding-bottom: 17px; }
+body.lounge .character-header { min-height: 88px; padding: 14px 24px; }
+body.lounge .scroll { padding: 18px max(24px, calc((100% - 800px) / 2)); }
+body.lounge .composer { padding: 12px max(24px, calc((100% - 800px) / 2)); }
 
 @media (max-width: 460px) {
 	.character-header { gap: 8px; padding: 12px; flex-wrap: wrap; }

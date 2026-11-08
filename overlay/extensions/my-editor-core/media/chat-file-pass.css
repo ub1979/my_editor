@@ -1,0 +1,37 @@
+/* All run content stays in normal flow inside the conversation's single scroll area. */
+.file-pass { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--line); color: var(--text); font-size: var(--chat-text-size, 13px); overflow-wrap: anywhere; }
+.file-pass[hidden] { display: none; }
+.file-pass h2 { margin: 0 0 10px; font: inherit; font-size: 15px; font-weight: 700; }
+.file-pass p { margin: 8px 0; white-space: pre-wrap; }
+.file-pass .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.file-pass .run-actions { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.file-pass button {
+	appearance: none;
+	min-height: 28px;
+	padding: 3px 9px;
+	font-size: 12px;
+	line-height: 20px;
+	border: 1px solid var(--line);
+	border-radius: 6px;
+	background: var(--surface-2);
+	color: var(--text);
+	font-weight: 600;
+}
+.file-pass button:hover:not(:disabled) { filter: brightness(.94); }
+.file-pass button:focus-visible, .file-pass summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
+.file-pass button:disabled { background: var(--surface-2); color: var(--muted); cursor: not-allowed; }
+.file-pass .pass-meta { color: var(--muted); font-size: 12px; }
+.file-pass .pass-help { font-size: 12px; padding: 0 4px; }
+.file-pass .pass-detail { font-size: 12px; }
+.file-pass .pass-saving { align-items: center; margin: 8px 0; }
+.file-pass .pass-path { background: transparent; color: var(--text); padding: 0; }
+.pass-current, .pass-result { margin-top: 12px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.pass-current { border-left: 3px solid var(--accent); }
+.pass-label { display: block; margin-bottom: 4px; font-size: 11px; font-weight: 700; color: var(--muted); }
+.pass-path { display: block; font-size: 13px; font-weight: 600; white-space: normal; overflow-wrap: anywhere; }
+.pass-result button { background: var(--surface-2); color: var(--text); }
+.file-pass details { margin: 10px 0; }
+.file-pass summary { cursor: pointer; color: var(--text); padding: 5px 0; }
+.pass-test { padding: 10px; border-radius: 8px; background: var(--surface-2); }
+.pass-preview pre { max-height: 240px; overflow: auto; padding: 12px; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 8px; }
+.pass-preview code { font-family: var(--mono); font-size: 12px; white-space: pre; }

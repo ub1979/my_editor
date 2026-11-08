@@ -6,11 +6,11 @@ const TESTS = 'test files are not split in this version';
 
 test('files never split: common reasons are one line each with a count and three examples; specific ones are listed', () => {
 	const skipped = [
-		...Array.from({ length: 47 }, (_, i) => ({ file: `pkg/f${i}_test.go`, reason: TESTS, lines: 500 + i })),
+		...Array.from({ length: 47 }, (_, i) => ({ file: `pkg/f${i}_test.go`, reason: TESTS, lines: 800 + i })),
 		{ file: 'vendor/a.go', reason: 'vendored code', lines: 10 },
-		{ file: 'gen/a.pb.go', reason: 'generated code', lines: 900 }, { file: 'gen/b.pb.go', reason: 'generated code', lines: 30 },
-		{ file: 'tools/x.go', reason: 'inside the nested module tools/', lines: 450 },
-		{ file: 'sys_linux.go', reason: 'its name ends in _linux, a build constraint', lines: 800 },
+		{ file: 'gen/a.pb.go', reason: 'generated code', lines: 1200 }, { file: 'gen/b.pb.go', reason: 'generated code', lines: 30 },
+		{ file: 'tools/x.go', reason: 'inside the nested module tools/', lines: 750 },
+		{ file: 'sys_linux.go', reason: 'its name ends in _linux, a build constraint', lines: 1100 },
 		{ file: 'cg.go', reason: 'it uses cgo', lines: 120 }, { file: 'crlf.go', reason: 'it has CRLF line endings' },
 	];
 	assert.deepEqual(neverSplitLines(skipped), [
@@ -20,14 +20,14 @@ test('files never split: common reasons are one line each with a count and three
 		'- 1 file (`tools/x.go`): inside the nested module tools/.',
 		'- `sys_linux.go`: its name ends in _linux, a build constraint.',
 		'- `crlf.go`: it has CRLF line endings.',
-		'- plus 1 file under 300 lines that needs no split. They have no tests and cannot be given any, so the picker does not offer them.',
+		'- plus 1 file under 600 lines that needs no split. They have no tests and cannot be given any, so the picker does not offer them.',
 	]);
 });
 
 test('TypeScript and Python reasons for tests, build output and declaration files group the same way', () => {
 	const lines = neverSplitLines([
 		{ file: 'a.test.ts', reason: 'a test or test-support file', lines: 40 }, { file: 'b.test.ts', reason: 'a test or test-support file', lines: 9 },
-		{ file: 'dist/x.js', reason: 'build output or vendored code', lines: 2000 }, { file: 'x.d.ts', reason: 'a declaration file', lines: 600 },
+		{ file: 'dist/x.js', reason: 'build output or vendored code', lines: 2000 }, { file: 'x.d.ts', reason: 'a declaration file', lines: 900 },
 	]);
 	assert.deepEqual(lines, [
 		'- 2 test files (`a.test.ts`, `b.test.ts`): a test or test-support file.',

@@ -16,14 +16,14 @@ function decl(id: number, size: number): Declaration {
 	return { id, kind: 'function', names: [`f${id}`], span: { start: 0, end: 0 }, lines: size, doc: '', docText: '', uses: [], movable: true };
 }
 
-/** A repository whose HEAD has five long Go files; `solo.go` is one 425-line function. */
+/** A repository whose HEAD has five long Go files; `solo.go` is one 725-line function. */
 function repository(): { root: string; git: (...args: string[]) => string } {
 	const root = mkdtempSync(path.join(os.tmpdir(), 'my-editor-tip-'));
 	const git = (...args: string[]) => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
 	git('init', '--quiet', '-b', 'main');
 	git('config', 'user.email', 'test@example.com');
 	git('config', 'user.name', 'Test');
-	for (const [name, size] of [['a.go', 600], ['b.go', 500], ['c.go', 450], ['d.go', 420], ['solo.go', 430], ['small.go', 20]] as const) {
+	for (const [name, size] of [['a.go', 900], ['b.go', 800], ['c.go', 750], ['d.go', 720], ['solo.go', 730], ['small.go', 20]] as const) {
 		writeFileSync(path.join(root, name), lines(size));
 	}
 	git('add', '.');
@@ -37,7 +37,7 @@ function firstRun(root: string, git: (...args: string[]) => string, branch: stri
 	writeFileSync(path.join(root, 'a.go'), lines(250));
 	writeFileSync(path.join(root, 'a_part.go'), lines(250));
 	writeFileSync(path.join(root, 'b.go'), lines(90));
-	writeFileSync(path.join(root, 'b_big.go'), lines(410));
+	writeFileSync(path.join(root, 'b_big.go'), lines(710));
 	git('add', '.');
 	git('commit', '--quiet', '-m', 'my_editor: split');
 	git('checkout', '--quiet', 'main');
@@ -50,7 +50,7 @@ function factory(parsed: string[]) {
 		parse: async (file: string): Promise<FileInfo> => {
 			readFileSync(path.join(root, file));
 			parsed.push(file);
-			const declarations = file === 'solo.go' ? [decl(0, 425)] : [decl(0, 200), decl(1, 200), decl(2, 150)];
+			const declarations = file === 'solo.go' ? [decl(0, 725)] : [decl(0, 200), decl(1, 200), decl(2, 150)];
 			return { path: file, declarations, frame: [], imports: [] };
 		},
 	}) as unknown as LanguageAdapter;
@@ -67,8 +67,8 @@ test('the tip is ai_fix, else the old branch a run would start from, else none; 
 	const source = await treeSource(root);
 	assert.deepEqual([...source.changed].sort(), ['a.go', 'a_part.go', 'b.go', 'b_big.go']);
 	assert.ok(source.tracked.includes('b_big.go'));
-	assert.equal(await source.text('b_big.go'), lines(410));
-	assert.equal(await source.text('c.go'), lines(450));
+	assert.equal(await source.text('b_big.go'), lines(710));
+	assert.equal(await source.text('c.go'), lines(750));
 	assert.equal(git('branch', '--show-current'), 'main');
 	assert.equal(git('status', '--porcelain'), '');
 	rmSync(root, { recursive: true, force: true });
@@ -80,7 +80,7 @@ test('a second run offers the files still over the limit on ai_fix, not the ones
 	const parsed: string[] = [];
 	const found = await findCandidates(root, factory(parsed), () => false);
 	assert.ok(found);
-	assert.deepEqual(found.choices.map(c => `${c.file} ${c.lines}`), ['c.go 450', 'd.go 420', 'b_big.go 410']);
+	assert.deepEqual(found.choices.map(c => `${c.file} ${c.lines}`), ['c.go 750', 'd.go 720', 'b_big.go 710']);
 	assert.deepEqual(found.unsplittable.map(c => c.file), ['solo.go']);
 	assert.deepEqual(found.unparsed.map(c => c.file), ['b_big.go']);
 	assert.deepEqual(parsed.sort(), ['c.go', 'd.go', 'solo.go'], 'files that differ on ai_fix are screened later, in its working copy');
@@ -97,7 +97,7 @@ test('without an earlier run, candidates come from the folder as before', async 
 });
 
 /** The same adapter with a refactor whose target is the file's largest declaration, named as `target` says. */
-function refactoring(parsed: string[], target: RefactorHooks['target'] = info => ({ name: info.declarations[0].names[0], lines: 425 })) {
+function refactoring(parsed: string[], target: RefactorHooks['target'] = info => ({ name: info.declarations[0].names[0], lines: 725 })) {
 	return (root: string): LanguageAdapter =>
 		({ ...factory(parsed)(root), fixes: ['split', 'refactor'], refactor: { target } as RefactorHooks }) as LanguageAdapter;
 }
@@ -106,8 +106,8 @@ test('a file only a refactor can help is offered as a refactor when the adapter 
 	const { root, git } = repository();
 	const found = await findCandidates(root, refactoring([]), () => false);
 	assert.deepEqual(found?.choices.map(c => `${c.file} ${c.kind} ${c.lines}`),
-		['a.go split 600', 'b.go split 500', 'c.go split 450', 'solo.go refactor 430', 'd.go split 420']);
-	assert.deepEqual(found?.choices.find(c => c.kind === 'refactor')?.target, { name: 'f0', lines: 425 });
+		['a.go split 900', 'b.go split 800', 'c.go split 750', 'solo.go refactor 730', 'd.go split 720']);
+	assert.deepEqual(found?.choices.find(c => c.kind === 'refactor')?.target, { name: 'f0', lines: 725 });
 	assert.deepEqual(found?.unsplittable.map(c => c.file), ['solo.go']);
 	assert.deepEqual([...found?.blobs ?? []], [['solo.go', git('rev-parse', 'HEAD:solo.go')]]);
 	const plain = await findCandidates(root, factory([]), () => false);
@@ -122,7 +122,7 @@ test('a file only a refactor can help is offered as a refactor when the adapter 
 test('a settled file with its big function is offered without parsing; a record without it holds, parsed again only when unchanged', async () => {
 	const { root, git } = repository();
 	firstRun(root, git, 'ai_fix');
-	const big = { name: 'Big', receiver: 'Store', lines: 405 };
+	const big = { name: 'Big', receiver: 'Store', lines: 705 };
 	const known: Remembered = (file, blob) => (file === 'b_big.go' ? { blob: blob!, big } : file === 'solo.go' ? { blob: blob! } : undefined);
 	const parsed: string[] = [];
 	const found = await findCandidates(root, refactoring(parsed), () => false, known);
@@ -165,8 +165,8 @@ test('a changed file where nothing may move is ticked once, then never again, ru
 test('a language that parses text checks changed files from the branch: no blind ticks, and their refactors are offered at once', async () => {
 	const { root, git } = repository();
 	git('checkout', '--quiet', '-b', 'ai_fix');
-	writeFileSync(path.join(root, 'big_test.go'), lines(900));
-	writeFileSync(path.join(root, 'solo.go'), lines(431));
+	writeFileSync(path.join(root, 'big_test.go'), lines(1200));
+	writeFileSync(path.join(root, 'solo.go'), lines(731));
 	git('add', '.');
 	git('commit', '--quiet', '-m', 'the branch');
 	git('checkout', '--quiet', 'main');
@@ -175,16 +175,16 @@ test('a language that parses text checks changed files from the branch: no blind
 		...refactoring([])(dir),
 		parseText: async (file: string, text: string): Promise<FileInfo> => {
 			fromText.push(`${file} ${text.split('\n').length - 1}`);
-			const declarations = file === 'solo.go' ? [decl(0, 425)] : [decl(0, 200), decl(1, 200), decl(2, 150)];
+			const declarations = file === 'solo.go' ? [decl(0, 725)] : [decl(0, 200), decl(1, 200), decl(2, 150)];
 			return { path: file, declarations, frame: [], imports: [], ...(file.endsWith('_test.go') ? { skip: 'test files are not split' } : {}) };
 		},
 	}) as LanguageAdapter;
 	const older: Remembered = (file, blob) => (file === 'solo.go' ? { blob: blob! } : undefined);
 	const found = await findCandidates(root, adapter, () => false, older);
-	assert.deepEqual(fromText.sort(), ['big_test.go 900', 'solo.go 431'], 'read from ai_fix, not the folder');
+	assert.deepEqual(fromText.sort(), ['big_test.go 1200', 'solo.go 731'], 'read from ai_fix, not the folder');
 	assert.equal(found?.skipped.get('big_test.go'), 'test files are not split');
 	assert.equal(found?.choices.some(c => c.file === 'big_test.go'), false);
-	assert.deepEqual(found?.choices.find(c => c.file === 'solo.go'), { file: 'solo.go', kind: 'refactor', lines: 431, target: { name: 'f0', lines: 425 } });
+	assert.deepEqual(found?.choices.find(c => c.file === 'solo.go'), { file: 'solo.go', kind: 'refactor', lines: 731, target: { name: 'f0', lines: 725 } });
 	assert.deepEqual(found?.unparsed, []);
 	rmSync(root, { recursive: true, force: true });
 });

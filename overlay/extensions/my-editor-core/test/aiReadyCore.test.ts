@@ -105,18 +105,18 @@ test('the approval modal says what an install does: registry, install scripts, r
 	assert.doesNotMatch(approvalDetail('/p/w', ['go build ./...'], 'Go'), /install scripts/);
 });
 
-test('a file may stay over 300 lines when nothing left in it may move (a types-only project keeps its run-time code)', () => {
+test('a file may stay over 600 lines when nothing left in it may move (a types-only project keeps its run-time code)', () => {
 	const reason = 'only interfaces and type aliases may move here';
-	const stuck = Array.from({ length: 450 }, (_, i) => ({ ...decl(i + 1, `f${i}`, { start: 0, end: 0 }), movable: false, reason }));
+	const stuck = Array.from({ length: 750 }, (_, i) => ({ ...decl(i + 1, `f${i}`, { start: 0, end: 0 }), movable: false, reason }));
 	const info: FileInfo = { path: 'src/big.ts', declarations: [decl(0, 'T', { start: 0, end: 0 }), ...stuck], frame: [], imports: [] };
-	const original = Buffer.from('x();\n'.repeat(450));
+	const original = Buffer.from('x();\n'.repeat(750));
 	const files = [{ name: 't.ts', text: Buffer.from('type T = 1;\n') }];
 	const adapter = { fileNameProblems: () => [], buildSplit: () => ({ original, files }) } as unknown as LanguageAdapter;
 	const plan = [{ file: 't.ts', declarations: [0] }];
 	const source = Buffer.concat([Buffer.from('type T = 1;\n'), original]);
 	assert.deepEqual(planProblems(adapter, { source, info, existing: [] }, plan), []);
 	assert.deepEqual(stillOver(adapter.buildSplit(original, info, plan), info, plan, ['src/t.ts']),
-		[{ file: 'src/big.ts', lines: 450, reason: `the rest may not move (${reason})` }]);
-	const movable: FileInfo = { ...info, declarations: [...info.declarations, decl(451, 'g', { start: 0, end: 0 })] };
-	assert.match(planProblems(adapter, { source, info: movable, existing: [] }, plan).join(' '), /would still have 450 lines/);
+		[{ file: 'src/big.ts', lines: 750, reason: `the rest may not move (${reason})` }]);
+	const movable: FileInfo = { ...info, declarations: [...info.declarations, decl(751, 'g', { start: 0, end: 0 })] };
+	assert.match(planProblems(adapter, { source, info: movable, existing: [] }, plan).join(' '), /would still have 750 lines/);
 });

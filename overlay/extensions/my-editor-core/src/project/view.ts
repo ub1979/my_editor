@@ -196,6 +196,10 @@ export class ProjectView implements vscode.WebviewViewProvider {
 			case 'chat':
 				await vscode.commands.executeCommand('myEditor.chat.openLounge');
 				return;
+			case 'nextFile':
+				await vscode.commands.executeCommand('myEditor.nextFile'); return;
+			case 'qaProject':
+				await vscode.commands.executeCommand('myEditor.projectQA.start'); return;
 			case 'buildGuide':
 				await vscode.commands.executeCommand('myEditor.buildGuide.open');
 				return;
@@ -211,8 +215,8 @@ export class ProjectView implements vscode.WebviewViewProvider {
 			await vscode.commands.executeCommand('myEditor.chat.start', stage);
 			return;
 		}
-		if (stage === 'build') {
-			await vscode.commands.executeCommand('myEditor.nextFile');
+		if (stage === 'build' || stage === 'qa') {
+			await vscode.commands.executeCommand('myEditor.chat.agent', stage === 'build' ? 'ada' : 'poppy');
 			return;
 		}
 		const root = vscode.workspace.workspaceFolders?.[0]?.uri;
@@ -225,10 +229,6 @@ export class ProjectView implements vscode.WebviewViewProvider {
 			} catch {
 				// Not written yet: start the conversation instead.
 			}
-		}
-		if (stage === 'qa') {
-			await vscode.commands.executeCommand('myEditor.checkFit', root);
-			return;
 		}
 		await vscode.commands.executeCommand('myEditor.chat.start', stage);
 	}

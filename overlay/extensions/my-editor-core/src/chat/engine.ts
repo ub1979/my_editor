@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { neighbourSummary } from '../brain/brain';
+import { fileBrainContext, neighbourSummary } from '../brain/brain';
 import { loadCatalog, pickDefault } from '../models/catalog';
 import { ApiKeys } from '../models/secrets';
 import { streamModel } from '../models/stream';
@@ -7,7 +7,7 @@ import { ChatTurn } from '../models/types';
 import { BRIEF_SYSTEM, briefRequest, cleanBrief } from './memory';
 import { describeFile, FileContext, readProjectNote } from '../pair/context';
 import { MODES, systemPrompt } from '../pair/prompts';
-import { wantsProjectBuild } from '../project/buildWork';
+import { projectPassIntent } from '../project/buildWork';
 import { computeImpact } from '../project/impact';
 import { projectEvidence } from '../project/evidence';
 import { changeContext } from '../project/gitHistory';
@@ -24,6 +24,7 @@ import { describeProjectStatus } from '../project/contextStatusText';
 import { recentInvestigationContext } from './investigationJournal';
 import { characterPrompt } from './characters';
 import { usesProjectTools } from './projectToolPolicy';
+import { specialistReview } from './specialistReview';
 import { pairWebAccess, WEB_ACCESS_NOTE } from '../models/webAccess';
 import { offerPush } from './pushOffer';
 import { qaSubject, specs as readSpecs } from './engineDocuments';
@@ -33,7 +34,8 @@ import { scaffoldKeptTree } from '../project/tree';
 import { readPlanningDocuments } from '../project/planningFiles';
 import { streamEdit } from './engineEdit';
 import { readModeFile, resolveMode } from './engineMode';
-import { readOnlyRequest, READ_ONLY_REQUEST_NOTE, requestsPlannedFiles } from './requestPolicy';
+import { inspectionRequest, readOnlyRequest, READ_ONLY_REQUEST_NOTE, requestsPlannedFiles } from './requestPolicy';
+import { fileBuildBrief } from '../project/fileBrief';
 
 const HISTORY_TURNS = 16;
 
@@ -77,13 +79,22 @@ export class PairEngine {
 	}
 
 	async run(input: RunInput, history: readonly Turn[], sink: Sink, token: vscode.CancellationToken): Promise<RunResult> {
-		if (!input.buildFiles && wantsProjectBuild(input.text) && !input.kickoff && !input.readOnly && !input.locateOnly) {
-			const reply = await vscode.commands.executeCommand<string>('myEditor.projectBuild.start', input.modelKey);
+		const explicitStop = /^(?:\/chat\s+)?(?:please\s+)?(?:stop|pause) (?:the )?(?:project )?(?:build(?:ing)?|qa)(?: run)?[.!\s]*$/i;
+		if (!input.stageFile && !input.kickoff && !input.readOnly && explicitStop.test(input.text.trim())) {
+			await vscode.commands.executeCommand('myEditor.projectBuild.pause');
+			const state = await vscode.commands.executeCommand<{ message: string } | undefined>('myEditor.projectBuild.status');
+			const reply = state?.message ?? 'There is no active file run.';
+			sink.text(reply); return { mode: 'chat', reply };
+		}
+		const pass = !input.stageFile && !input.kickoff && !input.readOnly && !input.locateOnly && projectPassIntent(input.text);
+		if (pass) {
+			const command = pass === 'Build' ? 'myEditor.projectBuild.start' : 'myEditor.projectQA.start';
+			const reply = await vscode.commands.executeCommand<string>(command, input.modelKey);
 			sink.text(reply ?? 'Open Build guide to see the project build queue.');
 			return { mode: 'chat', reply: reply ?? '' };
 		}
 		const parsed = /^\/([\w:-]+)\s*([\s\S]*)$/.exec(input.text.trim());
-		let modeId = parsed ? parsed[1] : planningIntent(input.text) ?? input.mode ?? 'chat';
+		let modeId = input.stageFile ? 'chat' : parsed ? parsed[1] : planningIntent(input.text) ?? input.mode ?? 'chat';
 		let prompt = parsed ? parsed[2] : input.text;
 		const locateOnly = input.locateOnly || modeId === 'locate';
 		if (modeId === 'locate') { modeId = 'chat'; }
@@ -129,16 +140,18 @@ export class PairEngine {
 		}
 
 		const docs = root ? await readPlanningDocuments(root) : {};
-		const readOnly = readOnlyRequest(prompt, mode.id, docs, !!input.kickoff, history);
+		const readOnly = !!input.readOnly || (!input.stageFile && readOnlyRequest(prompt, mode.id, docs, !!input.kickoff, history));
+		mode = specialistReview(mode, readOnly && inspectionRequest(prompt, history), !!input.kickoff);
 		if (readOnly && (mode.writes === 'file' || mode.writes === 'selection')) { mode = { ...mode, writes: 'none' }; }
 
-		const file = await readModeFile(mode, input, sink);
+		const file = input.stageFile ? undefined : await readModeFile(mode, input, sink);
 		if (file === false) { return { mode: mode.id, reply: '' }; }
 
 		const entries = await loadCatalog(this.keys);
-		const entry = entries.find(e => e.key === input.modelKey) ?? pickDefault(entries);
+		const entry = input.modelKey ? entries.find(e => e.key === input.modelKey) : pickDefault(entries);
 		if (!entry) {
-			sink.error('No model is set up yet. Choose one from the model menu at the bottom of the chat.', 'chooseModel');
+			sink.error(input.modelKey ? `The selected model ${input.modelKey} is unavailable. Restore it or explicitly choose another run model; the editor will not silently switch models.`
+				: 'No model is set up yet. Choose one from the model menu at the bottom of the chat.', 'chooseModel');
 			return { mode: mode.id, reply: '' };
 		}
 
@@ -147,16 +160,18 @@ export class PairEngine {
 		const [
 			conventions, brain, specs, neighbours, evidence, changes, plans, projectState, availableObservations, previousInvestigations,
 		] = await Promise.all([
-			readProjectNote('conventions.md'), readProjectNote('brain/index.md', 12_000), readSpecs(input.buildFiles ? MODES.tree : mode, entry.maxInputTokens),
+			readProjectNote('conventions.md'), input.fileTarget ? fileBrainContext(input.fileTarget.path)
+				: readProjectNote('brain/index.md', 12_000), input.fileTarget
+				? Promise.resolve(fileBuildBrief(docs, input.fileTarget.path, input.fileTarget.source)) : readSpecs(mode, entry.maxInputTokens),
 			file ? neighbourSummary(file.relativePath) : Promise.resolve(''),
-			mode.id === 'chat' ? projectEvidence(evidenceQuery, Math.round(entry.maxInputTokens * 0.45)) : Promise.resolve(''),
+			mode.id === 'chat' && !input.stageFile ? projectEvidence(evidenceQuery, Math.round(entry.maxInputTokens * 0.45)) : Promise.resolve(''),
 			mode.id === 'chat' ? changeContext(prompt, file?.relativePath) : Promise.resolve(''),
-			mode.id === 'chat' ? planningContext(prompt) : Promise.resolve(''),
+			mode.id === 'chat' ? planningContext(prompt, !input.fileTarget) : Promise.resolve(''),
 			currentProjectStatus(),
 			mode.id === 'chat' ? this.observations.summary() : Promise.resolve(''),
 			mode.id === 'chat' ? recentInvestigationContext(prompt) : Promise.resolve('')]);
 		const records = mode.id === 'why' && file ? await recordsAbout(file.relativePath) : '';
-		const subject = input.buildFiles ? specs : mode.id === 'qa'
+		const subject = input.stageFile ? [specs, plans].filter(Boolean).join('\n\n') : mode.id === 'qa'
 			? await qaSubject(prompt)
 			: mode.id === 'why' && file
 				? [
@@ -183,6 +198,7 @@ export class PairEngine {
 			projectStatus: describeProjectStatus(projectState), projectState, availableObservations,
 				previousInvestigations, sink, token, keys: this.keys, proposals: this.proposals,
 				observations: this.observations });
+			if (input.stageFile) { return { mode: mode.id, reply, model: entry.label }; }
 			if (mode.id === 'brainstorm' && reply.trim() && !input.kickoff) {
 				sink.action('Save as decision', 'myEditor.saveDecision', [{ title: prompt, context: prompt, discussion: reply }]);
 			}

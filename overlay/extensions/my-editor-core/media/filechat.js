@@ -58,7 +58,7 @@ window.addEventListener('message', event => {
 			const item = document.createElement('li'); item.textContent = value; return item;
 		}));
 	}
-	byId('prepare').disabled = busy || !build || !!build.blocked;
+	byId('buildFile').disabled = busy; byId('qaFile').disabled = busy;
 	byId('buildNext').disabled = busy || !build?.next || !!build.blocked;
 	byId('buildNext').textContent = build?.next ? `Next: ${build.next}` : 'Last file — review step checks';
 	if (build && buildKey !== key) { buildKey = key; window.scrollTo(0, 0); }
@@ -80,5 +80,5 @@ for (const button of document.querySelectorAll('[data-action]')) {
 	button.addEventListener('click', () => post('action', { action: button.dataset.action }));
 }
 byId('new').addEventListener('click', () => { post('new'); question.value = ''; drafts.set(key, ''); });
-for (const type of ['stop', 'model', 'project', 'buildNext', 'buildGuide', 'buildProject']) { byId(type).addEventListener('click', () => post(type)); }
+for (const type of ['stop', 'model', 'project', 'buildNext', 'buildGuide', 'buildProject', 'buildFile', 'qaFile']) { byId(type).addEventListener('click', () => post(type)); }
 vscode.postMessage({ type: 'ready' });

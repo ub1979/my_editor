@@ -64,7 +64,7 @@ async function writeHealthReport(keys: ApiKeys, sink: Sink, token: vscode.Cancel
 	}
 	sink.progress('');
 	const count = (...kinds: FindingKind[]) => all.filter(f => kinds.includes(f.kind)).length;
-	sink.text(`\n\n**Health report** written to \`.my_editor/ai-ready/report.md\`: ${count('too-long')} over 300 lines, `
+	sink.text(`\n\n**Health report** written to \`.my_editor/ai-ready/report.md\`: ${count('too-long')} over 600 lines, `
 		+ `${count('many-classes')} with more than one class, ${count('untested')} without tests, ${count('mixed-job', 'design')} design notes `
 		+ `and ${count('bug', 'poor-code')} suggestions.${review.partial ? ' I stopped early, so the report is partial.' : ''} Nothing in the code changed.`);
 	if (all.some(f => f.file && fixableFinding(f.file, f.kind))) {

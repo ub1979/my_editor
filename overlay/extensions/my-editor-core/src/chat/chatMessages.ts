@@ -16,6 +16,7 @@ export interface WebviewMessage {
 /** The chat actions a webview message can start. */
 export interface ChatHandlers {
 	readonly proposals: Proposals;
+	filePassAction(action: string, agent?: string, root?: string, path?: string): Promise<void>;
 	/** A webview loaded: send it the state, then run any request that waited for it. */
 	ready(sender?: vscode.Webview): Promise<void>;
 	send(text: string): Promise<void>;
@@ -37,6 +38,7 @@ export interface ChatHandlers {
 /** Routes one webview message; unknown types are ignored. */
 export async function handleChatMessage(message: WebviewMessage, sender: vscode.Webview | undefined, chat: ChatHandlers): Promise<void> {
 	switch (message.type) {
+		case 'filePass': return chat.filePassAction(message.id ?? '', message.key, message.text, message.href);
 		case 'ready': return chat.ready(sender);
 		case 'send': return chat.send(message.text ?? '');
 		case 'openLounge': return chat.openLounge();

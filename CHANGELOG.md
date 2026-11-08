@@ -1,6 +1,282 @@
 # Changelog
 
+## 0.0.86-alpha.0
+
+- Give each OpenCode version probe and server a private home and working directory; avoid the implicit default-port preference during concurrent startup.
+- Require a complete matching loopback readiness announcement and report bounded startup diagnostics without leaking runtime output. Retain the existing deadline, cancellation, permissions and Keep/Undo.
+- Add finite concurrent real-editor load coverage for read-only refusal, proposals, Undo, Keep and actual saved-source tests.
+
+## 0.0.85-alpha.0
+
+- Distinguish explicit edit requests with narrow preservation constraints or prior read-only evidence from global edit prohibitions. Keep proposal and execution permissions unchanged.
+- Allow one diagnosis format correction for prose-only replies; genuine BLOCKED responses stop immediately.
+- Stop QA repairs when a previously repaired command failure returns, retaining the five-round guard and required final verification.
+
+## 0.0.84-alpha.0
+
+- Add thirteen development specialists covering the missing Appling catalog roles, with isolated conversations, focused workflows and existing host permissions/Keep/Undo. Preserve manual routing precedence and paused QA.
+
+## 0.0.83-alpha.0
+
+- Add an isolated UI/UX project agent with the pinned Apache-2.0 Anthropic frontend-design skill, responsive/accessibility guidance and explicit visual-evidence limitations. Preserve existing model, tools, permissions and Keep/Undo.
+- Route explicit interface design requests separately from architecture; preserve manual pins, explicit modes and change-location requests.
+
+## 0.0.82-alpha.0
+
+- Add an opt-in OpenCode 1.19.3 backend for project-agent turns, selected through Choose Project Agent Runtime. Focused editing helpers keep their existing path.
+- Route the exact selected model through my_editor's provider adapter and expose only an authenticated, one-use host-action gateway. Retain Keep/Undo, read/write scope, dirty buffers, command approvals, recovery limits and final verification.
+- Isolate runtime state and configuration, refuse unexpected native tools/configuration or unsupported versions, abort owned sessions on Stop, and remove their temporary state. No silent runtime/model fallback or automatic permission expansion.
+
+## 0.0.81-alpha.0
+
+- Establish dependency-ordered build/type/lint/test evidence before unattended whole-project QA. Verify each repair batch immediately, stop unchanged executable failures, and require final passing checks before completion.
+- Separate saved edits from verified fixes, retain repair evidence, and protect legacy test-only permissions from implicit command expansion.
+- Allow Requirements, Architecture and Planner to inspect current code independently of generated planning documents, with read-only scope and required source inspection. Existing proposal approvals and isolated conversations remain.
+- Audit the shared OpenCode recommendation and define a replaceable runtime trial; no backend or model switch is included.
+
+## 0.0.80-alpha.0
+
+- Revalidate tool-read dependency evidence using the existing 400 KB read budget, while retaining the 80 KB whole-file edit limit and full source freshness checks.
+
+## 0.0.79-alpha.0
+
+- State the final-test diagnosis batch limits explicitly and allow one evidence-backed format correction. Keep source/scope validation, bounded retries and genuine decision/environment blockers intact.
+
+## 0.0.78-alpha.0
+
+- Resolve new supporting files to the sole saved-plan directory owner when QA inventory groups also contain siblings. Retain genuine multiple-owner rejection and explicit production-file scope approval.
+
+## 0.0.77-alpha.0
+
+- Rediscover existing companion tests for whole-project QA test-failure diagnosis, include them in the repair queue and source-progress signatures, and preserve selected-file and production-file scope boundaries.
+- Persist command outcomes before model diagnosis, expose checkpoint activity, and identify rejected repair paths in errors.
+
+## 0.0.76-alpha.0
+
+- Accept a verified contiguous excerpt within a content-addressed planning section, retaining the full section for coordinated repairs. Changed/unknown references, unrelated or altered quotes, and partial developer answers remain rejected. Clarify citation recovery and cover the worker/controller path in the disposable editor fixture.
+
 my_editor uses the version in `overlay/extensions/my-editor-core/package.json` as its own release number. The Home page displays that version. The underlying editor shell keeps its upstream version independently.
+
+## 0.0.75 alpha — 2026-11-07
+
+- Consolidated Build/QA review and release gate are documented in `docs/build-qa-system-audit.md`; application acceptance remains separate from editor fixture success.
+- Saved decisions can be referenced by host-generated content IDs, avoiding repeated prose transcription while preserving provenance, scope checks and legacy quote support.
+- Checkpoints retain structured command outcomes and log paths. Diagnostic bundles prioritize failures without losing early failures behind later successful output.
+- Dependency freshness is rechecked at Keep; workspace wildcard exports and package-local regression lookup improve context selection. Explicit model selection never silently falls back when unavailable.
+
+## 0.0.74 alpha — 2026-11-07
+
+- Build and QA assemble fresh dependency source from current imports, workspace package exports, manifests, nearby tests and brain-linked callers. Excerpts and missing links are explicit; tools can expand retrieval. Dependency hashes cover both preloaded source and subsequent file reads, and reject stale proposals.
+- Unattended QA diagnoses actual failed checkpoint output, revisits a coherent set of existing run files, then reruns checks. Five rounds and a source-progress guard bound recovery. Diagnosis cannot write files, expand scope or authorize a product decision.
+- Source changes during checks invalidate the result. Reports retain runner summaries, reported skips, test-driven repair rounds and explicit verification limits. Scoped file reads can retain up to 600 lines without the earlier 8 KB tool-result cutoff.
+
+## 0.0.73 alpha — 2026-11-07
+
+- Invalid coordinated-repair decision citations receive one evidence-backed correction attempt inside the file pass. The model must correct the source and quote against saved plans; unresolved mismatches still stop, and the controller revalidates before queueing.
+
+## 0.0.72 alpha — 2026-11-07
+
+- Saved-plan repair quotes also tolerate unordered-list markers and prose wrapping. Contiguous wording, punctuation, negation and order remain required; exact developer answers and all repair guards remain unchanged.
+
+## 0.0.71 alpha — 2026-11-07
+
+- Saved-plan repair decisions accept quotations of rendered bold text by removing paired Markdown bold markers only. Words and punctuation must still match; developer answers remain exact.
+
+## 0.0.70 alpha — 2026-11-07
+
+- Coordinated repairs distinguish separate defects in the same dependency from identical repair requests. Repeated reasons, pending duplicates and cycles still stop; each origin/dependency pair has a three-request limit in addition to the overall run limit.
+
+## 0.0.69 alpha — 2026-11-07
+
+- Whole-project QA can coordinate repairs to existing companion tests created after its initial file discovery. Persisted QA scope is reused without duplicate file entries; Build and selected-file scope remain restricted, and new production supporting files still require exact approval.
+
+## 0.0.68 alpha — 2026-11-07
+
+- Supporting test files requested by coordinated QA repairs reuse the run’s existing automatic companion-test permission. New production supporting files retain their exact scope approval.
+
+- Detected test tasks retain bounded output logs and pass redacted failure excerpts to QA, with a timeout for hanging commands. Older unattended QA runs refresh exit-code-only evidence once when resumed.
+- Build instructions distinguish an interface owned by a new file from a missing dependency, so empty future consumers do not unnecessarily block related-file batches.
+
+## 0.0.67 alpha — 2026-11-07
+
+- Build and QA accept literal line breaks and tabs inside otherwise valid model JSON strings, preserving source content exactly. Ambiguous quotes, escapes and truncated responses remain rejected; normal file scope, approval and validation still apply.
+
+## 0.0.66 alpha — 2026-11-07
+
+- Build can generate up to three related files in one model request, sharing source context and explicit interfaces. The setup and compact Speed control let the user choose grouped generation or one file per request; single-file review cadence stays individual.
+- Each candidate still receives its own source, plan, path and 600-line checks, saving permission, summary and progress entry. Prepared siblings are discarded when their input snapshots change or the run pauses/reopens.
+- Incomplete or out-of-scope batches fall back to the individual dependency-aware workflow without repeatedly retrying the same group. Later QA and tests still cover every generated file.
+
+## 0.0.65 alpha — 2026-11-07
+
+- Repair prerequisites now take priority in both the active repair queue and normal build order. The controller resumes the consumer after saving its prerequisite, retaining the approved decision and one-file write scope.
+- Runs stopped by 0.0.64's unscheduled dependency request can resume without a repeated-request loop. Actual repeated work, cycles and out-of-scope dependencies remain rejected.
+- Finishing the implementation stage inside a repair queue now triggers tests and QA rather than skipping those stages.
+- Architecture and file planning now explicitly call for shared field types, ID ownership, producer/consumer contracts and dependency order within each module.
+
+## 0.0.64 alpha — 2026-11-07
+
+- Coordinated repairs can propose exact new supporting files, such as forward migrations that preserve existing data. A concrete scope review authorizes those files for this run; each is then built separately and included in later QA without repeated scope approvals.
+- Declining the scope review saves no files and leaves progress resumable. Existing files outside the selected plan remain protected, and the saved architecture/file plan is unchanged.
+
+## 0.0.63 alpha — 2026-11-07
+
+- Build/QA can request coordinated repairs to already-planned files, including files processed earlier and files in another selected module. The queue repairs them one at a time, then returns to the blocked file without repeating Keep prompts when automatic saving is already authorized.
+- Repair requests must cite the exact developer answer or an explicit saved-plan quote. File scope, source guards and saving permissions remain enforced; generated code comments alone are not accepted as authorization.
+- Repair queues and decisions survive pause/reopen and remain available to later QA. Existing-code shortcuts cannot skip queued repairs. Completed-file counts stay unique, and chat/report views show the repair queue and reasons.
+- Out-of-scope, duplicate, repeated and circular repair requests are rejected instead of silently widening scope or looping.
+
+## 0.0.62 alpha — 2026-11-07
+
+- Build and QA investigate a design blocker against fresh saved requirements and architecture before asking the user. Ranked, line-referenced excerpts search the full documents, beyond the initial file brief; one bounded recovery can finish the file when the saved decision is clear.
+- Explicit saved contract decisions are treated as existing authorization. Generated code disagreeing with that decision is a defect to correct, not a reason to ask the developer to choose again. File scope and normal save validation stay intact.
+- Unresolved questions must identify both planning sources, the exact missing/conflicting information, a recommendation, and two numbered alternatives with trade-offs. Unsupported bare questions are rejected. The Answer action shows the actual question and points to the recommendations in chat.
+
+## 0.0.61 alpha — 2026-11-06
+
+- New “Unattended run…” permission choice presents one upfront authorization for planned-file saves, QA fixes, new companion tests and detected project test execution, including scripts generated during the run. Permissions are scoped to the current workspace run and survive reopening.
+- Approved test commands execute sequentially at stage boundaries without a task picker. Configured arbitrary tasks are excluded from this automatic mode. Cancellation, workspace changes and permission revocation stop further automatic execution.
+- Passing final checks finish unattended runs without “Finish after review.” Failed or unavailable checks remain explicit and do not automatically complete. Design questions and changed plans still require attention.
+- Saving → Change offers the same authorization for an existing run. Separate runs retain their own choices.
+
+## 0.0.60 alpha — 2026-11-06
+
+- Build everything now has separate implementation and QA stages. Existing non-placeholder code is preserved for later QA without an AI audit during implementation; missing and visibly incomplete files still go through the normal generation and save guards.
+- Once all planned files are processed, the editor offers tests, then reviews the application and companion tests in QA before final tests. Failed final tests block completion; skipped checks remain unverified. Existing code is never labelled verified merely because it exists.
+- Resume preserves unchanged implementation results when another file changes. Starting another whole run offers to resume saved progress. Existing whole Build runs can switch using “Build first, then QA.”
+- Progress distinguishes implementation files saved/present from QA files reviewed/fixed. Reports retain both stages. Module and selected-file runs keep their selected review cadence.
+
+## 0.0.59 alpha — 2026-11-06
+
+- Run-scoped saving permissions can be changed while a Keep decision is pending. Users can authorize planned files and new companion tests for the remainder of a run, with no repeated Keep prompts. The companion-test prompt can grant the same new-test permission. Separate runs retain their own choices.
+- Current-file cards show finished/total, remaining files, and saved versus unchanged counts.
+
+- Build/QA puts the current file before collapsed finished-file history. Compact controls have tooltips and expandable help that never pauses a run. Prepared code stays collapsed until requested, and unrelated editor-file labels no longer appear in the active run composer.
+- File activity describes the current file and related context instead of displaying a tool-call budget as progress. Configuration lookup hints focus on inherited settings and enclosing manifests.
+- Run-owned clean preview tabs close when a file finishes; existing, pinned and unsaved tabs stay open. Keeping a file-pass proposal closes its diff without opening another source tab.
+- New-test approval explains that the additional file is inside the project and distinguishes Review from Keep.
+
+## 0.0.58 alpha — 2026-11-06
+
+- Build everything and QA everything now stop at a final test/review checkpoint. All selected modules contribute detected test tasks.
+- A failing selected test task blocks continuation and completion, including after Stop/Resume or a cancelled retry. A passing rerun releases the checkpoint.
+- Skipped or unreported tests stay explicitly unverified in the chat, guide and completion report; passing one selected task does not claim complete project coverage.
+
+## 0.0.57 alpha — 2026-11-06
+
+- Bare placeholder responses cannot become source-file proposals or be kept as edited proposals. This guard preserves ordinary identifiers and string literals containing the word placeholder.
+
+## 0.0.56 alpha — 2026-11-06
+
+- Build can process explicitly requested, unimplemented dependencies first within the same selected module, then return to the waiting file. Module membership, saved planning documents and review checkpoints remain intact. Cycles, repeated requests, completed files and out-of-scope dependencies stop with an actionable explanation. File results record order changes.
+
+## 0.0.55 alpha — 2026-11-06
+
+- Valid Build/QA completion summaries use the file-run contract exclusively. Ordinary chat recovery no longer replaces them with conflicting Keep guidance. Failed completion corrections retain bounded diagnostic evidence.
+
+## 0.0.54 alpha — 2026-11-06
+
+- Larger batches of read-only model requests are processed four at a time, within the existing 60-call budget. A valid six-read GPT response no longer stops Build with a generic parse error. Grouped writes and test execution remain rejected.
+
+## 0.0.53 alpha — 2026-11-06
+
+- Explicit repair requests can limit retrieval to “these two files” or “the following files” without being made read-only. A standalone read-only request still forbids edits.
+- Agents can propose exact, unambiguous replacements for small repairs. The host preserves untouched content and retains the normal diff, scope, validation and Keep rules. Missing, repeated or overlapping matches are rejected.
+- Source proposals beginning with a model failure response are rejected before review or saving.
+
+## 0.0.52 alpha — 2026-11-06
+
+- Chat checks claims that a diff is ready for Keep against actual host proposals. A missing proposal gets one correction attempt, then an explicit incomplete result. References to an already-open proposal remain valid.
+- A repair naming one file can exclude other named files without being misclassified as a read-only request. Global prohibitions and conflicting target restrictions remain read-only; excluded planning files do not gain revision permission.
+- Proposal tabs use “proposed by AI” instead of the obsolete “Pair” label.
+
+## 0.0.51 alpha — 2026-11-06
+
+- Build and QA reject binary or credential-like generated content before staging or saving it. Previously a file could be saved and then fail the source check, leaving the run stopped after a partial save. Test fixtures receive a correction explaining how to use synthetic values.
+- The source guard recognizes simple JavaScript and TypeScript references such as `token: fixture.value` without treating them as credential literals. Literal values, comments, known key formats and non-code configuration retain their checks.
+
+## 0.0.50 alpha — 2026-11-06
+
+- The editor shell leaves Keychain uninitialized for absent secret reads, secret-name listing and deletion. Real credential reads and writes retain the existing encryption path.
+- Secret-change notifications still work before the first credential read, and explicit in-memory test mode remains isolated from persisted secret names.
+- Validation: all 19 core SecretStorage tests pass, including empty lookups, metadata-only access, deferred decryption, notifications and isolation.
+
+## 0.0.49 alpha — 2026-11-06
+
+- Build and QA receive a focused per-file brief: linked acceptance criteria, shared constraints, relevant architecture, the current module's checks, and dependency lookup paths. Unrelated feature bodies and the full tree are omitted; source locators remain available for targeted retrieval.
+- File context retains project brain notes, direct dependency/caller hints and accepted decisions. Developer clarifications remain attached to their target file.
+- Ordinary repair chat retains a bounded set of unique dependency results after four reads. Cloud Ollama context capacity is discovered from model metadata and cached.
+- Model discovery lists encrypted-storage key names without decrypting unused API keys. Actual API calls still read their selected credential through SecretStorage.
+- DeepSeek's native grouped-read envelope keeps the existing read-only batch restrictions. Unproposed rewrite claims receive a bounded correction.
+
+## 0.0.48 alpha — 2026-11-06
+
+- Scoped file passes accept their plain `FILE_REVIEWED` and `BLOCKED` conclusions without a redundant model request. Prompts explicitly place those markers inside the final JSON message.
+- DeepSeek's alternate grouped-read envelope uses the same read-only allowlist and batch limits as normal grouped tools.
+- Build prompts explicitly require missing and placeholder files to be implemented in the current pass. A completion claim without a staged implementation gets one correction attempt; the host still rejects an unwritten file.
+- Ollama's native tool responses, including DeepSeek's nested argument envelope, enter the existing agent parser and permission checks instead of appearing as empty replies. Native requests cannot execute in turns without project tools.
+
+## 0.0.47 alpha — 2026-11-06
+
+- DeepSeek's XML-wrapped read requests are normalized using the existing read-only allowlist. Malformed replies retain redacted diagnostic evidence and receive a concrete correction example.
+- Tool history preserves valid JSON actions instead of prose receipts that DeepSeek could imitate. Complete proposals count toward the retained-context budget.
+- Choosing a recovery model applies only to the current Build or QA run. Dismissing the picker preserves its model and other chats keep their default.
+- File and module checkpoints offer tests from the nearest package or language project for the files just processed. Whole-project and configured tasks remain available.
+- Validation: compilation and the editor-host Build/QA fixture pass. The fixture proves a nested package test runs successfully while the root test command deliberately fails.
+
+## 0.0.46 alpha — 2026-11-06
+
+- Expanding a Build or QA chat reveals its current run when run data arrives after the conversation. Later updates respect the reader's scroll position.
+- Lay out the agent header before positioning the conversation, preventing the restored view from landing on an older message.
+- Validation: the chat webview regression check passes. Live project root checks pass, including 600/601-line lint boundaries; whole-project acceptance remains in progress.
+
+## 0.0.45 alpha — 2026-11-06
+
+- Model output updates the activity label while a code proposal or final response is arriving. Build no longer stays labelled as reading context during code generation.
+- Retains the validated 600-line limit and clarification recovery from 0.0.44.
+- Validation: compilation and the editor-host Build/QA fixture pass, including code-generation activity, reviewed/automatic saves, previews, real tests and blocker recovery.
+
+## 0.0.44 alpha — 2026-11-06
+
+- Raised the source-file limit to 600 lines at the user's request, with a warning at 540. AI proposals, inline generation, diagnostics, refactoring prompts, Build/QA and the editor's final save guard use the same limit.
+- Preserve a worker's final BLOCKED question after a rejected proposal so the user can answer it. Previously, the earlier validation error hid the actionable question.
+- The installer refuses to replace an app that is still running, preventing stale checksum metadata from producing a false corruption warning after a core update.
+- Validation: all 770 automated tests pass serially. Editor-host Build/QA checks pass, including the recovered clarification. The rebuilt shell saves exactly 600 lines and blocks 601. Installed bundle checksums and code signature pass. Live project acceptance is still in progress.
+
+## 0.0.43 alpha — 2026-11-06
+
+- Scoped Build/QA passes retain dependency bodies within a bounded context budget instead of discarding full results after four checks. Repeated identical reads share one retained result.
+- Each file attempt records its model conclusion and host retrieval evidence. An unimplemented-file failure includes the model's explanation.
+- Restoring a source editor no longer automatically replaces the selected sidebar with File chat.
+- Validation: all 770 automated tests passed with test concurrency set to one; the file-chat and project-build editor fixtures passed. The default concurrent suite exposed timing-sensitive existing Go refactor tests, which also passed in isolation. Live social-media project acceptance is in progress.
+
+## 0.0.42 alpha — 2026-11-06
+
+- Split opening one file from following the build in the editor. Follow advances through the queue, can be stopped independently, and does not switch away from unsaved edits.
+- Build and QA show prepared code before applying it, clearly marked as not saved. Context-gathering explains why the editor still shows existing contents. Progress identifies tool targets and the latest update time.
+- Completed results distinguish host save state from the AI's pre-save review. File workers are instructed to leave saving and continuation to the host's permission controls.
+- Validation: 769 automated tests and the real-editor project-build fixture passed, including follow/stop-follow, prepared-code delivery, reviewed saves, cancellation and actual Node test execution with a simulated model. Prepared-code controls were inspected in light and dark previews.
+
+## 0.0.41 alpha — 2026-11-06
+
+- Agent chat fills the editor tab. Conversation and Build/QA activity share one scroll area, with no sticky controls covering text. Tabs use the active agent's name. Column mode closes the expanded chat tab and reveals the current build file; File chat no longer takes over a visible agent chat.
+- Each run shows the current file, its planned responsibility, module and live work status. Completed files have a concise summary, saved/unchanged outcome and an Open file action. Earlier summaries remain available after reopening; generation does not imply test success.
+- Replaced animal avatars with eight distinct human cartoon portraits and keep the selected agent visible in narrow columns. Button text/background pairs and focus states work in light and dark themes.
+- Local tree-status updates use atomic replacement so a running build cannot mistake an intermediate empty plan for a changed design.
+- Validation: 769 automated tests and the project-build and file-chat editor-host fixtures passed. The build fixture verifies column navigation, closing the expanded tab, file links, agent-sidebar retention, live progress and saved summaries, using simulated generation and actual Node tests. Visual previews cover light/dark layouts and a 360-pixel sidebar.
+
+## 0.0.40 alpha — 2026-11-06
+
+- Build and QA chats now show project and file run buttons, live queue status, review controls, checkpoints and errors. Opening either Project stage opens its agent chat.
+- Plain build requests open the scope chooser. Authentication failures remain visible after reopening, with a run model chooser and Resume. The reported project's queue had stopped before its first file because Claude authentication expired.
+- Build/QA buttons use explicit foreground/background pairs, readable disabled states and visible keyboard focus. Recovery actions stay visible when long status text scrolls in a narrow sidebar.
+- Validation: 769 automated tests and the editor-host project-build fixture passed, including live chat progress and error delivery. Dark/light and narrow-sidebar previews were visually inspected. Model replies in the fixture are simulated; test commands execute real Node tests.
+
+## 0.0.39 alpha — 2026-11-06
+
+- Build and QA offer project and selected-file runs with explicit write permission. Each run uses one file at a time and shows module and file counts. Users can review each diff or authorize automatic application and choose test and review checkpoints after each file or group of one or two modules.
+- Workers inspect saved requirements, architecture, flow, brain, conventions and source. Generated files have a 300-line limit. Build and QA ask for design clarification when needed and require separate approval for a new companion test.
+- Checkpoints record actual test-task outcomes. QA saves file findings and test evidence in a project report. Stop, reopen and resume preserve saved work. Source or planning changes invalidate stale proposals.
 
 ## 0.0.38 alpha — 2026-11-04
 

@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { projectPassIntent } from '../project/buildWork';
 import { readProjectState } from '../project/state';
 import { character } from './characters';
 import { CharacterRoute, projectCharacter, routeCharacter } from './characterRouting';
@@ -79,8 +80,11 @@ export class ChatNavigation {
 			const id = routeCharacter('', explicit, conversations.state.characterId, false).id;
 			conversations.selectAgent(id);
 		}
+		const pass = projectPassIntent(text);
+		if (pass && conversations.layout === 'agents') { conversations.selectAgent(pass === 'Build' ? 'ada' : 'poppy'); }
 		const state = conversations.state;
-		if (explicit) { state.mode = explicit; }
+		if (pass) { state.mode = undefined; }
+		if (explicit && !pass) { state.mode = explicit; }
 		const route = routeCharacter(text, state.mode, state.characterId, conversations.layout === 'agents' || state.pinned);
 		state.characterId = route.id;
 		this.refresh();
