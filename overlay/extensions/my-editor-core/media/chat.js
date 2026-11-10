@@ -14,6 +14,7 @@ let state = {
 	skills: [],
 	messages: [],
 	mode: undefined,
+	agentAction: undefined,
 	modeLabel: undefined,
 	running: false,
 	file: undefined,
@@ -34,6 +35,7 @@ const header = el('header', { class: 'character-header' });
 const rail = el('nav', { class: 'character-rail', 'aria-label': 'Agent chats' });
 const composer = el('form', { class: 'composer' });
 const context = el('div', { class: 'context' });
+const agentStart = el('div', { class: 'agent-start' });
 const input = /** @type {HTMLTextAreaElement} */ (el('textarea', { rows: '1', 'aria-label': 'Message the pair' }));
 const modelSelect = /** @type {HTMLSelectElement} */ (el('select', { class: 'model', 'aria-label': 'Model' }));
 const reasoningSelect = /** @type {HTMLSelectElement} */ (el('select', {
@@ -43,7 +45,7 @@ const sendButton = /** @type {HTMLButtonElement} */ (el('button', { type: 'submi
 let showSkills = false;
 const chatDrafts = { ...(vscode.getState?.()?.chatDrafts ?? {}) };
 
-composer.append(context, input, el('div', { class: 'row' }, [modelSelect, reasoningSelect, el('span', { class: 'spacer' }), sendButton]));
+composer.append(agentStart, context, input, el('div', { class: 'row' }, [modelSelect, reasoningSelect, el('span', { class: 'spacer' }), sendButton]));
 app.append(header, scroll, composer, rail);
 
 function activeCharacter() {
@@ -158,6 +160,15 @@ function updateMessage(message) {
 }
 
 function renderContext() {
+	agentStart.replaceChildren();
+	agentStart.hidden = !state.project || !state.agentAction;
+	if (!agentStart.hidden) {
+		const action = state.agentAction;
+		const button = el('button', { type: 'button', class: 'pill primary', title: action.description }, [action.label]);
+		button.disabled = state.running || action.disabled;
+		button.addEventListener('click', () => vscode.postMessage({ type: 'startAgent', id: state.characterId }));
+		agentStart.append(button);
+	}
 	context.replaceChildren();
 	if (state.project) {
 		context.append(el('span', { class: 'ctx', title: state.projectPath || state.project }, [`Chat for ${state.project}`]));

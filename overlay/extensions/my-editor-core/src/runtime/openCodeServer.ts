@@ -6,6 +6,7 @@ import { randomBytes } from 'crypto';
 import { promisify } from 'util';
 import { privateOpenCodePort, waitOpenCodeReady } from './openCodeStartup';
 import { isolatedEnvironment, openCodeConfig, OPENCODE_VERSION, verifyEffectiveConfig } from './openCodeConfig';
+import { openCodeRequest } from './openCodeTransport';
 
 export interface OpenCodeServer {
 	request(path: string, body?: unknown, signal?: AbortSignal): Promise<any>;
@@ -43,11 +44,7 @@ export async function startOpenCode(binary: string, bridgeUrl: string, secret: s
 		const url = await waitOpenCodeReady(child, port, signal);
 		const request = async (path: string, body?: unknown, requestSignal = signal): Promise<any> => {
 			if (closed) { throw new Error('OpenCode session is closed.'); }
-			const response = await fetch(url + path, { method: body === undefined ? 'GET' : 'POST', signal: requestSignal,
-				headers: { Authorization: 'Basic ' + Buffer.from(`my_editor:${password}`).toString('base64'), 'content-type': 'application/json' },
-				...(body === undefined ? {} : { body: JSON.stringify(body) }) });
-			if (!response.ok) { throw new Error(`OpenCode ${path.split('/')[1]} request failed (${response.status}).`); }
-			return response.json();
+			return openCodeRequest(url, path, password, requestSignal, body);
 		};
 		const startupSignal = AbortSignal.any([signal, AbortSignal.timeout(15000)]);
 		const health = await request('/global/health', undefined, startupSignal);

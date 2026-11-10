@@ -23,6 +23,7 @@ import { newChatId } from './viewUpdates';
 import { answerReplyChoice, selectedReplyChoice } from './replyChoices';
 import { replyActions } from './replyActions';
 import { readPlanningDocuments } from '../project/planningFiles';
+import { agentStartAction } from './agentStart';
 
 const STATE_KEY = 'myEditor.chat.state';
 
@@ -195,6 +196,21 @@ export class ChatView implements vscode.WebviewViewProvider, ChatHandlers {
 
 	async pickSkill(id: string): Promise<void> { await this.navigation.pickSkill(id); await this.filePass.refresh(); }
 
+	async startAgent(id?: string): Promise<void> {
+		if (id !== this.state.characterId || this.replies.running) { return; }
+		const state = this.state, root = vscode.workspace.workspaceFolders?.[0]?.uri;
+		if (!root) { void vscode.window.showInformationMessage('Open a project before starting an agent.'); return; }
+		const docs = await readPlanningDocuments(root);
+		if (state !== this.state || id !== state.characterId || this.replies.running
+			|| root.toString() !== vscode.workspace.workspaceFolders?.[0]?.uri.toString()) { return; }
+		if (state.messages.some(message => message.proposals.some(proposal => proposal.state === 'open'))) {
+			void vscode.window.showInformationMessage('Review the open proposals and choose Keep or Undo before starting another task.'); return;
+		}
+		const action = agentStartAction(state.characterId, docs);
+		state.mode = agentMode(state.characterId);
+		await this.send(action.text, action.kickoff);
+	}
+
 	async send(text: string, kickoff = false, planningDraft?: string): Promise<void> {
 		if (this.replies.running) {
 			return;
@@ -268,6 +284,7 @@ export class ChatView implements vscode.WebviewViewProvider, ChatHandlers {
 			}
 		}
 		this.save();
+		this.broadcast.mode();
 		if (proposal.relativePath.startsWith('.my_editor/specs/')) { void this.refreshPlanningStatus(); }
 	}
 
@@ -278,6 +295,7 @@ export class ChatView implements vscode.WebviewViewProvider, ChatHandlers {
 		const docs = await readPlanningDocuments(root);
 		if (request !== this.planningRefresh || root.toString() !== vscode.workspace.workspaceFolders?.[0]?.uri.toString()) { return; }
 		const changed = this.conversations.refreshPlanningStatus(docs);
+		this.broadcast.planningDocuments(docs);
 		for (const message of changed) {
 			if (this.state.messages.includes(message)) { this.broadcast.message(message); }
 		}

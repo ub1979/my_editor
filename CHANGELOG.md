@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.89-alpha.0
+
+- Let slow OpenCode sessions use the existing turn deadline and Stop control. Keep the internal model stream alive during quiet periods, report which runtime connection failed, and avoid replaying a submitted turn.
+- Add a primary action to each agent chat. Planning agents check saved prerequisites, offer their next task or review the saved document, and keep the normal review and Keep flow.
+
 ## 0.0.88-alpha.0
 
 - Recognize typed/generic component signatures and document-only clarification/file-tree sections without relaxing real requirement and interface checks.

@@ -106,7 +106,8 @@ export class OpenCodeBridge {
 			else { res.writeHead(404).end(); }
 		} catch (error) {
 			this.fail(error instanceof Error ? error : new Error(String(error)));
-			if (!res.headersSent) { res.writeHead(500, { 'content-type': 'application/json' }); }
+			if (res.headersSent) { res.destroy(); return; }
+			res.writeHead(500, { 'content-type': 'application/json' });
 			res.end(JSON.stringify({ error: { message: 'my_editor runtime bridge stopped; inspect the host error.' } }));
 		}
 	}
@@ -134,7 +135,24 @@ export class OpenCodeBridge {
 		if (!Array.isArray(body.tools) || body.tools.some((tool: any) => tool.function?.name !== GATEWAY_TOOL)) { throw new Error('OpenCode exposed unexpected native tools.'); }
 		this.providerBusy = true; this.requests++; this.finalReturned = false;
 		let ask: Ask | undefined;
+		let heartbeat: ReturnType<typeof setInterval> | undefined;
+		const disconnected = () => {
+			clearInterval(heartbeat);
+			if (!res.writableFinished && !this.failure) {
+				this.fail(new Error('OpenCode disconnected while waiting for the selected model. Retry to start a fresh session.'));
+			}
+		};
+		res.once('close', disconnected);
 		try {
+			if (body.stream) {
+				// SSE comments keep the native connection alive without sending an answer or tool call.
+				res.writeHead(200, { 'content-type': 'text/event-stream' });
+				res.write(': waiting for selected model\n\n');
+				heartbeat = setInterval(() => {
+					if (!res.destroyed && !res.writableNeedDrain) { res.write(': waiting for selected model\n\n'); }
+				}, 10000);
+				heartbeat.unref();
+			}
 			if (!this.queued) { await this.waiter.promise; }
 			ask = this.queued; this.activeAsk = ask; this.queued = undefined; this.waiter = deferred<void>();
 			if (!ask || this.options.cancelled()) { throw new Error('OpenCode request cancelled.'); }
@@ -151,12 +169,11 @@ export class OpenCodeBridge {
 			} else { this.finalReturned = true; this.nativeContinuation = false; ask.result.resolve(raw); }
 			const base = { id: 'chatcmpl-' + randomUUID(), created: Math.floor(Date.now() / 1000), model: BRIDGE_MODEL };
 			if (body.stream) {
-				res.writeHead(200, { 'content-type': 'text/event-stream' });
 				const delta = { ...message, ...(message.tool_calls ? { tool_calls: message.tool_calls.map((tool: any, index: number) => ({ index, ...tool })) } : {}) };
 				res.write('data: ' + JSON.stringify({ ...base, object: 'chat.completion.chunk', choices: [{ index: 0, delta, finish_reason: null }] }) + '\n\n');
 				res.end('data: ' + JSON.stringify({ ...base, object: 'chat.completion.chunk', choices: [{ index: 0, delta: {}, finish_reason: finish }], usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 } }) + '\n\ndata: [DONE]\n\n');
 			} else { res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ ...base, object: 'chat.completion', choices: [{ index: 0, message, finish_reason: finish }] })); }
 		} catch (error) { ask?.result.reject(error as Error); throw error; }
-		finally { this.providerBusy = false; this.activeAsk = undefined; }
+		finally { clearInterval(heartbeat); res.removeListener('close', disconnected); this.providerBusy = false; this.activeAsk = undefined; }
 	}
 }

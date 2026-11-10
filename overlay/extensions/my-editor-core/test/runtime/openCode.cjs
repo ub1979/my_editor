@@ -16,8 +16,8 @@ function cancellation() {
   onCancellationRequested(fn) { emitter.on('cancel', fn); return { dispose() { emitter.off('cancel', fn); } }; },
  } };
 }
-async function run(options, cancel = cancellation(), executable = binary) {
- const timer = setTimeout(() => cancel.stop(), 30000);
+async function run(options, cancel = cancellation(), executable = binary, timeout = 30000) {
+ const timer = setTimeout(() => cancel.stop(), timeout);
  try { return await runOpenCodeLoop({ initial: [{ role: 'user', text: 'Inspect this disposable fixture.' }], progress: () => {},
   cancelled: () => cancel.token.isCancellationRequested, execute: async () => 'actual fixture', ...options }, executable, cancel.token); }
  finally { clearTimeout(timer); }
@@ -96,6 +96,17 @@ async function main() {
   assert.equal(dispatched, 1);
  } finally { await tickets.close(); }
  console.log('PASS exact action receipts and one-use enforcement');
+ if (process.env.MY_EDITOR_OPENCODE_LONG_RESPONSE === '1') {
+  console.log('Testing a 310-second quiet model response through the real runtime…');
+  const started = Date.now(); let longRequests = 0;
+  assert.match(await run({ ask: async () => {
+   longRequests++;
+   await new Promise(resolve => setTimeout(resolve, 310000));
+   return final('Long generation completed.');
+  } }, undefined, binary, 345000), /Long generation completed/);
+  assert.equal(longRequests, 1, 'The slow model request must not be replayed');
+  console.log(`PASS one quiet model request completed in ${Date.now() - started} ms`);
+ }
  const after = fs.readdirSync(os.tmpdir()).filter(name => name.startsWith(ownedPrefix) && !before.has(name));
  assert.deepEqual(after, [], 'Owned OpenCode state must be removed on success, failure and cancellation');
  console.log(JSON.stringify({ ok: true, runtime: '1.19.3', cases: 9, ownedStateCleaned: true }));

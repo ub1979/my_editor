@@ -7,6 +7,8 @@ import { MAX_VISIBLE_MESSAGES } from './chatState';
 import { ChatConversations } from './chatConversations';
 import { labelFor, Message, render } from './presentation';
 import { editorContextMessage, modelListMessage } from './viewUpdates';
+import type { PlanningDocuments } from '../project/planning';
+import { agentStartAction } from './agentStart';
 
 /** What the broadcaster reads; the chat view owns all of it. */
 export interface BroadcastSource {
@@ -21,7 +23,15 @@ export interface BroadcastSource {
 
 /** Sends the chat's state to every open webview, so the sidebar and the centered tab stay in step. */
 export class ChatBroadcast {
+	private planning: PlanningDocuments = {};
 	constructor(private readonly source: BroadcastSource) {}
+	planningDocuments(docs: PlanningDocuments): void { this.planning = docs; this.mode(); }
+	private agentAction() {
+		const state = this.source.conversations.state;
+		const action = agentStartAction(state.characterId, this.planning);
+		return { label: action.label, description: action.description,
+			disabled: this.source.running() || state.messages.some(message => message.proposals.some(proposal => proposal.state === 'open')) };
+	}
 
 	/** True when at least one chat webview is open. */
 	get open(): boolean {
@@ -44,7 +54,7 @@ export class ChatBroadcast {
 		const message = await chatInit(context, state.messages, state.characterId, state.pinned, ANALYSE_ANSWERED, MAX_VISIBLE_MESSAGES);
 		if (state !== conversations.state) { await this.init(target); return; }
 		this.postTo(target, { ...message, messages: state.visibleMessages().map(render), characterId: state.characterId, pinned: state.pinned, conversationId: conversations.id, chatLayout: conversations.layout,
-			mode: state.mode, label: state.mode ? labelFor(state.mode) : undefined, placeholder: state.pendingPlaceholder });
+			mode: state.mode, label: state.mode ? labelFor(state.mode) : undefined, placeholder: state.pendingPlaceholder, agentAction: this.agentAction() });
 		this.mode();
 		this.editorContext();
 		await this.models();
@@ -59,7 +69,7 @@ export class ChatBroadcast {
 		const state = conversations.state;
 		this.post({ type: 'conversation', conversationId: conversations.id, chatLayout: conversations.layout,
 			characterId: state.characterId, pinned: state.pinned, messages: state.visibleMessages().map(render),
-			mode: state.mode, label: state.mode ? labelFor(state.mode) : undefined, placeholder: state.pendingPlaceholder });
+			mode: state.mode, label: state.mode ? labelFor(state.mode) : undefined, placeholder: state.pendingPlaceholder, agentAction: this.agentAction() });
 		this.mode();
 	}
 
@@ -73,7 +83,7 @@ export class ChatBroadcast {
 
 	mode(): void {
 		const { mode } = this.source.conversations.state;
-		this.post({ type: 'mode', mode, label: mode ? labelFor(mode) : undefined, running: this.source.running() });
+		this.post({ type: 'mode', mode, label: mode ? labelFor(mode) : undefined, running: this.source.running(), agentAction: this.agentAction() });
 	}
 
 	editorContext(): void {

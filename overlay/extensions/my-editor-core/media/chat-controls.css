@@ -13,6 +13,10 @@
 	border-color: color-mix(in srgb, var(--accent) 60%, var(--line));
 }
 
+.agent-start:not([hidden]) { margin-bottom: 6px; }
+.agent-start button { max-width: 100%; white-space: normal; text-align: left; }
+.agent-start button:disabled { opacity: .55; cursor: default; }
+
 .context {
 	display: flex;
 	flex-wrap: wrap;

@@ -10,10 +10,23 @@ exports.run = async () => {
 	const root = vscode.workspace.workspaceFolders[0].uri.fsPath;
 	const originalPanel = vscode.window.createWebviewPanel;
 	const originalPick = vscode.window.showQuickPick;
-	let receive, transcript = [], conversation, mode, error, requests = 0, buildChooser = false;
+	let receive, webview, transcript = [], conversation, mode, error, requests = 0, buildChooser = false;
 	vscode.window.createWebviewPanel = (...args) => {
 		const panel = originalPanel(...args);
 		if (args[0] === 'myEditor.chatLounge') {
+			webview = panel.webview;
+			const html = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(webview), 'html');
+			Object.defineProperty(webview, 'html', { get: () => html.get.call(webview), set: value => {
+				const nonce = /nonce="([^"]+)"/.exec(value)[1];
+				const script = `window.addEventListener('message', event => {
+ const {type, label} = event.data;
+ if (type !== 'testClickAgentStart') return;
+ const button = document.querySelector('.agent-start:not([hidden]) button');
+ if (button?.textContent === label && !button.disabled) button.click();
+ else vscode.postMessage({type: 'testAgentStartMissing', text: button?.textContent});
+});`;
+				html.set.call(webview, value.replace('</body>', `<script nonce="${nonce}">${script}</script></body>`));
+			} });
 			const post = panel.webview.postMessage.bind(panel.webview);
 			panel.webview.postMessage = message => {
 				if (message.type === 'init' || message.type === 'conversation') {
@@ -28,7 +41,10 @@ exports.run = async () => {
 			const onMessage = panel.webview.onDidReceiveMessage;
 			panel.webview.onDidReceiveMessage = (listener, ...rest) => {
 				receive = listener;
-				return onMessage(listener, ...rest);
+				return onMessage(message => {
+					if (message.type === 'testAgentStartMissing') { error = Error(`Agent start button missing or disabled: ${message.text}`); }
+					return listener(message);
+				}, ...rest);
 			};
 		}
 		return panel;
@@ -46,6 +62,7 @@ exports.run = async () => {
 		tab.input instanceof vscode.TabInputTextDiff && tab.input.modified.scheme === 'my-editor-proposal');
 	const latest = () => transcript.at(-1);
 	const command = (name, ...args) => vscode.commands.executeCommand('myEditor.' + name, ...args);
+	const start = label => webview.postMessage({ type: 'testClickAgentStart', label });
 	const server = http.createServer(async (req, res) => {
 		res.setHeader('content-type', 'application/json');
 		if (req.url === '/api/tags') { res.end(JSON.stringify({ models: [{ name: 'handoff' }] })); return; }
@@ -83,9 +100,14 @@ exports.run = async () => {
 		await command('proposal.keep', proposal().input.modified);
 		await until(() => latest()?.choices?.[0]?.label === 'Continue to Architecture', 'Keep did not suggest Architecture');
 		assert.equal(requests, 1, 'Keep must not ask a model for a suggestion');
-		await command('chat.agent', 'bamboo');
-		await command('chat.ask', 'Run the architecture step: the recommended order. You get a stack, data model and file tree that the planner can split into tasks.');
-		await until(() => conversation === 'lisko' && proposal() && latest()?.done, 'Architecture handoff did not open its agent');
+		await command('chat.agent', 'flow');
+		await start('Check prerequisites');
+		await until(() => latest()?.done && latest().html.includes('finish and Keep Architecture'), 'Flow did not explain its missing prerequisite');
+		assert.equal(requests, 1, 'Checking prerequisites must not call the model');
+		await command('chat.agent', 'lisko');
+		assert.equal(requests, 1, 'Opening Architecture must not start a model request');
+		await start('Design architecture');
+		await until(() => conversation === 'lisko' && proposal() && latest()?.done, 'Architecture button did not produce a proposal');
 		assert.equal(requests, 2);
 		const architectureProposal = proposal().input.modified;
 		await command('chat.agent', 'soki');
@@ -93,8 +115,9 @@ exports.run = async () => {
 		await command('proposal.keep', architectureProposal);
 		await command('chat.agent', 'lisko');
 		await until(() => latest()?.choices?.[0]?.label === 'Continue to Flow & tree', 'Hidden Architecture chat missed its Keep update');
-		receive({ type: 'answer', id: latest().id, index: 0 });
-		await until(() => conversation === 'flow' && proposal() && latest()?.done, 'Flow handoff did not open its agent');
+		await command('chat.agent', 'flow');
+		await start('Generate file tree');
+		await until(() => conversation === 'flow' && proposal() && latest()?.done, 'Flow button did not produce a proposal');
 		assert.equal(requests, 3);
 		await command('proposal.keep', proposal().input.modified);
 		await until(() => latest()?.choices?.[0]?.label === 'Continue to Build', 'Tree Keep did not suggest Build');
@@ -104,7 +127,8 @@ exports.run = async () => {
 		assert.equal(requests, 3, 'Build must wait for run options instead of generating more plans');
 		fs.writeFileSync(process.env.MY_EDITOR_INTEGRATION_REPORT, JSON.stringify({ ok: true,
 			handoffs: ['Requirements → Architecture', 'Architecture → Flow & tree', 'Flow & tree → Build'],
-			keepFirst: true, sourceChatPreserved: true, hiddenChatRefreshed: true, buildChooserOpened: true }));
+			keepFirst: true, agentButtonsClicked: true, prerequisitesCheckedWithoutModel: true,
+			sourceChatPreserved: true, hiddenChatRefreshed: true, buildChooserOpened: true }));
 	} finally {
 		vscode.window.createWebviewPanel = originalPanel;
 		vscode.window.showQuickPick = originalPick;

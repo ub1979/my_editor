@@ -3,7 +3,7 @@ import { routeCharacter } from './characterRouting';
 import { ChatState, SavedChat } from './chatState';
 import type { Message } from './presentation';
 import type { Proposal } from './proposals';
-import type { PlanningDocuments } from '../project/planning';
+import type { PlanningDocuments, PlanningStage } from '../project/planning';
 
 export type ChatLayout = 'agents' | 'shared';
 export type ConversationId = CharacterId | 'shared';
@@ -12,8 +12,8 @@ export interface SavedConversations extends SavedChat {
 }
 
 /** Planning agents open their own document; other agents start with ordinary project chat. */
-export function agentMode(id: CharacterId): string | undefined {
-	return ({ soki: 'requirements', lisko: 'architecture', flow: 'tree' } as Partial<Record<CharacterId, string>>)[id];
+export function agentMode(id: CharacterId): PlanningStage | undefined {
+	return ({ soki: 'requirements', lisko: 'architecture', flow: 'tree' } as Partial<Record<CharacterId, PlanningStage>>)[id];
 }
 
 /** Independent histories and working briefs, with one optional shared conversation per project. */

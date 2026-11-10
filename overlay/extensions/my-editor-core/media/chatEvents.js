@@ -43,6 +43,7 @@ window.addEventListener('message', event => {
 			break;
 		case 'mode':
 			state.mode = data.mode;
+			state.agentAction = data.agentAction;
 			state.modeLabel = data.label;
 			state.running = data.running;
 			renderContext();
@@ -102,6 +103,7 @@ function applyConversation(data) {
 	state.pinned = !!data.pinned;
 	state.messages = data.messages ?? [];
 	state.mode = data.mode;
+	state.agentAction = data.agentAction;
 	state.modeLabel = data.label;
 	state.placeholder = data.placeholder;
 	state.switchNote = state.chatLayout === 'agents' ? 'Separate conversation' : 'One conversation for all agents';
