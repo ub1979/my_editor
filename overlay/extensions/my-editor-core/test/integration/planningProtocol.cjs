@@ -6,6 +6,18 @@ const path = require('node:path');
 const vscode = require('vscode');
 
 exports.run = async () => {
+	const originalPanel = vscode.window.createWebviewPanel;
+	let latest, receive;
+	vscode.window.createWebviewPanel = (...args) => {
+		const panel = originalPanel(...args);
+		if (args[0] === 'myEditor.chatLounge') {
+			const post = panel.webview.postMessage.bind(panel.webview);
+			panel.webview.postMessage = data => { if (data.type === 'message') { latest = data.message; } return post(data); };
+			const onMessage = panel.webview.onDidReceiveMessage;
+			panel.webview.onDidReceiveMessage = (listener, ...rest) => { receive = listener; return onMessage(listener, ...rest); };
+		}
+		return panel;
+	};
 	const root = vscode.workspace.workspaceFolders[0].uri.fsPath;
 	const specs = path.join(root, '.my_editor/specs');
 	fs.mkdirSync(specs, { recursive: true });
@@ -48,7 +60,11 @@ exports.run = async () => {
 				answer = 'The saved requirements cover FR-001. No code has been verified.';
 			} else {
 				assert.ok(!messages[0].content.includes('This request is a read-only check'));
-				answer = 'Architecture ready for review.\n````markdown\n' + architecture + '````';
+				const correcting = phase === 'repair' || phase !== 'unrepairable' && messages.at(-1).content.includes('Your proposed document failed host validation');
+				const repositories = '### Repositories {#repositories}\n'
+					+ (correcting ? 'Serves FR-001. Interface: save(transfer): StoredTransfer.\n' : 'SQL access only.\n');
+				answer = 'Architecture ready for review.\n````markdown\n'
+					+ architecture.replace('## Decisions', repositories + '## Decisions') + '````';
 			}
 			res.end(JSON.stringify({ message: { content: answer }, done: true }) + '\n');
 		} catch (caught) { error = caught; res.statusCode = 500; res.end('{}'); }
@@ -68,7 +84,7 @@ exports.run = async () => {
 		phase = 'generate';
 		await vscode.commands.executeCommand('myEditor.chat.ask', '/architecture Check the requirements then build the architecture');
 		if (error) { throw error; }
-		assert.equal(requests, 3, 'Plain document must reach proposal without a retry');
+		assert.equal(requests, 4, 'A real validation gap gets exactly one corrective pass');
 		let tab;
 		const deadline = Date.now() + 10000;
 		while (!tab && Date.now() < deadline) {
@@ -79,10 +95,15 @@ exports.run = async () => {
 		assert.ok(tab, 'Architecture must be prepared for Keep');
 		assert.equal(fs.existsSync(path.join(specs, 'architecture.md')), false, 'Proposal must wait for Keep');
 		assert.equal(fs.readFileSync(path.join(specs, 'requirements.md'), 'utf8'), requirements);
+		fs.writeFileSync(path.join(specs, 'requirements.md'), requirements + '\nAdditional accepted data constraint.\n');
+		assert.equal(await vscode.commands.executeCommand('myEditor.proposal.keep', tab.input.modified), false,
+			'Keeping an architecture must reject changed prerequisites even with identical FR IDs');
+		assert.equal(fs.existsSync(path.join(specs, 'architecture.md')), false);
+		fs.writeFileSync(path.join(specs, 'requirements.md'), requirements);
 		phase = 'supplied review';
 		await vscode.commands.executeCommand('myEditor.chat.ask', '/requirements Review the saved requirements.');
 		if (error) { throw error; }
-		assert.equal(requests, 4, 'A complete host-read document must not trigger a redundant source-check model call');
+		assert.equal(requests, 5, 'A complete host-read document must not trigger a redundant source-check model call');
 		const records = fs.readdirSync(path.join(root, '.my_editor/investigations'), { recursive: true })
 			.filter(name => name.endsWith('.json')).map(name => JSON.parse(fs.readFileSync(path.join(root, '.my_editor/investigations', name), 'utf8')));
 		const reviewed = records.find(record => record.question === '/requirements Review the saved requirements.');
@@ -91,9 +112,25 @@ exports.run = async () => {
 		assert.ok(reviewed.performance.modelMs >= 0);
 		await vscode.commands.executeCommand('myEditor.chat.ask', '/architecture check now');
 		if (error) { throw error; }
-		assert.equal(requests, 5, 'Architecture can review supplied requirements without an open source editor');
+		assert.equal(requests, 6, 'Architecture can review supplied requirements without an open source editor');
+		await vscode.commands.executeCommand('myEditor.proposal.undo', tab.input.modified);
+		phase = 'unrepairable';
+		await vscode.commands.executeCommand('myEditor.chat.ask', '/architecture Finalize the architecture now.');
+		if (error) { throw error; }
+		assert.equal(requests, 8, 'Repeated invalid output stops after one corrective pass');
+		assert.ok(latest.error);
+		assert.deepEqual(latest.actions, ['Repair saved architecture']);
+		phase = 'repair';
+		receive({ type: 'action', id: latest.id, index: 0 });
+		const repairDeadline = Date.now() + 15000;
+		while (!latest?.proposals.some(item => item.state === 'open') && Date.now() < repairDeadline) {
+			if (error) { throw error; }
+			await new Promise(resolve => setTimeout(resolve, 50));
+		}
+		assert.ok(latest.proposals.some(item => item.state === 'open'), 'Repair must reuse the retained draft and reach Keep');
+		assert.equal(requests, 9);
 		fs.writeFileSync(process.env.MY_EDITOR_INTEGRATION_REPORT, JSON.stringify({ ok: true,
 			savedRequirementsDiscoverable: true, plainReviewAccepted: true, architectureProposalReady: true, keepRequired: true,
 			irrelevantBrainOmitted: true, scopedTools: true, noForcedDocumentReread: true, performance: reviewed.performance }));
-	} finally { server.close(); }
+	} finally { vscode.window.createWebviewPanel = originalPanel; server.close(); }
 };

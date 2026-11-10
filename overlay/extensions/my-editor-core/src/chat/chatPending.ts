@@ -3,13 +3,14 @@ export interface PendingRequest {
 	readonly text: string;
 	readonly mode?: string;
 	readonly kickoff?: boolean;
+	readonly planningDraft?: string;
 }
 
 /** What a pending request starts once the chat is ready. */
 export type PendingStart =
 	| { readonly kind: 'analyse'; readonly aiReady: boolean }
 	| { readonly kind: 'skill'; readonly id: string }
-	| { readonly kind: 'send'; readonly text: string };
+	| { readonly kind: 'send'; readonly text: string; readonly planningDraft?: string };
 
 /** Stand in for a skill id while the analysis waits for the chat to open. */
 const ANALYSE = '#analyse';
@@ -28,5 +29,5 @@ export function pendingStart(pending: PendingRequest): PendingStart {
 	if (pending.kickoff && pending.mode) {
 		return { kind: 'skill', id: pending.mode };
 	}
-	return { kind: 'send', text: pending.text };
+	return { kind: 'send', text: pending.text, ...(pending.planningDraft ? { planningDraft: pending.planningDraft } : {}) };
 }

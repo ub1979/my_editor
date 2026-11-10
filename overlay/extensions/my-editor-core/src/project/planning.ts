@@ -7,6 +7,12 @@ export type PlanningStage = 'requirements' | 'architecture' | 'tree';
 export interface PlanningDocuments { requirements?: string; architecture?: string; tree?: string }
 export interface PlanningProblem { stage: PlanningStage; reason: string }
 
+/** IDs alone cannot detect a requirement's changed meaning while a design is being prepared. */
+export function changedPlanningPrerequisites(stage: PlanningStage, before: PlanningDocuments, after: PlanningDocuments): PlanningStage[] {
+	const prerequisites: PlanningStage[] = stage === 'tree' ? ['requirements', 'architecture'] : stage === 'architecture' ? ['requirements'] : [];
+	return prerequisites.filter(key => before[key] !== after[key]);
+}
+
 /** Supply the complete saved section list without requiring a model to page through the file tree. */
 export function savedTreeSections(tree = ''): string[] {
 	try {
@@ -20,23 +26,29 @@ const DEFERRED = /\bwhen (?:you|the user) (?:say|ask|approve)[^\n.!?]*(?:write|p
 
 /** A clear document title or JSON tree must never be accepted as a different planning file. */
 export function planningDocumentKind(text: string): PlanningStage | undefined {
-	try { if (Array.isArray(JSON.parse(text))) { return 'tree'; } } catch { /* Markdown document. */ }
+	try {
+		const value = JSON.parse(text);
+		if (Array.isArray(value) || value && typeof value === 'object' && Array.isArray(value.files)) { return 'tree'; }
+	} catch { /* Markdown document. */ }
 	const title = planningSections(text).find(section => section.level === 1)?.title;
-	const match = /^(?:\d+[.)]?\s+)?(requirements?|architecture|(?:file\s+)?tree)\b/i.exec(title ?? '');
+	const match = /^(?:\d+[.)]?\s+)?(requirements?|architecture|(?:file\s+)?tree)\b/i.exec(title ?? '')
+		?? /[:—–-]\s*(requirements?|architecture|(?:file\s+)?tree)\s*$/i.exec(title ?? '');
 	if (!match) { return; }
 	return /requirements?/i.test(match[1]) ? 'requirements' : /architecture/i.test(match[1]) ? 'architecture' : 'tree';
 }
 
 /** Explain whether a rejected check concerns the new proposal or a saved prerequisite. */
-export function planningError(stage: PlanningStage, docs: PlanningDocuments, proposed?: string): string | undefined {
+export function planningError(stage: PlanningStage, docs: PlanningDocuments, proposed?: string, maxProblems = 4): string | undefined {
 	const kind = proposed === undefined ? undefined : planningDocumentKind(proposed);
 	if (kind && kind !== stage) {
 		return `The reply contains ${kind}, but this request targets ${stage}. Use /${kind} to prepare the correct document. No saved file was changed.`;
 	}
 	const problems = planningProblems(stage, proposed === undefined ? docs : { ...docs, [stage]: proposed });
 	if (!problems.length) { return; }
-	const detail = problems.slice(0, 4).map(problem => `${proposed !== undefined && problem.stage === stage ? 'Proposed' : 'Saved'} ${problem.stage}: ${problem.reason}`);
-	return `Planning is not complete: ${detail.join('; ')}. Finalize ${problems[0].stage} before continuing. No planned files were created.`;
+	const shown = problems.slice(0, maxProblems);
+	const detail = shown.map(problem => `${proposed !== undefined && problem.stage === stage ? 'Proposed' : 'Saved'} ${problem.stage}: ${problem.reason}`);
+	const remaining = problems.length - shown.length;
+	return `Planning is not complete: ${detail.join('; ')}${remaining ? `; and ${remaining} more issue(s)` : ''}. Finalize ${problems[0].stage} before continuing. No planned files were created.`;
 }
 
 /** Saved summaries and deferred promises do not establish that a planning stage is complete. */

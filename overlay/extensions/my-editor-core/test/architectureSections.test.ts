@@ -57,3 +57,14 @@ test('the prompt receives every distinct saved tree section, including entries b
 	assert.deepEqual(savedTreeSections(JSON.stringify(files)), Array.from({ length: 14 }, (_, i) => `component-${i}`));
 	assert.deepEqual(savedTreeSections('invalid'), []);
 });
+
+test('clarifications are a topic and typed return signatures establish real interfaces', () => {
+	const doc = '# Architecture\n## Requirement clarifications {#clarifications}\nFR-001 requires persistence.\n'
+		+ '## Main system flow {#flow}\nInput goes to storage.\n'
+		+ '## Database {#database}\nServes NFR-001.\n- `open(filePath: string): void`\n- `transaction<T>(fn: () => T): T`\n'
+		+ '## CSV parser {#csv-parser}\nServes FR-001.\n- `parseRow(row: string[]): ParsedRow | SkippedRow`\n'
+		+ '## Repositories {#repositories}\nOnly services use these SQL adapters.\n## Decisions {#decisions}\nKeep storage local.\n';
+	assert.deepEqual([...architectureComponents(doc).keys()], ['database', 'csv-parser', 'repositories']);
+	assert.deepEqual(documentProblems('architecture', doc), ['architecture section #repositories needs requirement links and an interface']);
+	assert.ok(architectureAnchors(doc).has('clarifications'));
+});

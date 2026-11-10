@@ -13,6 +13,8 @@ import { pairWebAccess } from '../models/webAccess';
 import { mergeTurns } from './modelTurns';
 import { Proposals } from './proposals';
 import type { Sink } from './engineTypes';
+import { assertPlanningBaseline } from '../project/planningFiles';
+import type { PlanningDocuments } from '../project/planning';
 
 /** Stream a focused edit response, then turn its code into a reviewed proposal. */
 export async function streamEdit(entry: ModelEntry, keys: ApiKeys, proposals: Proposals, mode: Mode,
@@ -86,13 +88,15 @@ async function proposeEdit(proposals: Proposals, mode: Mode, file: FileContext, 
 	sink.proposal(await proposals.propose(file.uri, proposed));
 }
 
-export async function proposeDoc(proposals: Proposals, mode: Mode, reply: string, sink: Sink): Promise<string | undefined> {
+export async function proposeDoc(proposals: Proposals, mode: Mode, reply: string, sink: Sink, baseline?: PlanningDocuments): Promise<string | undefined> {
 	const root = vscode.workspace.workspaceFolders?.[0]?.uri;
 	const content = mode.doc ? documentFromReply(reply, mode.doc) : undefined;
 	if (!root || !mode.doc || content === undefined) {
 		return; // Still interviewing: nothing to write yet.
 	}
-	sink.proposal(await proposals.propose(vscode.Uri.joinPath(root, mode.doc), content.endsWith('\n') ? content : `${content}\n`));
+	const target = vscode.Uri.joinPath(root, mode.doc);
+	if (baseline && isPlanningStage(mode.id)) { await assertPlanningBaseline(target, { stage: mode.id, docs: baseline }); }
+	sink.proposal(await proposals.propose(target, content.endsWith('\n') ? content : `${content}\n`));
 	return content;
 }
 

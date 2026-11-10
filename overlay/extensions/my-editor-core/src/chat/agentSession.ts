@@ -19,8 +19,9 @@ import { characterPrompt } from './characters';
 import { mayProposeFile, mayUsePlanningTool } from './projectToolPolicy';
 import { proposeDoc } from './engineEdit';
 import { mayRevisePlanningPath, READ_ONLY_REQUEST_NOTE, requestsRevision } from './requestPolicy';
+import type { PlanningDocuments } from '../project/planning';
 import { planningRecovery, PLANNING_INCOMPLETE } from './planningRecovery';
-import { documentFromReply } from '../pair/codeBlock';
+import { documentFromReply, fileFromReply } from '../pair/codeBlock';
 import { planningReplyPreview } from '../pair/fencedBlocks';
 import { pairWebAccess, WEB_ACCESS_NOTE } from '../models/webAccess';
 
@@ -47,6 +48,7 @@ export interface AgentSessionOptions {
 	readonly contextMs?: number;
 	/** Current host-read source is already in the initial context, so a forced reread adds no evidence. */
 	readonly sourceProvided?: boolean;
+	readonly planningDocuments?: PlanningDocuments;
 	readonly availableObservations: string;
 	readonly previousInvestigations: string;
 	readonly sink: Sink;
@@ -77,6 +79,8 @@ async function runSupervisedSession(options: AgentSessionOptions, parentToken: v
 		filePass: !!input.stageFile, locateOnly: !!input.locateOnly, observations: options.availableObservations.startsWith('Configured observations'),
 		chatHistory: chatArchive.length > 0 };
 	const metrics = new RequestMetrics(options.contextMs);
+	let rejectedPlanningReply: string | undefined;
+	let planningCorrection = '';
 	const system = [
 			systemPrompt(options.mode, conventions, brain, vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
 				{ filePass: !!input.stageFile, request: input.text }),
@@ -116,8 +120,9 @@ async function runSupervisedSession(options: AgentSessionOptions, parentToken: v
 				: /^FILE_REVIEWED\s*\n\s*\S/.test(message.trim()) ? input.fileResultProblem?.()
 					: 'Return action=final JSON whose message starts with FILE_REVIEWED on its own line and your findings, or BLOCKED and the precise decision needed.',
 			failure: 'The model did not finish this file review. Resume to retry.',
-		} : planning && !reviewing && requestsRevision(input.text, chatArchive)
-			? { correction: message => planningRecovery(message, options.mode.doc!), failure: PLANNING_INCOMPLETE } : undefined,
+		} : planning && !reviewing
+			? { correction: message => planningRecovery(message, options.mode.doc!, options.planningDocuments,
+				requestsRevision(input.text, chatArchive)), failure: PLANNING_INCOMPLETE } : undefined,
 		requireCheck: !options.sourceProvided && (options.mode.id === 'review' || reviewing && options.mode.writes === 'none' && ['requirements', 'architecture', 'tree'].includes(options.mode.id))
 			? call => call.name === 'read_file' || call.name === 'search' : undefined,
 		cancelled: () => token.isCancellationRequested,
@@ -133,6 +138,7 @@ async function runSupervisedSession(options: AgentSessionOptions, parentToken: v
 				].filter(Boolean).join('\n\n');
 			const requestTurns = mergeTurns(turns);
 			const measurement = metrics.begin(requestSystem, requestTurns);
+			sink.progress(`Waiting for ${entry.label}…`);
 			try { await streamModel(entry, keys, {
 				system: requestSystem,
 				turns: requestTurns, token,
@@ -186,6 +192,14 @@ async function runSupervisedSession(options: AgentSessionOptions, parentToken: v
 		},
 		onObservation: (call, result) => { evidence.push(evidenceEntry(call.name, call.arguments, result)); },
 		onConclusionCorrection: (message, reason) => {
+			let hasDraft = !!fileFromReply(message);
+			if (planning && !hasDraft) {
+				try { hasDraft = !!documentFromReply(message, options.mode.doc!); } catch { /* No complete plain document. */ }
+			}
+			if (planning && !reviewing && hasDraft) {
+				rejectedPlanningReply = message;
+				planningCorrection = reason.split('\n')[0];
+			}
 			evidence.push(evidenceEntry('model_conclusion_correction', { id: entry.label }, `${reason}\nModel conclusion: ${message.slice(0, 2000)}`));
 		},
 		onMalformedReply: reply => {
@@ -200,13 +214,17 @@ async function runSupervisedSession(options: AgentSessionOptions, parentToken: v
 
 	sink.progress('');
 	if (last && planning && !token.isCancellationRequested) {
-		sink.archive?.(last);
+		const failedDraft = last === PLANNING_INCOMPLETE ? rejectedPlanningReply : undefined;
+		sink.archive?.(failedDraft ?? last);
 		try {
-			if (reviewing) {
+			if (failedDraft) {
+				sink.error(planningCorrection.slice(0, 3000));
+				sink.text(last + ' The last draft is retained for a targeted repair.');
+			} else if (reviewing) {
 				const document = documentFromReply(last, options.mode.doc!);
 				sink.text(document ? 'The model returned a replacement document during a read-only check. No replacement was prepared and your saved plan is unchanged.' : last);
 			} else {
-				const document = await proposeDoc(proposals, options.mode, last, sink);
+				const document = await proposeDoc(proposals, options.mode, last, sink, options.planningDocuments);
 				sink.text(planningReplyPreview(last, document));
 			}
 		}

@@ -18,6 +18,8 @@ export interface Turn {
 }
 
 export interface RunInput {
+	/** Host-selected failed draft, separate from user instructions and read-only classification. */
+	readonly planningDraft?: string;
 	/** Stage a candidate in memory for a permission-scoped Build or QA run. */
 	readonly stageFile?: (path: unknown, content: unknown) => Promise<string>;
 	/** The scoped worker can require a real proposal before accepting a completion claim. */

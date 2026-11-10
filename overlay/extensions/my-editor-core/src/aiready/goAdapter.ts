@@ -123,10 +123,17 @@ export function createGoAdapter(root: string, tools: GoTools, tracked: readonly 
 		buildSplit: (source, info, plan) => buildGoSplit(source, info as GoFileInfo, plan),
 		sameDeclarations: declarationProblems,
 		async unitFiles(file) {
-			const listed = await runTool(tools.go, ['list', '-e', '-f', '{{join .GoFiles "\\n"}}', goPackage(file)], root, GO_READ_ENV);
+			const listed = await runTool(tools.go, ['list', '-e', '-json', goPackage(file)], root, GO_READ_ENV);
 			if (listed.code !== 0) { throw new Error(`Could not list the Go package for ${file}: ${listed.stderr.trim().slice(0, 500)}`); }
+			let pkg: { GoFiles?: string[]; Error?: { Err?: string } };
+			try { pkg = JSON.parse(listed.stdout); }
+			catch { throw new Error(`Could not list the Go package for ${file}: invalid package metadata.`); }
+			if (pkg?.Error?.Err) { throw new Error(`Could not list the Go package for ${file}: ${pkg.Error.Err.slice(0, 500)}`); }
+			if (!Array.isArray(pkg?.GoFiles) || !pkg.GoFiles.length || pkg.GoFiles.some(name => typeof name !== 'string')) {
+				throw new Error(`Could not list the Go package for ${file}: no current Go source files were confirmed.`);
+			}
 			const dir = path.posix.dirname(file);
-			return listed.stdout.split('\n').map(name => name.trim()).filter(Boolean).map(name => (dir === '.' ? name : `${dir}/${name}`));
+			return pkg.GoFiles.map(name => (dir === '.' ? name : `${dir}/${name}`));
 		},
 		async unformatted(files) {
 			if (!tools.gofmt || !files.length) { return []; }

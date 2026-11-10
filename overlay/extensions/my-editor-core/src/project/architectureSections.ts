@@ -7,7 +7,7 @@ function topic(title: string): string {
 
 const GROUP = /^(?:(?:system|runtime|shared|major) )?(?:components|building blocks|services|modules|packages|subsystems)(?: and (?:packages|services|modules))?$/;
 const OVERVIEW = /^(?:architecture|overview|(?:system |architecture |project )?overview|(?:technology |tech )?stack|(?:main |system |main system )?flow|how it fits together|(?:data |domain )models?|(?:data )storage|(?:shared |public )?apis?(?: and (?:contracts|interfaces))?|api (?:design|contracts|conventions)|events?(?: and (?:messages|messaging))?|decisions(?: and trade offs)?|trade offs|testing(?: strategy)?|security|deployment|failure handling|error handling|risks(?: and open (?:items|questions))?|open (?:items|questions)|follow ups(?: for tree.json)?|requirements(?: mapping)?|constraints|assumptions)$/;
-const INTERFACE = /\b(?:interfaces?|API|inputs?|outputs?|contracts?|routes?|endpoints?|HTTP|SSE|CLI|commands?|config(?:uration)?)\b|`[\w.$]+\([^`\n]*\)`/i;
+const INTERFACE = /\b(?:interfaces?|API|inputs?|outputs?|contracts?|routes?|endpoints?|HTTP|SSE|CLI|commands?|config(?:uration)?)\b|`[\w.$]+(?:<[^`\n]+>)?\([^`\n]*\)(?:\s*:[^`\n]+)?`/i;
 
 export function hasComponentContract(body: string): boolean {
 	return /\bN?FR-\d{3,}\b/.test(body) && INTERFACE.test(body);
@@ -25,7 +25,9 @@ export function architectureComponentSections(text: string): PlanningSection[] {
 		const inComponent = parents.some(parent => selected.includes(parent));
 		const name = topic(section.title);
 		// A short title such as API may name a real component with a specific ID such as internal-api.
-		const general = OVERVIEW.test(name) && OVERVIEW.test(topic(section.anchor ?? '')) && !hasComponentContract(section.body);
+		const documentTopic = /^(?:(?:requirement )?clarifications?|file tree|directory structure|file layout)$/;
+		const clarification = documentTopic.test(name) && documentTopic.test(topic(section.anchor ?? ''));
+		const general = (clarification || OVERVIEW.test(name) && OVERVIEW.test(topic(section.anchor ?? ''))) && !hasComponentContract(section.body);
 		if (section.anchor && section.level > 1 && !inComponent && !GROUP.test(name) && (grouped ? inGroup : !general)) {
 			selected.push(section);
 		}

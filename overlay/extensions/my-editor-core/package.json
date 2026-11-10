@@ -2,7 +2,7 @@
   "name": "my-editor-core",
   "displayName": "my_editor Core",
   "description": "Built-in core of my_editor: project brain, skills, pair mode.",
-  "version": "0.0.87-alpha.0",
+  "version": "0.0.88-alpha.0",
   "publisher": "my-editor",
   "license": "MIT",
   "private": true,
@@ -824,7 +824,7 @@
   "scripts": {
     "compile": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc --noEmit -p ./ && esbuild src/extension.ts --bundle --platform=node --format=cjs --target=node20 --external:vscode --outfile=dist/extension.js --sourcemap",
     "watch": "esbuild src/extension.ts --bundle --platform=node --format=cjs --target=node20 --external:vscode --outfile=dist/extension.js --sourcemap --watch",
-    "test": "tsc -p tsconfig.test.json && node --test out-test/test/*.test.js"
+    "test": "tsc -p tsconfig.test.json && node --test --test-concurrency=4 out-test/test/*.test.js"
   },
   "devDependencies": {
     "@anthropic-ai/sdk": "^0.128.0",

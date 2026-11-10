@@ -200,3 +200,12 @@ test('a log folder that cannot be created is a failed result, and a short timeou
 	assert.match(slow.stderr, /timed out after 300 ms\./);
 	assert.doesNotMatch(slow.stderr, /after 0 s/);
 });
+
+test('go list -e package errors are failures even when the process exits zero', async () => {
+	const dir = mkdtempSync(path.join(os.tmpdir(), 'my-editor-go-list-hidden-error-'));
+	const bin = path.join(dir, 'go');
+	writeFileSync(bin, '#!/bin/sh\n' + "printf '%s' '{\"Error\":{\"Err\":\"build cache access denied\"}}'\n");
+	chmodSync(bin, 0o755);
+	const adapter = createGoAdapter(dir, { go: bin, helper: '', platforms: { os: new Set(), arch: new Set() } }, []);
+	await assert.rejects(adapter.unitFiles('a.go'), /Could not list the Go package.*build cache access denied/);
+});

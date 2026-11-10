@@ -106,12 +106,12 @@ export class ChatView implements vscode.WebviewViewProvider, ChatHandlers {
 	}
 
 	/** Sends a request as if the user typed it (Adapt buttons, fit check). */
-	async ask(text: string): Promise<void> {
+	async ask(text: string, planningDraft?: string): Promise<void> {
 		await this.openLounge();
 		if (this.broadcast.open) {
-			await this.send(text);
+			await this.send(text, false, planningDraft);
 		} else {
-			this.pending = { text };
+			this.pending = { text, planningDraft };
 		}
 	}
 
@@ -173,7 +173,7 @@ export class ChatView implements vscode.WebviewViewProvider, ChatHandlers {
 		} else if (start.kind === 'skill') {
 			await this.pickSkill(start.id);
 		} else {
-			await this.send(start.text);
+			await this.send(start.text, false, start.planningDraft);
 		}
 	}
 
@@ -195,7 +195,7 @@ export class ChatView implements vscode.WebviewViewProvider, ChatHandlers {
 
 	async pickSkill(id: string): Promise<void> { await this.navigation.pickSkill(id); await this.filePass.refresh(); }
 
-	async send(text: string, kickoff = false): Promise<void> {
+	async send(text: string, kickoff = false, planningDraft?: string): Promise<void> {
 		if (this.replies.running) {
 			return;
 		}
@@ -215,7 +215,7 @@ export class ChatView implements vscode.WebviewViewProvider, ChatHandlers {
 		// Save the user's full paste before asking a model, so a stopped or crashed run cannot lose it.
 		this.save();
 		this.broadcast.messages();
-		const turn = { text, mode, kickoff, reply, locateOnly: route.locateOnly, history };
+		const turn = { text, planningDraft, mode, kickoff, reply, locateOnly: route.locateOnly, history };
 		const context = {
 			state, engine: this.engine, activeFile: () => this.activeFile.current, conversational: CONVERSATIONAL, save: () => this.save(),
 		};

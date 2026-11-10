@@ -176,7 +176,9 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<string> {
 			}
 			if (correction && !repairedConclusion) {
 				repairedConclusion = true;
-				if (options.finalRecovery) { continuation.push({ role: 'user', text: correction }); }
+				if (options.finalRecovery) {
+					continuation.push({ role: 'assistant', text: response }, { role: 'user', text: correction });
+				}
 				options.progress(options.fileReview ? 'Completing the file implementation…'
 					: options.finalRecovery ? 'Finishing the requested planning document…' : 'Completing the file action…');
 				const corrected = await options.ask([...turns, { role: 'assistant', text: response },

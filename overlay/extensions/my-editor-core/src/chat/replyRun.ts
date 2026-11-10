@@ -9,6 +9,7 @@ import { isPlanningStage } from './planningStart';
 /** One request to answer: what the user sent and the empty reply it streams into. */
 export interface ChatTurn {
 	readonly text: string;
+	readonly planningDraft?: string;
 	readonly mode: string | undefined;
 	readonly kickoff: boolean;
 	readonly reply: Message;
@@ -42,6 +43,7 @@ export async function runChatTurn(turn: ChatTurn, context: TurnContext, sink: Si
 	const live = liveTurns(turn.history, state.memory).map(item => ({ role: item.role, text: item.text }));
 	const result = await context.engine.run({
 		text: turn.text,
+		planningDraft: turn.planningDraft,
 		mode: turn.mode,
 		kickoff: turn.kickoff,
 		characterId: turn.reply.characterId,

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.0.88-alpha.0
+
+- Recognize typed/generic component signatures and document-only clarification/file-tree sections without relaxing real requirement and interface checks.
+- Correct a generated planning document once with the full validation feedback, including incomplete fences, and preserve its draft across evidence retrieval and failed corrections.
+- Offer a targeted Repair action for retained invalid drafts, including project-prefixed titles and JSON file-plan objects. Keep draft data separate from revision/read-only instruction classification.
+- Reject stale planning proposals when prerequisite contents change, even if requirement IDs remain the same.
+- Report Go package metadata errors that `go list -e` returns with exit code zero instead of treating them as missing declarations.
+- Extend unit and real-editor coverage for planning recovery, stale Keep, agent isolation, permissions, Build/QA and runtime lifecycle. Bound test worker concurrency and syntax-check the editor fixtures.
+
 ## 0.0.87-alpha.0
 
 - Fix Requirements → Architecture → Flow & tree → Build handoffs, including natural-language stage requests, and show the next agent after Keep. Preserve separate agent histories.

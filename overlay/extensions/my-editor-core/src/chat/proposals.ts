@@ -7,7 +7,7 @@ import { checkedProjectPath } from './projectPath';
 import { scaffoldKeptTree } from '../project/tree';
 import { validateTreePlan } from '../project/stubs';
 import * as path from 'path';
-import { validatePlanningFile } from '../project/planningFiles';
+import { assertPlanningBaseline, planningBaseline, type PlanningBaseline, validatePlanningFile } from '../project/planningFiles';
 import { filePassWillSave } from '../project/filePassEvents';
 
 export const PROPOSAL_SCHEME = 'my-editor-proposal';
@@ -18,6 +18,7 @@ interface ScopedProposal {
 }
 
 export interface Proposal {
+	readonly planningBaseline?: PlanningBaseline;
 	readonly scope?: ScopedProposal;
 	readonly id: string;
 	readonly target: vscode.Uri;
@@ -51,6 +52,7 @@ export class Proposals implements vscode.Disposable {
 	}
 
 	async propose(target: vscode.Uri, proposed: string, operation: 'write' | 'delete' = 'write', planningDraft = false, scope?: ScopedProposal, expectedBase?: string): Promise<Proposal> {
+		const baseline = !planningDraft && operation !== 'delete' ? await planningBaseline(target) : undefined;
 		if (operation !== 'delete' && !planningDraft) { await validatePlanningFile(target, proposed); }
 		const policyError = sourcePolicyError(target.fsPath, proposed);
 		if (policyError) { throw new Error(policyError); }
@@ -80,7 +82,7 @@ export class Proposals implements vscode.Disposable {
 		this.fs.set(leftUri, base);
 		const count = (a: string, b: string) => changedHunks(a, b).reduce((n, h) => n + h.end - h.start + 1, 0);
 		const proposal: Proposal = {
-			id, target, scope, relativePath: vscode.workspace.asRelativePath(target, false), base, proposalUri, leftUri, isNewFile,
+			id, target, scope, planningBaseline: baseline, relativePath: vscode.workspace.asRelativePath(target, false), base, proposalUri, leftUri, isNewFile,
 			added: count(base, proposed), removed: count(proposed, base), operation, planningDraft, state: 'open',
 		};
 		this.byId.set(id, proposal);
@@ -132,7 +134,7 @@ export class Proposals implements vscode.Disposable {
 		}
 		const deleting = proposal.operation === 'delete' && text.length === 0;
 		if (!deleting && !proposal.planningDraft) {
-			try { await validatePlanningFile(proposal.target, text); }
+			try { await assertPlanningBaseline(proposal.target, proposal.planningBaseline); await validatePlanningFile(proposal.target, text); }
 			catch (error) {
 				void vscode.window.showWarningMessage(error instanceof Error ? error.message : String(error));
 				return false;

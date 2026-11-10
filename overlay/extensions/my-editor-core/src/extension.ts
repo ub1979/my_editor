@@ -6,6 +6,7 @@ import { buildBrain, updateBrainFile } from './brain/brain';
 import { AutoComments } from './comments/autoComments';
 import { PairEngine } from './chat/engine';
 import { reviewPlanningReply } from './chat/engineEdit';
+import { planningRepairRequest } from './chat/replyActions';
 import { ANALYSE_ANSWERED, analysisOffer } from './chat/analysisOffer';
 import { ObservationRunner } from './chat/observationRunner';
 import { openObservationProfile } from './chat/observationSetup';
@@ -85,6 +86,10 @@ export function activate(context: vscode.ExtensionContext): void {
 		vscode.commands.registerCommand('myEditor.chat.layout', (layout: string) => chat.setChatLayout(layout)),
 		vscode.commands.registerCommand('myEditor.reviewPlanningReply', (stage: string, reply: string) =>
 			chat.runTask(`Review saved ${stage}`, sink => reviewPlanningReply(proposals, stage, reply, sink))),
+		vscode.commands.registerCommand('myEditor.repairPlanningReply', (stage: string, reply: string) => {
+			const request = planningRepairRequest(stage, reply);
+			return chat.ask(request.text, request.planningDraft);
+		}),
 		vscode.commands.registerCommand('myEditor.chat.skills', () => chat.toggleSkills()),
 		vscode.commands.registerCommand('myEditor.chat.new', () => chat.newChat()),
 		vscode.commands.registerCommand('myEditor.chat.openLounge', () => chat.openLounge()),
