@@ -141,7 +141,7 @@ export class OpenCodeBridge {
 			const raw = await this.options.ask(ask.turns, ask.finalOnly, ask.remaining);
 			if (this.failure) { throw this.failure; }
 			if (this.options.cancelled()) { throw new Error('OpenCode request cancelled.'); }
-			const step = parseAgentStep(raw, this.options.fileReview);
+			const step = parseAgentStep(raw, this.options.fileReview, this.options.plainFinal);
 			let message: any = { role: 'assistant', content: raw }, finish = 'stop';
 			if (!ask.finalOnly && step && step.action !== 'final') {
 				if (!body.tools.some((tool: any) => tool.function?.name === GATEWAY_TOOL)) { throw new Error('OpenCode host gateway is unavailable.'); }

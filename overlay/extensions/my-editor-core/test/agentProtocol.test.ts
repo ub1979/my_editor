@@ -121,3 +121,17 @@ test('test commands are allowlisted and cannot invoke a shell', () => {
 	assert.equal(testSpec('npm test; rm -rf .'), undefined);
 	assert.equal(testSpec('go test ../other'), undefined);
 });
+
+
+test('planning and review Markdown may conclude only when explicitly enabled', () => {
+	const reply = "I've reviewed .my_editor/specs/requirements.md.\n\n## Findings\nFR-012 needs a transfer flag.";
+	assert.equal(parseAgentStep(reply), undefined);
+	assert.deepEqual(parseAgentStep(reply, false, true), { action: 'final', message: reply });
+	const document = '# Design\n\n```markdown\n# Architecture\n```';
+	assert.deepEqual(parseAgentStep(document, false, true), { action: 'final', message: document });
+	for (const malformed of ['', '{"action":"tools","calls":[', '<tool_call name="propose_file">{}</tool_call>',
+		'Checking: {"action":"tool","name":"read_file"', '{"unknown":"shape"}', '[{"action":"final"}]',
+		'```json\n{"action":"tool"\n```']) {
+		assert.equal(parseAgentStep(malformed, false, true), undefined, malformed);
+	}
+});

@@ -75,6 +75,7 @@ Interview rules, strictly:
   "skip" or "decide for me".
 - Keep each message short: at most one sentence of reaction plus the question.
 If a requirements document exists, first check whether it is complete or a draft. Finish drafts rather than restarting the interview.
+Use the supplied decisions for interview answers. Inspect existing code only when it affects the requested behavior; a new-project interview does not require a repository audit.
 ${WRITE_WHEN_ASKED} The document is Markdown with headings for Goal, Users, Functional requirements, Non-functional requirements,
 and Out of scope. Give functional requirements IDs
 FR-001, FR-002… each with MUST/SHOULD/COULD and acceptance criteria, non-functional requirements NFR-001…, and out of
@@ -153,7 +154,10 @@ reply: it asks them which remote and branch name, shows exactly which commit goe
 login after they confirm; it never force-pushes. Point them to that button instead of giving a terminal push command.
 For other git work, give the exact commands and let the user run them.`;
 
-export function systemPrompt(mode: Mode, conventions: string, brain: string, projectPath?: string): string {
+export function systemPrompt(mode: Mode, conventions: string, brain: string, projectPath?: string,
+	scope: { readonly filePass?: boolean; readonly request?: string } = {}): string {
+	const fixerRelevant = !scope.filePass && mode.id === 'chat' && (scope.request === undefined
+		|| /\b(?:ai.ready|long files?|split|refactor|fixer|ai_fix|git|branch|push|github)\b/i.test(scope.request));
 	return [
 		`You are the pair programmer inside my_editor. The user is the driver and owns every decision: you help,
 explain and write only what they ask for. Discuss unresolved scope, design and checks before a larger change.
@@ -164,7 +168,7 @@ behavior across focused files before coding; never omit behavior or compress for
 project brain and recent conversation as a map, then verify relevant current files before giving factual advice.
 Retrieve available project details yourself instead of asking the developer to repeat them.`,
 		projectPath ? projectNote(projectPath) : 'No project folder is open in my_editor.',
-		FIXER_NOTE,
+		fixerRelevant ? FIXER_NOTE : '',
 		'Saved requirements, architecture, file tree and recorded decisions are the current project baseline. '
 			+ 'Other agents continue from them; a check is not permission to redesign them. Read the relevant saved sections before claiming anything is missing. '
 			+ 'Separate concrete contradictions (cite the file, anchor or requirement ID), implementation work still to do, and optional improvements. '

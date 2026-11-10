@@ -55,8 +55,12 @@ h1 {
 
 section + section { margin-top: 22px; }
 
-.top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
-.top .links { display: flex; gap: 12px; }
+.top { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; }
+.top .eyebrow { margin: 0; }
+.top .links { display: flex; flex: none; gap: 4px; }
+.project-action { display: grid; place-items: center; width: 30px; height: 30px; padding: 6px; border: 1px solid transparent; border-radius: 7px; background: transparent; color: var(--muted); cursor: pointer; }
+.project-action:hover { background: var(--surface-2); color: var(--text); }
+.project-action svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 
 /* Build path */
 ol { margin: 0; padding: 0; list-style: none; }

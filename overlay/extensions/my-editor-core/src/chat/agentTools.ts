@@ -14,6 +14,11 @@ import { Proposals } from './proposals';
 import { ObservationRunner } from './observationRunner';
 import { applyExactEdits } from './exactEdits';
 
+// Project tools must discover saved plans. Keep generated maps and conversation archives out
+// of broad source searches; their dedicated retrieval tools remain available.
+const TOOL_EXCLUDE_GLOB = EXCLUDE_GLOB.replace('**/.my_editor/**',
+	'**/.my_editor/{brain,chats,changes,investigations,decisions,qa}/**');
+
 const MAX_READ_BYTES = 400_000;
 const MAX_READ_LINES = 600;
 const MAX_SEARCH_FILES = 1_500;
@@ -78,7 +83,7 @@ export class AgentTools {
 
 	private async listFiles(glob: unknown): Promise<string> {
 		const pattern = typeof glob === 'string' && glob.length <= 120 && !glob.includes('..') && !glob.startsWith('/') ? glob : '**/*';
-		const files = await vscode.workspace.findFiles(pattern, EXCLUDE_GLOB, 300);
+		const files = await vscode.workspace.findFiles(pattern, TOOL_EXCLUDE_GLOB, 300);
 		const root = this.workspace().uri.fsPath;
 		const visible = files.filter(uri => uri.fsPath.startsWith(root + path.sep))
 			.map(uri => path.relative(root, uri.fsPath).split(path.sep).join('/'))
@@ -93,7 +98,7 @@ export class AgentTools {
 		const fast = await ripgrepSearch(query, this.workspace().uri.fsPath, this.token);
 		if (fast !== undefined) { return fast; }
 		// Dock-launched apps may not inherit a PATH containing rg. Keep a bounded editor API fallback.
-		const files = await vscode.workspace.findFiles('**/*', EXCLUDE_GLOB, MAX_SEARCH_FILES);
+		const files = await vscode.workspace.findFiles('**/*', TOOL_EXCLUDE_GLOB, MAX_SEARCH_FILES);
 		const needle = query.toLowerCase();
 		const matches: string[] = [];
 		let inspected = 0;
@@ -236,7 +241,8 @@ function ripgrepSearch(query: string, cwd: string, token: vscode.CancellationTok
 		const child = spawn(command, [
 			'--json', '--no-messages', '--hidden', '--ignore-case', '--fixed-strings', '--max-columns', '300',
 			'--glob', '!**/.git/**', '--glob', '!**/node_modules/**', '--glob', '!**/dist/**',
-			'--glob', '!**/target/**', '--glob', '!**/vendor/**', '--glob', '!**/.my_editor/**', '--', query, '.',
+			'--glob', '!**/target/**', '--glob', '!**/vendor/**',
+			'--glob', '!**/.my_editor/{brain,chats,changes,investigations,decisions,qa}/**', '--', query, '.',
 		], { cwd, stdio: ['ignore', 'pipe', 'ignore'] });
 		let buffer = '';
 		const matches: string[] = [];

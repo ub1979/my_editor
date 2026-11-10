@@ -3,6 +3,8 @@ import type { MemoryMessage, MemoryState } from './memory';
 import { labelFor, Message } from './presentation';
 import type { Proposal } from './proposals';
 import { planningIntent } from './planningIntent';
+import { isPlanningStage, planningStart } from './planningStart';
+import type { PlanningDocuments } from '../project/planning';
 
 /** Older messages are dropped from storage past this count. */
 export const MAX_KEPT_MESSAGES = 200;
@@ -102,6 +104,18 @@ export class ChatState {
 			.flatMap(message => message.proposals.map(proposal => `${proposal.file}: ${proposal.state}`))
 			.slice(-MAX_PROPOSAL_STATES)
 			.join('\n');
+	}
+
+	/** Handoffs follow saved documents after Keep, edits and reopening a chat. */
+	refreshPlanningStatus(docs: PlanningDocuments): Message[] {
+		const message = this.messages.at(-1);
+		const stage = message?.mode;
+		if (!message || message.role !== 'assistant' || !message.done || message.error || !stage || !isPlanningStage(stage)) { return []; }
+		const saved = planningStart(stage, docs)?.status;
+		const status = saved?.complete ? saved : message.planningStatus?.complete ? undefined : message.planningStatus;
+		if (JSON.stringify(status) === JSON.stringify(message.planningStatus)) { return []; }
+		message.planningStatus = status;
+		return [message];
 	}
 
 	/** Copies a proposal's new state onto its cards and returns the messages that hold one. */

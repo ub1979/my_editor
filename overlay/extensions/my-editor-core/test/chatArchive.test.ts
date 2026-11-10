@@ -60,3 +60,25 @@ test('earlier assistant planning decisions remain searchable after compaction', 
 	assert.match(readChatMessage(archive, { turnsAgo: 3 }), /root, contracts, notifications/);
 	assert.match(searchChatMessages(archive, 'missing'), /search_records/);
 });
+
+test('archive indexing omits turns already supplied while preserving original lookup positions', () => {
+	const messages = [{ role: 'user' as const, text: 'Earlier decision' }, { role: 'assistant' as const, text: 'Already supplied reply' }];
+	const index = chatArchiveIndex(messages, [messages[1]]);
+	assert.match(index, /2 turns ago: user/);
+	assert.doesNotMatch(index, /Already supplied reply/);
+	assert.equal(chatArchiveIndex(messages, messages), '');
+});
+
+test('history deduplicates only exact documents also supplied in the current request', () => {
+	const content = '# Requirements\n## Goal\nPersist drafts.\n';
+	const text = 'Document ready.\n```markdown\n' + content + '```\nRemember to check backups.';
+	const messages = [{ role: 'assistant' as const, text }];
+	const supplied = [{ path: '.my_editor/specs/requirements.md', content }];
+	const history = modelHistoryTurns(messages, 200000, supplied);
+	assert.match(history.at(-1)!.text, /Document matches .my_editor\/specs\/requirements.md/);
+	assert.match(history.at(-1)!.text, /Remember to check backups/);
+	assert.doesNotMatch(history.at(-1)!.text, /## Goal/);
+	assert.match(readChatMessage(messages, { turnsAgo: 1 }), /## Goal/);
+	assert.match(modelHistoryTurns(messages, 200000).at(-1)!.text, /## Goal/);
+	assert.match(modelHistoryTurns(messages, 200000, [{ ...supplied[0], content: 'different saved document' }]).at(-1)!.text, /## Goal/);
+});

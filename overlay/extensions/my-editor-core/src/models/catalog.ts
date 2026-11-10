@@ -29,6 +29,16 @@ function listed(provider: ProviderId, ids: string[], detail: string): ModelEntry
 export async function loadCatalog(keys: ApiKeys): Promise<ModelEntry[]> {
 	const entries: ModelEntry[] = [];
 	const configured = await keys.configuredProviders();
+	const claude = config().get<boolean>('claudeCli.enabled', true) && findCli('claude', config().get<string>('claudeCli.path', ''));
+	const codex = config().get<boolean>('codexCli.enabled', true) && findCli('codex', config().get<string>('codexCli.path', ''));
+	// Discovery can include unavailable local servers. Their timeouts should overlap, not add up
+	// before every chat or file pass; keep the original deterministic picker order below.
+	const [claudeModels, codexModels, ollamaModels, studioModels] = await Promise.all([
+		claude ? listClaudeModels(claude) : Promise.resolve([]),
+		codex ? listCodexModels() : Promise.resolve([]),
+		config().get<boolean>('ollama.enabled', true) ? listOllamaModels(config().get('ollama.baseUrl', 'http://localhost:11434')) : Promise.resolve([]),
+		config().get<boolean>('lmstudio.enabled', true) ? listLmStudioModels(config().get('lmstudio.baseUrl', 'http://localhost:1234/v1')) : Promise.resolve([]),
+	]);
 	if (configured.has('anthropic')) {
 		for (const model of config().get<string[]>('anthropic.models', [])) {
 			const known = ANTHROPIC_DETAILS[model];
@@ -39,12 +49,11 @@ export async function loadCatalog(keys: ApiKeys): Promise<ModelEntry[]> {
 			});
 		}
 	}
-	const claude = config().get<boolean>('claudeCli.enabled', true) && findCli('claude', config().get<string>('claudeCli.path', ''));
 	if (claude) {
-		entries.push(...claudeModelEntries(config().get<string[]>('claudeCli.models', []), await listClaudeModels(claude)));
+		entries.push(...claudeModelEntries(config().get<string[]>('claudeCli.models', []), claudeModels));
 	}
-	if (config().get<boolean>('codexCli.enabled', true) && findCli('codex', config().get<string>('codexCli.path', ''))) {
-		const discovered = await listCodexModels();
+	if (codex) {
+		const discovered = codexModels;
 		const names = new Map(discovered.map(model => [model.slug, model]));
 		const configured = config().get<string[]>('codexCli.models', ['default']);
 		for (const model of new Set([...configured, ...discovered.map(item => item.slug)])) {
@@ -64,12 +73,7 @@ export async function loadCatalog(keys: ApiKeys): Promise<ModelEntry[]> {
 	if (config().get<string>('custom.baseUrl')) {
 		entries.push(...listed('custom', config().get<string[]>('custom.models', []), 'Custom endpoint'));
 	}
-	if (config().get<boolean>('ollama.enabled', true)) {
-		entries.push(...await listOllamaModels(config().get<string>('ollama.baseUrl', 'http://localhost:11434')));
-	}
-	if (config().get<boolean>('lmstudio.enabled', true)) {
-		entries.push(...await listLmStudioModels(config().get<string>('lmstudio.baseUrl', 'http://localhost:1234/v1')));
-	}
+	entries.push(...ollamaModels, ...studioModels);
 	return entries;
 }
 

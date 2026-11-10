@@ -33,9 +33,9 @@ test('opening a stage with an incomplete prerequisite offers the prerequisite fi
 test('completed stages advance to the first unfinished document and do not offer redundant finalization', () => {
 	assert.deepEqual(planningStart('requirements', { requirements, architecture })!.status, { complete: true, next: 'tree' });
 	const start = planningStart('tree', { requirements, architecture, tree })!;
-	assert.deepEqual(start.status, { complete: true, next: undefined });
+	assert.deepEqual(start.status, { complete: true, next: 'build' });
 	assert.deepEqual(replyChoices({ role: 'assistant', done: true, mode: 'tree', markdown: start.reply,
-		proposals: [], planningStatus: start.status }).choices, []);
+		proposals: [], planningStatus: start.status }).choices.map(choice => choice.label), ['Continue to Build']);
 });
 
 test('unfinished-stage kickoff names its exact document and limits stale cross-stage requests', () => {

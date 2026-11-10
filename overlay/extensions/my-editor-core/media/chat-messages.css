@@ -48,6 +48,7 @@
 .proposal-note { margin: 8px 0; color: var(--muted); }
 
 .reply-choices { display: grid; gap: 8px; margin: 12px 0; }
+.next-step { margin: 12px 0; color: var(--vscode-descriptionForeground); }
 .reply-choice {
 	display: grid; gap: 4px; padding: 11px 13px; border: 1px solid var(--accent);
 	border-radius: 9px; background: var(--surface); color: var(--text); text-align: left;
@@ -104,7 +105,13 @@
 	border-radius: 10px;
 	background: var(--vscode-textCodeBlock-background, #20241b);
 	overflow-x: auto;
+	max-width: 100%;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
 }
+
+.markdown { min-width: 0; overflow-wrap: anywhere; }
+.markdown table { display: block; max-width: 100%; overflow-x: auto; }
 
 .markdown pre code {
 	padding: 0;

@@ -4,7 +4,7 @@ const STAGES: PlanningStage[] = ['requirements', 'architecture', 'tree'];
 const LABELS = { requirements: 'Requirements', architecture: 'Architecture', tree: 'Flow & tree' };
 export interface PlanningStatus {
 	readonly complete: boolean;
-	readonly next?: PlanningStage;
+	readonly next?: PlanningStage | 'build';
 }
 
 export function isPlanningStage(stage: string): stage is PlanningStage {
@@ -26,10 +26,10 @@ export function planningStart(stage: PlanningStage, docs: PlanningDocuments):
 			+ `The saved-file check reports: ${problems.map(problem => problem.reason).join('; ')}. `
 			+ 'These checks do not authorize replacing the document. Tell me what you want to review or revise.', status: { complete: false } };
 	}
-	const next = STAGES.slice(STAGES.indexOf(stage) + 1).find(candidate => planningProblems(candidate, docs).length);
+	const next = STAGES.slice(STAGES.indexOf(stage) + 1).find(candidate => planningProblems(candidate, docs).length) ?? 'build';
 	return { reply: `Your saved ${stage === 'tree' ? 'file tree is' : `${stage} ${stage === 'requirements' ? 'are' : 'is'}`} complete. `
 		+ 'Tell me what you want to change'
-		+ (next ? `, or continue to ${LABELS[next]}.` : '. The saved planning documents are ready.'),
+		+ `, or continue to ${next === 'build' ? 'Build' : LABELS[next]}.`,
 		status: { complete: true, next } };
 }
 

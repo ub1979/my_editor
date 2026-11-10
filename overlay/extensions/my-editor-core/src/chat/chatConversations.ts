@@ -3,6 +3,7 @@ import { routeCharacter } from './characterRouting';
 import { ChatState, SavedChat } from './chatState';
 import type { Message } from './presentation';
 import type { Proposal } from './proposals';
+import type { PlanningDocuments } from '../project/planning';
 
 export type ChatLayout = 'agents' | 'shared';
 export type ConversationId = CharacterId | 'shared';
@@ -61,6 +62,11 @@ export class ChatConversations {
 		const changed: Message[] = [];
 		for (const state of this.chats.values()) { changed.push(...state.applyProposal(proposal)); }
 		return changed;
+	}
+
+	/** Hidden agents receive the same saved-stage handoffs as the visible conversation. */
+	refreshPlanningStatus(docs: PlanningDocuments): Message[] {
+		return [...this.chats.values()].flatMap(state => state.refreshPlanningStatus(docs));
 	}
 
 	private get(id: ConversationId): ChatState {

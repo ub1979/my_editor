@@ -19,6 +19,21 @@ function action(label, message, className = 'pill', title = '') {
 	return node;
 }
 
+/** Compact header actions retain a keyboard/screen-reader label and a native hover tooltip. */
+function projectAction(label, message, paths) {
+	const button = action('', message, 'project-action', label);
+	button.setAttribute('aria-label', label);
+	const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+	svg.setAttribute('viewBox', '0 0 24 24');
+	svg.setAttribute('aria-hidden', 'true');
+	for (const d of paths) {
+		const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+		path.setAttribute('d', d); svg.append(path);
+	}
+	button.append(svg);
+	return button;
+}
+
 function section(title, ...children) {
 	return el('section', {}, [el('p', { class: 'eyebrow' }, [title]), ...children]);
 }
@@ -133,8 +148,8 @@ function render(state, model, sync, project, fix = PLAIN_FIX) {
 	root.replaceChildren();
 	root.append(
 		el('div', { class: 'top' }, [el('p', { class: 'eyebrow' }, ['Project']), el('span', { class: 'links' }, [
-			action('All projects', { type: 'home' }, 'link'),
-			action('Close project', { type: 'closeProject' }, 'link', 'Close this project and go back to Home'),
+			projectAction('All projects', { type: 'home' }, ['M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z']),
+			projectAction('Close project', { type: 'closeProject' }, ['M6 6l12 12 M18 6L6 18']),
 		])]),
 		el('h1', {}, [state.name]),
 		el('p', { class: 'summary' }, [state.summary]),

@@ -2,7 +2,7 @@ import type { PlanningDocuments, PlanningStage } from '../project/planning';
 import type { Turn } from './engineTypes';
 import { approvesRevision } from './revisionApproval';
 
-const EDIT = '(?:fix|repair|patch|change|edit|update|revise|rewrite|replace|regenerate|generate|write|produce|create|make|add|remove|delete|implement|apply|finali[sz]e|complete|restore|rebuild)';
+const EDIT = '(?:fix|repair|patch|change|edit|update|revise|rewrite|replace|regenerate|generate|write|produce|create|make|add|remove|delete|implement|build|design|apply|finali[sz]e|complete|restore|rebuild)';
 const REQUEST = new RegExp(`(?:^|[.!?;:,]\\s*|\\b(?:and|then|but)\\s+)(?:(?:please|now|also|just)\\s+|(?:can|could|would|will)\\s+you\\s+|I(?:'d| would)\\s+like\\s+you\\s+to\\s+)*${EDIT}\\b`, 'i');
 const NO_EDIT = /\b(?:do not|don't|don’t|without|never)\s+(?:chang(?:e|ing)|patch(?:ing)?|edit(?:ing)?|modif(?:y|ying)|rewrit(?:e|ing)|replac(?:e|ing)|fix(?:ing)?|updat(?:e|ing)|delet(?:e|ing))|\b(?:read[ -]only|report only|check only|no changes)\b/i;
 
@@ -43,6 +43,7 @@ export function requestsRevision(text: string, history: readonly Turn[] = []): b
 		.replace(/\bmake sure\b/gi, 'check')
 		.replace(/\b(?:write|produce|prepare|generate|create|make)\s+(?:(?:me|a|an|the|only|short|detailed)\s+)*(?:report|review|assessment|summary|list|recommendations|findings|explanation|checklist)\b/gi, 'report');
 	if (NO_EDIT.test(plain)) { return false; }
+	if (/^(?:please\s+)?(?:run|start|do)\s+(?:the\s+)?(?:requirements|architecture|(?:flow\s*(?:&|and)\s*)?(?:file\s+)?tree)\s+(?:step|stage|agent)\b/i.test(plain)) { return true; }
 	if (REQUEST.test(plain) || /^(?:please\s+)?prepare\s+(?:(?:a|the|full|complete|saved)\s+)*(?:requirements|architecture|tree|document)\b/i.test(plain)) { return true; }
 	return approvesRevision(plain, history);
 }

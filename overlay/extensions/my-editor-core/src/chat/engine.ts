@@ -79,6 +79,7 @@ export class PairEngine {
 	}
 
 	async run(input: RunInput, history: readonly Turn[], sink: Sink, token: vscode.CancellationToken): Promise<RunResult> {
+		const contextStarted = Date.now();
 		const explicitStop = /^(?:\/chat\s+)?(?:please\s+)?(?:stop|pause) (?:the )?(?:project )?(?:build(?:ing)?|qa)(?: run)?[.!\s]*$/i;
 		if (!input.stageFile && !input.kickoff && !input.readOnly && explicitStop.test(input.text.trim())) {
 			await vscode.commands.executeCommand('myEditor.projectBuild.pause');
@@ -144,7 +145,7 @@ export class PairEngine {
 		mode = specialistReview(mode, readOnly && inspectionRequest(prompt, history), !!input.kickoff);
 		if (readOnly && (mode.writes === 'file' || mode.writes === 'selection')) { mode = { ...mode, writes: 'none' }; }
 
-		const file = input.stageFile ? undefined : await readModeFile(mode, input, sink);
+		const file = input.stageFile || isPlanningStage(mode.id) ? undefined : await readModeFile(mode, input, sink);
 		if (file === false) { return { mode: mode.id, reply: '' }; }
 
 		const entries = await loadCatalog(this.keys);
@@ -161,15 +162,16 @@ export class PairEngine {
 			conventions, brain, specs, neighbours, evidence, changes, plans, projectState, availableObservations, previousInvestigations,
 		] = await Promise.all([
 			readProjectNote('conventions.md'), input.fileTarget ? fileBrainContext(input.fileTarget.path)
-				: readProjectNote('brain/index.md', 12_000), input.fileTarget
+				: isPlanningStage(mode.id) ? Promise.resolve('Project source map: .my_editor/brain/index.md. Read it only if existing implementation is relevant.')
+					: readProjectNote('brain/index.md', 12_000), input.fileTarget
 				? Promise.resolve(fileBuildBrief(docs, input.fileTarget.path, input.fileTarget.source)) : readSpecs(mode, entry.maxInputTokens),
-			file ? neighbourSummary(file.relativePath) : Promise.resolve(''),
+			file && mode.id !== 'chat' ? neighbourSummary(file.relativePath) : Promise.resolve(''),
 			mode.id === 'chat' && !input.stageFile ? projectEvidence(evidenceQuery, Math.round(entry.maxInputTokens * 0.45)) : Promise.resolve(''),
-			mode.id === 'chat' ? changeContext(prompt, file?.relativePath) : Promise.resolve(''),
+			mode.id === 'chat' && !input.stageFile ? changeContext(prompt, file?.relativePath) : Promise.resolve(''),
 			mode.id === 'chat' ? planningContext(prompt, !input.fileTarget) : Promise.resolve(''),
-			currentProjectStatus(),
-			mode.id === 'chat' ? this.observations.summary() : Promise.resolve(''),
-			mode.id === 'chat' ? recentInvestigationContext(prompt) : Promise.resolve('')]);
+			input.stageFile ? Promise.resolve(undefined) : currentProjectStatus(),
+			mode.id === 'chat' && !input.stageFile ? this.observations.summary() : Promise.resolve(''),
+			mode.id === 'chat' && !input.stageFile ? recentInvestigationContext(prompt) : Promise.resolve('')]);
 		const records = mode.id === 'why' && file ? await recordsAbout(file.relativePath) : '';
 		const subject = input.stageFile ? [specs, plans].filter(Boolean).join('\n\n') : mode.id === 'qa'
 			? await qaSubject(prompt)
@@ -178,7 +180,7 @@ export class PairEngine {
 					describeFile(file), neighbours,
 					records ? `Project records about this file:\n${records}` : 'No decisions or chats mention this file yet.',
 				].filter(Boolean).join('\n\n')
-				: mode.writes === 'doc'
+				: mode.writes === 'doc' || isPlanningStage(mode.id)
 					? specs || 'No specs written yet.'
 					: mode.id === 'chat'
 						? [evidence, plans, changes ? `Change record:\n${changes}` : '', file ? openFileExcerpt(file, prompt) : ''].filter(Boolean).join('\n\n')
@@ -189,13 +191,20 @@ export class PairEngine {
 				: 'Begin: say in one short sentence what you will help with, then ask your first question.'
 			: prompt || '(no extra instructions)';
 		const recentHistory = history.slice(-HISTORY_TURNS);
+		const suppliedDocuments = (['requirements', 'architecture', 'tree'] as const).flatMap(stage => {
+			const path = `.my_editor/specs/${stage === 'tree' ? 'tree.json' : `${stage}.md`}`;
+			return docs[stage] && subject.includes(`${path} (complete saved document;`) ? [{ path, content: docs[stage]! }] : [];
+		});
 		const turns: ChatTurn[] = [
-			...modelHistoryTurns(recentHistory, entry.maxInputTokens),
+			...modelHistoryTurns(recentHistory, entry.maxInputTokens, suppliedDocuments),
 			{ role: 'user', text: `${subject}\n\nRequest: ${request}` },
 		];
 		if (usesProjectTools(mode)) {
 			const reply = await runPairAgent({ entry, mode, input: { ...input, locateOnly, readOnly }, initial: turns, conventions, brain,
-			projectStatus: describeProjectStatus(projectState), projectState, availableObservations,
+			projectStatus: input.stageFile ? 'Scoped file pass in the open project; supplied current source and dependency hashes are authoritative.'
+				: describeProjectStatus(projectState), projectState, availableObservations,
+			contextMs: Date.now() - contextStarted,
+			sourceProvided: !!file?.text.trim() && mode.id === 'review' || isPlanningStage(mode.id) && suppliedDocuments.length > 0,
 				previousInvestigations, sink, token, keys: this.keys, proposals: this.proposals,
 				observations: this.observations });
 			if (input.stageFile) { return { mode: mode.id, reply, model: entry.label }; }
@@ -209,7 +218,7 @@ export class PairEngine {
 		}
 
 		const reply = await streamEdit(entry, this.keys, this.proposals, mode, file, turns, [
-			systemPrompt(mode, conventions, brain, vscode.workspace.workspaceFolders?.[0]?.uri.fsPath),
+			systemPrompt(mode, conventions, brain, vscode.workspace.workspaceFolders?.[0]?.uri.fsPath, { request: prompt }),
 			readOnly ? READ_ONLY_REQUEST_NOTE : '',
 			characterPrompt(input.characterId), pairWebAccess(entry) ? WEB_ACCESS_NOTE : '', describeProjectStatus(projectState),
 			input.memory ? `Working brief from earlier turns (refresh facts against current source and Git):\n${input.memory}` : '',

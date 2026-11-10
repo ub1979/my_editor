@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.0.87-alpha.0
+
+- Fix Requirements → Architecture → Flow & tree → Build handoffs, including natural-language stage requests, and show the next agent after Keep. Preserve separate agent histories.
+- Discover saved requirements in project tools, accept safe Markdown planning/review conclusions, and avoid forced rereads when current planning evidence is already supplied.
+- Scope model tool instructions and per-file context, remove duplicate saved-document history and irrelevant fixer guidance, overlap provider discovery, and record numeric request-size/timing diagnostics.
+- Use the available chat width, wrap long reply blocks, and replace cramped project-header links with accessible icon buttons and hover labels.
+- Add real-editor coverage for agent routing, Keep handoffs, scoped prompts, file-worker permissions and measured webview layout.
+
 ## 0.0.86-alpha.0
 
 - Give each OpenCode version probe and server a private home and working directory; avoid the implicit default-port preference during concurrent startup.

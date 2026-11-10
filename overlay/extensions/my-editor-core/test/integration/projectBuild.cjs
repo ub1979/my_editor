@@ -123,6 +123,10 @@ exports.run = async function () {
 				res.end(JSON.stringify({ message: { content: diagnostic ? JSON.stringify(diagnostic) : 'Hello' }, done: true })); return;
 			}
 			const [, kind, name] = match; calls.push({ kind, name });
+			assert.doesNotMatch(messages[0].content, /"name":"(?:run_tests|observe|propose_delete|open_files)"/,
+				'File workers should receive only the retrieval and scoped write toolbox');
+			assert.ok(!messages[0].content.includes('my_editor has a fixer'));
+			assert.ok(!messages[0].content.includes('Recent investigations ('));
 			assert.ok(request.includes('File implementation brief for ' + name));
 			if ([store, test, main].includes(name) && JSON.parse(read('.my_editor/specs/tree.json')).files.some(file => file.path === name)) {
 				assert.ok(request.includes('save and reopen a draft without losing its text'));

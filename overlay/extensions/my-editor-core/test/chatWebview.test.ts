@@ -88,6 +88,13 @@ test('split chat webview loads in order and renders a Codex model selection', ()
 	assert.equal((sent.at(-1) as unknown as { key: string }).key, 'poppy');
 	assert.equal(runInContext('app.children.includes(filePassPanel)', context), false, 'Run controls must not sit over the conversation');
 	assert.equal(runInContext('scroll.children.includes(filePassPanel)', context), true);
+	receive?.({ data: { type: 'character', characterId: 'ada' } });
+	receive?.({ data: { type: 'filePass', agent: 'ada', root: 'file:///project',
+		run: { options: { kind: 'Build' }, status: 'complete', total: 1, remaining: 0, results: [], message: 'Build complete.' } } });
+	assert.match(runInContext('JSON.stringify(filePassPanel.children)', context), /Next: QA/);
+	runInContext("filePassPanel.children.find(node => node.attributes?.get('class') === 'actions run-actions').children.find(node => node.children.includes('Continue to QA')).click()", context);
+	assert.deepEqual(JSON.parse(JSON.stringify(sent.at(-1))), { type: 'character', id: 'poppy' });
+	receive?.({ data: { type: 'character', characterId: 'poppy' } });
 	const activity = { type: 'filePass', agent: 'poppy', root: 'file:///project', run: { options: { kind: 'QA' }, status: 'running',
 		currentFile: { path: 'src/worker.ts', role: 'Process one job.' }, activity: 'Reading callers', total: 3, remaining: 2,
 		results: [{ path: 'src/store.ts', outcome: 'saved', note: 'Added validation. Tests have not run.' }], message: 'Working' } };
@@ -157,7 +164,9 @@ test('split chat webview loads in order and renders a Codex model selection', ()
 	assert.equal(sent.at(-1)?.type, 'autoCharacter');
 
 	receive?.({ data: { type: 'messages', messages: [{ id: 'q1', role: 'assistant', html: '<p>Choose?</p>', done: true,
-		proposals: [], actions: [], choices: [{ label: 'Full architecture', description: 'Write all component interfaces.' }, { label: 'Decide for me' }] }] } });
+		proposals: [], actions: [], nextStep: 'Next: Architecture will design the system.',
+		choices: [{ label: 'Full architecture', description: 'Write all component interfaces.' }, { label: 'Decide for me' }] }] } });
+	assert.match(runInContext('JSON.stringify(scroll.children[0])', context), /Next: Architecture will design the system/);
 	assert.equal(runInContext("scroll.children[0].children[1].children.find(node => node.attributes?.get('class') === 'reply-choices').children.length", context), 2);
 	runInContext("scroll.children[0].children[1].children.find(node => node.attributes?.get('class') === 'reply-choices').children[0].click()", context);
 	assert.deepEqual(JSON.parse(JSON.stringify(sent.at(-1))), { type: 'answer', id: 'q1', index: 0 });

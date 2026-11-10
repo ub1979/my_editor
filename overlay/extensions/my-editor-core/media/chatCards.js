@@ -132,6 +132,9 @@ function renderMessage(message) {
 	if (message.progress && !message.done) {
 		body.append(el('div', { class: 'progress' }, [el('span', { class: 'spinner' }), message.progress]));
 	}
+	if (message.nextStep) {
+		body.append(el('p', { class: 'next-step', role: 'status' }, [message.nextStep]));
+	}
 	if (message.choices?.length) {
 		const row = el('div', { class: 'reply-choices', role: 'group', 'aria-label': 'Answer choices' });
 		message.choices.forEach((choice, index) => {

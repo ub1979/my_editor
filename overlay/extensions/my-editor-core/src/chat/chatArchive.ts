@@ -1,19 +1,21 @@
 import type { ChatTurn } from '../models/types';
 import { looksLikeAgentProtocol } from './agentProtocol';
+import { fencedBlocks } from '../pair/fencedBlocks';
 
 const MAX_CHAT_CHARS = 6_000;
 const INDEX_MESSAGES = 16;
 
 /** List recent stored turns without spending the model's context on long pasted logs. */
-export function chatArchiveIndex(messages: readonly ChatTurn[]): string {
+export function chatArchiveIndex(messages: readonly ChatTurn[], supplied: readonly ChatTurn[] = []): string {
 	if (!messages.length) { return 'No earlier chat messages are stored.'; }
-	const entries = messages.slice(-INDEX_MESSAGES).reverse().map((message, index) => {
+	const entries = messages.slice(-INDEX_MESSAGES).reverse().flatMap((message, index) => {
+		if (supplied.some(turn => turn.role === message.role && turn.text === message.text)) { return []; }
 		const preview = message.role === 'assistant' && looksLikeAgentProtocol(message.text)
 			? '[earlier internal tool request; not a finding]'
 			: message.text.replace(/\s+/g, ' ').slice(0, 100);
 		return `${index + 1} turn${index ? 's' : ''} ago: ${message.role}, ${message.text.length} characters${preview ? `, starts: ${preview}` : ''}`;
 	});
-	return `Recent stored chat messages (read_chat can retrieve any of the last ${messages.length}):\n${entries.join('\n')}`;
+	return entries.length ? `Recent stored chat messages (read_chat can retrieve any of the last ${messages.length}):\n${entries.join('\n')}` : '';
 }
 
 /** Find earlier user requests and assistant decisions without treating internal tool JSON as evidence. */
@@ -63,11 +65,24 @@ export function previewChatTurn(turn: ChatTurn, turnsAgo: number, limit = turn.r
 }
 
 /** Spend the history budget on the newest turns first, retaining recent user pastes when they fit. */
-export function modelHistoryTurns(messages: readonly ChatTurn[], maxInputTokens: number): ChatTurn[] {
+export function modelHistoryTurns(messages: readonly ChatTurn[], maxInputTokens: number,
+	suppliedDocuments: readonly { path: string; content: string }[] = []): ChatTurn[] {
 	let remaining = Math.max(3_000, Math.min(60_000, Math.floor(maxInputTokens * 0.35)));
 	const selected: ChatTurn[] = [];
 	for (let index = messages.length - 1; index >= 0 && remaining >= 500; index--) {
-		const message = messages[index];
+		const stored = messages[index];
+		let text = stored.text;
+		// Only deduplicate exact saved content already supplied in this request. An unkept or
+		// different draft remains evidence, and the full archived reply is still retrievable.
+		if (stored.role === 'assistant') {
+			for (const block of fencedBlocks(text).reverse()) {
+				const match = block.closed && suppliedDocuments.find(doc => doc.content.trim() === block.text.trim());
+				if (match) {
+					text = text.slice(0, block.start) + `[Document matches ${match.path}, supplied in the current request.]` + text.slice(block.end);
+				}
+			}
+		}
+		const message = { ...stored, text };
 		if (message.role === 'assistant' && looksLikeAgentProtocol(message.text)) {
 			const note = '[An earlier assistant reply showed an internal tool request. It is not a verified finding.]';
 			selected.unshift({ role: 'assistant', text: note });

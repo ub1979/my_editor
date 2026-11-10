@@ -20,8 +20,9 @@ import { runChatTurn } from './replyRun';
 import { runReplyJob } from './replyJob';
 import { ReplySession } from './replySession';
 import { newChatId } from './viewUpdates';
-import { answerReplyChoice } from './replyChoices';
+import { answerReplyChoice, selectedReplyChoice } from './replyChoices';
 import { replyActions } from './replyActions';
+import { readPlanningDocuments } from '../project/planningFiles';
 
 const STATE_KEY = 'myEditor.chat.state';
 
@@ -40,6 +41,7 @@ export class ChatView implements vscode.WebviewViewProvider, ChatHandlers {
 	private readonly replies = new ReplySession(runReplyJob);
 	private pending: PendingRequest | undefined;
 	private saveQueue: Promise<void> = Promise.resolve();
+	private planningRefresh = 0;
 
 	constructor(
 		private readonly context: vscode.ExtensionContext,
@@ -61,8 +63,12 @@ export class ChatView implements vscode.WebviewViewProvider, ChatHandlers {
 			columns: () => this.panels.sidebarVisible });
 		this.navigation = new ChatNavigation({ context, conversations: this.conversations, broadcast: this.broadcast,
 			running: () => this.replies.running, save: () => this.save(), send: (text, kickoff) => this.send(text, kickoff), analyse: () => this.analyse() });
+		const plans = vscode.workspace.createFileSystemWatcher('**/.my_editor/specs/*');
 		context.subscriptions.push(
-			this.activeFile, this.filePass,
+			this.activeFile, this.filePass, plans,
+			plans.onDidCreate(() => void this.refreshPlanningStatus()),
+			plans.onDidChange(() => void this.refreshPlanningStatus()),
+			plans.onDidDelete(() => void this.refreshPlanningStatus()),
 			proposals.onDidChange(proposal => this.onProposalChanged(proposal)),
 			this.activeFile.onDidChange(() => { this.broadcast.editorContext(); void this.filePass.refresh(); }),
 			vscode.workspace.onDidChangeWorkspaceFolders(() => void this.navigation.selectForProject()),
@@ -153,6 +159,7 @@ export class ChatView implements vscode.WebviewViewProvider, ChatHandlers {
 	}
 
 	async ready(sender?: vscode.Webview): Promise<void> {
+		await this.refreshPlanningStatus();
 		await this.broadcast.init(sender);
 		await this.filePass.refresh();
 		const pending = this.pending;
@@ -223,7 +230,15 @@ export class ChatView implements vscode.WebviewViewProvider, ChatHandlers {
 	}
 
 	async chooseAnswer(messageId: string, index: number): Promise<void> {
-		await answerReplyChoice(this.state, messageId, index, this.replies.running, text => this.send(text));
+		if (this.replies.running) { return; }
+		const state = this.state;
+		const selected = selectedReplyChoice(state.messages, messageId, index);
+		if (!selected) { return; }
+		await this.refreshPlanningStatus();
+		// A changed saved prerequisite may replace the visible suggestion while this click waits.
+		if (state !== this.state || selectedReplyChoice(state.messages, messageId, index)?.text !== selected.text) { return; }
+		await answerReplyChoice(state, messageId, index, this.replies.running, text => this.send(text),
+			mode => { this.navigation.prepare(`/${mode}`); });
 	}
 	async runAction(messageId: string, index: number): Promise<void> {
 		const action = replyActions(this.state.messages.find(m => m.id === messageId))[index];
@@ -240,6 +255,7 @@ export class ChatView implements vscode.WebviewViewProvider, ChatHandlers {
 			save: () => this.save(),
 			proposal: proposal => recordProposal(reply.id, proposal, 'proposed'),
 		});
+		await this.refreshPlanningStatus();
 	}
 
 	private onProposalChanged(proposal: Proposal): void {
@@ -252,6 +268,20 @@ export class ChatView implements vscode.WebviewViewProvider, ChatHandlers {
 			}
 		}
 		this.save();
+		if (proposal.relativePath.startsWith('.my_editor/specs/')) { void this.refreshPlanningStatus(); }
+	}
+
+	private async refreshPlanningStatus(): Promise<void> {
+		const request = ++this.planningRefresh;
+		const root = vscode.workspace.workspaceFolders?.[0]?.uri;
+		if (!root) { return; }
+		const docs = await readPlanningDocuments(root);
+		if (request !== this.planningRefresh || root.toString() !== vscode.workspace.workspaceFolders?.[0]?.uri.toString()) { return; }
+		const changed = this.conversations.refreshPlanningStatus(docs);
+		for (const message of changed) {
+			if (this.state.messages.includes(message)) { this.broadcast.message(message); }
+		}
+		if (changed.length) { this.save(); }
 	}
 
 	private save(): void {

@@ -270,3 +270,37 @@ test('file passes retain dependency bodies beyond four reads without growing on 
 	assert.ok(bounded.filter(turn => turn.role === 'assistant').length <= 2);
 	assert.ok(bounded.some(turn => turn.text.includes('export type Contract9 =')));
 });
+
+
+test('a plain review survives a completed read without another model retry', async () => {
+	let requests = 0;
+	const reply = await runAgentLoop({ initial, plainFinal: true, cancelled: () => false,
+		progress: () => undefined, requireCheck: call => call.name === 'read_file',
+		ask: async () => ++requests === 1
+			? JSON.stringify({ action: 'tool', name: 'read_file', arguments: { path: '.my_editor/specs/requirements.md' } })
+			: 'I reviewed the saved requirements. FR-012 needs a transfer flag.',
+		execute: async () => '# Requirements\nFR-012',
+	});
+	assert.equal(requests, 2);
+	assert.equal(reply, 'I reviewed the saved requirements. FR-012 needs a transfer flag.');
+});
+
+test('plain conclusions still require source evidence and run completion recovery', async () => {
+	let requests = 0;
+	const reply = await runAgentLoop({ initial, plainFinal: true, cancelled: () => false,
+		progress: () => undefined, requireCheck: () => true,
+		ask: async () => { requests++; return 'All reviewed.'; },
+		execute: async () => { throw Error('No tools authorized'); },
+	});
+	assert.equal(requests, 2);
+	assert.match(reply, /could not complete a source-backed review/);
+	let corrections = 0;
+	const completed = await runAgentLoop({ initial, plainFinal: true, deferredProposal: true,
+		cancelled: () => false, progress: () => undefined,
+		finalRecovery: { correction: message => message === 'Please say continue.' ? 'Produce the document now.' : undefined, failure: 'Incomplete' },
+		ask: async () => ++corrections === 1 ? 'Please say continue.' : 'Document ready.\n```markdown\n# Architecture\n```',
+		execute: async () => { throw Error('No tools authorized'); },
+	});
+	assert.equal(corrections, 2);
+	assert.match(completed, /# Architecture/);
+});

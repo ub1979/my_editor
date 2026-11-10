@@ -110,6 +110,17 @@ function renderFilePass() {
 		(run.status === 'running' ? 'Previous checkpoint: ' : '') + run.lastTest,
 	])); }
 	const actions = el('div', { class: 'actions run-actions' });
+	if (run.status === 'complete') {
+		if (run.options?.kind === 'Build' && run.phase !== 'qa' && state.characterId === 'ada') {
+			filePassPanel.append(el('p', { class: 'next-step' }, ['Next: QA will review the implementation and check it against your requirements.']));
+			const next = el('button', { type: 'button', title: 'Open the QA agent to choose review and test options.' }, ['Continue to QA']);
+			next.disabled = state.running;
+			next.addEventListener('click', () => vscode.postMessage({ type: 'character', id: 'poppy' }));
+			actions.append(next);
+		} else if (run.options?.kind === 'QA' || run.phase === 'qa') {
+			filePassPanel.append(el('p', { class: 'next-step' }, ['Next: review the QA report and try the app against your acceptance criteria. Check any unverified items before release.']));
+		}
+	}
 	if (run.pending?.length) { actions.append(button('Review diff', 'review'), button('Keep file', 'keep')); }
 	if (run.needsAnswer) { actions.append(button('Answer question…', 'answer')); }
 	if (run.status === 'checkpoint') {

@@ -46,6 +46,8 @@ export interface AgentLoopOptions {
 	readonly pendingProposal?: () => boolean;
 	/** Only host-controlled file passes accept their plain FILE_REVIEWED/BLOCKED conclusions. */
 	readonly fileReview?: boolean;
+	/** Planning and read-only turns may conclude in Markdown; this never authorizes a tool. */
+	readonly plainFinal?: boolean;
 	/** Scoped file passes need dependency bodies to survive more than four retrievals. */
 	readonly retainedResultChars?: number;
 	/** Document modes create their reviewed proposal from the final reply, after this loop. */
@@ -129,7 +131,7 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<string> {
 		}
 		let response = await options.ask(turns, finalOnly, remaining);
 		if (options.cancelled()) { return ''; }
-		let parsed = parseAgentStep(response, options.fileReview);
+		let parsed = parseAgentStep(response, options.fileReview, options.plainFinal);
 		if (!parsed) {
 			options.onMalformedReply?.(response);
 			options.progress('Clarifying a project check…');
@@ -139,10 +141,12 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<string> {
 				{ role: 'user', text: MALFORMED_REQUEST },
 			], finalOnly, remaining);
 			if (options.cancelled()) { return ''; }
-			parsed = parseAgentStep(response, options.fileReview);
+			parsed = parseAgentStep(response, options.fileReview, options.plainFinal);
 			if (!parsed) {
 				options.onMalformedReply?.(response);
-				return 'I could not read the model’s project check. No further checks were completed. Please retry this request.';
+				return 'I could not read the model’s project check. ' + (observations.length
+					? `${observations.length} earlier project check(s) completed, but this request could not finish. ` : 'No project checks completed. ')
+					+ 'Please retry this request.';
 			}
 		}
 		if (!requiredCheckDone && options.requireCheck && (!parsed || parsed.action === 'final')) {
@@ -153,7 +157,7 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<string> {
 				{ role: 'user', text: CHECK_SOURCE_REQUEST },
 			], finalOnly, remaining);
 			if (options.cancelled()) { return ''; }
-			parsed = parseAgentStep(response, options.fileReview);
+			parsed = parseAgentStep(response, options.fileReview, options.plainFinal);
 			if (!parsed || parsed.action === 'final') { return 'I could not complete a source-backed review. Please retry with the project file open.'; }
 		}
 		if (!parsed) { return response.trim() || fallback(observations); }
@@ -177,7 +181,7 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<string> {
 					: options.finalRecovery ? 'Finishing the requested planning document…' : 'Completing the file action…');
 				const corrected = await options.ask([...turns, { role: 'assistant', text: response },
 					{ role: 'user', text: correction }], finalOnly, remaining);
-				const step = parseAgentStep(corrected, options.fileReview);
+				const step = parseAgentStep(corrected, options.fileReview, options.plainFinal);
 				if (options.cancelled()) { return ''; }
 				if (!step || step.action === 'final' && correctionFor(step.message) || finalOnly && step.action !== 'final') {
 					return options.finalRecovery?.failure ?? (proposed ? 'File proposals are ready for review. Use Keep to apply them.'

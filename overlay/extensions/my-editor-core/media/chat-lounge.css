@@ -139,8 +139,8 @@ body.lounge .header-action[title='Expand agent chat'] { display: none; }
 .message { margin: 13px 0; }
 .message.assistant .avatar { width: 30px; height: 30px; }
 .message.assistant .body {
-	max-width: min(90%, 560px);
-	flex: 0 1 auto;
+	max-width: none;
+	flex: 1;
 	border: 1px solid var(--line);
 	border-radius: 5px 17px 17px 17px;
 	background: var(--surface);
@@ -211,8 +211,8 @@ body.lounge #app {
 	overflow: hidden;
 }
 body.lounge .character-header { min-height: 88px; padding: 14px 24px; }
-body.lounge .scroll { padding: 18px max(24px, calc((100% - 800px) / 2)); }
-body.lounge .composer { padding: 12px max(24px, calc((100% - 800px) / 2)); }
+body.lounge .scroll { padding: 18px clamp(12px, 2vw, 32px); }
+body.lounge .composer { padding: 12px clamp(12px, 2vw, 32px); }
 
 @media (max-width: 460px) {
 	.character-header { gap: 8px; padding: 12px; flex-wrap: wrap; }

@@ -4,6 +4,7 @@ import type { Message } from './presentation';
 import type { PlanningStage } from '../project/planning';
 import type { ChatState } from './chatState';
 import { savedPlanningAction } from './replyActions';
+import type { PlanningStatus } from './planningStart';
 
 export interface ReplyChoice { label: string; description?: string; text: string; mode?: PlanningStage }
 const markdown = new MarkdownIt({ html: false });
@@ -58,16 +59,44 @@ export function finalizeChoice(stage: PlanningStage): ReplyChoice {
 		+ 'ask only if a critical decision is missing, and propose the full document for Keep. Do not save a decisions summary or promise to write it later.' };
 }
 
+function continueChoice(next: NonNullable<PlanningStatus['next']>): ReplyChoice {
+	if (next === 'build') {
+		return { label: 'Continue to Build', description: 'Implement the saved file plan.', text: '/build' };
+	}
+	return { ...finalizeChoice(next), label: `Continue to ${next === 'tree' ? 'Flow & tree' : next === 'architecture' ? 'Architecture' : 'Requirements'}` };
+}
+
+/** Host guidance stays separate from the model's reply and cannot mark an unkept proposal saved. */
+export function planningNextStep(message: Pick<Message, 'role' | 'done' | 'mode' | 'error' | 'proposals' | 'planningStatus'>): string | undefined {
+	if (message.role !== 'assistant' || !message.done || message.error || !STAGES.has(message.mode ?? '')) { return; }
+	const pending = message.proposals.find(proposal => proposal.state === 'open' && !proposal.planningDraft);
+	if (pending) {
+		const next = message.mode === 'requirements' ? 'Architecture to design the system'
+			: message.mode === 'architecture' ? 'Flow & tree to plan the files and build steps' : 'Build to implement the saved file plan';
+		return `Next: review and Keep this document, then continue to ${next}.`;
+	}
+	if (!message.planningStatus?.complete) { return; }
+	switch (message.planningStatus.next) {
+		case 'architecture': return 'Next: Architecture will design the components, data models and interfaces from your saved requirements.';
+		case 'tree': return 'Next: Flow & tree will turn the saved architecture into files, tasks, dependency order and checks.';
+		case 'build': return 'Next: Build will implement the saved file plan. Choose the run and review options before it starts.';
+	}
+}
+
 /** Keep the original reply for history; expose reviewed answer text, never model-supplied commands. */
 export function replyChoices(message: Pick<Message, 'role' | 'done' | 'markdown' | 'mode' | 'error' | 'proposals' | 'planningStatus' | 'historyText' | 'readOnly'>):
 	{ markdown: string; choices: ReplyChoice[] } {
 	if (message.role !== 'assistant' || !message.done) { return { markdown: message.markdown, choices: [] }; }
 	if (savedPlanningAction(message)) { return { markdown: message.markdown, choices: [] }; }
+	if (STAGES.has(message.mode ?? '') && message.proposals.some(proposal => proposal.state === 'open')) {
+		return { markdown: message.markdown, choices: [] };
+	}
 	if (message.planningStatus) {
 		const next = message.planningStatus.next;
-		const choice = next ? finalizeChoice(next) : undefined;
-		if (choice && message.planningStatus.complete) {
-			choice.label = `Continue to ${next === 'tree' ? 'Flow & tree' : next === 'architecture' ? 'Architecture' : 'Requirements'}`;
+		let choice: ReplyChoice | undefined;
+		if (next) {
+			if (message.planningStatus.complete) { choice = continueChoice(next); }
+			else if (next !== 'build') { choice = finalizeChoice(next); }
 		}
 		return { markdown: message.markdown, choices: choice ? [choice] : [] };
 	}
@@ -92,10 +121,13 @@ export function selectedReplyChoice(messages: readonly Message[], id: string, in
 }
 
 export async function answerReplyChoice(state: ChatState, id: string, index: number, running: boolean,
-	send: (text: string) => Promise<void>): Promise<void> {
+	send: (text: string) => Promise<void>, selectMode?: (mode: PlanningStage) => void): Promise<void> {
 	if (running) { return; }
 	const choice = selectedReplyChoice(state.messages, id, index);
 	if (!choice) { return; }
-	if (choice.mode) { state.mode = choice.mode; state.pinned = false; }
+	if (choice.mode) {
+		if (selectMode) { selectMode(choice.mode); }
+		else { state.mode = choice.mode; state.pinned = false; }
+	}
 	await send(choice.text);
 }

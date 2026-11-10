@@ -30,7 +30,7 @@ export async function planningContext(question: string, includePlans = true): Pr
 		} catch { /* Decision moved during this turn. */ }
 	}
 	relevant.sort((a, b) => b.score - a.score || b.name.localeCompare(a.name));
-	for (const decision of relevant.slice(0, 2)) {
+	for (const decision of relevant.filter(decision => decision.score > 0).slice(0, 2)) {
 		parts.push(`Accepted decision ${decision.name}:\n${redact(decision.text.slice(0, 1800))}`);
 	}
 	return parts.filter(Boolean).join('\n\n');

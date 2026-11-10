@@ -156,3 +156,23 @@ test('explicit implementation preserves narrow invariants without becoming an au
   assert.equal(readOnlyRequest(text, 'chat', docs, false), true, text);
  }
 });
+
+
+test('checking requirements does not suppress an explicit architecture build request', () => {
+	for (const text of ['Check the requirements and build the architecture', 'Check the requirements then design the architecture']) {
+		assert.equal(requestsRevision(text), true);
+		assert.equal(readOnlyRequest(text, 'architecture', { requirements: 'saved' }, false), false);
+	}
+	assert.equal(planningIntent('Build the architecture'), 'architecture');
+	assert.equal(planningIntent('Design the architecture'), 'architecture');
+	assert.equal(readOnlyRequest('Check whether we should build the architecture', 'architecture', docs, false), true);
+});
+
+test('the reported architecture handoff routes to its document agent and authorizes preparation', () => {
+	const text = 'Run the architecture step: the recommended order. You get a stack, data model and file tree that the planner can split into tasks.';
+	assert.equal(planningIntent(text), 'architecture');
+	assert.equal(requestsRevision(text), true);
+	assert.equal(readOnlyRequest(text, 'architecture', docs, false), false);
+	assert.equal(planningIntent('Do not run the architecture step'), undefined);
+	assert.equal(planningIntent('Should I run the architecture step?'), undefined);
+});

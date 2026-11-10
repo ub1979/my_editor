@@ -39,7 +39,7 @@ export async function specs(mode: Mode, maxInputTokens = 150_000): Promise<strin
 		parts.push(...planningEvidence(mode.reads ?? [], docs, maxInputTokens));
 		const problems = planningProblems(mode.id as PlanningStage, docs);
 		const sections = savedTreeSections(docs.tree);
-		if (sections.length) {
+		if (sections.length && mode.id !== 'requirements') {
 			parts.push('All saved tree section values (read directly by the editor): ' + sections.join(', ') + '. '
 				+ 'Keep these component anchors when continuing the current design; explain any mapping changes needed by a requested redesign.');
 		}

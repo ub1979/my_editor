@@ -1,6 +1,6 @@
 import MarkdownIt from 'markdown-it';
 import type { Proposal } from './proposals';
-import { replyChoices } from './replyChoices';
+import { planningNextStep, replyChoices } from './replyChoices';
 import type { PlanningStatus } from './planningStart';
 import { replyActions } from './replyActions';
 
@@ -59,6 +59,7 @@ export function render(message: Message) {
 		characterId: message.characterId,
 		html: reply.markdown ? markdown.render(reply.markdown) : '',
 		choices: reply.choices.map(choice => ({ label: choice.label, description: choice.description })),
+		nextStep: planningNextStep(message),
 		label: message.role === 'user' && message.mode ? labelFor(message.mode) : undefined,
 		progress: message.progress,
 		error: message.error,

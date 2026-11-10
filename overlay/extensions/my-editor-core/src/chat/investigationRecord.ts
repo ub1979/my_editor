@@ -1,5 +1,6 @@
 import { createHash } from 'crypto';
 import { redactObservation } from './observationProcess';
+import type { RequestPerformance } from './requestMetrics';
 
 export interface EvidenceEntry {
 	readonly tool: string;
@@ -17,6 +18,7 @@ export interface InvestigationRecord {
 	readonly question: string;
 	readonly answer: string;
 	readonly evidence: readonly EvidenceEntry[];
+	readonly performance?: RequestPerformance;
 }
 
 /** Save source provenance and a bounded excerpt, not a model's paraphrase of a tool result. */
