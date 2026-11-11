@@ -207,6 +207,7 @@ export class ChatView implements vscode.WebviewViewProvider, ChatHandlers {
 			void vscode.window.showInformationMessage('Review the open proposals and choose Keep or Undo before starting another task.'); return;
 		}
 		const action = agentStartAction(state.characterId, docs);
+		this.conversations.markAgentActionUsed(action.label);
 		state.mode = agentMode(state.characterId);
 		await this.send(action.text, action.kickoff);
 	}

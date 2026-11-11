@@ -1,7 +1,7 @@
 import { randomBytes } from 'crypto';
 import * as vscode from 'vscode';
 import { changedHunks } from '../navigator/hunks';
-import { sourcePolicyError } from '../quality/sourcePolicy';
+import { sourcePolicyError, SourcePolicyRejection } from '../quality/sourcePolicy';
 import { ProposalFileSystem } from './proposalFileSystem';
 import { checkedProjectPath } from './projectPath';
 import { scaffoldKeptTree } from '../project/tree';
@@ -55,7 +55,7 @@ export class Proposals implements vscode.Disposable {
 		const baseline = !planningDraft && operation !== 'delete' ? await planningBaseline(target) : undefined;
 		if (operation !== 'delete' && !planningDraft) { await validatePlanningFile(target, proposed); }
 		const policyError = sourcePolicyError(target.fsPath, proposed);
-		if (policyError) { throw new Error(policyError); }
+		if (policyError) { throw new SourcePolicyRejection(policyError); }
 		const existing = this.findOpenFor(target);
 		if (existing && (scope || existing.scope)) { throw new Error('Resolve the existing proposal before continuing.'); }
 		if (existing) {

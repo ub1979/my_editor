@@ -164,7 +164,10 @@ function renderContext() {
 	agentStart.hidden = !state.project || !state.agentAction;
 	if (!agentStart.hidden) {
 		const action = state.agentAction;
-		const button = el('button', { type: 'button', class: 'pill primary', title: action.description }, [action.label]);
+		const button = el('button', {
+			type: 'button', class: action.used ? 'pill used' : 'pill primary', title: action.description,
+			'aria-label': action.used ? action.label + ', used before' : action.label,
+		}, [action.label, ...(action.used ? [el('span', { class: 'used-label' }, ['Used'])] : [])]);
 		button.disabled = state.running || action.disabled;
 		button.addEventListener('click', () => vscode.postMessage({ type: 'startAgent', id: state.characterId }));
 		agentStart.append(button);

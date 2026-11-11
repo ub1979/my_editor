@@ -8,7 +8,8 @@ import type { PlanningDocuments, PlanningStage } from '../project/planning';
 export type ChatLayout = 'agents' | 'shared';
 export type ConversationId = CharacterId | 'shared';
 export interface SavedConversations extends SavedChat {
-	conversations?: { version: 1; layout: ChatLayout; activeAgent: CharacterId; chats: Partial<Record<ConversationId, SavedChat>> };
+	conversations?: { version: 1; layout: ChatLayout; activeAgent: CharacterId; chats: Partial<Record<ConversationId, SavedChat>>;
+		usedAgentActions?: string[] };
 }
 
 /** Planning agents open their own document; other agents start with ordinary project chat. */
@@ -19,11 +20,13 @@ export function agentMode(id: CharacterId): PlanningStage | undefined {
 /** Independent histories and working briefs, with one optional shared conversation per project. */
 export class ChatConversations {
 	private readonly chats = new Map<ConversationId, ChatState>();
+	private readonly usedAgentActions: Set<string>;
 	layout: ChatLayout = 'agents';
 	private activeAgent: CharacterId = 'bamboo';
 
 	constructor(saved?: SavedConversations) {
 		const collection = saved?.conversations;
+		this.usedAgentActions = new Set(collection?.usedAgentActions ?? []);
 		if (collection?.version === 1) {
 			this.layout = collection.layout === 'shared' ? 'shared' : 'agents';
 			this.activeAgent = character(collection.activeAgent).id;
@@ -51,9 +54,14 @@ export class ChatConversations {
 
 	setLayout(layout: ChatLayout): void { this.layout = layout; }
 
+	markAgentActionUsed(label: string): void { this.usedAgentActions.add(`${this.state.characterId}:${label}`); }
+
+	agentActionWasUsed(label: string): boolean { return this.usedAgentActions.has(`${this.state.characterId}:${label}`); }
+
 	/** The active snapshot stays at the top level for existing workspace readers. */
 	snapshot(): SavedConversations {
 		return { ...this.state.snapshot(), conversations: { version: 1, layout: this.layout, activeAgent: this.activeAgent,
+			usedAgentActions: [...this.usedAgentActions],
 			chats: Object.fromEntries([...this.chats].map(([id, state]) => [id, state.snapshot()])) } };
 	}
 

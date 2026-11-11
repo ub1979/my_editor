@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.90-alpha.0
+
+- Show a distinct Used state after an agent action runs and remember it for that project.
+- Return rejected whole-file proposals to the agent so it can revise oversized or invalid source. A specialist can consult the Project Guide once and offer a decision if it is still blocked.
+
 ## 0.0.89-alpha.0
 
 - Let slow OpenCode sessions use the existing turn deadline and Stop control. Keep the internal model stream alive during quiet periods, report which runtime connection failed, and avoid replaying a submitted turn.

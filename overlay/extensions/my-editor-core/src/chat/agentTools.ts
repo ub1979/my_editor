@@ -13,6 +13,8 @@ import { checkedProjectPath } from './projectPath';
 import { Proposals } from './proposals';
 import { ObservationRunner } from './observationRunner';
 import { applyExactEdits } from './exactEdits';
+import { SourcePolicyRejection } from '../quality/sourcePolicy';
+import { sourceProposalRejected } from './proposalRecovery';
 
 // Project tools must discover saved plans. Keep generated maps and conversation archives out
 // of broad source searches; their dedicated retrieval tools remain available.
@@ -49,7 +51,7 @@ export class AgentTools {
 				case 'search_records': return { text: await searchProjectRecords(args.query) };
 				case 'observe': return { text: await this.observations.run(args.id, this.token) };
 				case 'run_tests': return { text: await this.runTests(args.command) };
-				case 'propose_file': return this.proposeFile(args.path, args.content);
+				case 'propose_file': return await this.proposeFile(args.path, args.content);
 				case 'propose_edit': {
 					const edit = await this.prepareEdit(args.path, args.edits);
 					const proposal = await this.proposals.propose(edit.uri, edit.content, 'write', false, undefined, edit.base);
@@ -63,6 +65,7 @@ export class AgentTools {
 				default: return { text: `Unknown tool: ${name}. Choose a tool from the system instructions.` };
 			}
 		} catch (error) {
+			if (error instanceof SourcePolicyRejection) { return { text: sourceProposalRejected(error.message) }; }
 			return { text: `Tool error: ${error instanceof Error ? error.message : String(error)}` };
 		}
 	}

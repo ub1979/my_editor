@@ -30,6 +30,7 @@ export class ChatBroadcast {
 		const state = this.source.conversations.state;
 		const action = agentStartAction(state.characterId, this.planning);
 		return { label: action.label, description: action.description,
+			used: this.source.conversations.agentActionWasUsed(action.label),
 			disabled: this.source.running() || state.messages.some(message => message.proposals.some(proposal => proposal.state === 'open')) };
 	}
 

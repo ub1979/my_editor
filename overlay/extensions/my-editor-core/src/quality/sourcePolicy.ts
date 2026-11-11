@@ -3,6 +3,8 @@ import * as path from 'path';
 export const MAX_SOURCE_LINES = 600;
 export const WARN_SOURCE_LINES = 540;
 
+export class SourcePolicyRejection extends Error {}
+
 const SOURCE_EXTENSIONS = new Set([
 	'.ts', '.tsx', '.mts', '.cts', '.js', '.jsx', '.mjs', '.cjs', '.py', '.rs', '.go',
 	'.c', '.h', '.cc', '.cpp', '.cxx', '.hh', '.hpp', '.hxx', '.java', '.cs', '.swift',

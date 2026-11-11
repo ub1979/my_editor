@@ -10,7 +10,7 @@ exports.run = async () => {
 	const root = vscode.workspace.workspaceFolders[0].uri.fsPath;
 	const originalPanel = vscode.window.createWebviewPanel;
 	const originalPick = vscode.window.showQuickPick;
-	let receive, webview, transcript = [], conversation, mode, error, requests = 0, buildChooser = false;
+	let receive, webview, transcript = [], conversation, mode, error, requests = 0, buildChooser = false, usedButton;
 	vscode.window.createWebviewPanel = (...args) => {
 		const panel = originalPanel(...args);
 		if (args[0] === 'myEditor.chatLounge') {
@@ -20,8 +20,12 @@ exports.run = async () => {
 				const nonce = /nonce="([^"]+)"/.exec(value)[1];
 				const script = `window.addEventListener('message', event => {
  const {type, label} = event.data;
- if (type !== 'testClickAgentStart') return;
  const button = document.querySelector('.agent-start:not([hidden]) button');
+ if (type === 'testAgentStartState') {
+   vscode.postMessage({type, text: button?.textContent, background: button && getComputedStyle(button).backgroundColor});
+   return;
+ }
+ if (type !== 'testClickAgentStart') return;
  if (button?.textContent === label && !button.disabled) button.click();
  else vscode.postMessage({type: 'testAgentStartMissing', text: button?.textContent});
 });`;
@@ -43,6 +47,7 @@ exports.run = async () => {
 				receive = listener;
 				return onMessage(message => {
 					if (message.type === 'testAgentStartMissing') { error = Error(`Agent start button missing or disabled: ${message.text}`); }
+					if (message.type === 'testAgentStartState') { usedButton = message; }
 					return listener(message);
 				}, ...rest);
 			};
@@ -101,9 +106,17 @@ exports.run = async () => {
 		await until(() => latest()?.choices?.[0]?.label === 'Continue to Architecture', 'Keep did not suggest Architecture');
 		assert.equal(requests, 1, 'Keep must not ask a model for a suggestion');
 		await command('chat.agent', 'flow');
+		await webview.postMessage({ type: 'testAgentStartState' });
+		await until(() => usedButton?.text === 'Check prerequisites', 'Fresh check button missing');
+		const freshColor = usedButton.background;
 		await start('Check prerequisites');
 		await until(() => latest()?.done && latest().html.includes('finish and Keep Architecture'), 'Flow did not explain its missing prerequisite');
 		assert.equal(requests, 1, 'Checking prerequisites must not call the model');
+		await command('chat.agent', 'lisko');
+		await command('chat.agent', 'flow');
+		await webview.postMessage({ type: 'testAgentStartState' });
+		await until(() => usedButton?.text === 'Check prerequisitesUsed', 'Used check button did not survive agent switching');
+		assert.notEqual(usedButton.background, freshColor, 'Used button needs a different color');
 		await command('chat.agent', 'lisko');
 		assert.equal(requests, 1, 'Opening Architecture must not start a model request');
 		await start('Design architecture');
@@ -127,7 +140,7 @@ exports.run = async () => {
 		assert.equal(requests, 3, 'Build must wait for run options instead of generating more plans');
 		fs.writeFileSync(process.env.MY_EDITOR_INTEGRATION_REPORT, JSON.stringify({ ok: true,
 			handoffs: ['Requirements → Architecture', 'Architecture → Flow & tree', 'Flow & tree → Build'],
-			keepFirst: true, agentButtonsClicked: true, prerequisitesCheckedWithoutModel: true,
+			keepFirst: true, agentButtonsClicked: true, usedButtonColor: true, prerequisitesCheckedWithoutModel: true,
 			sourceChatPreserved: true, hiddenChatRefreshed: true, buildChooserOpened: true }));
 	} finally {
 		vscode.window.createWebviewPanel = originalPanel;

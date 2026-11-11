@@ -15,6 +15,9 @@
 
 .agent-start:not([hidden]) { margin-bottom: 6px; }
 .agent-start button { max-width: 100%; white-space: normal; text-align: left; }
+.agent-start .used { background: var(--surface-2); color: var(--text); }
+.agent-start .used:hover { border-color: var(--accent); }
+.agent-start .used-label { color: var(--muted); font-size: 11px; }
 .agent-start button:disabled { opacity: .55; cursor: default; }
 
 .context {

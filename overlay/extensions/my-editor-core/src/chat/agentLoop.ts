@@ -1,6 +1,7 @@
 import type { ChatTurn } from '../models/types';
 import { AgentToolCall, looksLikeAgentProtocol, parseAgentStep } from './agentProtocol';
 import { recoveryForFinal } from './agentRecovery';
+import { SOURCE_REJECTION, sourceRepairPrompt, unresolvedSourceProposal } from './proposalRecovery';
 
 /** A safety bound for a single request, rather than a practical limit on normal project work. */
 export const MAX_PROJECT_TOOL_CALLS = 60;
@@ -54,6 +55,8 @@ export interface AgentLoopOptions {
 	readonly deferredProposal?: boolean;
 	/** A bounded correction for a prematurely deferred, already authorized document request. */
 	readonly finalRecovery?: { correction: (message: string) => string | undefined; failure: string };
+	/** Optional read-only consultation for a proposal the model could not repair on its own. */
+	readonly consultOnSourceRejection?: (problems: readonly string[]) => Promise<string>;
 }
 
 /** Keep recent evidence intact while bounding old findings in long project investigations. */
@@ -117,6 +120,8 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<string> {
 	let requiredCheckDone = false;
 	let repairedConclusion = false;
 	let proposed = false;
+	const blockedProposals = new Map<string, string>();
+	let consultedOnRejection = false;
 	const continuation: ChatTurn[] = [];
 	while (!options.cancelled()) {
 		const remaining = MAX_PROJECT_TOOL_CALLS - used;
@@ -162,6 +167,15 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<string> {
 		}
 		if (!parsed) { return response.trim() || fallback(observations); }
 		if (parsed.action === 'final') {
+			if (blockedProposals.size && !consultedOnRejection && !finalOnly && options.consultOnSourceRejection) {
+				consultedOnRejection = true;
+				const problems = [...blockedProposals.values()].slice(-4);
+				options.progress('Asking the Project Guide how to revise the rejected proposal…');
+				const advice = await options.consultOnSourceRejection(problems);
+				if (options.cancelled()) { return ''; }
+				continuation.push({ role: 'user', text: sourceRepairPrompt(problems, advice) });
+				continue;
+			}
 			const correctionFor = (message: string) => {
 				// File passes and planning have their own completion contract. Undefined means valid,
 				// not permission to inject ordinary chat guidance that contradicts that contract.
@@ -172,7 +186,8 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<string> {
 			};
 			const correction = correctionFor(parsed.message);
 			if (correction && (repairedConclusion || finalOnly && !options.finalRecovery)) {
-				return options.finalRecovery?.failure ?? (proposed ? 'File proposals are ready for review. Use Keep to apply them.' : 'No file action completed. No file was changed.');
+				return options.finalRecovery?.failure ?? unresolvedSourceProposal(proposed
+					? 'File proposals are ready for review. Use Keep to apply them.' : 'No file action completed. No file was changed.', [...blockedProposals.keys()]);
 			}
 			if (correction && !repairedConclusion) {
 				repairedConclusion = true;
@@ -186,15 +201,15 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<string> {
 				const step = parseAgentStep(corrected, options.fileReview, options.plainFinal);
 				if (options.cancelled()) { return ''; }
 				if (!step || step.action === 'final' && correctionFor(step.message) || finalOnly && step.action !== 'final') {
-					return options.finalRecovery?.failure ?? (proposed ? 'File proposals are ready for review. Use Keep to apply them.'
-						: 'The model did not complete a file action. No file was changed. Please retry, or choose another model.');
+					return options.finalRecovery?.failure ?? unresolvedSourceProposal(proposed ? 'File proposals are ready for review. Use Keep to apply them.'
+						: 'The model did not complete a file action. No file was changed. Please retry, or choose another model.', [...blockedProposals.keys()]);
 				}
 				if (step.action !== 'final') { parsed = step; }
-				else { return step.message; }
+				else { return unresolvedSourceProposal(step.message, [...blockedProposals.keys()]); }
 			} else {
 				return looksLikeAgentProtocol(parsed.message)
 					? 'I could not turn the model’s internal project request into an answer. Please retry this request.'
-					: parsed.message;
+					: unresolvedSourceProposal(parsed.message, [...blockedProposals.keys()]);
 			}
 		}
 		if (finalOnly) { return fallback(observations); }
@@ -212,6 +227,14 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<string> {
 			const call = calls[index];
 			const result = results[index];
 			if (result.startsWith('Proposed ')) { proposed = true; }
+			if (['propose_file', 'propose_edit'].includes(call.name)) {
+				const path = String(call.arguments.path).replace(/^\.\//, '');
+				if (result.startsWith(SOURCE_REJECTION)) {
+					blockedProposals.set(path, result.split('\n', 1)[0].slice(0, 1000));
+				} else if (result.startsWith('Proposed ')) {
+					blockedProposals.delete(path);
+				}
+			}
 			if (options.requireCheck?.(call)) { requiredCheckDone = true; }
 			options.onObservation?.(call, result);
 			const limit = options.fileReview && call.name === 'read_file' ? 32_000 : MAX_RESULT_CHARS;
